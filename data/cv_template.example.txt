@@ -1,0 +1,38 @@
+Candidate Name
+Target Role or Professional Headline
+City, Country
+candidate@example.com
+linkedin.com/in/example
+portfolio.example.com
+
+Summary
+Brief summary of the candidate's target role, strengths, and relevant experience.
+
+Experience
+Company Name
+Role Title
+Month YYYY - Month YYYY
+- Describe measurable impact relevant to the target role.
+- Highlight technologies, scope, collaboration, and outcomes.
+- Keep bullets factual and specific.
+
+Company Name
+Role Title
+Month YYYY - Month YYYY
+- Add another representative accomplishment.
+- Include domain context and concrete results where possible.
+
+Skills
+Category: Skill, Skill, Skill
+Category: Skill, Skill, Skill
+
+Projects
+Project Name
+- Briefly describe the project, the candidate's contribution, and the outcome.
+
+Education
+Institution Name
+Degree or Certification
+
+Additional
+- Publications, languages, awards, or community work.

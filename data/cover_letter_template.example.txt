@@ -1,0 +1,19 @@
+Candidate Name
+City, Country
+candidate@example.com
+portfolio.example.com
+
+Cover Letter
+
+Dear Hiring Manager,
+
+I am writing to express my interest in the [Role Title] position at [Company Name].
+
+In my recent work, I have focused on [Relevant Area], including [Brief Evidence]. I am particularly drawn to this role because [Company-Specific Reason].
+
+My experience with [Skill or Domain] has prepared me to contribute to [Team or Business Need]. For example, [Concise Achievement].
+
+Thank you for considering my application. I would welcome the opportunity to discuss how my background aligns with this role.
+
+Best regards,
+Candidate Name

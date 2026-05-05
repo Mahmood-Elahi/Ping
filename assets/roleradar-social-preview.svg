@@ -1,0 +1,77 @@
+<svg width="1280" height="640" viewBox="0 0 1280 640" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">RoleRadar social preview</title>
+  <desc id="desc">Social preview graphic for RoleRadar, a target-company job discovery tool with source coverage.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1280" y2="640" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#081118"/>
+      <stop offset="0.55" stop-color="#101820"/>
+      <stop offset="1" stop-color="#162B36"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(944 188) rotate(132) scale(420 300)">
+      <stop stop-color="#32D6C4" stop-opacity="0.36"/>
+      <stop offset="0.52" stop-color="#4B7CFF" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#4B7CFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="scan" x1="900" y1="116" x2="1124" y2="430" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#32D6C4"/>
+      <stop offset="1" stop-color="#4B7CFF"/>
+    </linearGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" stroke="#D6F7F2" stroke-opacity="0.06" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <rect width="1280" height="640" rx="0" fill="url(#bg)"/>
+  <rect width="1280" height="640" fill="url(#grid)"/>
+  <rect width="1280" height="640" fill="url(#glow)"/>
+
+  <g opacity="0.95">
+    <text x="90" y="206" fill="#F6FBFA" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="104" font-weight="850" letter-spacing="-4">
+      RoleRadar
+    </text>
+    <text x="96" y="278" fill="#A8C3C0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="30" font-weight="650" letter-spacing="0.5">
+      target-company job discovery with source coverage
+    </text>
+    <path d="M98 326H474" stroke="#32D6C4" stroke-width="8" stroke-linecap="round"/>
+    <path d="M496 326H614" stroke="#F4A62A" stroke-width="8" stroke-linecap="round"/>
+  </g>
+
+  <g transform="translate(92 386)">
+    <rect width="170" height="54" rx="27" fill="#E9FFF8" fill-opacity="0.09" stroke="#D6F7F2" stroke-opacity="0.18"/>
+    <circle cx="34" cy="27" r="7" fill="#32D6C4"/>
+    <text x="54" y="35" fill="#D6F7F2" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20" font-weight="700">matches</text>
+  </g>
+  <g transform="translate(282 386)">
+    <rect width="156" height="54" rx="27" fill="#E9FFF8" fill-opacity="0.09" stroke="#D6F7F2" stroke-opacity="0.18"/>
+    <circle cx="34" cy="27" r="7" fill="#F4A62A"/>
+    <text x="54" y="35" fill="#D6F7F2" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20" font-weight="700">misses</text>
+  </g>
+  <g transform="translate(458 386)">
+    <rect width="164" height="54" rx="27" fill="#E9FFF8" fill-opacity="0.09" stroke="#D6F7F2" stroke-opacity="0.18"/>
+    <circle cx="34" cy="27" r="7" fill="#FF6B6B"/>
+    <text x="54" y="35" fill="#D6F7F2" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20" font-weight="700">failures</text>
+  </g>
+  <g transform="translate(642 386)">
+    <rect width="228" height="54" rx="27" fill="#E9FFF8" fill-opacity="0.09" stroke="#D6F7F2" stroke-opacity="0.18"/>
+    <circle cx="34" cy="27" r="7" fill="#4B7CFF"/>
+    <text x="54" y="35" fill="#D6F7F2" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20" font-weight="700">manual review</text>
+  </g>
+
+  <g transform="translate(806 84)">
+    <circle cx="224" cy="224" r="202" stroke="#D6F7F2" stroke-opacity="0.12" stroke-width="4"/>
+    <circle cx="224" cy="224" r="150" stroke="#D6F7F2" stroke-opacity="0.18" stroke-width="4"/>
+    <circle cx="224" cy="224" r="98" stroke="#D6F7F2" stroke-opacity="0.24" stroke-width="4"/>
+    <circle cx="224" cy="224" r="42" stroke="#D6F7F2" stroke-opacity="0.32" stroke-width="4"/>
+    <path d="M224 224L390 88C431 139 450 205 440 273L224 224Z" fill="url(#scan)" fill-opacity="0.72"/>
+    <path d="M224 224L384 96" stroke="#66F0DE" stroke-width="9" stroke-linecap="round"/>
+    <circle cx="224" cy="224" r="12" fill="#FFE08A"/>
+    <circle cx="336" cy="132" r="9" fill="#FFE08A"/>
+    <circle cx="136" cy="278" r="8" fill="#32D6C4"/>
+    <circle cx="300" cy="346" r="7" fill="#4B7CFF"/>
+    <circle cx="96" cy="162" r="6" fill="#FF6B6B"/>
+  </g>
+
+  <text x="96" y="548" fill="#6F8786" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="22" font-weight="650">
+    github.com/swanidhi/role-radar
+  </text>
+</svg>

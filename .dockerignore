@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+key.json
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Tests
+tests/
+*.ipynb
+
+# Output and data (will be recreated)
+output/
+jobs/
+.pytest_cache/
+*.log
+
+# Environment files
+.env
+.env.local
+
+# Archives
+archive/
+
+# Examples
+examples/output/
+
+# Private candidate templates and binary office artifacts
+data/*.docx
+data/*CV*
+data/*CoverLetter*
+!data/cv_template.example.txt
+!data/cover_letter_template.example.txt
+
+# GitHub
+.github/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/

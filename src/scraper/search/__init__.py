@@ -1,0 +1,12 @@
+"""
+Job search module for the JobSearch-Agent.
+
+This module provides local scrapers for searching jobs on various platforms:
+- LinkedIn job search using Playwright
+- Support for searching with keywords and location
+- Job details extraction and storage
+"""
+
+from .linkedin_scraper import LinkedInScraper
+
+__all__ = ["JobSearchManager", "LinkedInScraper"]

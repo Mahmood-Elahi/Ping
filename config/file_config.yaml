@@ -1,0 +1,9 @@
+templates:
+  cv: "data/cv_template.example.txt"
+  cover_letter: "data/cover_letter_template.example.txt"
+
+# Output paths
+output:
+  cv_path: "output/cv"
+  cover_letter_path: "output/cover_letters"
+  job_data_path: "jobs"

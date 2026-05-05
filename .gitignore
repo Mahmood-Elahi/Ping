@@ -1,0 +1,58 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+.pytest_cache/
+
+# Virtual environments
+.venv
+.env
+key.json
+
+# macOS
+.DS_Store
+
+# Generated outputs and local review packages
+output/
+jobs/
+examples/output/
+
+# Candidate-specific and local-only files
+*Resume*.pdf
+*_Resume.pdf
+HANDOFF*.md
+AGENTS.md
+tasks/
+
+# Local notebooks, browser logs, and archived experiments
+*.ipynb
+*.log
+archive/
+DEPLOYMENT.md
+.github/
+assets/*
+!assets/
+!assets/roleradar-logo.svg
+!assets/roleradar-social-preview.svg
+!assets/roleradar-social-preview.png
+
+# Private candidate templates and binary office artifacts
+data/*.docx
+data/*CV*
+data/*CoverLetter*
+!data/cv_template.example.txt
+!data/cover_letter_template.example.txt
+
+# Stale upstream/internal docs kept locally but not shipped
+docs/CHANGELOG.md
+docs/DATABASE_MIGRATION_COMPLETE.md
+docs/DATABASE_STORAGE_IMPLEMENTATION.md
+docs/DEVELOPMENT.md
+docs/INTEGRATION_COMPLETE.md
+docs/PIPELINE_CONSOLIDATION.md
+docs/STATUS_SUMMARY.md
+docs/TODO.md
+docs/WEBSOCKET_IMPROVEMENTS.md

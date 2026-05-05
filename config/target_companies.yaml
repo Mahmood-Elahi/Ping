@@ -1,0 +1,100 @@
+target_companies:
+  - name: Airbnb
+    platform: greenhouse
+    slug: airbnb
+  - name: Stripe
+    platform: greenhouse
+    slug: stripe
+  - name: Databricks
+    platform: greenhouse
+    slug: databricks
+  - name: Cloudflare
+    platform: greenhouse
+    slug: cloudflare
+  - name: Datadog
+    platform: greenhouse
+    slug: datadog
+  - name: MongoDB
+    platform: greenhouse
+    slug: mongodb
+  - name: Coinbase
+    platform: greenhouse
+    slug: coinbase
+  - name: Elastic
+    platform: greenhouse
+    slug: elastic
+  - name: GitLab
+    platform: greenhouse
+    slug: gitlab
+  - name: Twilio
+    platform: greenhouse
+    slug: twilio
+  - name: Zscaler
+    platform: greenhouse
+    slug: zscaler
+  - name: Anthropic
+    platform: greenhouse
+    slug: anthropic
+  - name: OpenAI
+    platform: ashby
+    slug: openai
+  - name: Amazon
+    platform: amazon
+    max_pages: 4
+  - name: Adobe
+    platform: workday
+    tenant: adobe
+    wd_subdomain: wd5
+    site_id: external_experienced
+  - name: CrowdStrike
+    platform: workday
+    tenant: crowdstrike
+    wd_subdomain: wd5
+    site_id: crowdstrikecareers
+  - name: Nvidia
+    platform: workday
+    tenant: nvidia
+    wd_subdomain: wd5
+    site_id: NVIDIAExternalCareerSite
+  - name: PayPal
+    platform: workday
+    tenant: paypal
+    wd_subdomain: wd1
+    site_id: jobs
+  - name: Atlassian
+    platform: atlassian
+  - name: Uber
+    platform: uber
+    max_pages: 5
+  - name: Snowflake
+    platform: ashby
+    slug: snowflake
+  - name: Salesforce
+    platform: workday
+    tenant: salesforce
+    wd_subdomain: wd12
+    site_id: External_Career_Site
+  - name: HashiCorp
+    platform: ibm_search
+    max_pages: 2
+    search_terms:
+      - hashicorp
+  - name: Confluent
+    platform: ashby
+    slug: confluent
+  - name: Shopify
+    platform: shopify
+  - name: Google
+    platform: google
+    max_pages: 3
+    search_terms:
+      - Principal Engineer
+      - Staff Software Engineer
+      - Senior Staff
+  - name: Meta
+    platform: meta
+    max_pages: 3
+    search_terms:
+      - Principal Software Engineer
+      - Staff Software Engineer
+      - Production Engineer

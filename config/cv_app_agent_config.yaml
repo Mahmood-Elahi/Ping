@@ -1,0 +1,22 @@
+# App settings
+app_name: "CVApp"
+user_id: "dev_user_01"
+session_id: "session_01"
+
+models:
+  gemini_2.5_flash: "gemini-2.5-flash"
+  gemini_2.0_flash: "gemini-2.5-flash-lite"
+  gpt_4o: "github/gpt-4o"
+  gpt_41: "github/gpt-4.1"
+  gpt_5: "github/gpt-5"
+
+# Agent settings
+initial_draft_model: "gpt_41"
+critic_model: "gpt_41"
+fact_check_model: "gpt_41"
+reviser_model: "gpt_41"
+grammar_check_model: "gpt_41"
+final_draft_model: "gpt_41"
+
+max_loop_iterations: 5
+logging_level: "WARNING"
