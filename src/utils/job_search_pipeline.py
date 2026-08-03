@@ -16,7 +16,7 @@ import sys
 import os
 import time
 import asyncio
-from typing import Dict, List, Any
+from typing import Any, Callable, Dict, List, Optional
 
 from src.utils.file_utils import load_config
 from src.utils.job_database import JobDatabase
@@ -42,7 +42,15 @@ class JobSearchPipeline:
                  output_dir: str = "jobs",
                  scrapers: List[str] = None,
                  use_database: bool = True,
-                 async_mode: bool = False):
+                 async_mode: bool = False,
+                 company_careers_scanner: Any = None,
+                 company_careers_job_filter: Optional[
+                     Callable[[Any], Optional[str]]
+                 ] = None,
+                 company_careers_location_filter: Optional[
+                     Callable[[Any], Optional[str]]
+                 ] = None,
+                 company_careers_ranked_writer: Optional[Callable[..., None]] = None):
         """
         Initialize the job search pipeline.
         
@@ -56,6 +64,10 @@ class JobSearchPipeline:
             scrapers: List of scrapers to use (linkedin, indeed, glassdoor)
             use_database: Whether to save jobs to database and check for duplicates
             async_mode: Whether to use async scrapers (for FastAPI/event loop integration)
+            company_careers_scanner: Optional injected direct-company scanner
+            company_careers_job_filter: Optional opt-in title/filter callback
+            company_careers_location_filter: Optional opt-in location callback
+            company_careers_ranked_writer: Optional opt-in ranked-artifact writer
         """
         self.keywords = keywords
         self.locations = locations or jobsearch_config.get('locations', ["remote"])
@@ -67,6 +79,11 @@ class JobSearchPipeline:
         self.use_database = use_database
         self.async_mode = async_mode
         self.company_careers_output_paths = None
+        self.company_careers_scanner = company_careers_scanner
+        self.company_careers_job_filter = company_careers_job_filter
+        self.company_careers_location_filter = company_careers_location_filter
+        self.company_careers_ranked_writer = company_careers_ranked_writer
+        self.company_careers_summary = None
         
         # Initialize database connection
         self.db = JobDatabase() if use_database else None
@@ -134,9 +151,15 @@ class JobSearchPipeline:
             ranked_jobs_path=paths["ranked_json"],
             coverage_json_path=paths["coverage_json"],
         )
-        from src.scraper.company_careers.relevance import write_ranked_jobs_artifacts
+        ranked_writer = self.company_careers_ranked_writer
+        if ranked_writer is None:
+            from src.scraper.company_careers.relevance import (
+                write_ranked_jobs_artifacts,
+            )
 
-        write_ranked_jobs_artifacts(
+            ranked_writer = write_ranked_jobs_artifacts
+
+        ranked_writer(
             report.jobs,
             json_path=paths["ranked_json"],
             csv_path=paths["ranked_csv"],
@@ -154,11 +177,13 @@ class JobSearchPipeline:
             print(f"  [ERROR] Failed to import company careers scanner: {e}")
             return []
 
-        scanner = CompanyCareersScanner()
+        scanner = self.company_careers_scanner or CompanyCareersScanner()
         report = scanner.scan(
             keywords=self.keywords,
             locations=self.locations,
             max_jobs_per_company=self.max_jobs_per_site,
+            job_filter=self.company_careers_job_filter,
+            location_filter=self.company_careers_location_filter,
         )
         output_paths = self._company_careers_output_paths()
         self.company_careers_output_paths = output_paths
@@ -184,7 +209,17 @@ class JobSearchPipeline:
             source_url = db_job.get("source_url")
 
             if self.db:
-                if source_url and self.db.job_exists(source_url=source_url):
+                job_title = db_job.get("job_title")
+                company_name = db_job.get("company_name")
+                already_exists = (
+                    self.db.job_exists(source_url=source_url)
+                    if source_url
+                    else self.db.job_exists(
+                        job_title=job_title,
+                        company_name=company_name,
+                    )
+                )
+                if already_exists:
                     skipped_existing += 1
                     continue
 
@@ -196,6 +231,22 @@ class JobSearchPipeline:
                     failed_saves += 1
             else:
                 results.append(job)
+
+        exclusion_counts: Dict[str, int] = {}
+        for scan_result in report.results:
+            for reason, count in scan_result.exclusion_counts.items():
+                exclusion_counts[reason] = exclusion_counts.get(reason, 0) + count
+        self.company_careers_summary = {
+            "companies_checked": len(report.results),
+            "jobs_fetched": sum(item.fetched_count for item in report.results),
+            "jobs_retained": len(report.jobs),
+            "exclusion_counts": exclusion_counts,
+            "database_inserts": successful_saves,
+            "existing_duplicates": skipped_existing,
+            "database_failures": failed_saves,
+            "coverage_report_path": output_paths["coverage_md"],
+            "ranked_results_path": output_paths["ranked_json"],
+        }
 
         print(
             "  [SUMMARY] Company careers: "

@@ -102,6 +102,7 @@ class CompanyScanResult:
     error_type: Optional[str] = None
     remediation: Optional[str] = None
     fetched_count: int = 0
+    exclusion_counts: Dict[str, int] = field(default_factory=dict)
 
     @property
     def matched_count(self) -> int:
@@ -118,6 +119,7 @@ class CompanyScanResult:
             "status": self.status,
             "fetched_count": self.fetched_count,
             "matched_count": self.matched_count,
+            "exclusion_counts": dict(self.exclusion_counts),
             "error": self.error,
             "error_type": self.error_type,
             "remediation": self.remediation,

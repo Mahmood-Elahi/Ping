@@ -32,6 +32,8 @@ from src.scraper.company_careers.relevance import is_relevant_job
 
 
 AdapterFn = Callable[[requests.Session, CompanyTarget, int], List[JobRecord]]
+JobFilterFn = Callable[[JobRecord], Optional[str]]
+LocationFilterFn = Callable[[JobRecord], Optional[str]]
 
 
 ADAPTERS: dict[str, AdapterFn] = {
@@ -73,6 +75,8 @@ class CompanyCareersScanner:
         keywords: Optional[str] = None,
         locations: Optional[Iterable[str]] = None,
         max_jobs_per_company: Optional[int] = None,
+        job_filter: Optional[JobFilterFn] = None,
+        location_filter: Optional[LocationFilterFn] = None,
     ) -> CompanyCareersReport:
         results: List[CompanyScanResult] = []
 
@@ -103,8 +107,17 @@ class CompanyCareersScanner:
 
             try:
                 fetched_jobs = self._dedupe(adapter(self.session, target, self.timeout))
-                matched_jobs = self._filter_jobs(fetched_jobs, keywords, locations)
+                matched_jobs, exclusion_counts = self._filter_jobs(
+                    fetched_jobs,
+                    keywords,
+                    locations,
+                    job_filter=job_filter,
+                    location_filter=location_filter,
+                )
                 if max_jobs_per_company:
+                    limited_count = max(0, len(matched_jobs) - max_jobs_per_company)
+                    if limited_count:
+                        exclusion_counts["limit"] = limited_count
                     matched_jobs = matched_jobs[:max_jobs_per_company]
 
                 status = (
@@ -118,6 +131,7 @@ class CompanyCareersScanner:
                         jobs=matched_jobs,
                         status=status,
                         fetched_count=len(fetched_jobs),
+                        exclusion_counts=exclusion_counts,
                     )
                 )
             except AdapterError as exc:
@@ -158,12 +172,37 @@ class CompanyCareersScanner:
         jobs: List[JobRecord],
         keywords: Optional[str],
         locations: Optional[Iterable[str]],
-    ) -> List[JobRecord]:
-        return [
-            job
-            for job in jobs
-            if self._keyword_matches(job, keywords) and self._location_matches(job, locations)
-        ]
+        *,
+        job_filter: Optional[JobFilterFn] = None,
+        location_filter: Optional[LocationFilterFn] = None,
+    ) -> tuple[List[JobRecord], dict[str, int]]:
+        matched_jobs: List[JobRecord] = []
+        exclusion_counts: dict[str, int] = {}
+
+        for job in jobs:
+            exclusion_reason = (
+                job_filter(job)
+                if job_filter is not None
+                else (None if self._keyword_matches(job, keywords) else "keyword")
+            )
+            if exclusion_reason:
+                exclusion_counts[exclusion_reason] = (
+                    exclusion_counts.get(exclusion_reason, 0) + 1
+                )
+                continue
+            location_exclusion = (
+                location_filter(job)
+                if location_filter is not None
+                else (None if self._location_matches(job, locations) else "location")
+            )
+            if location_exclusion:
+                exclusion_counts[location_exclusion] = (
+                    exclusion_counts.get(location_exclusion, 0) + 1
+                )
+                continue
+            matched_jobs.append(job)
+
+        return matched_jobs, exclusion_counts
 
     def _keyword_matches(self, job: JobRecord, keywords: Optional[str]) -> bool:
         if not keywords:

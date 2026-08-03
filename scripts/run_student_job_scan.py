@@ -1,0 +1,170 @@
+#!/usr/bin/env python3
+"""Run a conservative student-role scan through RoleRadar's existing pipeline."""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from functools import partial
+from pathlib import Path
+from typing import Any
+
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
+
+from src.scraper.company_careers.registry import load_target_companies
+from src.scraper.company_careers.scanner import CompanyCareersScanner
+from src.scraper.company_careers.student_roles import (
+    build_student_job_filter,
+    build_student_location_filter,
+    configure_student_targets,
+    student_search_query,
+    student_search_terms,
+    write_student_ranked_jobs_artifacts,
+)
+from src.utils.job_search_pipeline import JobSearchPipeline
+
+
+DEFAULT_LOCATIONS = ["Canada", "Remote"]
+DEFAULT_MAX_JOBS = 10
+
+
+def configure_console() -> None:
+    """Prevent upstream emoji output from failing on legacy Windows code pages."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(errors="replace")
+
+
+def positive_integer(value: str) -> int:
+    parsed = int(value)
+    if parsed < 1:
+        raise argparse.ArgumentTypeError("must be at least 1")
+    return parsed
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Scan direct company career sites for student roles.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--locations",
+        nargs="+",
+        default=DEFAULT_LOCATIONS,
+        help="Locations retained by RoleRadar's existing location matcher",
+    )
+    parser.add_argument(
+        "--max-jobs",
+        type=positive_integer,
+        default=DEFAULT_MAX_JOBS,
+        help="Maximum retained jobs per company",
+    )
+    parser.add_argument(
+        "--include-new-grad",
+        action="store_true",
+        help="Also retain New Grad, Graduate, and Entry Level titles",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print the scan plan without fetching, writing artifacts, or updating the database",
+    )
+    return parser.parse_args(argv)
+
+
+def print_plan(args: argparse.Namespace, company_count: int) -> None:
+    print("Student job scan")
+    print("  Job type: internship")
+    print("  Experience level: entry")
+    print(f"  Locations: {', '.join(args.locations)}")
+    print("  Scraper: company_careers")
+    print(f"  Maximum jobs per company: {args.max_jobs}")
+    print(f"  Include new-grad roles: {'yes' if args.include_new_grad else 'no'}")
+    print(f"  Title terms: {', '.join(student_search_terms(args.include_new_grad))}")
+    print(f"  Configured companies: {company_count}")
+
+
+def print_summary(summary: dict[str, Any] | None, *, dry_run: bool) -> None:
+    print("\nScan summary")
+    if dry_run:
+        not_run = "not run (dry-run)"
+        print(f"  Companies checked: {not_run}")
+        print(f"  Jobs fetched: {not_run}")
+        print(f"  Jobs retained: {not_run}")
+        print(f"  Jobs excluded by seniority: {not_run}")
+        print(f"  Jobs excluded by student job type: {not_run}")
+        print(f"  Jobs excluded by location: {not_run}")
+        print(f"  Jobs excluded by restricted eligibility program: {not_run}")
+        print(f"  Jobs omitted by per-company limit: {not_run}")
+        print(f"  Database inserts: {not_run}")
+        print(f"  Existing duplicates: {not_run}")
+        print("  Coverage report path: not created (dry-run)")
+        print("  Ranked-results path: not created (dry-run)")
+        return
+
+    if summary is None:
+        raise RuntimeError("The company-careers pipeline did not expose a scan summary")
+
+    exclusions = summary["exclusion_counts"]
+    print(f"  Companies checked: {summary['companies_checked']}")
+    print(f"  Jobs fetched: {summary['jobs_fetched']}")
+    print(f"  Jobs retained: {summary['jobs_retained']}")
+    print(f"  Jobs excluded by seniority: {exclusions.get('seniority', 0)}")
+    print(f"  Jobs excluded by student job type: {exclusions.get('job_type', 0)}")
+    print(f"  Jobs excluded by location: {exclusions.get('location', 0)}")
+    print(
+        "  Jobs excluded by restricted eligibility program: "
+        f"{exclusions.get('eligibility', 0)}"
+    )
+    print(f"  Jobs omitted by per-company limit: {exclusions.get('limit', 0)}")
+    print(f"  Database inserts: {summary['database_inserts']}")
+    print(f"  Existing duplicates: {summary['existing_duplicates']}")
+    print(f"  Coverage report path: {summary['coverage_report_path']}")
+    print(f"  Ranked-results path: {summary['ranked_results_path']}")
+
+
+def main(argv: list[str] | None = None) -> int:
+    configure_console()
+    args = parse_args(argv)
+    targets = configure_student_targets(
+        load_target_companies(),
+        include_new_grad=args.include_new_grad,
+    )
+    print_plan(args, len(targets))
+
+    if args.dry_run:
+        print_summary(None, dry_run=True)
+        return 0
+
+    scanner = CompanyCareersScanner(targets=targets)
+    pipeline = JobSearchPipeline(
+        keywords=student_search_query(args.include_new_grad),
+        locations=args.locations,
+        job_type="internship",
+        experience_level="entry",
+        max_jobs_per_site=args.max_jobs,
+        scrapers=["company_careers"],
+        use_database=True,
+        company_careers_scanner=scanner,
+        company_careers_job_filter=build_student_job_filter(
+            include_new_grad=args.include_new_grad,
+        ),
+        company_careers_location_filter=build_student_location_filter(
+            locations=args.locations,
+        ),
+        company_careers_ranked_writer=partial(
+            write_student_ranked_jobs_artifacts,
+            include_new_grad=args.include_new_grad,
+        ),
+    )
+    pipeline.search_jobs()
+    print_summary(pipeline.company_careers_summary, dry_run=False)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

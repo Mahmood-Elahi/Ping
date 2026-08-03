@@ -1,5 +1,9 @@
 import json
+import os
 import unittest
+from contextlib import redirect_stdout
+from datetime import datetime, timezone
+from io import StringIO
 from tempfile import TemporaryDirectory
 
 from src.scraper.company_careers.adapters import (
@@ -17,9 +21,20 @@ from src.scraper.company_careers.adapters import (
 )
 from src.scraper.company_careers import scanner as scanner_module
 from src.scraper.company_careers.coverage_report import coverage_markdown, failure_items
-from src.scraper.company_careers.models import CompanyTarget, CoverageStatus
+from src.scraper.company_careers.models import CompanyTarget, CoverageStatus, JobRecord
 from src.scraper.company_careers.relevance import rank_jobs, score_job
 from src.scraper.company_careers.scanner import CompanyCareersScanner
+from src.scraper.company_careers.student_roles import (
+    build_student_job_filter,
+    build_student_location_filter,
+    classify_student_location,
+    configure_student_targets,
+    rank_student_jobs,
+    score_student_job,
+    student_job_exclusion_reason,
+    write_student_ranked_jobs_artifacts,
+)
+from src.utils.job_database import JobDatabase
 from src.utils.job_search_pipeline import JobSearchPipeline
 
 
@@ -54,6 +69,316 @@ class FakeSession:
 
 
 class CompanyCareersTests(unittest.TestCase):
+    def _student_job(
+        self,
+        title,
+        url="https://example.com/job/1",
+        location="Remote",
+        updated_at="2026-08-03",
+    ):
+        return JobRecord(
+            job_id=title,
+            title=title,
+            company="Example",
+            location=location,
+            url=url,
+            updated_at=updated_at,
+            source="test",
+        )
+
+    def test_student_role_filter_retains_intern_coop_and_student_titles(self):
+        retained = [
+            "Software Engineering Intern",
+            "Embedded Systems Co-op",
+            "Machine Learning Student Researcher",
+        ]
+        for title in retained:
+            with self.subTest(title=title):
+                self.assertIsNone(student_job_exclusion_reason(self._student_job(title)))
+
+    def test_student_role_filter_excludes_senior_staff_and_principal_titles(self):
+        excluded = [
+            "Senior Software Engineer",
+            "Staff Machine Learning Engineer",
+            "Principal Engineer Intern Programs",
+        ]
+        for title in excluded:
+            with self.subTest(title=title):
+                self.assertEqual(
+                    student_job_exclusion_reason(self._student_job(title)),
+                    "seniority",
+                )
+
+    def test_student_role_filter_excludes_every_requested_seniority(self):
+        for seniority in (
+            "Senior",
+            "Staff",
+            "Principal",
+            "Manager",
+            "Director",
+            "Lead",
+            "Architect",
+        ):
+            title = f"{seniority} Software Engineering Intern"
+            with self.subTest(title=title):
+                self.assertEqual(
+                    student_job_exclusion_reason(self._student_job(title)),
+                    "seniority",
+                )
+
+    def test_student_location_eligibility_boundaries(self):
+        cases = [
+            (
+                "Software Engineering Intern",
+                "Toronto, Canada",
+                "eligible_canada",
+                None,
+            ),
+            (
+                "Embedded Systems Co-op",
+                "Calgary, Alberta",
+                "eligible_canada",
+                None,
+            ),
+            (
+                "Machine Learning Intern",
+                "Remote Canada",
+                "eligible_remote_canada",
+                None,
+            ),
+            (
+                "Software Engineering Intern",
+                "Remote - USA",
+                "excluded_us_only",
+                "location",
+            ),
+            (
+                "Software Engineering Intern",
+                "United States",
+                "excluded_us_only",
+                "location",
+            ),
+            (
+                "Software Engineering Intern",
+                "Seattle, WA",
+                "excluded_us_only",
+                "location",
+            ),
+            (
+                "Software Engineering Intern",
+                "Remote",
+                "eligible_remote_unspecified",
+                None,
+            ),
+            (
+                "Software Engineering Intern",
+                "",
+                "manual_review_missing",
+                None,
+            ),
+        ]
+        location_filter = build_student_location_filter(
+            locations=["Canada", "Remote"]
+        )
+        for title, location, status, exclusion in cases:
+            job = self._student_job(title, location=location)
+            with self.subTest(title=title, location=location):
+                self.assertEqual(
+                    classify_student_location(
+                        job,
+                        locations=["Canada", "Remote"],
+                    ),
+                    status,
+                )
+                self.assertEqual(location_filter(job), exclusion)
+
+    def test_student_location_allows_worldwide_or_canada_with_us_mention(self):
+        locations = ["Canada", "Remote"]
+        worldwide = self._student_job(
+            "Software Engineering Intern",
+            location="Remote - Worldwide, including United States",
+        )
+        canada_and_us = self._student_job(
+            "Software Engineering Intern",
+            location="Canada or United States",
+        )
+
+        self.assertEqual(
+            classify_student_location(worldwide, locations=locations),
+            "eligible_worldwide",
+        )
+        self.assertEqual(
+            classify_student_location(canada_and_us, locations=locations),
+            "eligible_canada",
+        )
+
+    def test_student_location_does_not_parse_description_restrictions(self):
+        job = self._student_job("Security Engineering Intern", location="Remote")
+        job.description = "The company also has employees in the United States."
+
+        self.assertEqual(
+            classify_student_location(job, locations=["Canada", "Remote"]),
+            "eligible_remote_unspecified",
+        )
+
+    def test_student_location_does_not_infer_eligibility_from_ambiguous_text(self):
+        global_business = self._student_job(
+            "Global Customer Services Intern",
+            location="In-Office",
+        )
+        australian_victoria = self._student_job(
+            "Software Engineering Intern",
+            location="Melbourne, Victoria, AUS",
+        )
+
+        self.assertEqual(
+            classify_student_location(
+                global_business,
+                locations=["Canada", "Remote"],
+            ),
+            "excluded_other_location",
+        )
+        self.assertEqual(
+            classify_student_location(
+                australian_victoria,
+                locations=["Canada", "Remote"],
+            ),
+            "excluded_other_location",
+        )
+
+    def test_student_role_filter_excludes_restricted_programs_only_by_title(self):
+        restricted = self._student_job("Detection Engineer - SkillBridge Intern")
+        ordinary = self._student_job("Security Engineering Intern")
+
+        self.assertEqual(student_job_exclusion_reason(restricted), "eligibility")
+        self.assertIsNone(student_job_exclusion_reason(ordinary))
+
+    def test_student_relevance_prefers_canadian_embedded_internship(self):
+        canadian_intern = self._student_job(
+            "Embedded Firmware Software Engineering Intern",
+            location="Calgary, Alberta",
+        )
+        us_staff = self._student_job(
+            "Staff Software Engineer",
+            location="Remote - USA",
+            url="https://example.com/job/2",
+        )
+
+        ranked = rank_student_jobs(
+            [us_staff, canadian_intern],
+            locations=["Canada", "Remote"],
+        )
+        intern_score = score_student_job(
+            canadian_intern,
+            locations=["Canada", "Remote"],
+        )
+
+        self.assertEqual(ranked[0]["title"], canadian_intern.title)
+        self.assertGreater(ranked[0]["relevance_score"], ranked[1]["relevance_score"])
+        self.assertIn("embedded_firmware", intern_score["matched_categories"])
+        self.assertIn("eligible_canada", intern_score["positive_signals"])
+        self.assertEqual(ranked[1]["location_status"], "excluded_us_only")
+        self.assertIn("staff", ranked[1]["negative_signals"])
+        self.assertIn("us_only", ranked[1]["negative_signals"])
+
+    def test_student_relevance_rewards_recent_parseable_source_dates(self):
+        recent = self._student_job(
+            "Software Engineering Intern",
+            location="Toronto, Canada",
+            updated_at="2026-07-28T12:00:00+00:00",
+        )
+        old = self._student_job(
+            "Software Engineering Intern",
+            location="Toronto, Canada",
+            updated_at="2025-01-01T12:00:00+00:00",
+        )
+        now = datetime(2026, 8, 3, tzinfo=timezone.utc)
+
+        recent_score = score_student_job(
+            recent,
+            locations=["Canada", "Remote"],
+            now=now,
+        )
+        old_score = score_student_job(
+            old,
+            locations=["Canada", "Remote"],
+            now=now,
+        )
+
+        self.assertGreater(recent_score["score"], old_score["score"])
+        self.assertIn(
+            "recent_source_date_within_14_days",
+            recent_score["positive_signals"],
+        )
+
+    def test_new_grad_titles_require_explicit_opt_in(self):
+        for title in ("New Grad Software Engineer", "Entry-Level Software Engineer"):
+            job = self._student_job(title)
+            with self.subTest(title=title):
+                self.assertEqual(student_job_exclusion_reason(job), "job_type")
+                self.assertIsNone(
+                    student_job_exclusion_reason(job, include_new_grad=True)
+                )
+
+    def test_student_filter_reports_location_and_title_exclusions(self):
+        jobs = [
+            self._student_job("Software Engineering Intern", url="https://example.com/1"),
+            self._student_job("Senior Software Engineer", url="https://example.com/2"),
+            self._student_job("Software Engineer", url="https://example.com/3"),
+            JobRecord(
+                job_id="4",
+                title="Embedded Systems Co-op",
+                company="Example",
+                location="London",
+                url="https://example.com/4",
+                updated_at="2026-08-03",
+                source="test",
+            ),
+        ]
+        scanner = CompanyCareersScanner(targets=[])
+
+        retained, exclusions = scanner._filter_jobs(
+            jobs,
+            keywords=None,
+            locations=["Canada", "Remote"],
+            job_filter=build_student_job_filter(),
+        )
+
+        self.assertEqual([job.title for job in retained], ["Software Engineering Intern"])
+        self.assertEqual(exclusions, {"seniority": 1, "job_type": 1, "location": 1})
+
+    def test_student_search_overrides_only_role_query_collectors(self):
+        targets = [
+            CompanyTarget(name="Google", platform="google", search_terms=["Staff"]),
+            CompanyTarget(name="HashiCorp", platform="ibm_search", search_terms=["hashicorp"]),
+        ]
+
+        configured = configure_student_targets(targets)
+
+        self.assertIn("Intern", configured[0].search_terms[0])
+        self.assertEqual(configured[1].search_terms, ["hashicorp"])
+        self.assertEqual(targets[0].search_terms, ["Staff"])
+
+    def test_database_deduplicates_student_job_by_source_url(self):
+        with TemporaryDirectory() as tmpdir:
+            database = JobDatabase(os.path.join(tmpdir, "jobs.db"))
+            try:
+                job = {
+                    "source_url": "https://example.com/student-job",
+                    "job_title": "Software Engineering Intern",
+                    "company_name": "Example",
+                }
+                with redirect_stdout(StringIO()):
+                    self.assertTrue(database.add_job(job))
+                    self.assertTrue(database.add_job(job))
+                self.assertEqual(len(database.get_jobs()), 1)
+            finally:
+                database.close()
+
+    def test_existing_company_collectors_remain_callable(self):
+        self.assertTrue(scanner_module.ADAPTERS)
+        self.assertTrue(all(callable(adapter) for adapter in scanner_module.ADAPTERS.values()))
+
     def test_greenhouse_normalization(self):
         session = FakeSession(
             get_responses=[
@@ -831,6 +1156,60 @@ class CompanyCareersTests(unittest.TestCase):
             self.assertEqual(ranked[0]["company"], "Example")
             self.assertIn("relevance_score", ranked[0])
             self.assertTrue(paths["ranked_csv"].startswith(tmpdir))
+
+    def test_pipeline_can_write_student_ranked_artifacts(self):
+        with TemporaryDirectory() as tmpdir:
+            pipeline = JobSearchPipeline(
+                keywords="Intern OR Co-op OR Student",
+                locations=["Canada", "Remote"],
+                scrapers=["company_careers"],
+                output_dir=tmpdir,
+                use_database=False,
+                async_mode=True,
+                company_careers_ranked_writer=write_student_ranked_jobs_artifacts,
+            )
+            session = FakeSession(
+                get_responses=[
+                    FakeResponse(
+                        {
+                            "jobs": [
+                                {
+                                    "id": 123,
+                                    "title": "Embedded Systems Co-op",
+                                    "location": {"name": "Calgary, Alberta"},
+                                    "absolute_url": "https://example.com/job/123",
+                                }
+                            ]
+                        }
+                    )
+                ]
+            )
+            report = CompanyCareersScanner(
+                targets=[
+                    CompanyTarget(
+                        name="Example",
+                        platform="greenhouse",
+                        slug="example",
+                    )
+                ],
+                session=session,
+            ).scan(
+                locations=["Canada", "Remote"],
+                job_filter=build_student_job_filter(),
+                location_filter=build_student_location_filter(
+                    locations=["Canada", "Remote"]
+                ),
+            )
+            paths = pipeline._company_careers_output_paths()
+
+            pipeline._write_company_careers_report(report, paths)
+
+            with open(paths["ranked_json"], encoding="utf-8") as file:
+                ranked = json.load(file)
+            self.assertEqual(ranked[0]["location_status"], "eligible_canada")
+            self.assertIn("embedded_firmware", ranked[0]["matched_categories"])
+            self.assertIn("positive_signals", ranked[0])
+            self.assertIn("negative_signals", ranked[0])
 
     def test_rank_jobs_orders_candidate_review_by_relevance(self):
         jobs = [
