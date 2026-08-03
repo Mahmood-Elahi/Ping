@@ -32,6 +32,10 @@ class SupabaseConfigurationError(RuntimeError):
     """Raised when the Supabase backend cannot be configured safely."""
 
 
+class SupabaseAccessError(RuntimeError):
+    """Raised when the configured Supabase backend cannot be used safely."""
+
+
 @dataclass(frozen=True)
 class SyncResult:
     inserted: int
@@ -239,6 +243,26 @@ class SupabaseJobStore:
             now_factory=now_factory,
         )
 
+    def validate_setup(self) -> None:
+        """Verify dashboard tables and backend access without writing any data."""
+        checks = (
+            ("tracked_jobs", "id"),
+            ("scan_runs", "id"),
+            ("applications", "job_id"),
+        )
+        try:
+            for table_name, column in checks:
+                response = (
+                    self.client.table(table_name)
+                    .select(column)
+                    .limit(1)
+                    .execute()
+                )
+                if not isinstance(getattr(response, "data", None), list):
+                    raise RuntimeError("Supabase setup check returned an invalid response")
+        except Exception as exc:
+            raise _supabase_access_error(exc, operation="setup validation") from None
+
     def sync_student_jobs(
         self,
         jobs: Iterable[Mapping[str, Any] | Any],
@@ -271,22 +295,25 @@ class SupabaseJobStore:
             "coverage_report_path": coverage_report_path,
             "ranked_artifact_path": ranked_artifact_path,
         }
-        response = self.client.rpc(
-            "sync_student_job_scan",
-            {
-                "p_jobs": list(jobs_by_key.values()),
-                "p_successful_companies": sorted(
-                    {
-                        str(company).strip()
-                        for company in successful_companies
-                        if str(company).strip()
-                    }
-                ),
-                "p_close_after_missing_runs": self.close_after_missing_runs,
-                "p_seen_at": _iso_timestamp(seen_at),
-                "p_scan": scan,
-            },
-        ).execute()
+        try:
+            response = self.client.rpc(
+                "sync_student_job_scan",
+                {
+                    "p_jobs": list(jobs_by_key.values()),
+                    "p_successful_companies": sorted(
+                        {
+                            str(company).strip()
+                            for company in successful_companies
+                            if str(company).strip()
+                        }
+                    ),
+                    "p_close_after_missing_runs": self.close_after_missing_runs,
+                    "p_seen_at": _iso_timestamp(seen_at),
+                    "p_scan": scan,
+                },
+            ).execute()
+        except Exception as exc:
+            raise _supabase_access_error(exc, operation="job synchronization") from None
         data = getattr(response, "data", None)
         if isinstance(data, list) and len(data) == 1 and isinstance(data[0], Mapping):
             data = data[0]
@@ -337,31 +364,37 @@ class SupabaseJobStore:
 
     def fetch_dashboard_data(self) -> DashboardData:
         """Read active jobs and the latest scan without touching applications."""
-        jobs_response = (
-            self.client.table("tracked_jobs")
-            .select(
-                "source_key,company,title,location,apply_url,primary_category,"
-                "matched_categories,relevance_score,relevance_band,positive_signals,"
-                "location_status,source_updated_at,first_seen_at,last_seen_at,status"
+        try:
+            jobs_response = (
+                self.client.table("tracked_jobs")
+                .select(
+                    "source_key,company,title,location,apply_url,primary_category,"
+                    "matched_categories,relevance_score,relevance_band,positive_signals,"
+                    "location_status,source_updated_at,first_seen_at,last_seen_at,status"
+                )
+                .eq("status", "active")
+                .order("relevance_score", desc=True)
+                .order("first_seen_at", desc=True)
+                .execute()
             )
-            .eq("status", "active")
-            .order("relevance_score", desc=True)
-            .order("first_seen_at", desc=True)
-            .execute()
-        )
+        except Exception as exc:
+            raise _supabase_access_error(exc, operation="active-jobs query") from None
         jobs_data = getattr(jobs_response, "data", None)
         if not isinstance(jobs_data, list) or not all(
             isinstance(row, Mapping) for row in jobs_data
         ):
             raise RuntimeError("Supabase active-jobs query returned an invalid response")
 
-        scan_response = (
-            self.client.table("scan_runs")
-            .select("*")
-            .order("completed_at", desc=True)
-            .limit(1)
-            .execute()
-        )
+        try:
+            scan_response = (
+                self.client.table("scan_runs")
+                .select("*")
+                .order("completed_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+        except Exception as exc:
+            raise _supabase_access_error(exc, operation="latest-scan query") from None
         scan_data = getattr(scan_response, "data", None)
         if not isinstance(scan_data, list) or not all(
             isinstance(row, Mapping) for row in scan_data
@@ -388,6 +421,28 @@ def _job_mapping(job: Mapping[str, Any] | Any) -> dict[str, Any]:
 def _normalize_text(value: Any) -> str:
     text = unicodedata.normalize("NFKC", str(value or ""))
     return " ".join(text.casefold().split())
+
+
+def _supabase_access_error(exc: Exception, *, operation: str) -> SupabaseAccessError:
+    """Return a credential-safe, actionable error for backend failures."""
+    message = str(exc).casefold()
+    schema_markers = (
+        "pgrst202",
+        "pgrst205",
+        "could not find the function",
+        "could not find the table",
+        "does not exist",
+        "schema cache",
+    )
+    if any(marker in message for marker in schema_markers):
+        return SupabaseAccessError(
+            "Supabase dashboard schema is unavailable; run sql/supabase_schema.sql "
+            "in the Supabase SQL editor and retry"
+        )
+    return SupabaseAccessError(
+        f"Supabase access failed during {operation}; verify SUPABASE_URL, the "
+        "service-role key, and network access"
+    )
 
 
 def _is_genuine_external_id(value: str) -> bool:

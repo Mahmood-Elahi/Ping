@@ -17,13 +17,16 @@ from src.scraper.company_careers.models import (
 
 
 class FakePipeline:
-    def __init__(self, report, summary):
+    def __init__(self, report, summary, *, search_error=None):
         self.company_careers_report = report
         self.company_careers_summary = summary
+        self.search_error = search_error
         self.search_calls = 0
 
     def search_jobs(self):
         self.search_calls += 1
+        if self.search_error is not None:
+            raise self.search_error
         return []
 
 
@@ -31,6 +34,7 @@ class FakeStore:
     def __init__(self, *, sync_error=None):
         self.sync_error = sync_error
         self.sync_calls = []
+        self.validate_calls = 0
         self.fetch_calls = 0
         self.failed_scan_calls = []
         self.dashboard_data = DashboardData(
@@ -45,6 +49,9 @@ class FakeStore:
             ],
             latest_scan={"success": True},
         )
+
+    def validate_setup(self):
+        self.validate_calls += 1
 
     def sync_student_jobs(self, jobs, **kwargs):
         self.sync_calls.append((list(jobs), kwargs))
@@ -190,6 +197,7 @@ class UpdateStudentDashboardTests(unittest.TestCase):
             exit_code = dashboard.main(["--skip-sheets"])
 
         self.assertEqual(exit_code, 0)
+        self.assertEqual(store.validate_calls, 1)
         self.assertEqual(pipeline.search_calls, 1)
         self.assertEqual(len(store.sync_calls), 1)
         self.assertEqual(store.fetch_calls, 0)
@@ -214,6 +222,7 @@ class UpdateStudentDashboardTests(unittest.TestCase):
             exit_code = dashboard.main([])
 
         self.assertEqual(exit_code, 0)
+        self.assertEqual(store.validate_calls, 1)
         self.assertEqual(pipeline.search_calls, 1)
         self.assertEqual(len(store.sync_calls), 1)
         synced_jobs, sync_options = store.sync_calls[0]
@@ -237,11 +246,87 @@ class UpdateStudentDashboardTests(unittest.TestCase):
             redirect_stdout(io.StringIO()),
             redirect_stderr(error_output),
         ):
-            exit_code = dashboard.main([])
+            exit_code = dashboard.main(["--skip-sheets"])
 
         self.assertEqual(exit_code, 1)
         self.assertEqual(len(store.failed_scan_calls), 1)
         self.assertIn("Supabase unavailable", error_output.getvalue())
+
+    def test_partial_company_failure_advances_only_successful_company(self):
+        failed_target = CompanyTarget(
+            name="Failed Co",
+            platform="greenhouse",
+            slug="failed",
+        )
+        partial_report = CompanyCareersReport(
+            results=self.report.results
+            + [
+                CompanyScanResult(
+                    target=failed_target,
+                    status=CoverageStatus.FAILED_TECHNICAL,
+                    error="collector unavailable",
+                )
+            ]
+        )
+        partial_summary = dict(self.summary, companies_checked=2)
+        pipeline = FakePipeline(partial_report, partial_summary)
+        store = FakeStore()
+
+        with (
+            patch.object(
+                dashboard,
+                "load_target_companies",
+                return_value=[self.target, failed_target],
+            ),
+            patch.object(dashboard, "build_pipeline", return_value=pipeline),
+            patch.object(dashboard.SupabaseJobStore, "from_env", return_value=store),
+            redirect_stdout(io.StringIO()),
+        ):
+            exit_code = dashboard.main(["--skip-sheets"])
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(store.sync_calls[0][1]["successful_companies"], ["Example"])
+
+    def test_complete_fatal_scan_does_not_call_sync(self):
+        pipeline = FakePipeline(
+            self.report,
+            self.summary,
+            search_error=RuntimeError("fatal collector failure"),
+        )
+        store = FakeStore()
+
+        with (
+            patch.object(dashboard, "load_target_companies", return_value=[self.target]),
+            patch.object(dashboard, "build_pipeline", return_value=pipeline),
+            patch.object(dashboard.SupabaseJobStore, "from_env", return_value=store),
+            redirect_stdout(io.StringIO()),
+            redirect_stderr(io.StringIO()),
+        ):
+            exit_code = dashboard.main(["--skip-sheets"])
+
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(pipeline.search_calls, 1)
+        self.assertEqual(store.sync_calls, [])
+        self.assertEqual(len(store.failed_scan_calls), 1)
+
+    def test_missing_sheets_setup_fails_before_scan(self):
+        store = FakeStore()
+        error_output = io.StringIO()
+
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch.object(dashboard, "load_target_companies", return_value=[self.target]),
+            patch.object(dashboard, "build_pipeline") as build_pipeline,
+            patch.object(dashboard.SupabaseJobStore, "from_env", return_value=store),
+            redirect_stdout(io.StringIO()),
+            redirect_stderr(error_output),
+        ):
+            exit_code = dashboard.main([])
+
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(store.validate_calls, 1)
+        build_pipeline.assert_not_called()
+        self.assertIn("GOOGLE_SHEET_ID", error_output.getvalue())
 
     def test_dashboard_query_reads_only_jobs_and_scan_status(self):
         client = FakeDashboardClient()

@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 from src.integrations.supabase_job_store import (
+    SupabaseAccessError,
     SupabaseConfigurationError,
     SupabaseJobStore,
     generate_source_key,
@@ -25,6 +26,31 @@ class FakeRequest:
 
     def execute(self):
         return FakeResponse(self.callback())
+
+
+class FailingQuery:
+    def __init__(self, error):
+        self.error = error
+
+    def select(self, _columns):
+        return self
+
+    def limit(self, _count):
+        return self
+
+    def execute(self):
+        raise self.error
+
+
+class FailingClient:
+    def __init__(self, error):
+        self.error = error
+
+    def table(self, _name):
+        return FailingQuery(self.error)
+
+    def rpc(self, _name, _params):
+        return FailingQuery(self.error)
 
 
 class FakeTable:
@@ -250,10 +276,12 @@ class SupabaseJobStoreTests(unittest.TestCase):
 
     def test_changed_score_or_metadata_is_an_update(self):
         self.sync([self.job()])
+        original_first_seen = self.tracked()["first_seen_at"]
         self.clock.advance()
         result = self.sync([self.job(relevance_score=77, relevance_band="medium")])
         self.assertEqual((result.inserted, result.updated, result.unchanged), (0, 1, 0))
         self.assertEqual(self.tracked()["relevance_score"], 77)
+        self.assertEqual(self.tracked()["first_seen_at"], original_first_seen)
 
     def test_rediscovery_resets_missing_count_and_reopens_job(self):
         self.sync([self.job()])
@@ -328,6 +356,32 @@ class SupabaseJobStoreTests(unittest.TestCase):
                 "SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY",
             ):
                 SupabaseJobStore.from_env()
+
+    def test_setup_validation_reports_schema_not_applied(self):
+        store = SupabaseJobStore(
+            FailingClient(RuntimeError("PGRST205 table not in schema cache"))
+        )
+        with self.assertRaisesRegex(
+            SupabaseAccessError,
+            r"sql/supabase_schema\.sql",
+        ):
+            store.validate_setup()
+
+    def test_supabase_access_error_does_not_expose_backend_details(self):
+        store = SupabaseJobStore(
+            FailingClient(RuntimeError("network failure with secret-value"))
+        )
+        with self.assertRaises(SupabaseAccessError) as raised:
+            store.sync_student_jobs(
+                [self.job()],
+                successful_companies=("Example",),
+                started_at=self.started_at,
+                companies_checked=1,
+                jobs_fetched=1,
+            )
+
+        self.assertIn("Supabase access failed", str(raised.exception))
+        self.assertNotIn("secret-value", str(raised.exception))
 
     def test_normal_non_student_pipeline_does_not_require_supabase_credentials(self):
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -1,3 +1,4 @@
+import tempfile
 import unittest
 from datetime import datetime, timezone
 
@@ -7,6 +8,7 @@ from src.integrations.google_sheets_publisher import (
     MANAGED_TABS,
     NEW_JOBS_HEADERS,
     SYSTEM_STATUS_HEADERS,
+    GoogleSheetsAccessError,
     GoogleSheetsConfigurationError,
     GoogleSheetsPublisher,
 )
@@ -230,6 +232,40 @@ class GoogleSheetsPublisherTests(unittest.TestCase):
             "GOOGLE_SHEET_ID, GOOGLE_CREDENTIALS_PATH",
         ):
             GoogleSheetsPublisher.from_env(environ={})
+
+    def test_missing_google_credential_file_raises_clear_runtime_error(self):
+        with self.assertRaisesRegex(
+            GoogleSheetsConfigurationError,
+            "credential file was not found",
+        ):
+            GoogleSheetsPublisher.from_env(
+                environ={
+                    "GOOGLE_SHEET_ID": "sheet-id",
+                    "GOOGLE_CREDENTIALS_PATH": "missing-service-account.json",
+                }
+            )
+
+    def test_invalid_google_credential_path_raises_clear_runtime_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(
+                GoogleSheetsConfigurationError,
+                "must point to a service-account JSON file",
+            ):
+                GoogleSheetsPublisher.from_env(
+                    environ={
+                        "GOOGLE_SHEET_ID": "sheet-id",
+                        "GOOGLE_CREDENTIALS_PATH": directory,
+                    }
+                )
+
+    def test_failed_sheets_write_raises_safe_access_error(self):
+        self.spreadsheet.sheets["New Jobs"].protected = True
+
+        with self.assertRaisesRegex(
+            GoogleSheetsAccessError,
+            "Google Sheets publication failed",
+        ):
+            self.publish()
 
 
 if __name__ == "__main__":

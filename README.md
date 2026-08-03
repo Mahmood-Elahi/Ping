@@ -90,6 +90,74 @@ flowchart LR
 
 The important design choice is coverage transparency. A company can return matches, return jobs that do not match the current search, require manual review, fail technically, or be unsupported. RoleRadar records those states explicitly instead of silently dropping companies from the result set.
 
+## Student Dashboard (Opt In)
+
+The local student dashboard is separate from the normal `main.py search` workflow. It scans each configured company once per update, applies the student title and location filters, ranks the retained jobs, persists them in Supabase, and then publishes the managed Google Sheets tabs.
+
+### Architecture
+
+```text
+Student company scan
+        ↓
+Filtering and student relevance ranking
+        ↓
+Supabase persistent storage
+        ↓
+Google Sheets dashboard
+```
+
+### Supabase Setup
+
+1. Create a Supabase project.
+2. Open the SQL editor.
+3. Run `sql/supabase_schema.sql`.
+4. Copy the project URL.
+5. Copy the service-role key.
+6. Keep the service-role key private; it must never be exposed in client-side code or committed files.
+
+### Google Sheets Setup
+
+1. Create a Google Cloud project.
+2. Enable the Google Sheets API.
+3. Create a service account.
+4. Download its JSON key.
+5. Store the key in an ignored `secrets` directory.
+6. Create the Google Sheet.
+7. Share the sheet with the service-account email as Editor.
+8. Copy the spreadsheet ID.
+
+### Required Local Environment Variables
+
+Configure these local environment variables without committing real values:
+
+```text
+SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY
+GOOGLE_SHEET_ID
+GOOGLE_CREDENTIALS_PATH
+NEW_JOB_WINDOW_DAYS
+CLOSE_AFTER_MISSING_RUNS
+```
+
+`NEW_JOB_WINDOW_DAYS` and `CLOSE_AFTER_MISSING_RUNS` have defaults of `7` and `2`; set them only when you need different behavior.
+
+### Commands
+
+Run the dashboard from Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+.\.venv\Scripts\python.exe scripts\update_student_dashboard.py --dry-run
+.\.venv\Scripts\python.exe scripts\update_student_dashboard.py --max-jobs 1
+.\.venv\Scripts\python.exe scripts\update_student_dashboard.py --skip-sheets
+```
+
+`--max-jobs` limits retained results per company after filtering; some adapters may fetch more raw postings from the network. `--dry-run` prints the plan and performs no scan, artifact write, Supabase call, or Google call. `--skip-sheets` updates Supabase without accessing Google Sheets.
+
+### Managed Google Sheets Tabs
+
+The publisher manages only `New Jobs`, `Active Jobs`, `System Status`, and `Companies`. The `Applications` tab is deliberately untouched so manually maintained application data remains under user control.
+
 ## Supported Sources
 
 RoleRadar currently includes adapters for:

@@ -54,6 +54,10 @@ class GoogleSheetsConfigurationError(RuntimeError):
     """Raised when the Google Sheets publisher cannot be configured safely."""
 
 
+class GoogleSheetsAccessError(RuntimeError):
+    """Raised when the configured spreadsheet cannot be updated."""
+
+
 class GoogleSheetsPublisher:
     """Replace managed dashboard tabs while leaving application data untouched."""
 
@@ -102,9 +106,13 @@ class GoogleSheetsPublisher:
             )
 
         credentials_path = Path(credentials_path_text).expanduser()
+        if not credentials_path.exists():
+            raise GoogleSheetsConfigurationError(
+                "Google credential file was not found at GOOGLE_CREDENTIALS_PATH"
+            )
         if not credentials_path.is_file():
             raise GoogleSheetsConfigurationError(
-                "GOOGLE_CREDENTIALS_PATH does not point to a readable service-account file"
+                "GOOGLE_CREDENTIALS_PATH must point to a service-account JSON file"
             )
 
         window_text = str(
@@ -183,24 +191,30 @@ class GoogleSheetsPublisher:
             + _company_rows(companies, statuses),
         }
 
-        worksheets = {
-            worksheet.title: worksheet for worksheet in self.spreadsheet.worksheets()
-        }
-        for title in MANAGED_TABS:
-            values = tab_values[title]
-            worksheet = worksheets.get(title)
-            if worksheet is None:
-                worksheet = self.spreadsheet.add_worksheet(
-                    title=title,
-                    rows=max(100, len(values) + 10),
-                    cols=len(values[0]),
+        try:
+            worksheets = {
+                worksheet.title: worksheet for worksheet in self.spreadsheet.worksheets()
+            }
+            for title in MANAGED_TABS:
+                values = tab_values[title]
+                worksheet = worksheets.get(title)
+                if worksheet is None:
+                    worksheet = self.spreadsheet.add_worksheet(
+                        title=title,
+                        rows=max(100, len(values) + 10),
+                        cols=len(values[0]),
+                    )
+                worksheet.clear()
+                worksheet.update(
+                    range_name="A1",
+                    values=values,
+                    value_input_option="RAW",
                 )
-            worksheet.clear()
-            worksheet.update(
-                range_name="A1",
-                values=values,
-                value_input_option="RAW",
-            )
+        except Exception:
+            raise GoogleSheetsAccessError(
+                "Google Sheets publication failed; verify spreadsheet access, "
+                "service-account Editor sharing, and the Google Sheets API"
+            ) from None
 
         return {
             "new_jobs": len(new_jobs),

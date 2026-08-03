@@ -157,6 +157,8 @@ def run_update(args: argparse.Namespace) -> int:
 
     started_at = datetime.now(timezone.utc)
     job_store = SupabaseJobStore.from_env()
+    job_store.validate_setup()
+    publisher = None if args.skip_sheets else GoogleSheetsPublisher.from_env()
     pipeline = build_pipeline(args, targets)
 
     try:
@@ -195,9 +197,8 @@ def run_update(args: argparse.Namespace) -> int:
         result.target.name: result.status for result in report.results
     }
     sheet_counts: dict[str, int] | None = None
-    if not args.skip_sheets:
+    if publisher is not None:
         dashboard_data = job_store.fetch_dashboard_data()
-        publisher = GoogleSheetsPublisher.from_env()
         sheet_counts = publisher.publish(
             active_jobs=dashboard_data.active_jobs,
             scan_run=dashboard_data.latest_scan,
@@ -254,6 +255,7 @@ def print_summary(
     if skip_sheets:
         print("  Google Sheets: skipped")
     elif sheet_counts is not None:
+        print("  Google Sheets: published")
         print(f"  New Jobs rows: {sheet_counts['new_jobs']}")
         print(f"  Active Jobs rows: {sheet_counts['active_jobs']}")
         print(f"  Companies rows: {sheet_counts['companies']}")
