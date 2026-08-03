@@ -5,6 +5,7 @@ google-genai>=0.7.0
 # Configuration and environment
 python-dotenv>=1.0.0
 pyyaml>=6.0.0
+supabase>=2.0.0,<3.0.0
 
 # Data processing
 pandas>=2.0.0

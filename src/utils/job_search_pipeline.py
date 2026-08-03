@@ -83,6 +83,7 @@ class JobSearchPipeline:
         self.company_careers_job_filter = company_careers_job_filter
         self.company_careers_location_filter = company_careers_location_filter
         self.company_careers_ranked_writer = company_careers_ranked_writer
+        self.company_careers_report = None
         self.company_careers_summary = None
         
         # Initialize database connection
@@ -185,6 +186,7 @@ class JobSearchPipeline:
             job_filter=self.company_careers_job_filter,
             location_filter=self.company_careers_location_filter,
         )
+        self.company_careers_report = report
         output_paths = self._company_careers_output_paths()
         self.company_careers_output_paths = output_paths
         self._write_company_careers_report(report, output_paths)

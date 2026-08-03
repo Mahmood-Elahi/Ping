@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from datetime import datetime, timezone
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -15,15 +16,18 @@ if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
 from src.scraper.company_careers.registry import load_target_companies
+from src.scraper.company_careers.models import CoverageStatus
 from src.scraper.company_careers.scanner import CompanyCareersScanner
 from src.scraper.company_careers.student_roles import (
     build_student_job_filter,
     build_student_location_filter,
     configure_student_targets,
+    rank_student_jobs,
     student_search_query,
     student_search_terms,
     write_student_ranked_jobs_artifacts,
 )
+from src.integrations.supabase_job_store import SupabaseJobStore
 from src.utils.job_search_pipeline import JobSearchPipeline
 
 
@@ -123,6 +127,10 @@ def print_summary(summary: dict[str, Any] | None, *, dry_run: bool) -> None:
     print(f"  Jobs omitted by per-company limit: {exclusions.get('limit', 0)}")
     print(f"  Database inserts: {summary['database_inserts']}")
     print(f"  Existing duplicates: {summary['existing_duplicates']}")
+    print(f"  Supabase inserts: {summary['supabase_inserts']}")
+    print(f"  Supabase updates: {summary['supabase_updates']}")
+    print(f"  Supabase unchanged: {summary['supabase_unchanged']}")
+    print(f"  Jobs newly closed: {summary['supabase_closed']}")
     print(f"  Coverage report path: {summary['coverage_report_path']}")
     print(f"  Ranked-results path: {summary['ranked_results_path']}")
 
@@ -140,6 +148,8 @@ def main(argv: list[str] | None = None) -> int:
         print_summary(None, dry_run=True)
         return 0
 
+    started_at = datetime.now(timezone.utc)
+    job_store = SupabaseJobStore.from_env()
     scanner = CompanyCareersScanner(targets=targets)
     pipeline = JobSearchPipeline(
         keywords=student_search_query(args.include_new_grad),
@@ -161,7 +171,58 @@ def main(argv: list[str] | None = None) -> int:
             include_new_grad=args.include_new_grad,
         ),
     )
-    pipeline.search_jobs()
+    try:
+        pipeline.search_jobs()
+        report = pipeline.company_careers_report
+        summary = pipeline.company_careers_summary
+        if report is None or summary is None:
+            raise RuntimeError("The company-careers pipeline did not expose its scan report")
+
+        ranked_jobs = rank_student_jobs(
+            report.jobs,
+            include_new_grad=args.include_new_grad,
+            locations=args.locations,
+        )
+        successful_companies = [
+            result.target.name
+            for result in report.results
+            if result.status
+            in {CoverageStatus.FETCHED, CoverageStatus.FETCHED_NO_MATCHING_ROLES}
+        ]
+        sync_result = job_store.sync_student_jobs(
+            ranked_jobs,
+            successful_companies=successful_companies,
+            started_at=started_at,
+            companies_checked=summary["companies_checked"],
+            jobs_fetched=summary["jobs_fetched"],
+            exclusion_counts=summary["exclusion_counts"],
+            coverage_report_path=summary["coverage_report_path"],
+            ranked_artifact_path=summary["ranked_results_path"],
+        )
+        summary.update(
+            {
+                "supabase_inserts": sync_result.inserted,
+                "supabase_updates": sync_result.updated,
+                "supabase_unchanged": sync_result.unchanged,
+                "supabase_closed": sync_result.closed,
+            }
+        )
+    except Exception as exc:
+        summary = pipeline.company_careers_summary or {}
+        try:
+            job_store.record_failed_scan(
+                started_at=started_at,
+                error_message=f"{exc.__class__.__name__}: {exc}",
+                companies_checked=summary.get("companies_checked", 0),
+                jobs_fetched=summary.get("jobs_fetched", 0),
+                jobs_retained=summary.get("jobs_retained", 0),
+                exclusion_counts=summary.get("exclusion_counts", {}),
+                coverage_report_path=summary.get("coverage_report_path"),
+                ranked_artifact_path=summary.get("ranked_results_path"),
+            )
+        except Exception:
+            pass
+        raise
     print_summary(pipeline.company_careers_summary, dry_run=False)
     return 0
 
