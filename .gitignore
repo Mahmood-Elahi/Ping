@@ -13,6 +13,7 @@ wheels/
 secrets/
 credentials/
 key.json
+*service-account*.json
 
 # macOS
 .DS_Store

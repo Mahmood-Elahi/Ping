@@ -41,6 +41,12 @@ class SyncResult:
     closed: int = 0
 
 
+@dataclass(frozen=True)
+class DashboardData:
+    active_jobs: list[dict[str, Any]]
+    latest_scan: Optional[dict[str, Any]]
+
+
 def normalize_url(value: Any) -> str:
     """Normalize inconsequential URL variations without hiding material changes."""
     raw_url = str(value or "").strip()
@@ -328,6 +334,44 @@ class SupabaseJobStore:
                 "error_message": str(error_message),
             }
         ).execute()
+
+    def fetch_dashboard_data(self) -> DashboardData:
+        """Read active jobs and the latest scan without touching applications."""
+        jobs_response = (
+            self.client.table("tracked_jobs")
+            .select(
+                "source_key,company,title,location,apply_url,primary_category,"
+                "matched_categories,relevance_score,relevance_band,positive_signals,"
+                "location_status,source_updated_at,first_seen_at,last_seen_at,status"
+            )
+            .eq("status", "active")
+            .order("relevance_score", desc=True)
+            .order("first_seen_at", desc=True)
+            .execute()
+        )
+        jobs_data = getattr(jobs_response, "data", None)
+        if not isinstance(jobs_data, list) or not all(
+            isinstance(row, Mapping) for row in jobs_data
+        ):
+            raise RuntimeError("Supabase active-jobs query returned an invalid response")
+
+        scan_response = (
+            self.client.table("scan_runs")
+            .select("*")
+            .order("completed_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        scan_data = getattr(scan_response, "data", None)
+        if not isinstance(scan_data, list) or not all(
+            isinstance(row, Mapping) for row in scan_data
+        ):
+            raise RuntimeError("Supabase latest-scan query returned an invalid response")
+
+        return DashboardData(
+            active_jobs=[dict(row) for row in jobs_data],
+            latest_scan=dict(scan_data[0]) if scan_data else None,
+        )
 
 
 def _job_mapping(job: Mapping[str, Any] | Any) -> dict[str, Any]:
