@@ -49,6 +49,65 @@ COMPANIES_HEADERS = ["Company", "Platform", "Enabled", "Latest Scan Status"]
 MANAGED_TABS = ("New Jobs", "Active Jobs", "System Status", "Companies")
 PROTECTED_TABS = ("Applications",)
 
+TAB_FORMATS = {
+    "New Jobs": {
+        "widths": {
+            "Score": 70,
+            "Band": 90,
+            "Company": 150,
+            "Position": 320,
+            "Primary Category": 180,
+            "Matched Categories": 220,
+            "Location": 240,
+            "Location Status": 150,
+            "First Seen": 160,
+            "Source Updated": 160,
+            "Positive Signals": 300,
+            "Apply URL": 240,
+            "Source Key": 220,
+        },
+        "wrapped": {
+            "Position",
+            "Matched Categories",
+            "Location",
+            "Positive Signals",
+        },
+    },
+    "Active Jobs": {
+        "widths": {
+            "Score": 70,
+            "Band": 90,
+            "Company": 150,
+            "Position": 320,
+            "Primary Category": 180,
+            "Matched Categories": 220,
+            "Location": 240,
+            "Location Status": 150,
+            "First Seen": 160,
+            "Last Seen": 160,
+            "Source Updated": 160,
+            "Apply URL": 240,
+            "Source Key": 220,
+        },
+        "wrapped": {"Position", "Matched Categories", "Location"},
+    },
+    "System Status": {
+        "widths": {"Metric": 220, "Value": 320},
+        "wrapped": {"Metric", "Value"},
+    },
+    "Companies": {
+        "widths": {
+            "Company": 170,
+            "Platform": 130,
+            "Enabled": 90,
+            "Latest Scan Status": 240,
+        },
+        "wrapped": {"Latest Scan Status"},
+    },
+}
+
+HEADER_ROW_HEIGHT_PIXELS = 32
+
 
 class GoogleSheetsConfigurationError(RuntimeError):
     """Raised when the Google Sheets publisher cannot be configured safely."""
@@ -195,6 +254,7 @@ class GoogleSheetsPublisher:
             worksheets = {
                 worksheet.title: worksheet for worksheet in self.spreadsheet.worksheets()
             }
+            managed_worksheets = {}
             for title in MANAGED_TABS:
                 values = tab_values[title]
                 worksheet = worksheets.get(title)
@@ -204,12 +264,21 @@ class GoogleSheetsPublisher:
                         rows=max(100, len(values) + 10),
                         cols=len(values[0]),
                     )
+                managed_worksheets[title] = worksheet
                 worksheet.clear()
                 worksheet.update(
                     range_name="A1",
                     values=values,
                     value_input_option="RAW",
                 )
+            self.spreadsheet.batch_update(
+                {
+                    "requests": _formatting_requests(
+                        managed_worksheets,
+                        tab_values,
+                    )
+                }
+            )
         except Exception:
             raise GoogleSheetsAccessError(
                 "Google Sheets publication failed; verify spreadsheet access, "
@@ -231,6 +300,119 @@ class GoogleSheetsPublisher:
             if first_seen is not None and first_seen >= cutoff:
                 recent.append(job)
         return sorted(recent, key=_job_sort_key)
+
+
+def _formatting_requests(
+    worksheets: Mapping[str, Any],
+    tab_values: Mapping[str, list[list[Any]]],
+) -> list[dict[str, Any]]:
+    requests = []
+    for title in MANAGED_TABS:
+        worksheet = worksheets[title]
+        values = tab_values[title]
+        headers = values[0]
+        sheet_id = worksheet.id
+        populated_range = {
+            "sheetId": sheet_id,
+            "startRowIndex": 0,
+            "endRowIndex": len(values),
+            "startColumnIndex": 0,
+            "endColumnIndex": len(headers),
+        }
+
+        requests.extend(
+            [
+                {
+                    "updateSheetProperties": {
+                        "properties": {
+                            "sheetId": sheet_id,
+                            "gridProperties": {"frozenRowCount": 1},
+                        },
+                        "fields": "gridProperties.frozenRowCount",
+                    }
+                },
+                {
+                    "repeatCell": {
+                        "range": {
+                            "sheetId": sheet_id,
+                            "startRowIndex": 0,
+                            "endRowIndex": 1,
+                            "startColumnIndex": 0,
+                            "endColumnIndex": len(headers),
+                        },
+                        "cell": {
+                            "userEnteredFormat": {"textFormat": {"bold": True}}
+                        },
+                        "fields": "userEnteredFormat.textFormat.bold",
+                    }
+                },
+                {
+                    "setBasicFilter": {
+                        "filter": {"range": populated_range},
+                    }
+                },
+                {
+                    "repeatCell": {
+                        "range": populated_range,
+                        "cell": {
+                            "userEnteredFormat": {"verticalAlignment": "TOP"}
+                        },
+                        "fields": "userEnteredFormat.verticalAlignment",
+                    }
+                },
+                {
+                    "updateDimensionProperties": {
+                        "range": {
+                            "sheetId": sheet_id,
+                            "dimension": "ROWS",
+                            "startIndex": 0,
+                            "endIndex": 1,
+                        },
+                        "properties": {"pixelSize": HEADER_ROW_HEIGHT_PIXELS},
+                        "fields": "pixelSize",
+                    }
+                },
+            ]
+        )
+
+        tab_format = TAB_FORMATS[title]
+        for column_index, header in enumerate(headers):
+            requests.append(
+                {
+                    "updateDimensionProperties": {
+                        "range": {
+                            "sheetId": sheet_id,
+                            "dimension": "COLUMNS",
+                            "startIndex": column_index,
+                            "endIndex": column_index + 1,
+                        },
+                        "properties": {
+                            "pixelSize": tab_format["widths"][header]
+                        },
+                        "fields": "pixelSize",
+                    }
+                }
+            )
+            if header in tab_format["wrapped"]:
+                requests.append(
+                    {
+                        "repeatCell": {
+                            "range": {
+                                "sheetId": sheet_id,
+                                "startRowIndex": 0,
+                                "endRowIndex": len(values),
+                                "startColumnIndex": column_index,
+                                "endColumnIndex": column_index + 1,
+                            },
+                            "cell": {
+                                "userEnteredFormat": {"wrapStrategy": "WRAP"}
+                            },
+                            "fields": "userEnteredFormat.wrapStrategy",
+                        }
+                    }
+                )
+
+    return requests
 
 
 def _new_job_row(job: Mapping[str, Any]) -> list[Any]:

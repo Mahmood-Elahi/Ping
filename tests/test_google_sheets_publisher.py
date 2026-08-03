@@ -8,6 +8,7 @@ from src.integrations.google_sheets_publisher import (
     MANAGED_TABS,
     NEW_JOBS_HEADERS,
     SYSTEM_STATUS_HEADERS,
+    TAB_FORMATS,
     GoogleSheetsAccessError,
     GoogleSheetsConfigurationError,
     GoogleSheetsPublisher,
@@ -15,8 +16,9 @@ from src.integrations.google_sheets_publisher import (
 
 
 class FakeWorksheet:
-    def __init__(self, title, *, protected=False):
+    def __init__(self, title, sheet_id, *, protected=False):
         self.title = title
+        self.id = sheet_id
         self.protected = protected
         self.clear_calls = 0
         self.update_calls = []
@@ -39,19 +41,69 @@ class FakeWorksheet:
 class FakeSpreadsheet:
     def __init__(self, titles=()):
         self.sheets = {
-            title: FakeWorksheet(title, protected=title == "Applications")
-            for title in titles
+            title: FakeWorksheet(
+                title,
+                sheet_id,
+                protected=title == "Applications",
+            )
+            for sheet_id, title in enumerate(titles, start=1)
         }
         self.add_calls = []
+        self.batch_update_calls = []
+        self.basic_filters = {}
+        self.worksheet_calls = []
+        self._next_sheet_id = len(self.sheets) + 1
 
     def worksheets(self):
         return list(self.sheets.values())
 
     def add_worksheet(self, *, title, rows, cols):
         self.add_calls.append((title, rows, cols))
-        worksheet = FakeWorksheet(title)
+        worksheet = FakeWorksheet(title, self._next_sheet_id)
+        self._next_sheet_id += 1
         self.sheets[title] = worksheet
         return worksheet
+
+    def worksheet(self, title):
+        self.worksheet_calls.append(title)
+        if title == "Applications":
+            raise AssertionError("Protected worksheet was selected")
+        return self.sheets[title]
+
+    def batch_update(self, body):
+        applications_id = next(
+            (
+                worksheet.id
+                for worksheet in self.sheets.values()
+                if worksheet.title == "Applications"
+            ),
+            None,
+        )
+        for request in body["requests"]:
+            sheet_id = request_sheet_id(request)
+            if applications_id is not None and sheet_id == applications_id:
+                raise AssertionError("Protected worksheet was formatted")
+            if "setBasicFilter" in request:
+                self.basic_filters[sheet_id] = request["setBasicFilter"]["filter"]
+        self.batch_update_calls.append(body)
+
+
+def request_sheet_id(request):
+    if "updateSheetProperties" in request:
+        return request["updateSheetProperties"]["properties"]["sheetId"]
+    request_body = next(iter(request.values()))
+    range_body = request_body.get("range") or request_body.get("filter", {}).get(
+        "range"
+    )
+    return range_body["sheetId"]
+
+
+def requests_for_sheet(body, sheet_id):
+    return [
+        request
+        for request in body["requests"]
+        if request_sheet_id(request) == sheet_id
+    ]
 
 
 class GoogleSheetsPublisherTests(unittest.TestCase):
@@ -197,6 +249,17 @@ class GoogleSheetsPublisherTests(unittest.TestCase):
 
         self.assertEqual(applications.clear_calls, 0)
         self.assertEqual(applications.update_calls, [])
+        self.assertNotIn("Applications", self.spreadsheet.worksheet_calls)
+        self.assertNotIn(
+            "Applications",
+            [title for title, _rows, _cols in self.spreadsheet.add_calls],
+        )
+        formatted_sheet_ids = {
+            request_sheet_id(request)
+            for call in self.spreadsheet.batch_update_calls
+            for request in call["requests"]
+        }
+        self.assertNotIn(applications.id, formatted_sheet_ids)
 
     def test_empty_jobs_still_write_headers(self):
         self.publisher.publish(
@@ -210,6 +273,172 @@ class GoogleSheetsPublisherTests(unittest.TestCase):
             self.spreadsheet.sheets["Active Jobs"].values,
             [ACTIVE_JOBS_HEADERS],
         )
+        self.assertEqual(
+            self.spreadsheet.sheets["Companies"].values,
+            [COMPANIES_HEADERS],
+        )
+        self.assertEqual(
+            self.spreadsheet.sheets["System Status"].values[0],
+            SYSTEM_STATUS_HEADERS,
+        )
+        formatted_sheet_ids = {
+            request_sheet_id(request)
+            for request in self.spreadsheet.batch_update_calls[-1]["requests"]
+        }
+        self.assertEqual(
+            formatted_sheet_ids,
+            {self.spreadsheet.sheets[title].id for title in MANAGED_TABS},
+        )
+        body = self.spreadsheet.batch_update_calls[-1]
+        for title in ("New Jobs", "Active Jobs", "Companies"):
+            requests = requests_for_sheet(body, self.spreadsheet.sheets[title].id)
+            filters = [
+                request["setBasicFilter"]["filter"]["range"]
+                for request in requests
+                if "setBasicFilter" in request
+            ]
+            self.assertEqual(filters[0]["endRowIndex"], 1, title)
+
+    def test_formats_each_managed_tab_with_frozen_bold_filtered_headers(self):
+        self.publish()
+
+        body = self.spreadsheet.batch_update_calls[-1]
+        for title in MANAGED_TABS:
+            sheet_id = self.spreadsheet.sheets[title].id
+            requests = requests_for_sheet(body, sheet_id)
+            self.assertTrue(requests, title)
+            self.assertTrue(
+                any(
+                    request.get("updateSheetProperties", {})
+                    .get("properties", {})
+                    .get("gridProperties", {})
+                    .get("frozenRowCount")
+                    == 1
+                    for request in requests
+                ),
+                title,
+            )
+            self.assertTrue(
+                any(
+                    request.get("repeatCell", {})
+                    .get("cell", {})
+                    .get("userEnteredFormat", {})
+                    .get("textFormat", {})
+                    .get("bold")
+                    is True
+                    for request in requests
+                ),
+                title,
+            )
+            filters = [
+                request["setBasicFilter"]
+                for request in requests
+                if "setBasicFilter" in request
+            ]
+            self.assertEqual(len(filters), 1, title)
+            self.assertEqual(filters[0]["filter"]["range"]["startRowIndex"], 0)
+            self.assertEqual(
+                filters[0]["filter"]["range"]["endRowIndex"],
+                len(self.spreadsheet.sheets[title].values),
+            )
+            header_heights = [
+                request["updateDimensionProperties"]["properties"]["pixelSize"]
+                for request in requests
+                if request.get("updateDimensionProperties", {})
+                .get("range", {})
+                .get("dimension")
+                == "ROWS"
+            ]
+            self.assertEqual(header_heights, [32], title)
+
+    def test_requests_expected_fixed_column_widths(self):
+        self.publish()
+
+        body = self.spreadsheet.batch_update_calls[-1]
+        headers_by_title = {
+            "New Jobs": NEW_JOBS_HEADERS,
+            "Active Jobs": ACTIVE_JOBS_HEADERS,
+            "System Status": SYSTEM_STATUS_HEADERS,
+            "Companies": COMPANIES_HEADERS,
+        }
+        for title, headers in headers_by_title.items():
+            requests = requests_for_sheet(body, self.spreadsheet.sheets[title].id)
+            requested_widths = {
+                request["updateDimensionProperties"]["range"]["startIndex"]:
+                    request["updateDimensionProperties"]["properties"]["pixelSize"]
+                for request in requests
+                if request.get("updateDimensionProperties", {})
+                .get("range", {})
+                .get("dimension")
+                == "COLUMNS"
+            }
+            self.assertEqual(
+                requested_widths,
+                {
+                    index: TAB_FORMATS[title]["widths"][header]
+                    for index, header in enumerate(headers)
+                },
+                title,
+            )
+
+    def test_wraps_long_text_columns_and_top_aligns_populated_cells(self):
+        self.publish()
+
+        body = self.spreadsheet.batch_update_calls[-1]
+        headers_by_title = {
+            "New Jobs": NEW_JOBS_HEADERS,
+            "Active Jobs": ACTIVE_JOBS_HEADERS,
+            "System Status": SYSTEM_STATUS_HEADERS,
+            "Companies": COMPANIES_HEADERS,
+        }
+        for title, headers in headers_by_title.items():
+            requests = requests_for_sheet(body, self.spreadsheet.sheets[title].id)
+            wrapped_indexes = {
+                request["repeatCell"]["range"]["startColumnIndex"]
+                for request in requests
+                if request.get("repeatCell", {})
+                .get("cell", {})
+                .get("userEnteredFormat", {})
+                .get("wrapStrategy")
+                == "WRAP"
+            }
+            self.assertEqual(
+                wrapped_indexes,
+                {
+                    index
+                    for index, header in enumerate(headers)
+                    if header in TAB_FORMATS[title]["wrapped"]
+                },
+                title,
+            )
+            self.assertTrue(
+                any(
+                    request.get("repeatCell", {})
+                    .get("cell", {})
+                    .get("userEnteredFormat", {})
+                    .get("verticalAlignment")
+                    == "TOP"
+                    for request in requests
+                ),
+                title,
+            )
+
+    def test_repeated_publication_reuses_worksheets_and_replaces_filters(self):
+        self.publish()
+        first_add_calls = list(self.spreadsheet.add_calls)
+
+        self.publish()
+
+        self.assertEqual(self.spreadsheet.add_calls, first_add_calls)
+        self.assertEqual(len(self.spreadsheet.sheets), len(MANAGED_TABS) + 1)
+        self.assertEqual(len(self.spreadsheet.basic_filters), len(MANAGED_TABS))
+        for body in self.spreadsheet.batch_update_calls:
+            filter_sheet_ids = [
+                request_sheet_id(request)
+                for request in body["requests"]
+                if "setBasicFilter" in request
+            ]
+            self.assertEqual(len(filter_sheet_ids), len(set(filter_sheet_ids)))
 
     def test_lists_timestamps_and_nulls_serialize_consistently(self):
         self.publish()
