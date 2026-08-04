@@ -142,6 +142,51 @@ def successful_job(name="Acme", source="greenhouse:acme"):
 
 
 class RegistryValidationTests(unittest.TestCase):
+    def test_workday_candidate_registry_adds_only_requested_companies(self):
+        root = Path(__file__).resolve().parents[1]
+        _, current = validator.load_registry(root / "config" / "target_companies.yaml")
+        _, candidate = validator.load_registry(
+            root / "config" / "target_companies.workday_candidates.yaml"
+        )
+
+        self.assertEqual(len(current), 45)
+        self.assertEqual(
+            [entry["name"] for entry in validator.detect_additions(current, candidate)],
+            ["Enbridge", "Medtronic", "Shell"],
+        )
+        additions = {
+            entry["name"]: entry for entry in validator.detect_additions(current, candidate)
+        }
+        self.assertEqual(
+            {
+                name: (entry["tenant"], entry["wd_subdomain"], entry["site_id"])
+                for name, entry in additions.items()
+            },
+            {
+                "Enbridge": ("enbridge", "wd3", "enbridge_careers"),
+                "Medtronic": ("medtronic", "wd1", "MedtronicCareers"),
+                "Shell": ("shell", "wd3", "shellcareers"),
+            },
+        )
+        allowed_fields = {
+            "name",
+            "platform",
+            "tenant",
+            "wd_subdomain",
+            "site_id",
+            "careers_url",
+            "source_url",
+            "priority",
+        }
+        self.assertTrue(all(set(entry) <= allowed_fields for entry in additions.values()))
+
+    def test_workday_candidate_registry_preserves_production_bytes(self):
+        config = Path(__file__).resolve().parents[1] / "config"
+        current = (config / "target_companies.yaml").read_bytes()
+        candidate = (config / "target_companies.workday_candidates.yaml").read_bytes()
+
+        self.assertEqual(candidate[: len(current)], current)
+
     def test_candidate_additions_are_detected(self):
         current = [target(name="Existing")]
         candidate = [dict(current[0]), target(name="New", slug="new")]
@@ -185,6 +230,50 @@ class RegistryValidationTests(unittest.TestCase):
         self.assertEqual(result["validation_status"], validator.VALIDATED_WITH_JOBS)
         self.assertEqual(len(session.calls), 1)
         self.assertEqual(session.calls[0][2]["json"]["limit"], 20)
+        self.assertEqual(result["sample_job_id"], "R001")
+        self.assertEqual(result["stable_job_id_result"], "valid")
+        self.assertEqual(result["apply_url_result"], "valid")
+        self.assertEqual(
+            result["sample_apply_url"],
+            "https://acme.wd1.myworkdayjobs.com/en-US/Careers/job/Controls-Engineer/R001",
+        )
+
+    def test_workday_valid_zero_job_response_is_accepted(self):
+        session = FakeSession([FakeResponse(payload=workday_payload(False))])
+        result = validator.validate_company(
+            target("workday"), session_factory=lambda: session, sleep=lambda _: None
+        )
+
+        self.assertEqual(result["validation_status"], validator.VALIDATED_ZERO_JOBS)
+        self.assertEqual(result["stable_job_id_result"], "not_applicable_zero_jobs")
+        self.assertEqual(result["apply_url_result"], "not_applicable_zero_jobs")
+        self.assertTrue(result["safe_to_activate"])
+
+    def test_invalid_workday_tenant_site_combination_is_rejected(self):
+        session = FakeSession(
+            [FakeResponse(status_code=404, payload={}) for _ in range(3)]
+        )
+        result = validator.validate_company(
+            target("workday", tenant="wrong", site_id="WrongSite"),
+            session_factory=lambda: session,
+            sleep=lambda _: None,
+        )
+
+        self.assertEqual(result["validation_status"], validator.INVALID_CONFIGURATION)
+        self.assertEqual(result["http_status"], 404)
+        self.assertEqual(len(session.calls), 3)
+        self.assertFalse(result["safe_to_activate"])
+
+    def test_duplicate_workday_tenant_is_rejected_without_network(self):
+        result = validator.validate_company(
+            target("workday", name="Duplicate", tenant="acme", site_id="OtherSite"),
+            duplicate_of="Existing Workday",
+            session_factory=FailingSessionFactory(),
+        )
+
+        self.assertEqual(result["validation_status"], validator.DUPLICATE_SOURCE)
+        self.assertEqual(result["duplicate_source_status"], "duplicates Existing Workday")
+        self.assertFalse(result["safe_to_activate"])
 
     def test_valid_zero_job_response_is_accepted(self):
         session = FakeSession([FakeResponse(payload=greenhouse_payload(False))])

@@ -1,0 +1,238 @@
+target_companies:
+  - name: Airbnb
+    platform: greenhouse
+    slug: airbnb
+  - name: Stripe
+    platform: greenhouse
+    slug: stripe
+  - name: Databricks
+    platform: greenhouse
+    slug: databricks
+  - name: Cloudflare
+    platform: greenhouse
+    slug: cloudflare
+  - name: Datadog
+    platform: greenhouse
+    slug: datadog
+  - name: MongoDB
+    platform: greenhouse
+    slug: mongodb
+  - name: Coinbase
+    platform: greenhouse
+    slug: coinbase
+  - name: Elastic
+    platform: greenhouse
+    slug: elastic
+  - name: GitLab
+    platform: greenhouse
+    slug: gitlab
+  - name: Twilio
+    platform: greenhouse
+    slug: twilio
+  - name: Zscaler
+    platform: greenhouse
+    slug: zscaler
+  - name: Anthropic
+    platform: greenhouse
+    slug: anthropic
+  - name: OpenAI
+    platform: ashby
+    slug: openai
+  - name: Amazon
+    platform: amazon
+    max_pages: 4
+  - name: Adobe
+    platform: workday
+    tenant: adobe
+    wd_subdomain: wd5
+    site_id: external_experienced
+  - name: CrowdStrike
+    platform: workday
+    tenant: crowdstrike
+    wd_subdomain: wd5
+    site_id: crowdstrikecareers
+  - name: Nvidia
+    platform: workday
+    tenant: nvidia
+    wd_subdomain: wd5
+    site_id: NVIDIAExternalCareerSite
+  - name: PayPal
+    platform: workday
+    tenant: paypal
+    wd_subdomain: wd1
+    site_id: jobs
+  - name: Atlassian
+    platform: atlassian
+  - name: Uber
+    platform: uber
+    max_pages: 5
+  - name: Snowflake
+    platform: ashby
+    slug: snowflake
+  - name: Salesforce
+    platform: workday
+    tenant: salesforce
+    wd_subdomain: wd12
+    site_id: External_Career_Site
+  - name: HashiCorp
+    platform: ibm_search
+    max_pages: 2
+    search_terms:
+      - hashicorp
+  - name: Confluent
+    platform: ashby
+    slug: confluent
+  - name: Shopify
+    platform: shopify
+  - name: Google
+    platform: google
+    max_pages: 3
+    search_terms:
+      - Principal Engineer
+      - Staff Software Engineer
+      - Senior Staff
+  - name: Meta
+    platform: meta
+    max_pages: 3
+    search_terms:
+      - Principal Software Engineer
+      - Staff Software Engineer
+      - Production Engineer
+  - name: xAI
+    platform: greenhouse
+    slug: xai
+    careers_url: https://x.ai/careers
+    priority: TBD
+    source_url: https://x.ai/careers
+  - name: Boston Dynamics
+    platform: workday
+    tenant: bostondynamics
+    wd_subdomain: wd1
+    site_id: Boston_Dynamics
+    careers_url: https://bostondynamics.com/careers
+    priority: TBD
+    source_url: https://bostondynamics.com/careers
+  - name: Cadence Design Systems
+    platform: workday
+    tenant: cadence
+    wd_subdomain: wd1
+    site_id: External_Careers
+    careers_url: https://www.cadence.com/en_US/home/company/careers.html
+    priority: TBD
+    source_url: https://www.cadence.com/en_US/home/company/careers.html
+  - name: Figma
+    platform: greenhouse
+    slug: figma
+    careers_url: https://www.figma.com/careers
+    priority: TBD
+    source_url: https://www.figma.com/careers
+  - name: Robinhood
+    platform: greenhouse
+    slug: robinhood
+    careers_url: https://careers.robinhood.com/
+    priority: TBD
+    source_url: https://careers.robinhood.com/
+  - name: Chime
+    platform: greenhouse
+    slug: chime
+    careers_url: https://careers.chime.com/jobs
+    priority: TBD
+    source_url: https://careers.chime.com/jobs
+  - name: Brex
+    platform: greenhouse
+    slug: brex
+    careers_url: https://www.brex.com/careers
+    priority: TBD
+    source_url: https://www.brex.com/careers
+  - name: Ramp
+    platform: ashby
+    slug: ramp
+    careers_url: https://ramp.com/careers
+    priority: TBD
+    source_url: https://ramp.com/careers
+  - name: Magic Leap
+    platform: greenhouse
+    slug: magicleap
+    careers_url: https://www.magicleap.com/careers
+    priority: TBD
+    source_url: https://www.magicleap.com/careers
+  - name: ANYbotics
+    platform: lever
+    slug: anybotics
+    careers_url: https://www.anybotics.com/careers
+    priority: TBD
+    source_url: https://www.anybotics.com/careers
+  - name: Blue Origin
+    platform: workday
+    tenant: blueorigin
+    wd_subdomain: wd5
+    site_id: BlueOrigin
+    careers_url: https://www.blueorigin.com/careers
+    priority: TBD
+    source_url: https://www.blueorigin.com/careers
+  - name: Rocket Lab
+    platform: greenhouse
+    slug: rocketlab
+    careers_url: https://www.rocketlabusa.com/careers
+    priority: TBD
+    source_url: https://www.rocketlabusa.com/careers
+  - name: Vast
+    platform: greenhouse
+    slug: vast
+    careers_url: https://www.vastspace.com/careers
+    priority: TBD
+    source_url: https://www.vastspace.com/careers
+  - name: DoorDash
+    platform: greenhouse
+    slug: doordashusa
+    careers_url: https://careers.doordash.com/
+    priority: TBD
+    source_url: https://careers.doordash.com/
+  - name: Reddit
+    platform: greenhouse
+    slug: reddit
+    careers_url: https://www.redditinc.com/careers
+    priority: TBD
+    source_url: https://www.redditinc.com/careers
+  - name: Discord
+    platform: greenhouse
+    slug: discord
+    careers_url: https://discord.com/careers
+    priority: TBD
+    source_url: https://discord.com/careers
+  - name: Pinterest
+    platform: greenhouse
+    slug: pinterest
+    careers_url: https://www.pinterestcareers.com/
+    priority: TBD
+    source_url: https://www.pinterestcareers.com/
+  - name: Spotify
+    platform: lever
+    slug: spotify
+    careers_url: https://www.lifeatspotify.com/jobs
+    priority: TBD
+    source_url: https://www.lifeatspotify.com/jobs
+  - name: Enbridge
+    platform: workday
+    tenant: enbridge
+    wd_subdomain: wd3
+    site_id: enbridge_careers
+    careers_url: https://www.enbridge.com/work-with-enbridge/careers
+    source_url: https://www.enbridge.com/work-with-enbridge/careers
+    priority: TBD
+  - name: Medtronic
+    platform: workday
+    tenant: medtronic
+    wd_subdomain: wd1
+    site_id: MedtronicCareers
+    careers_url: https://www.medtronic.com/en-us/our-company/careers.html
+    source_url: https://www.medtronic.com/en-us/our-company/careers.html
+    priority: TBD
+  - name: Shell
+    platform: workday
+    tenant: shell
+    wd_subdomain: wd3
+    site_id: shellcareers
+    careers_url: https://www.shell.com/careers.html
+    source_url: https://www.shell.com/careers.html
+    priority: TBD

@@ -31,6 +31,8 @@ DEFAULT_CURRENT_CONFIG = Path("config/target_companies.yaml")
 DEFAULT_CANDIDATE_CONFIG = Path("config/target_companies.generated.yaml")
 DEFAULT_OUTPUT = Path("output/company_registry_validation.json")
 DEFAULT_VALIDATED_CONFIG = Path("config/target_companies.validated.yaml")
+WORKDAY_CANDIDATE_CONFIG = Path("config/target_companies.workday_candidates.yaml")
+WORKDAY_VALIDATED_CONFIG = Path("config/target_companies.workday_validated.yaml")
 MAX_BATCH_SIZE = 5
 DEFAULT_TIMEOUT = 20
 DEFAULT_ATTEMPTS = 2
@@ -296,9 +298,12 @@ def _base_result(entry: Mapping[str, Any]) -> dict[str, Any]:
         "http_status": None,
         "result_status": "not_started",
         "jobs_returned": 0,
+        "sample_job_id": None,
         "sample_job_title": None,
         "sample_apply_url": None,
         "parse_success": False,
+        "stable_job_id_result": "not_tested",
+        "apply_url_result": "not_tested",
         "duplicate_source_status": "unique",
         "validation_status": INVALID_CONFIGURATION,
         "error": None,
@@ -377,6 +382,23 @@ def validate_company(
             else "Adapter made no HTTP request"
         )
         job_error = _valid_job_error(jobs)
+        if not shape_error:
+            if jobs:
+                result["stable_job_id_result"] = (
+                    "valid" if all(job.job_id and job.source for job in jobs) else "invalid"
+                )
+                result["apply_url_result"] = (
+                    "valid"
+                    if all(
+                        urlparse(job.url).scheme in {"http", "https"}
+                        and bool(urlparse(job.url).netloc)
+                        for job in jobs
+                    )
+                    else "invalid"
+                )
+            else:
+                result["stable_job_id_result"] = "not_applicable_zero_jobs"
+                result["apply_url_result"] = "not_applicable_zero_jobs"
         if shape_error or job_error:
             result.update(
                 validation_status=UNSUPPORTED_RESPONSE,
@@ -388,6 +410,7 @@ def validate_company(
             result.update(
                 result_status="success",
                 jobs_returned=len(jobs),
+                sample_job_id=sample.job_id if sample else None,
                 sample_job_title=sample.title if sample else None,
                 sample_apply_url=sample.url if sample else None,
                 parse_success=True,
@@ -596,7 +619,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--start", type=int, default=0)
     parser.add_argument("--limit", type=int)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
-    parser.add_argument("--validated-config", type=Path, default=DEFAULT_VALIDATED_CONFIG)
+    parser.add_argument("--validated-config", type=Path)
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT, help=argparse.SUPPRESS)
     parser.add_argument("--dry-run", action="store_true")
     return parser
@@ -604,6 +627,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Optional[Iterable[str]] = None) -> int:
     args = build_parser().parse_args(argv)
+    validated_config = args.validated_config
+    if validated_config is None:
+        validated_config = (
+            WORKDAY_VALIDATED_CONFIG
+            if args.candidate_config == WORKDAY_CANDIDATE_CONFIG
+            else DEFAULT_VALIDATED_CONFIG
+        )
     try:
         report = validate_registry(
             args.current_config,
@@ -613,7 +643,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             start=args.start,
             limit=args.limit,
             output=args.output,
-            validated_config=args.validated_config,
+            validated_config=validated_config,
             timeout=args.timeout,
             dry_run=args.dry_run,
         )
