@@ -299,12 +299,15 @@ class SapSuccessFactorsTests(unittest.TestCase):
             self.assertIn(field, result["exact_failure_reason"])
 
     def test_browser_and_session_dependent_sources_are_excluded(self):
-        for flag in ("browser_required", "session_required"):
+        for flag, expected_status in (
+            ("browser_required", validator.BROWSER_REQUIRED),
+            ("session_required", validator.SESSION_REQUIRED),
+        ):
             result = validator.validate_company(
                 registry_entry(**{flag: True}),
                 session_factory=FailingSessionFactory(),
             )
-            self.assertEqual(result["validation_status"], validator.BROWSER_REQUIRED)
+            self.assertEqual(result["validation_status"], expected_status)
             self.assertFalse(result["safe_to_activate"])
 
     def test_duplicate_source_is_rejected_without_network(self):

@@ -25,6 +25,7 @@ if str(Path(__file__).resolve().parents[1]) not in sys.path:
 
 from src.scraper.company_careers.adapters import (
     ashby,
+    eightfold,
     greenhouse,
     lever,
     oracle_recruiting,
@@ -44,6 +45,8 @@ ORACLE_CANDIDATE_CONFIG = Path("config/target_companies.oracle_candidates.yaml")
 ORACLE_VALIDATED_CONFIG = Path("config/target_companies.oracle_validated.yaml")
 SUCCESSFACTORS_CANDIDATE_CONFIG = Path("config/target_companies.successfactors_candidates.yaml")
 SUCCESSFACTORS_VALIDATED_CONFIG = Path("config/target_companies.successfactors_validated.yaml")
+EIGHTFOLD_CANDIDATE_CONFIG = Path("config/target_companies.eightfold_candidates.yaml")
+EIGHTFOLD_VALIDATED_CONFIG = Path("config/target_companies.eightfold_validated.yaml")
 MAX_BATCH_SIZE = 5
 DEFAULT_TIMEOUT = 20
 DEFAULT_ATTEMPTS = 2
@@ -55,7 +58,10 @@ VALIDATED_ZERO_JOBS = "validated_zero_jobs"
 INVALID_CONFIGURATION = "invalid_configuration"
 BLOCKED = "blocked"
 BROWSER_REQUIRED = "browser_required"
+AUTHENTICATION_REQUIRED = "authentication_required"
+SESSION_REQUIRED = "session_required"
 TEMPORARY_FAILURE = "temporary_failure"
+DUPLICATE_COMPANY = "duplicate_company"
 DUPLICATE_SOURCE = "duplicate_source"
 UNSUPPORTED_RESPONSE = "unsupported_response"
 MALFORMED_RESPONSE = "malformed_response"
@@ -66,7 +72,10 @@ VALIDATION_STATUSES = (
     INVALID_CONFIGURATION,
     BLOCKED,
     BROWSER_REQUIRED,
+    AUTHENTICATION_REQUIRED,
+    SESSION_REQUIRED,
     TEMPORARY_FAILURE,
+    DUPLICATE_COMPANY,
     DUPLICATE_SOURCE,
     UNSUPPORTED_RESPONSE,
     MALFORMED_RESPONSE,
@@ -81,6 +90,7 @@ ADAPTERS: dict[str, AdapterFn] = {
     "workday": workday.fetch_jobs,
     "oracle_recruiting": oracle_recruiting.fetch_jobs,
     "sap_successfactors": sap_successfactors.fetch_jobs,
+    "eightfold": eightfold.fetch_jobs,
 }
 
 
@@ -129,6 +139,9 @@ def source_key(entry: Mapping[str, Any]) -> Optional[str]:
     if platform == "sap_successfactors":
         host = (urlparse(str(entry.get("search_url") or "")).hostname or "").casefold()
         return f"sap_successfactors:{host}" if host else None
+    if platform == "eightfold":
+        host = (urlparse(str(entry.get("endpoint_url") or "")).hostname or "").casefold()
+        return f"eightfold:{host}" if host else None
     return None
 
 
@@ -163,6 +176,11 @@ def configured_identifiers(entry: Mapping[str, Any]) -> dict[str, Any]:
         if entry.get("locale") is not None:
             identifiers["locale"] = entry.get("locale")
         return identifiers
+    if platform == "eightfold":
+        return {
+            "organization_id": entry.get("organization_id"),
+            "endpoint_variant": entry.get("endpoint_variant"),
+        }
     return {}
 
 
@@ -192,6 +210,9 @@ def endpoint_for(entry: Mapping[str, Any]) -> Optional[str]:
         return endpoint or None
     if platform == "sap_successfactors":
         endpoint = str(entry.get("search_url") or "").strip()
+        return endpoint or None
+    if platform == "eightfold":
+        endpoint = str(entry.get("endpoint_url") or "").strip()
         return endpoint or None
     return None
 
@@ -238,6 +259,11 @@ def configuration_error(entry: Mapping[str, Any]) -> Optional[str]:
             )
         try:
             sap_successfactors.validate_target(target)
+        except AdapterError as exc:
+            return str(exc)
+    if platform == "eightfold":
+        try:
+            eightfold.validate_target(target)
         except AdapterError as exc:
             return str(exc)
     return None
@@ -325,6 +351,20 @@ def _response_shape_error(platform: str, response: Any) -> Optional[str]:
             if field not in envelope:
                 return f"Oracle Recruiting search envelope is missing {field}"
         return None
+    if platform == "eightfold":
+        if not isinstance(payload, Mapping):
+            return "Eightfold response must be a JSON object"
+        if payload.get("status") != 200:
+            return "Eightfold response status must be 200"
+        data = payload.get("data")
+        if not isinstance(data, Mapping):
+            return "Eightfold response must contain a data object"
+        if not isinstance(data.get("positions"), list):
+            return "Eightfold data must contain a positions list"
+        count = data.get("count")
+        if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+            return "Eightfold data must contain a non-negative count"
+        return None
     expected_key = {
         "greenhouse": "jobs",
         "ashby": "jobs",
@@ -364,6 +404,22 @@ def _response_error_status(response: Optional[Any]) -> tuple[str, str]:
     return UNSUPPORTED_RESPONSE, "Adapter could not parse the endpoint response"
 
 
+def _adapter_error_status(response: Optional[Any], error: AdapterError) -> tuple[str, str]:
+    text = str(error).casefold()
+    if "authentication required" in text:
+        return AUTHENTICATION_REQUIRED, "Endpoint requires authentication"
+    if "session required" in text:
+        return SESSION_REQUIRED, "Endpoint requires session initialization"
+    if "browser required" in text or "javascript required" in text:
+        return BROWSER_REQUIRED, "Endpoint requires JavaScript or browser execution"
+    if "blocked" in text or "consent page" in text:
+        return BLOCKED, "Endpoint returned blocked or consent content"
+    status, message = _response_error_status(response)
+    if getattr(response, "status_code", None) == 200:
+        return MALFORMED_RESPONSE, "Endpoint returned malformed or unexpected content"
+    return status, message
+
+
 def _valid_job_error(jobs: list[JobRecord]) -> Optional[str]:
     for index, job in enumerate(jobs, start=1):
         if not job.job_id or not job.source:
@@ -377,9 +433,12 @@ def _valid_job_error(jobs: list[JobRecord]) -> Optional[str]:
 def _base_result(entry: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "company": str(entry.get("name") or ""),
+        "fingerprint_confidence": entry.get("fingerprint_confidence"),
         "platform": str(entry.get("platform") or ""),
+        "endpoint_variant": entry.get("endpoint_variant"),
         "configured_identifiers": configured_identifiers(entry),
         "endpoint_tested": endpoint_for(entry),
+        "request_method": "GET" if str(entry.get("platform") or "").casefold() == "eightfold" else None,
         "http_status": None,
         "result_status": "not_started",
         "jobs_returned": 0,
@@ -394,6 +453,7 @@ def _base_result(entry: Mapping[str, Any]) -> dict[str, Any]:
         "stable_job_id_result": "not_tested",
         "apply_url_result": "not_tested",
         "duplicate_source_status": "unique",
+        "duplicate_company_status": "unique",
         "validation_status": INVALID_CONFIGURATION,
         "error": None,
         "exact_failure_reason": None,
@@ -461,6 +521,7 @@ def validate_company(
     entry: Mapping[str, Any],
     *,
     duplicate_of: Optional[str] = None,
+    duplicate_company_of: Optional[str] = None,
     timeout: int = DEFAULT_TIMEOUT,
     attempts: int = DEFAULT_ATTEMPTS,
     retry_delay: float = DEFAULT_RETRY_DELAY,
@@ -478,11 +539,30 @@ def validate_company(
             exact_failure_reason=reason,
         )
         return result
+    if entry.get("authentication_required"):
+        reason = "Source requires authentication"
+        result.update(
+            result_status="authentication_required",
+            validation_status=AUTHENTICATION_REQUIRED,
+            error=reason,
+            exact_failure_reason=reason,
+        )
+        return result
     if entry.get("session_required"):
         reason = "Source requires unstable session initialization"
         result.update(
-            result_status="browser_required",
-            validation_status=BROWSER_REQUIRED,
+            result_status="session_required",
+            validation_status=SESSION_REQUIRED,
+            error=reason,
+            exact_failure_reason=reason,
+        )
+        return result
+    if duplicate_company_of:
+        reason = f"Company duplicates {duplicate_company_of}"
+        result.update(
+            result_status="duplicate_company",
+            duplicate_company_status=f"duplicates {duplicate_company_of}",
+            validation_status=DUPLICATE_COMPANY,
             error=reason,
             exact_failure_reason=reason,
         )
@@ -509,7 +589,9 @@ def validate_company(
     target = CompanyTarget.from_dict(dict(entry))
     if platform == "workday":
         target.max_pages = 1
-    session_attempts = 1 if platform in {"oracle_recruiting", "sap_successfactors"} else attempts
+    session_attempts = (
+        1 if platform in {"oracle_recruiting", "sap_successfactors", "eightfold"} else attempts
+    )
     session = RecordingRetrySession(
         session_factory(), attempts=session_attempts, retry_delay=retry_delay, sleep=sleep
     )
@@ -523,10 +605,7 @@ def validate_company(
             status, message = TEMPORARY_FAILURE, f"Request failed after retries: {exc}"
         result.update(validation_status=status, result_status="request_failed", error=message)
     except AdapterError as exc:
-        status, message = _response_error_status(session.final_response)
-        if getattr(session.final_response, "status_code", None) == 200:
-            status = MALFORMED_RESPONSE
-            message = "Endpoint returned malformed or unexpected content"
+        status, message = _adapter_error_status(session.final_response, exc)
         result.update(
             validation_status=status,
             result_status="adapter_failed",
@@ -605,6 +684,17 @@ def validate_company(
             diagnostics = list(pagination.get("diagnostics") or [])
             if diagnostics and result["safe_to_activate"]:
                 result["warning"] = f"Skipped {len(diagnostics)} malformed or duplicate job entries"
+    elif platform == "eightfold":
+        pagination = getattr(session, "eightfold_pagination", None)
+        if isinstance(pagination, Mapping):
+            result["pagination_result"] = dict(pagination)
+            result["pages_requested"] = int(pagination.get("pages_fetched") or 0)
+            result["total_available_jobs"] = pagination.get("total_available")
+            diagnostics = list(pagination.get("diagnostics") or [])
+            if diagnostics and result["safe_to_activate"]:
+                result["warning"] = (
+                    f"Skipped {len(diagnostics)} malformed or duplicate job entries"
+                )
     response = session.final_response
     result["http_status"] = getattr(response, "status_code", None) if response is not None else None
     response_url = getattr(response, "url", None) if response is not None else None
@@ -639,6 +729,28 @@ def _duplicate_owners(
             duplicates[index] = owner
         else:
             owner_by_source[key] = str(entry.get("name") or f"candidate {index + 1}")
+    return duplicates
+
+
+def _duplicate_company_owners(
+    current_entries: Iterable[Mapping[str, Any]],
+    additions: Iterable[Mapping[str, Any]],
+) -> dict[int, str]:
+    owner_by_name = {
+        _name_key(entry): str(entry.get("name") or "existing entry")
+        for entry in current_entries
+        if _name_key(entry)
+    }
+    duplicates: dict[int, str] = {}
+    for index, entry in enumerate(additions):
+        key = _name_key(entry)
+        if not key:
+            continue
+        owner = owner_by_name.get(key)
+        if owner:
+            duplicates[index] = owner
+        else:
+            owner_by_name[key] = str(entry.get("name") or f"candidate {index + 1}")
     return duplicates
 
 
@@ -739,6 +851,7 @@ def validate_registry(
         }
 
     duplicates = _duplicate_owners(current_entries, selected_entries)
+    duplicate_companies = _duplicate_company_owners(current_entries, selected_entries)
     results: list[dict[str, Any]] = []
     for batch_start in range(0, len(selected_entries), batch_size):
         batch = selected_entries[batch_start : batch_start + batch_size]
@@ -748,6 +861,7 @@ def validate_registry(
                 validate_company(
                     entry,
                     duplicate_of=duplicates.get(index),
+                    duplicate_company_of=duplicate_companies.get(index),
                     timeout=timeout,
                     attempts=attempts,
                     retry_delay=retry_delay,
@@ -822,15 +936,19 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     validated_config = args.validated_config
     if validated_config is None:
         validated_config = (
-            SUCCESSFACTORS_VALIDATED_CONFIG
-            if args.candidate_config == SUCCESSFACTORS_CANDIDATE_CONFIG
+            EIGHTFOLD_VALIDATED_CONFIG
+            if args.candidate_config == EIGHTFOLD_CANDIDATE_CONFIG
             else (
-                ORACLE_VALIDATED_CONFIG
-                if args.candidate_config == ORACLE_CANDIDATE_CONFIG
+                SUCCESSFACTORS_VALIDATED_CONFIG
+                if args.candidate_config == SUCCESSFACTORS_CANDIDATE_CONFIG
                 else (
-                    WORKDAY_VALIDATED_CONFIG
-                    if args.candidate_config == WORKDAY_CANDIDATE_CONFIG
-                    else DEFAULT_VALIDATED_CONFIG
+                    ORACLE_VALIDATED_CONFIG
+                    if args.candidate_config == ORACLE_CANDIDATE_CONFIG
+                    else (
+                        WORKDAY_VALIDATED_CONFIG
+                        if args.candidate_config == WORKDAY_CANDIDATE_CONFIG
+                        else DEFAULT_VALIDATED_CONFIG
+                    )
                 )
             )
         )
