@@ -141,22 +141,71 @@ def successful_job(name="Acme", source="greenhouse:acme"):
     )
 
 
-class RegistryValidationTests(unittest.TestCase):
-    def test_workday_candidate_registry_adds_only_requested_companies(self):
-        root = Path(__file__).resolve().parents[1]
-        _, current = validator.load_registry(root / "config" / "target_companies.yaml")
-        _, candidate = validator.load_registry(
-            root / "config" / "target_companies.workday_candidates.yaml"
-        )
+def workday_candidate_entries():
+    return [
+        {
+            "name": "Enbridge",
+            "platform": "workday",
+            "tenant": "enbridge",
+            "wd_subdomain": "wd3",
+            "site_id": "enbridge_careers",
+            "careers_url": "https://www.enbridge.com/work-with-enbridge/careers",
+            "source_url": "https://www.enbridge.com/work-with-enbridge/careers",
+            "priority": "TBD",
+        },
+        {
+            "name": "Medtronic",
+            "platform": "workday",
+            "tenant": "medtronic",
+            "wd_subdomain": "wd1",
+            "site_id": "MedtronicCareers",
+            "careers_url": "https://www.medtronic.com/en-us/our-company/careers.html",
+            "source_url": "https://www.medtronic.com/en-us/our-company/careers.html",
+            "priority": "TBD",
+        },
+        {
+            "name": "Shell",
+            "platform": "workday",
+            "tenant": "shell",
+            "wd_subdomain": "wd3",
+            "site_id": "shellcareers",
+            "careers_url": "https://www.shell.com/careers.html",
+            "source_url": "https://www.shell.com/careers.html",
+            "priority": "TBD",
+        },
+    ]
 
-        self.assertEqual(len(current), 45)
-        self.assertEqual(
-            [entry["name"] for entry in validator.detect_additions(current, candidate)],
-            ["Enbridge", "Medtronic", "Shell"],
+
+class RegistryValidationTests(unittest.TestCase):
+    def _workday_registry_fixture(self, root):
+        current = root / "current.yaml"
+        candidate = root / "candidate.yaml"
+        current_text = (
+            "target_companies:\n"
+            "  - name: Existing Greenhouse\n"
+            "    platform: greenhouse\n"
+            "    slug: existing\n"
+            "  - name: Existing Workday\n"
+            "    platform: workday\n"
+            "    tenant: existing\n"
+            "    wd_subdomain: wd1\n"
+            "    site_id: Careers\n"
         )
-        additions = {
-            entry["name"]: entry for entry in validator.detect_additions(current, candidate)
-        }
+        current.write_text(current_text, encoding="utf-8", newline="\n")
+        candidate.write_bytes(
+            validator.build_validated_registry_bytes(current, workday_candidate_entries())
+        )
+        return current, candidate, current_text.encode("utf-8")
+
+    def test_workday_candidate_registry_adds_only_requested_companies(self):
+        with TemporaryDirectory() as temp_dir:
+            current_path, candidate_path, _ = self._workday_registry_fixture(Path(temp_dir))
+            _, current = validator.load_registry(current_path)
+            _, candidate = validator.load_registry(candidate_path)
+            detected = validator.detect_additions(current, candidate)
+
+        self.assertEqual([entry["name"] for entry in detected], ["Enbridge", "Medtronic", "Shell"])
+        additions = {entry["name"]: entry for entry in detected}
         self.assertEqual(
             {
                 name: (entry["tenant"], entry["wd_subdomain"], entry["site_id"])
@@ -180,12 +229,29 @@ class RegistryValidationTests(unittest.TestCase):
         }
         self.assertTrue(all(set(entry) <= allowed_fields for entry in additions.values()))
 
-    def test_workday_candidate_registry_preserves_production_bytes(self):
-        config = Path(__file__).resolve().parents[1] / "config"
-        current = (config / "target_companies.yaml").read_bytes()
-        candidate = (config / "target_companies.workday_candidates.yaml").read_bytes()
+    def test_workday_candidate_registry_preserves_baseline_bytes_and_order(self):
+        with TemporaryDirectory() as temp_dir:
+            current, candidate, baseline_bytes = self._workday_registry_fixture(Path(temp_dir))
+            current_bytes = current.read_bytes()
+            candidate_bytes = candidate.read_bytes()
+            _, entries = validator.load_registry(candidate)
 
-        self.assertEqual(candidate[: len(current)], current)
+        self.assertEqual(current_bytes, baseline_bytes)
+        self.assertEqual(candidate_bytes[: len(baseline_bytes)], baseline_bytes)
+        self.assertEqual(
+            [entry["name"] for entry in entries],
+            ["Existing Greenhouse", "Existing Workday", "Enbridge", "Medtronic", "Shell"],
+        )
+
+    def test_live_registry_integrity_after_workday_promotion(self):
+        registry = Path(__file__).resolve().parents[1] / "config" / "target_companies.yaml"
+        _, entries = validator.load_registry(registry)
+        names = [" ".join(str(entry["name"]).casefold().split()) for entry in entries]
+
+        self.assertEqual(len(entries), 48)
+        self.assertEqual(len(names), len(set(names)))
+        for company in ("Enbridge", "Medtronic", "Shell"):
+            self.assertEqual(names.count(company.casefold()), 1)
 
     def test_candidate_additions_are_detected(self):
         current = [target(name="Existing")]

@@ -212,3 +212,27 @@ target_companies:
     careers_url: https://www.lifeatspotify.com/jobs
     priority: TBD
     source_url: https://www.lifeatspotify.com/jobs
+  - name: Enbridge
+    platform: workday
+    tenant: enbridge
+    wd_subdomain: wd3
+    site_id: enbridge_careers
+    careers_url: https://www.enbridge.com/work-with-enbridge/careers
+    source_url: https://www.enbridge.com/work-with-enbridge/careers
+    priority: TBD
+  - name: Medtronic
+    platform: workday
+    tenant: medtronic
+    wd_subdomain: wd1
+    site_id: MedtronicCareers
+    careers_url: https://www.medtronic.com/en-us/our-company/careers.html
+    source_url: https://www.medtronic.com/en-us/our-company/careers.html
+    priority: TBD
+  - name: Shell
+    platform: workday
+    tenant: shell
+    wd_subdomain: wd3
+    site_id: shellcareers
+    careers_url: https://www.shell.com/careers.html
+    source_url: https://www.shell.com/careers.html
+    priority: TBD

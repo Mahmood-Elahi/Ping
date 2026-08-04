@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-import unittest
 import csv
+import unittest
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import yaml
 
@@ -14,6 +17,7 @@ from scripts.fingerprint_company_platforms import (
     adapter_priority_score,
     build_fingerprint,
     detect_platform,
+    main as fingerprint_main,
     merge_fingerprint_batch,
 )
 
@@ -205,13 +209,21 @@ class FingerprintBatchTests(unittest.TestCase):
         self.assertGreater(strong_score, weak_score)
         self.assertLessEqual(strong_score, 100)
 
-    def test_live_registry_remains_untouched_and_has_45_entries(self):
+    def test_fingerprinting_does_not_modify_live_registry(self):
         path = Path("config/target_companies.yaml")
         before = path.read_bytes()
         data = yaml.safe_load(before.decode("utf-8"))
         entries = data.get("target_companies") or data.get("companies")
-        self.assertEqual(len(entries), 45)
-        detect_platform(evidence("https://jobs.smartrecruiters.com/Acme"))
+
+        self.assertIsInstance(entries, list)
+        self.assertTrue(entries)
+        with TemporaryDirectory() as temp_dir, redirect_stdout(StringIO()):
+            output = Path(temp_dir) / "fingerprints.csv"
+            result = fingerprint_main(
+                ["--output", str(output), "--dry-run", "--limit", "1"]
+            )
+
+        self.assertEqual(result, 0)
         self.assertEqual(path.read_bytes(), before)
 
     def test_generated_artifact_covers_every_remaining_company(self):
