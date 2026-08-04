@@ -28,6 +28,7 @@ from src.scraper.company_careers.adapters import (
     greenhouse,
     lever,
     oracle_recruiting,
+    sap_successfactors,
     workday,
 )
 from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
@@ -41,6 +42,8 @@ WORKDAY_CANDIDATE_CONFIG = Path("config/target_companies.workday_candidates.yaml
 WORKDAY_VALIDATED_CONFIG = Path("config/target_companies.workday_validated.yaml")
 ORACLE_CANDIDATE_CONFIG = Path("config/target_companies.oracle_candidates.yaml")
 ORACLE_VALIDATED_CONFIG = Path("config/target_companies.oracle_validated.yaml")
+SUCCESSFACTORS_CANDIDATE_CONFIG = Path("config/target_companies.successfactors_candidates.yaml")
+SUCCESSFACTORS_VALIDATED_CONFIG = Path("config/target_companies.successfactors_validated.yaml")
 MAX_BATCH_SIZE = 5
 DEFAULT_TIMEOUT = 20
 DEFAULT_ATTEMPTS = 2
@@ -51,18 +54,22 @@ VALIDATED_WITH_JOBS = "validated_with_jobs"
 VALIDATED_ZERO_JOBS = "validated_zero_jobs"
 INVALID_CONFIGURATION = "invalid_configuration"
 BLOCKED = "blocked"
+BROWSER_REQUIRED = "browser_required"
 TEMPORARY_FAILURE = "temporary_failure"
 DUPLICATE_SOURCE = "duplicate_source"
 UNSUPPORTED_RESPONSE = "unsupported_response"
+MALFORMED_RESPONSE = "malformed_response"
 
 VALIDATION_STATUSES = (
     VALIDATED_WITH_JOBS,
     VALIDATED_ZERO_JOBS,
     INVALID_CONFIGURATION,
     BLOCKED,
+    BROWSER_REQUIRED,
     TEMPORARY_FAILURE,
     DUPLICATE_SOURCE,
     UNSUPPORTED_RESPONSE,
+    MALFORMED_RESPONSE,
 )
 
 AdapterFn = Callable[[Any, CompanyTarget, int], list[JobRecord]]
@@ -73,6 +80,7 @@ ADAPTERS: dict[str, AdapterFn] = {
     "ashby": ashby.fetch_jobs,
     "workday": workday.fetch_jobs,
     "oracle_recruiting": oracle_recruiting.fetch_jobs,
+    "sap_successfactors": sap_successfactors.fetch_jobs,
 }
 
 
@@ -118,6 +126,9 @@ def source_key(entry: Mapping[str, Any]) -> Optional[str]:
         site_number = str(entry.get("site_number") or "").strip().casefold()
         host = (endpoint.hostname or "").casefold()
         return f"oracle_recruiting:{host}:{site_number}" if host and site_number else None
+    if platform == "sap_successfactors":
+        host = (urlparse(str(entry.get("search_url") or "")).hostname or "").casefold()
+        return f"sap_successfactors:{host}" if host else None
     return None
 
 
@@ -142,6 +153,15 @@ def configured_identifiers(entry: Mapping[str, Any]) -> dict[str, Any]:
         }
         if entry.get("organization_id") is not None:
             identifiers["organization_id"] = entry.get("organization_id")
+        return identifiers
+    if platform == "sap_successfactors":
+        parsed = urlparse(str(entry.get("search_url") or ""))
+        identifiers = {
+            "host": parsed.hostname,
+            "endpoint_variant": entry.get("endpoint_variant"),
+        }
+        if entry.get("locale") is not None:
+            identifiers["locale"] = entry.get("locale")
         return identifiers
     return {}
 
@@ -169,6 +189,9 @@ def endpoint_for(entry: Mapping[str, Any]) -> Optional[str]:
             )
     if platform == "oracle_recruiting":
         endpoint = str(entry.get("endpoint_url") or "").strip()
+        return endpoint or None
+    if platform == "sap_successfactors":
+        endpoint = str(entry.get("search_url") or "").strip()
         return endpoint or None
     return None
 
@@ -200,6 +223,21 @@ def configuration_error(entry: Mapping[str, Any]) -> Optional[str]:
     if platform == "oracle_recruiting":
         try:
             oracle_recruiting.validate_target(target)
+        except AdapterError as exc:
+            return str(exc)
+    if platform == "sap_successfactors":
+        unsupported = [
+            field
+            for field in ("company_id", "career_site_id")
+            if entry.get(field) not in (None, "")
+        ]
+        if unsupported:
+            return (
+                "SAP SuccessFactors public RMK endpoint does not accept "
+                + ", ".join(unsupported)
+            )
+        try:
+            sap_successfactors.validate_target(target)
         except AdapterError as exc:
             return str(exc)
     return None
@@ -261,6 +299,10 @@ class RecordingRetrySession:
 
 
 def _response_shape_error(platform: str, response: Any) -> Optional[str]:
+    if platform == "sap_successfactors":
+        # The production adapter validates every full page/fragment before it
+        # returns; unlike the other registered adapters, this contract is HTML.
+        return None
     try:
         payload = response.json()
     except (ValueError, requests.RequestException) as exc:
@@ -341,15 +383,20 @@ def _base_result(entry: Mapping[str, Any]) -> dict[str, Any]:
         "http_status": None,
         "result_status": "not_started",
         "jobs_returned": 0,
+        "pages_requested": 0,
+        "total_available_jobs": None,
         "sample_job_id": None,
         "sample_job_title": None,
         "sample_apply_url": None,
+        "sample_location": None,
+        "sample_posting_date": None,
         "parse_success": False,
         "stable_job_id_result": "not_tested",
         "apply_url_result": "not_tested",
         "duplicate_source_status": "unique",
         "validation_status": INVALID_CONFIGURATION,
         "error": None,
+        "exact_failure_reason": None,
         "warning": None,
         "safe_to_activate": False,
         "redirects": [],
@@ -422,9 +469,31 @@ def validate_company(
     adapters: Optional[Mapping[str, AdapterFn]] = None,
 ) -> dict[str, Any]:
     result = _base_result(entry)
+    if entry.get("browser_required"):
+        reason = "Source requires browser automation"
+        result.update(
+            result_status="browser_required",
+            validation_status=BROWSER_REQUIRED,
+            error=reason,
+            exact_failure_reason=reason,
+        )
+        return result
+    if entry.get("session_required"):
+        reason = "Source requires unstable session initialization"
+        result.update(
+            result_status="browser_required",
+            validation_status=BROWSER_REQUIRED,
+            error=reason,
+            exact_failure_reason=reason,
+        )
+        return result
     config_error = configuration_error(entry)
     if config_error:
-        result.update(result_status="configuration_error", error=config_error)
+        result.update(
+            result_status="configuration_error",
+            error=config_error,
+            exact_failure_reason=config_error,
+        )
         return result
     if duplicate_of:
         result.update(
@@ -432,6 +501,7 @@ def validate_company(
             duplicate_source_status=f"duplicates {duplicate_of}",
             validation_status=DUPLICATE_SOURCE,
             error=f"Source configuration duplicates {duplicate_of}",
+            exact_failure_reason=f"Source configuration duplicates {duplicate_of}",
         )
         return result
 
@@ -439,7 +509,7 @@ def validate_company(
     target = CompanyTarget.from_dict(dict(entry))
     if platform == "workday":
         target.max_pages = 1
-    session_attempts = 1 if platform == "oracle_recruiting" else attempts
+    session_attempts = 1 if platform in {"oracle_recruiting", "sap_successfactors"} else attempts
     session = RecordingRetrySession(
         session_factory(), attempts=session_attempts, retry_delay=retry_delay, sleep=sleep
     )
@@ -454,6 +524,9 @@ def validate_company(
         result.update(validation_status=status, result_status="request_failed", error=message)
     except AdapterError as exc:
         status, message = _response_error_status(session.final_response)
+        if getattr(session.final_response, "status_code", None) == 200:
+            status = MALFORMED_RESPONSE
+            message = "Endpoint returned malformed or unexpected content"
         result.update(
             validation_status=status,
             result_status="adapter_failed",
@@ -510,6 +583,8 @@ def validate_company(
                 sample_job_id=sample.job_id if sample else None,
                 sample_job_title=sample.title if sample else None,
                 sample_apply_url=sample.url if sample else None,
+                sample_location=sample.location if sample else None,
+                sample_posting_date=sample.updated_at if sample else None,
                 parse_success=True,
                 validation_status=VALIDATED_WITH_JOBS if jobs else VALIDATED_ZERO_JOBS,
                 safe_to_activate=True,
@@ -521,6 +596,15 @@ def validate_company(
             target,
             jobs if "jobs" in locals() else [],
         )
+    elif platform == "sap_successfactors":
+        pagination = getattr(session, "sap_successfactors_pagination", None)
+        if isinstance(pagination, Mapping):
+            result["pagination_result"] = dict(pagination)
+            result["pages_requested"] = int(pagination.get("pages_fetched") or 0)
+            result["total_available_jobs"] = pagination.get("total_available")
+            diagnostics = list(pagination.get("diagnostics") or [])
+            if diagnostics and result["safe_to_activate"]:
+                result["warning"] = f"Skipped {len(diagnostics)} malformed or duplicate job entries"
     response = session.final_response
     result["http_status"] = getattr(response, "status_code", None) if response is not None else None
     response_url = getattr(response, "url", None) if response is not None else None
@@ -532,6 +616,7 @@ def validate_company(
     result["attempts"] = session.attempt_count
     if result["redirects"] and result["safe_to_activate"]:
         result["warning"] = "Endpoint redirected before returning a valid ATS response"
+    result["exact_failure_reason"] = result["error"]
     return result
 
 
@@ -737,12 +822,16 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     validated_config = args.validated_config
     if validated_config is None:
         validated_config = (
-            ORACLE_VALIDATED_CONFIG
-            if args.candidate_config == ORACLE_CANDIDATE_CONFIG
+            SUCCESSFACTORS_VALIDATED_CONFIG
+            if args.candidate_config == SUCCESSFACTORS_CANDIDATE_CONFIG
             else (
-                WORKDAY_VALIDATED_CONFIG
-                if args.candidate_config == WORKDAY_CANDIDATE_CONFIG
-                else DEFAULT_VALIDATED_CONFIG
+                ORACLE_VALIDATED_CONFIG
+                if args.candidate_config == ORACLE_CANDIDATE_CONFIG
+                else (
+                    WORKDAY_VALIDATED_CONFIG
+                    if args.candidate_config == WORKDAY_CANDIDATE_CONFIG
+                    else DEFAULT_VALIDATED_CONFIG
+                )
             )
         )
     try:

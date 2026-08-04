@@ -79,6 +79,8 @@ class CompanyTarget:
     site_id: Optional[str] = None
     site_ids: List[str] = field(default_factory=list)
     careers_url: Optional[str] = None
+    search_url: Optional[str] = None
+    endpoint_variant: Optional[str] = None
     endpoint_url: Optional[str] = None
     site_number: Optional[str] = None
     organization_id: Optional[str] = None
@@ -97,6 +99,8 @@ class CompanyTarget:
             site_id=data.get("site_id"),
             site_ids=list(data.get("site_ids") or []),
             careers_url=data.get("careers_url"),
+            search_url=data.get("search_url"),
+            endpoint_variant=data.get("endpoint_variant"),
             endpoint_url=data.get("endpoint_url"),
             site_number=data.get("site_number"),
             organization_id=data.get("organization_id"),
