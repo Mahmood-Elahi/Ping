@@ -259,6 +259,17 @@ class RegistryValidationTests(unittest.TestCase):
             "Emerson": "oracle_recruiting",
             "Honeywell": "oracle_recruiting",
             "Ford": "oracle_recruiting",
+            "Lam Research": "sap_successfactors",
+            "KUKA": "sap_successfactors",
+            "Festo": "sap_successfactors",
+            "Hyundai": "sap_successfactors",
+            "Volkswagen Group": "sap_successfactors",
+            "Volvo Cars": "sap_successfactors",
+            "Ferrari": "sap_successfactors",
+            "ZF Friedrichshafen": "sap_successfactors",
+            "Halliburton": "sap_successfactors",
+            "John Deere": "sap_successfactors",
+            "Pembina Pipeline": "sap_successfactors",
         }
         for company, platform in expected_platforms.items():
             matches = [

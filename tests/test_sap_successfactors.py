@@ -332,22 +332,61 @@ class SapSuccessFactorsTests(unittest.TestCase):
         self.assertFalse(result["safe_to_activate"])
 
     def test_registry_loader_compatibility_candidate_membership_and_byte_prefix(self):
-        baseline_path = Path("config/target_companies.yaml")
         candidate_path = Path("config/target_companies.successfactors_candidates.yaml")
-        _, baseline = validator.load_registry(baseline_path)
-        _, candidate = validator.load_registry(candidate_path)
-        additions = validator.detect_additions(baseline, candidate)
         expected = [
             "Lam Research", "KUKA", "Festo", "Hyundai", "Volkswagen Group",
             "Volvo Cars", "Ferrari", "ZF Friedrichshafen", "Halliburton",
             "John Deere", "Pembina Pipeline",
         ]
-        self.assertEqual([entry["name"] for entry in additions], expected)
-        self.assertEqual(candidate[: len(baseline)], baseline)
-        base_bytes = baseline_path.read_bytes()
-        self.assertEqual(candidate_path.read_bytes()[: len(base_bytes)], base_bytes)
-        targets = load_target_companies(str(candidate_path))
-        self.assertTrue(all(item.platform == "sap_successfactors" for item in targets[-11:]))
+        _, candidates = validator.load_registry(candidate_path)
+        successfactors_candidates = [
+            entry for entry in candidates if entry["platform"] == "sap_successfactors"
+        ]
+        self.assertEqual([entry["name"] for entry in successfactors_candidates], expected)
+
+        baseline_text = (
+            "target_companies:\n"
+            "  - name: Existing Greenhouse\n"
+            "    platform: greenhouse\n"
+            "    slug: existing\n"
+            "  - name: Existing Workday\n"
+            "    platform: workday\n"
+            "    tenant: existing\n"
+            "    wd_subdomain: wd1\n"
+            "    site_id: Careers\n"
+        )
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            baseline_path = root / "baseline.yaml"
+            generated_path = root / "generated.yaml"
+            baseline_path.write_text(baseline_text, encoding="utf-8", newline="\n")
+            generated_path.write_bytes(
+                validator.build_validated_registry_bytes(
+                    baseline_path,
+                    successfactors_candidates,
+                )
+            )
+            baseline_bytes = baseline_path.read_bytes()
+            generated_bytes = generated_path.read_bytes()
+            _, baseline = validator.load_registry(baseline_path)
+            _, generated = validator.load_registry(generated_path)
+            additions = validator.detect_additions(baseline, generated)
+            targets = load_target_companies(str(generated_path))
+
+        addition_names = [entry["name"] for entry in additions]
+        normalized_names = [
+            " ".join(str(entry["name"]).casefold().split()) for entry in generated
+        ]
+        self.assertEqual(generated_bytes[: len(baseline_bytes)], baseline_bytes)
+        self.assertEqual(generated[: len(baseline)], baseline)
+        self.assertEqual(len(additions), len(expected))
+        self.assertEqual(addition_names, expected)
+        self.assertTrue(all(entry["platform"] == "sap_successfactors" for entry in additions))
+        self.assertEqual(len(normalized_names), len(set(normalized_names)))
+        self.assertEqual([item.name for item in targets[-len(expected) :]], expected)
+        self.assertTrue(
+            all(item.platform == "sap_successfactors" for item in targets[-len(expected) :])
+        )
 
     def test_validated_registry_builder_adds_only_safe_companies(self):
         with TemporaryDirectory() as temp_dir:

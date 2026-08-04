@@ -271,3 +271,69 @@ target_companies:
     site_number: CX_1
     locale: en
     max_pages: 2
+  - name: Lam Research
+    platform: sap_successfactors
+    careers_url: https://www.lamresearch.com/careers/
+    search_url: https://opportunities.lamresearch.com/search/
+    endpoint_variant: rmk_table
+    max_pages: 2
+  - name: KUKA
+    platform: sap_successfactors
+    careers_url: https://www.kuka.com/en-us/company/careers
+    search_url: https://jobs.kuka.com/search/
+    endpoint_variant: rmk_tile
+    max_pages: 2
+  - name: Festo
+    platform: sap_successfactors
+    careers_url: https://www.festo.com/group/en/cms/10968.htm
+    search_url: https://jobs.festo.com/search/
+    endpoint_variant: rmk_table
+    max_pages: 2
+  - name: Hyundai
+    platform: sap_successfactors
+    careers_url: https://www.hyundai.com/worldwide/en/company/careers
+    search_url: https://careers-americas.hyundai.com/search/
+    endpoint_variant: rmk_table
+    max_pages: 2
+  - name: Volkswagen Group
+    platform: sap_successfactors
+    careers_url: https://www.volkswagen-group.com/en/careers-16011
+    search_url: https://jobs.volkswagen-group.com/search/
+    endpoint_variant: rmk_table
+    max_pages: 2
+  - name: Volvo Cars
+    platform: sap_successfactors
+    careers_url: https://www.volvocars.com/intl/careers/
+    search_url: https://jobs.volvocars.com/search/
+    endpoint_variant: rmk_table
+    max_pages: 2
+  - name: Ferrari
+    platform: sap_successfactors
+    careers_url: https://www.ferrari.com/en-EN/corporate/career
+    search_url: https://jobs.ferrari.com/search/
+    endpoint_variant: rmk_tile
+    max_pages: 2
+  - name: ZF Friedrichshafen
+    platform: sap_successfactors
+    careers_url: https://www.zf.com/mobile/en/careers/careers.html
+    search_url: https://jobs.zf.com/search/
+    endpoint_variant: rmk_table
+    max_pages: 2
+  - name: Halliburton
+    platform: sap_successfactors
+    careers_url: https://jobs.halliburton.com/
+    search_url: https://jobs.halliburton.com/search/
+    endpoint_variant: rmk_table
+    max_pages: 2
+  - name: John Deere
+    platform: sap_successfactors
+    careers_url: https://www.deere.com/en/our-company/john-deere-careers/
+    search_url: https://jobs.deere.com/search/
+    endpoint_variant: rmk_table
+    max_pages: 2
+  - name: Pembina Pipeline
+    platform: sap_successfactors
+    careers_url: https://www.pembina.com/careers/
+    search_url: https://careers.pembina.com/search/
+    endpoint_variant: rmk_tile
+    max_pages: 2
