@@ -23,7 +23,13 @@ import yaml
 if str(Path(__file__).resolve().parents[1]) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src.scraper.company_careers.adapters import ashby, greenhouse, lever, workday
+from src.scraper.company_careers.adapters import (
+    ashby,
+    greenhouse,
+    lever,
+    oracle_recruiting,
+    workday,
+)
 from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
 
 
@@ -33,6 +39,8 @@ DEFAULT_OUTPUT = Path("output/company_registry_validation.json")
 DEFAULT_VALIDATED_CONFIG = Path("config/target_companies.validated.yaml")
 WORKDAY_CANDIDATE_CONFIG = Path("config/target_companies.workday_candidates.yaml")
 WORKDAY_VALIDATED_CONFIG = Path("config/target_companies.workday_validated.yaml")
+ORACLE_CANDIDATE_CONFIG = Path("config/target_companies.oracle_candidates.yaml")
+ORACLE_VALIDATED_CONFIG = Path("config/target_companies.oracle_validated.yaml")
 MAX_BATCH_SIZE = 5
 DEFAULT_TIMEOUT = 20
 DEFAULT_ATTEMPTS = 2
@@ -64,6 +72,7 @@ ADAPTERS: dict[str, AdapterFn] = {
     "lever": lever.fetch_jobs,
     "ashby": ashby.fetch_jobs,
     "workday": workday.fetch_jobs,
+    "oracle_recruiting": oracle_recruiting.fetch_jobs,
 }
 
 
@@ -104,6 +113,11 @@ def source_key(entry: Mapping[str, Any]) -> Optional[str]:
         # The production Workday adapter emits source=workday:<tenant>, so a
         # repeated tenant would create colliding source identifiers.
         return f"workday:{tenant}" if tenant else None
+    if platform == "oracle_recruiting":
+        endpoint = urlparse(str(entry.get("endpoint_url") or ""))
+        site_number = str(entry.get("site_number") or "").strip().casefold()
+        host = (endpoint.hostname or "").casefold()
+        return f"oracle_recruiting:{host}:{site_number}" if host and site_number else None
     return None
 
 
@@ -120,6 +134,14 @@ def configured_identifiers(entry: Mapping[str, Any]) -> dict[str, Any]:
             identifiers["site_id"] = entry.get("site_id")
         if entry.get("site_ids"):
             identifiers["site_ids"] = list(entry.get("site_ids") or [])
+        return identifiers
+    if platform == "oracle_recruiting":
+        identifiers = {
+            "site_number": entry.get("site_number"),
+            "locale": entry.get("locale"),
+        }
+        if entry.get("organization_id") is not None:
+            identifiers["organization_id"] = entry.get("organization_id")
         return identifiers
     return {}
 
@@ -145,6 +167,9 @@ def endpoint_for(entry: Mapping[str, Any]) -> Optional[str]:
                 f"https://{tenant}.{subdomain}.myworkdayjobs.com"
                 f"/wday/cxs/{tenant}/{site_id}/jobs"
             )
+    if platform == "oracle_recruiting":
+        endpoint = str(entry.get("endpoint_url") or "").strip()
+        return endpoint or None
     return None
 
 
@@ -169,9 +194,14 @@ def configuration_error(entry: Mapping[str, Any]) -> Optional[str]:
         if missing:
             return f"Workday target is missing {', '.join(missing)}"
     try:
-        CompanyTarget.from_dict(dict(entry))
+        target = CompanyTarget.from_dict(dict(entry))
     except (KeyError, TypeError, ValueError) as exc:
         return f"Invalid target fields: {exc}"
+    if platform == "oracle_recruiting":
+        try:
+            oracle_recruiting.validate_target(target)
+        except AdapterError as exc:
+            return str(exc)
     return None
 
 
@@ -239,6 +269,19 @@ def _response_shape_error(platform: str, response: Any) -> Optional[str]:
     if platform == "lever":
         if not isinstance(payload, list):
             return "Lever response must be a JSON list"
+        return None
+    if platform == "oracle_recruiting":
+        if not isinstance(payload, Mapping):
+            return "Oracle Recruiting response must be a JSON object"
+        items = payload.get("items")
+        if not isinstance(items, list) or len(items) != 1 or not isinstance(items[0], Mapping):
+            return "Oracle Recruiting response must contain one search envelope in items"
+        envelope = items[0]
+        if not isinstance(envelope.get("requisitionList"), list):
+            return "Oracle Recruiting search envelope must contain a requisitionList list"
+        for field in ("TotalJobsCount", "Offset", "Limit", "SiteNumber"):
+            if field not in envelope:
+                return f"Oracle Recruiting search envelope is missing {field}"
         return None
     expected_key = {
         "greenhouse": "jobs",
@@ -311,6 +354,59 @@ def _base_result(entry: Mapping[str, Any]) -> dict[str, Any]:
         "safe_to_activate": False,
         "redirects": [],
         "attempts": 0,
+        "pagination_result": None,
+    }
+
+
+def _oracle_pagination_result(
+    session: RecordingRetrySession,
+    target: CompanyTarget,
+    jobs: list[JobRecord],
+) -> dict[str, Any]:
+    pages: list[dict[str, int]] = []
+    total_available: Optional[int] = None
+    for response in session.responses:
+        if getattr(response, "status_code", None) != 200:
+            continue
+        try:
+            payload = response.json()
+            envelope = payload["items"][0]
+            requisitions = envelope["requisitionList"]
+            page = {
+                "offset": int(envelope["Offset"]),
+                "limit": int(envelope["Limit"]),
+                "jobs_returned": len(requisitions),
+            }
+            total_available = int(envelope["TotalJobsCount"])
+        except (KeyError, IndexError, TypeError, ValueError):
+            continue
+        pages.append(page)
+
+    max_pages = min(max(1, target.max_pages), oracle_recruiting.MAX_PAGES)
+    maximum_results = min(
+        oracle_recruiting.MAX_RESULTS,
+        max_pages * oracle_recruiting.PAGE_SIZE,
+    )
+    if total_available == 0 and pages:
+        stop_reason = "validated_zero_jobs"
+    elif total_available is not None and len(jobs) >= total_available:
+        stop_reason = "total_jobs_reached"
+    elif pages and pages[-1]["jobs_returned"] < pages[-1]["limit"]:
+        stop_reason = "short_page"
+    elif len(pages) >= max_pages:
+        stop_reason = "maximum_pages_reached"
+    else:
+        stop_reason = "request_failed"
+    return {
+        "pages_fetched": len(pages),
+        "page_size": oracle_recruiting.PAGE_SIZE,
+        "maximum_pages": max_pages,
+        "maximum_results": maximum_results,
+        "total_available": total_available,
+        "jobs_normalized": len(jobs),
+        "offsets": [page["offset"] for page in pages],
+        "pages": pages,
+        "stop_reason": stop_reason,
     }
 
 
@@ -343,8 +439,9 @@ def validate_company(
     target = CompanyTarget.from_dict(dict(entry))
     if platform == "workday":
         target.max_pages = 1
+    session_attempts = 1 if platform == "oracle_recruiting" else attempts
     session = RecordingRetrySession(
-        session_factory(), attempts=attempts, retry_delay=retry_delay, sleep=sleep
+        session_factory(), attempts=session_attempts, retry_delay=retry_delay, sleep=sleep
     )
     adapter_map = adapters or ADAPTERS
     try:
@@ -418,9 +515,19 @@ def validate_company(
                 safe_to_activate=True,
             )
 
+    if platform == "oracle_recruiting":
+        result["pagination_result"] = _oracle_pagination_result(
+            session,
+            target,
+            jobs if "jobs" in locals() else [],
+        )
     response = session.final_response
     result["http_status"] = getattr(response, "status_code", None) if response is not None else None
-    result["endpoint_tested"] = session.requested_urls[-1] if session.requested_urls else result["endpoint_tested"]
+    response_url = getattr(response, "url", None) if response is not None else None
+    result["endpoint_tested"] = (
+        response_url
+        or (session.requested_urls[-1] if session.requested_urls else result["endpoint_tested"])
+    )
     result["redirects"] = _redirects(session)
     result["attempts"] = session.attempt_count
     if result["redirects"] and result["safe_to_activate"]:
@@ -630,9 +737,13 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     validated_config = args.validated_config
     if validated_config is None:
         validated_config = (
-            WORKDAY_VALIDATED_CONFIG
-            if args.candidate_config == WORKDAY_CANDIDATE_CONFIG
-            else DEFAULT_VALIDATED_CONFIG
+            ORACLE_VALIDATED_CONFIG
+            if args.candidate_config == ORACLE_CANDIDATE_CONFIG
+            else (
+                WORKDAY_VALIDATED_CONFIG
+                if args.candidate_config == WORKDAY_CANDIDATE_CONFIG
+                else DEFAULT_VALIDATED_CONFIG
+            )
         )
     try:
         report = validate_registry(

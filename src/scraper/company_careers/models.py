@@ -37,6 +37,7 @@ class JobRecord:
     departments: List[str] = field(default_factory=list)
     offices: List[str] = field(default_factory=list)
     description: Optional[str] = None
+    raw_metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self.job_id = str(self.job_id or "").strip()
@@ -50,6 +51,7 @@ class JobRecord:
         self.offices = _clean_list(self.offices)
         if self.description is not None:
             self.description = str(self.description)
+        self.raw_metadata = dict(self.raw_metadata or {})
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -63,6 +65,7 @@ class JobRecord:
             "departments": self.departments,
             "offices": self.offices,
             "description": self.description,
+            "raw_metadata": self.raw_metadata,
         }
 
 
@@ -75,6 +78,11 @@ class CompanyTarget:
     wd_subdomain: Optional[str] = None
     site_id: Optional[str] = None
     site_ids: List[str] = field(default_factory=list)
+    careers_url: Optional[str] = None
+    endpoint_url: Optional[str] = None
+    site_number: Optional[str] = None
+    organization_id: Optional[str] = None
+    locale: Optional[str] = None
     search_terms: List[str] = field(default_factory=list)
     max_pages: int = 5
 
@@ -88,6 +96,11 @@ class CompanyTarget:
             wd_subdomain=data.get("wd_subdomain"),
             site_id=data.get("site_id"),
             site_ids=list(data.get("site_ids") or []),
+            careers_url=data.get("careers_url"),
+            endpoint_url=data.get("endpoint_url"),
+            site_number=data.get("site_number"),
+            organization_id=data.get("organization_id"),
+            locale=data.get("locale"),
             search_terms=list(data.get("search_terms") or []),
             max_pages=int(data.get("max_pages") or 5),
         )
