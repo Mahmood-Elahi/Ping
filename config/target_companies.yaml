@@ -98,3 +98,117 @@ target_companies:
       - Principal Software Engineer
       - Staff Software Engineer
       - Production Engineer
+  - name: xAI
+    platform: greenhouse
+    slug: xai
+    careers_url: https://x.ai/careers
+    priority: TBD
+    source_url: https://x.ai/careers
+  - name: Boston Dynamics
+    platform: workday
+    tenant: bostondynamics
+    wd_subdomain: wd1
+    site_id: Boston_Dynamics
+    careers_url: https://bostondynamics.com/careers
+    priority: TBD
+    source_url: https://bostondynamics.com/careers
+  - name: Cadence Design Systems
+    platform: workday
+    tenant: cadence
+    wd_subdomain: wd1
+    site_id: External_Careers
+    careers_url: https://www.cadence.com/en_US/home/company/careers.html
+    priority: TBD
+    source_url: https://www.cadence.com/en_US/home/company/careers.html
+  - name: Figma
+    platform: greenhouse
+    slug: figma
+    careers_url: https://www.figma.com/careers
+    priority: TBD
+    source_url: https://www.figma.com/careers
+  - name: Robinhood
+    platform: greenhouse
+    slug: robinhood
+    careers_url: https://careers.robinhood.com/
+    priority: TBD
+    source_url: https://careers.robinhood.com/
+  - name: Chime
+    platform: greenhouse
+    slug: chime
+    careers_url: https://careers.chime.com/jobs
+    priority: TBD
+    source_url: https://careers.chime.com/jobs
+  - name: Brex
+    platform: greenhouse
+    slug: brex
+    careers_url: https://www.brex.com/careers
+    priority: TBD
+    source_url: https://www.brex.com/careers
+  - name: Ramp
+    platform: ashby
+    slug: ramp
+    careers_url: https://ramp.com/careers
+    priority: TBD
+    source_url: https://ramp.com/careers
+  - name: Magic Leap
+    platform: greenhouse
+    slug: magicleap
+    careers_url: https://www.magicleap.com/careers
+    priority: TBD
+    source_url: https://www.magicleap.com/careers
+  - name: ANYbotics
+    platform: lever
+    slug: anybotics
+    careers_url: https://www.anybotics.com/careers
+    priority: TBD
+    source_url: https://www.anybotics.com/careers
+  - name: Blue Origin
+    platform: workday
+    tenant: blueorigin
+    wd_subdomain: wd5
+    site_id: BlueOrigin
+    careers_url: https://www.blueorigin.com/careers
+    priority: TBD
+    source_url: https://www.blueorigin.com/careers
+  - name: Rocket Lab
+    platform: greenhouse
+    slug: rocketlab
+    careers_url: https://www.rocketlabusa.com/careers
+    priority: TBD
+    source_url: https://www.rocketlabusa.com/careers
+  - name: Vast
+    platform: greenhouse
+    slug: vast
+    careers_url: https://www.vastspace.com/careers
+    priority: TBD
+    source_url: https://www.vastspace.com/careers
+  - name: DoorDash
+    platform: greenhouse
+    slug: doordashusa
+    careers_url: https://careers.doordash.com/
+    priority: TBD
+    source_url: https://careers.doordash.com/
+  - name: Reddit
+    platform: greenhouse
+    slug: reddit
+    careers_url: https://www.redditinc.com/careers
+    priority: TBD
+    source_url: https://www.redditinc.com/careers
+  - name: Discord
+    platform: greenhouse
+    slug: discord
+    careers_url: https://discord.com/careers
+    priority: TBD
+    source_url: https://discord.com/careers
+  - name: Pinterest
+    platform: greenhouse
+    slug: pinterest
+    careers_url: https://www.pinterestcareers.com/
+    priority: TBD
+    source_url: https://www.pinterestcareers.com/
+  - name: Spotify
+    platform: lever
+    slug: spotify
+    careers_url: https://www.lifeatspotify.com/jobs
+    priority: TBD
+    source_url: https://www.lifeatspotify.com/jobs
