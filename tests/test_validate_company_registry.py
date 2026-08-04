@@ -243,15 +243,31 @@ class RegistryValidationTests(unittest.TestCase):
             ["Existing Greenhouse", "Existing Workday", "Enbridge", "Medtronic", "Shell"],
         )
 
-    def test_live_registry_integrity_after_workday_promotion(self):
+    def test_live_registry_integrity_after_platform_promotions(self):
         registry = Path(__file__).resolve().parents[1] / "config" / "target_companies.yaml"
         _, entries = validator.load_registry(registry)
         names = [" ".join(str(entry["name"]).casefold().split()) for entry in entries]
 
-        self.assertEqual(len(entries), 48)
+        self.assertTrue(entries)
         self.assertEqual(len(names), len(set(names)))
-        for company in ("Enbridge", "Medtronic", "Shell"):
-            self.assertEqual(names.count(company.casefold()), 1)
+        expected_platforms = {
+            "Enbridge": "workday",
+            "Medtronic": "workday",
+            "Shell": "workday",
+            "Texas Instruments": "oracle_recruiting",
+            "JPMorgan Chase": "oracle_recruiting",
+            "Emerson": "oracle_recruiting",
+            "Honeywell": "oracle_recruiting",
+            "Ford": "oracle_recruiting",
+        }
+        for company, platform in expected_platforms.items():
+            matches = [
+                entry
+                for entry in entries
+                if " ".join(str(entry["name"]).casefold().split()) == company.casefold()
+            ]
+            self.assertEqual(len(matches), 1)
+            self.assertEqual(matches[0]["platform"], platform)
 
     def test_candidate_additions_are_detected(self):
         current = [target(name="Existing")]

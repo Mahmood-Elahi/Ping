@@ -236,3 +236,38 @@ target_companies:
     careers_url: https://www.shell.com/careers.html
     source_url: https://www.shell.com/careers.html
     priority: TBD
+  - name: Texas Instruments
+    platform: oracle_recruiting
+    careers_url: https://careers.ti.com/en/sites/CX/jobs
+    endpoint_url: https://edbz.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+    site_number: CX
+    locale: en
+    max_pages: 2
+  - name: JPMorgan Chase
+    platform: oracle_recruiting
+    careers_url: https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001/jobs
+    endpoint_url: https://jpmc.fa.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+    site_number: CX_1001
+    locale: en
+    max_pages: 2
+  - name: Emerson
+    platform: oracle_recruiting
+    careers_url: https://hdjq.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/jobs
+    endpoint_url: https://hdjq.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+    site_number: CX_1
+    locale: en
+    max_pages: 2
+  - name: Honeywell
+    platform: oracle_recruiting
+    careers_url: https://ibqbjb.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/Honeywell/jobs
+    endpoint_url: https://ibqbjb.fa.ocs.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+    site_number: CX_1
+    locale: en
+    max_pages: 2
+  - name: Ford
+    platform: oracle_recruiting
+    careers_url: https://efds.fa.em5.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/jobs
+    endpoint_url: https://efds.fa.em5.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+    site_number: CX_1
+    locale: en
+    max_pages: 2

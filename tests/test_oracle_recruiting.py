@@ -12,12 +12,6 @@ from src.scraper.company_careers.models import AdapterError, CompanyTarget
 from src.scraper.company_careers.registry import load_target_companies
 
 
-ROOT = Path(__file__).resolve().parents[1]
-CURRENT_REGISTRY = ROOT / "config" / "target_companies.yaml"
-CANDIDATE_REGISTRY = ROOT / "config" / "target_companies.oracle_candidates.yaml"
-VALIDATED_REGISTRY = ROOT / "config" / "target_companies.oracle_validated.yaml"
-
-
 class FakeResponse:
     def __init__(self, payload=None, status_code=200, url="https://oracle.example.test"):
         self.payload = payload
@@ -86,6 +80,70 @@ def registry_entry(**overrides):
     }
     result.update(overrides)
     return result
+
+
+def oracle_candidate_entries():
+    return [
+        registry_entry(
+            name="Texas Instruments",
+            careers_url="https://careers.ti.com/en/sites/CX/jobs",
+            endpoint_url=(
+                "https://edbz.fa.us2.oraclecloud.com/"
+                "hcmRestApi/resources/latest/recruitingCEJobRequisitions"
+            ),
+            site_number="CX",
+            max_pages=2,
+        ),
+        registry_entry(
+            name="JPMorgan Chase",
+            careers_url=(
+                "https://jpmc.fa.oraclecloud.com/"
+                "hcmUI/CandidateExperience/en/sites/CX_1001/jobs"
+            ),
+            endpoint_url=(
+                "https://jpmc.fa.oraclecloud.com/"
+                "hcmRestApi/resources/latest/recruitingCEJobRequisitions"
+            ),
+            site_number="CX_1001",
+            max_pages=2,
+        ),
+        registry_entry(
+            name="Emerson",
+            careers_url=(
+                "https://hdjq.fa.us2.oraclecloud.com/"
+                "hcmUI/CandidateExperience/en/sites/CX_1/jobs"
+            ),
+            endpoint_url=(
+                "https://hdjq.fa.us2.oraclecloud.com/"
+                "hcmRestApi/resources/latest/recruitingCEJobRequisitions"
+            ),
+            max_pages=2,
+        ),
+        registry_entry(
+            name="Honeywell",
+            careers_url=(
+                "https://ibqbjb.fa.ocs.oraclecloud.com/"
+                "hcmUI/CandidateExperience/en/sites/Honeywell/jobs"
+            ),
+            endpoint_url=(
+                "https://ibqbjb.fa.ocs.oraclecloud.com/"
+                "hcmRestApi/resources/latest/recruitingCEJobRequisitions"
+            ),
+            max_pages=2,
+        ),
+        registry_entry(
+            name="Ford",
+            careers_url=(
+                "https://efds.fa.em5.oraclecloud.com/"
+                "hcmUI/CandidateExperience/en/sites/CX_1/jobs"
+            ),
+            endpoint_url=(
+                "https://efds.fa.em5.oraclecloud.com/"
+                "hcmRestApi/resources/latest/recruitingCEJobRequisitions"
+            ),
+            max_pages=2,
+        ),
+    ]
 
 
 def requisition(job_id="12345", **overrides):
@@ -267,26 +325,43 @@ class OracleRecruitingAdapterTests(unittest.TestCase):
         self.assertEqual(result["pagination_result"]["stop_reason"], "validated_zero_jobs")
 
     def test_registry_loader_compatibility_and_existing_entries_unchanged(self):
-        _, current = validator.load_registry(CURRENT_REGISTRY)
-        _, candidate = validator.load_registry(CANDIDATE_REGISTRY)
-        _, validated = validator.load_registry(VALIDATED_REGISTRY)
-        targets = load_target_companies(str(CANDIDATE_REGISTRY))
+        baseline_text = (
+            "target_companies:\n"
+            "  - name: Existing Greenhouse\n"
+            "    platform: greenhouse\n"
+            "    slug: existing\n"
+            "  - name: Existing Workday\n"
+            "    platform: workday\n"
+            "    tenant: existing\n"
+            "    wd_subdomain: wd1\n"
+            "    site_id: Careers\n"
+        )
+        additions = oracle_candidate_entries()
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            baseline_path = root / "baseline.yaml"
+            candidate_path = root / "candidate.yaml"
+            baseline_path.write_text(baseline_text, encoding="utf-8", newline="\n")
+            candidate_path.write_bytes(
+                validator.build_validated_registry_bytes(baseline_path, additions)
+            )
+            baseline_bytes = baseline_path.read_bytes()
+            candidate_bytes = candidate_path.read_bytes()
+            _, baseline = validator.load_registry(baseline_path)
+            _, candidate = validator.load_registry(candidate_path)
+            detected = validator.detect_additions(baseline, candidate)
+            targets = load_target_companies(str(candidate_path))
 
-        self.assertEqual(len(current), 48)
-        self.assertEqual(candidate[:48], current)
-        self.assertEqual(validated[:48], current)
-        self.assertEqual(len(candidate), 53)
-        self.assertEqual(len(validated), 53)
-        self.assertEqual(validated, candidate)
-        self.assertEqual([item.name for item in targets[-5:]], [
-            "Texas Instruments",
-            "JPMorgan Chase",
-            "Emerson",
-            "Honeywell",
-            "Ford",
-        ])
-        self.assertTrue(all(item.platform == "oracle_recruiting" for item in targets[-5:]))
-        self.assertNotIn("Schneider Electric", [item.name for item in targets])
+        expected_names = [entry["name"] for entry in additions]
+        self.assertEqual(candidate_bytes[: len(baseline_bytes)], baseline_bytes)
+        self.assertEqual(candidate[: len(baseline)], baseline)
+        self.assertEqual(len(candidate), len(baseline) + len(additions))
+        self.assertEqual([entry["name"] for entry in detected], expected_names)
+        self.assertEqual([item.name for item in targets[-len(additions) :]], expected_names)
+        self.assertTrue(
+            all(item.platform == "oracle_recruiting" for item in targets[-len(additions) :])
+        )
+        self.assertNotIn("Schneider Electric", expected_names)
 
     @patch.object(oracle_recruiting.time, "sleep", return_value=None)
     def test_oracle_validation_initializes_no_persistence(self, _sleep):
