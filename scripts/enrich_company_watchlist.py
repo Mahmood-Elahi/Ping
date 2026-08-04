@@ -151,7 +151,13 @@ def enrich_rows(
                 detection = (
                     job_search_detection
                     if job_search_detection.platform == researched_platform
-                    else ATSDetection(platform=researched_platform)
+                    else ATSDetection(
+                        platform=researched_platform,
+                        slug=clean_text(research.get("ATS Slug")),
+                        tenant=clean_text(research.get("Workday Tenant")),
+                        wd_subdomain=clean_text(research.get("Workday Subdomain")),
+                        site_id=clean_text(research.get("Workday Site ID")),
+                    )
                 )
                 careers_url = clean_text(research.get("Official Careers URL"))
                 source_url = clean_text(research.get("Source URL"))

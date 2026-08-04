@@ -41,8 +41,13 @@ RESEARCH_FIELDS = [
     "Research Status",
     "Research Notes",
     "Reviewed",
+    "ATS Slug",
+    "Workday Tenant",
+    "Workday Subdomain",
+    "Workday Site ID",
 ]
 RESEARCH_STATUSES = {
+    "existing_config",
     "validated_supported",
     "validated_custom_adapter_required",
     "manual_review",
@@ -184,7 +189,10 @@ def detect_ats(url: Any) -> ATSDetection:
         host,
     )
     if workday_match:
-        site_id = parts[0] if parts else ""
+        site_parts = parts
+        if site_parts and re.fullmatch(r"[a-z]{2}(?:-[A-Z]{2})?", site_parts[0]):
+            site_parts = site_parts[1:]
+        site_id = site_parts[0] if site_parts else ""
         note = "Detected Workday identifiers" if site_id else "Workday site ID is missing"
         return ATSDetection(
             "workday",
@@ -338,12 +346,24 @@ def validate_research_row(row: Mapping[str, Any]) -> tuple[bool, str]:
         if not allowed:
             return False, f"{label}: {note}"
     if status == "validated_custom_adapter_required":
-        if not platform.startswith("custom_"):
-            return False, "Custom-adapter-required research must use a custom_ platform label"
+        allowed_custom = platform.startswith("custom_") or platform in DETECTED_BUT_UNSUPPORTED | {"custom"}
+        if not allowed_custom:
+            return False, "Custom-adapter-required research must identify a custom or unsupported platform"
         if reusable:
             return False, "A required custom adapter cannot be marked reusable"
     if status == "validated_supported" and platform not in SUPPORTED_IMPORT_PLATFORMS:
         return False, f"Platform is not supported by the current scanner: {platform}"
+    if status == "validated_supported":
+        researched_detection = ATSDetection(
+            platform=platform,
+            slug=clean_text(row.get("ATS Slug")),
+            tenant=clean_text(row.get("Workday Tenant")),
+            wd_subdomain=clean_text(row.get("Workday Subdomain")),
+            site_id=clean_text(row.get("Workday Site ID")),
+        )
+        fields_valid, fields_note = validate_detection_fields(researched_detection)
+        if not fields_valid:
+            return False, fields_note
     return True, "Reviewed official-domain research"
 
 

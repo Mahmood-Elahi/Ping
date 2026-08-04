@@ -19,6 +19,7 @@ from src.scraper.company_careers.models import CompanyTarget
 
 try:
     from scripts.company_watchlist_common import (
+        ATSDetection,
         DEFAULT_REGISTRY_PATH,
         canonicalize_url,
         clean_text,
@@ -32,6 +33,7 @@ try:
     )
 except ModuleNotFoundError:  # Direct execution places scripts/ first on sys.path.
     from company_watchlist_common import (  # type: ignore[no-redef]
+        ATSDetection,
         DEFAULT_REGISTRY_PATH,
         canonicalize_url,
         clean_text,
@@ -128,23 +130,26 @@ def build_generated_registry(
             decision = "manual_review"
             reason = f"Import Status is {status or 'missing'}, not validated_supported"
         else:
-            detection = detect_ats(url)
-            if detection.platform != platform and source_url:
-                detection = detect_ats(source_url)
-            fields_valid, fields_reason = validate_detection_fields(detection)
-            supplied_detection_matches = (
-                detection.platform == platform
-                and detection.slug == clean_text(row.get("ATS Slug"))
-                and detection.tenant == clean_text(row.get("Workday Tenant"))
-                and detection.wd_subdomain == clean_text(row.get("Workday Subdomain"))
-                and detection.site_id == clean_text(row.get("Workday Site ID"))
+            supplied_detection = ATSDetection(
+                platform=platform,
+                slug=clean_text(row.get("ATS Slug")),
+                tenant=clean_text(row.get("Workday Tenant")),
+                wd_subdomain=clean_text(row.get("Workday Subdomain")),
+                site_id=clean_text(row.get("Workday Site ID")),
             )
+            fields_valid, fields_reason = validate_detection_fields(supplied_detection)
+            detected_platforms = {
+                detection.platform
+                for detection in (detect_ats(url), detect_ats(source_url))
+                if detection.platform
+            }
+            provider_conflict = bool(detected_platforms and platform not in detected_platforms)
             if not fields_valid:
                 decision = "manual_review"
                 reason = fields_reason
-            elif not supplied_detection_matches:
+            elif provider_conflict:
                 decision = "manual_review"
-                reason = "ATS fields do not match the validated careers URL"
+                reason = "ATS fields conflict with a provider detected in the reviewed URLs"
             else:
                 target = _new_target(row)
                 generated.append(target)

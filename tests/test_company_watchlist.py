@@ -7,16 +7,22 @@ import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import Mock, patch
 
 import yaml
 
-from scripts.company_watchlist_common import ENRICHED_FIELDS, detect_ats, write_csv
+from scripts.company_watchlist_common import ENRICHED_FIELDS, RESEARCH_FIELDS, detect_ats, write_csv
 from scripts.enrich_company_watchlist import enrich_rows
 from scripts.import_company_watchlist import (
     build_generated_registry,
     dump_registry,
     import_watchlist,
     validate_registry_data,
+)
+from scripts.research_company_watchlist import (
+    ControlledResearchClient,
+    generate_reports,
+    merge_batch,
 )
 from src.scraper.company_careers.registry import load_target_companies
 from src.integrations.supabase_job_store import generate_source_key
@@ -74,6 +80,10 @@ def research_row(
         "Research Status": status,
         "Research Notes": "review fixture",
         "Reviewed": reviewed,
+        "ATS Slug": "",
+        "Workday Tenant": "",
+        "Workday Subdomain": "",
+        "Workday Site ID": "",
     }
 
 
@@ -105,6 +115,15 @@ class ATSDetectionTests(unittest.TestCase):
         self.assertEqual(detected.platform, "workday")
         self.assertEqual(detected.tenant, "acme")
         self.assertEqual(detected.wd_subdomain, "wd5")
+        self.assertEqual(detected.site_id, "External_Careers")
+
+    def test_workday_url_parsing_skips_locale_prefix(self):
+        detected = detect_ats(
+            "https://cadence.wd1.myworkdayjobs.com/en-US/External_Careers/job/123"
+        )
+        self.assertEqual(detected.platform, "workday")
+        self.assertEqual(detected.tenant, "cadence")
+        self.assertEqual(detected.wd_subdomain, "wd1")
         self.assertEqual(detected.site_id, "External_Careers")
 
 
@@ -350,6 +369,20 @@ class ImportTests(unittest.TestCase):
         self.assertEqual(generated["target_companies"], existing)
         self.assertEqual(report["decisions"][0]["decision"], "existing_preserved")
 
+    def test_reviewed_ats_fields_allow_official_landing_page(self):
+        rows = [
+            enriched_row(
+                "Acme",
+                "https://www.acme.com/careers",
+                "greenhouse",
+                slug="acme",
+                status="validated_supported",
+            )
+        ]
+        generated, report = build_generated_registry(rows, [])
+        self.assertEqual(generated["target_companies"][0]["slug"], "acme")
+        self.assertEqual(report["decisions"][0]["decision"], "added")
+
     def test_existing_custom_adapter_preservation(self):
         existing = [
             {
@@ -431,6 +464,75 @@ class ImportTests(unittest.TestCase):
     def test_import_report_is_json_serializable(self):
         _, report = build_generated_registry([], [{"name": "Existing", "platform": "google"}])
         self.assertEqual(json.loads(json.dumps(report))["summary"]["generated_entries"], 1)
+
+
+class ResearchBatchTests(unittest.TestCase):
+    def test_batch_size_is_capped_at_twenty_five(self):
+        with self.assertRaisesRegex(ValueError, "between 1 and 25"):
+            merge_batch([], [], [], Mock(), start_row=1, batch_size=26)
+
+    def test_reviewed_rows_are_preserved_without_network_calls(self):
+        reviewed = research_row(
+            "Acme",
+            "https://www.acme.com/careers",
+            "https://www.acme.com/careers/jobs",
+            "custom",
+            "validated_custom_adapter_required",
+            required_adapter="custom_company_site",
+        )
+        client = Mock()
+        merged, decisions = merge_batch(
+            [{"Company": "Acme"}], [reviewed], [], client, start_row=1, batch_size=1
+        )
+        self.assertEqual(merged, [reviewed])
+        self.assertEqual(decisions[0]["decision"], "preserved_reviewed")
+        client.search.assert_not_called()
+
+    def test_controlled_client_retries_are_bounded_without_live_network(self):
+        response = Mock(status_code=503)
+        response.close = Mock()
+        session = Mock()
+        session.request.return_value = response
+        sleeps: list[float] = []
+        client = ControlledResearchClient(
+            "key", delay=0.25, retries=2, session=session, sleep_fn=sleeps.append
+        )
+        with self.assertRaisesRegex(Exception, "after 3 attempts"):
+            client._request("get", "https://example.com")
+        self.assertEqual(session.request.call_count, 3)
+        self.assertEqual(sleeps, [0.25, 0.25, 0.25, 0.5, 0.25])
+
+    def test_reports_cover_full_watchlist_and_group_custom_adapters(self):
+        custom = research_row(
+            "Acme",
+            "https://www.acme.com/careers",
+            "https://www.acme.com/careers/jobs",
+            "custom",
+            "validated_custom_adapter_required",
+            required_adapter="custom_company_site",
+        )
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            with (
+                patch("scripts.research_company_watchlist.PLATFORM_SUMMARY", root / "platform.csv"),
+                patch("scripts.research_company_watchlist.RESEARCH_SUMMARY", root / "summary.json"),
+                patch("scripts.research_company_watchlist.MANUAL_REVIEW_REPORT", root / "manual.csv"),
+                patch("scripts.research_company_watchlist.CUSTOM_ADAPTER_REPORT", root / "custom.csv"),
+            ):
+                summary = generate_reports(
+                    [{"Company": "Acme"}, {"Company": "Pending"}], [custom], []
+                )
+            self.assertEqual(summary["total_workbook_companies"], 2)
+            self.assertEqual(summary["researched_companies"], 1)
+            self.assertEqual(summary["unsupported_adapter_families"], ["custom_company_site"])
+            self.assertTrue((root / "platform.csv").exists())
+            custom_rows = (root / "custom.csv").read_text(encoding="utf-8-sig")
+            self.assertIn("Acme", custom_rows)
+            self.assertIn("Companies Unlocked", custom_rows)
+
+    def test_research_csv_schema_contains_required_identifier_columns(self):
+        for field in ("ATS Slug", "Workday Tenant", "Workday Subdomain", "Workday Site ID"):
+            self.assertIn(field, RESEARCH_FIELDS)
 
 
 if __name__ == "__main__":

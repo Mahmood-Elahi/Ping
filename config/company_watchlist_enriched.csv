@@ -7,5 +7,241 @@
 6,Tesla,https://www.tesla.com/careers,TBD,,custom_tesla,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://www.tesla.com/careers/search; Required adapter: custom Tesla adapter; Existing adapter reusable: no; Official Tesla careers search confirmed; no supported ATS identifiers inferred.,https://www.tesla.com/careers
 7,Amazon,https://www.amazon.jobs/,TBD,,amazon,,,,,existing_config,Preserved existing validated configuration,https://www.amazon.jobs/
 8,Meta,https://www.metacareers.com/jobs/,TBD,,meta,,,,,existing_config,Preserved existing validated configuration,https://www.metacareers.com/jobs/
-9,Google DeepMind,https://deepmind.google/careers/,TBD,,google,,,,,manual_review,Reviewed official-domain research; Official job search: https://www.google.com/about/careers/applications/jobs/results/?q=Google%20DeepMind; Required adapter: existing Google adapter with safe organization/team filter; Existing adapter reusable: yes; DeepMind roles surface through Google Careers. Reuse custom:google only after a safe organization/team filter exists; stable Google source keys prevent duplicate persisted jobs.,https://deepmind.google/careers/
+9,Google DeepMind,https://deepmind.google/careers/,TBD,,google,,,,,manual_review,Reviewed official-domain research; Official job search: https://www.google.com/about/careers/applications/jobs/results/?q=Google%20DeepMind; Required adapter: existing Google adapter with safe organization/team filter; Existing adapter reusable: yes; DeepMind roles surface through Google Careers. Reuse the Google adapter only after a safe team filter exists; stable source keys prevent duplicate persisted jobs.,https://deepmind.google/careers/
 10,Anthropic,https://boards.greenhouse.io/anthropic,TBD,,greenhouse,anthropic,,,,existing_config,Preserved existing validated configuration,https://boards.greenhouse.io/anthropic
+11,xAI,https://x.ai/careers,TBD,,greenhouse,xai,,,,validated_supported,Reviewed official-domain research; Official job search: https://job-boards.greenhouse.io/xai; Required adapter: greenhouse; Existing adapter reusable: yes; Official xAI careers page links to the confirmed Greenhouse board.,https://x.ai/careers
+12,Waymo,https://careers.withwaymo.com/,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://careers.withwaymo.com/jobs/search; Required adapter: custom_company_api; Existing adapter reusable: no; Official Waymo search is a custom company careers application and no supported provider identifiers are exposed.,https://careers.withwaymo.com/
+13,Boston Dynamics,https://bostondynamics.com/careers/,TBD,,workday,,bostondynamics,wd1,Boston_Dynamics,validated_supported,Reviewed official-domain research; Official job search: https://bostondynamics.wd1.myworkdayjobs.com/Boston_Dynamics; Required adapter: workday; Existing adapter reusable: yes; Official careers and FAQ pages confirm Workday and expose complete identifiers.,https://bostondynamics.com/careers/
+14,SpaceX,https://www.spacex.com/careers/,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://www.spacex.com/careers/; Required adapter: custom_company_api; Existing adapter reusable: no; Official careers search is a custom company system with no supported ATS identifiers exposed.,https://www.spacex.com/careers/
+15,Stripe,https://boards.greenhouse.io/stripe,TBD,,greenhouse,stripe,,,,existing_config,Preserved existing validated configuration,https://boards.greenhouse.io/stripe
+16,Cloudflare,https://boards.greenhouse.io/cloudflare,TBD,,greenhouse,cloudflare,,,,existing_config,Preserved existing validated configuration,https://boards.greenhouse.io/cloudflare
+17,AMD,https://www.amd.com/en/corporate/careers.html,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://careers.amd.com/careers-home/; Required adapter: custom_company_api; Existing adapter reusable: no; Official AMD careers and search portals confirmed; current scanner has no adapter for the custom portal.,https://www.amd.com/en/corporate/careers.html
+18,Qualcomm,https://www.qualcomm.com/company/careers,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://careers.qualcomm.com/careers; Required adapter: custom_company_api; Existing adapter reusable: no; Official Qualcomm careers and search portals confirmed; current scanner has no adapter for the custom portal.,https://www.qualcomm.com/company/careers
+19,Intel,https://www.intel.com/content/www/us/en/jobs/jobs-at-intel.html,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://jobs.intel.com/; Required adapter: custom_company_api; Existing adapter reusable: no; Official Intel jobs pages confirmed; current scanner has no adapter for the custom portal.,https://www.intel.com/content/www/us/en/jobs/jobs-at-intel.html
+20,TSMC,https://www.tsmc.com/static/english/careers/index.htm,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://careers.tsmc.com/en_US/careers/SearchJobs; Required adapter: custom_company_api; Existing adapter reusable: no; Official TSMC careers and job search pages confirmed; current scanner has no adapter for the custom portal.,https://www.tsmc.com/static/english/careers/index.htm
+21,Samsung Electronics,https://www.samsung.com/us/careers/,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://www.samsungcareers.com/?lang=en; Required adapter: custom_company_api; Existing adapter reusable: no; Official Samsung careers and global search portals confirmed; regional coverage may vary.,https://www.samsung.com/us/careers/
+22,Broadcom,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+23,ARM,https://careers.arm.com/,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://careers.arm.com/en/search-jobs; Required adapter: custom_company_api; Existing adapter reusable: no; Official Arm careers and search pages confirmed; current scanner has no adapter for the custom portal.,https://careers.arm.com/
+24,Synopsys,https://www.synopsys.com/careers/global.html,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://careers.synopsys.com/search-jobs; Required adapter: custom_company_api; Existing adapter reusable: no; Official Synopsys careers and search pages confirmed; current scanner has no adapter for the custom portal.,https://www.synopsys.com/careers/global.html
+25,Cadence Design Systems,https://www.cadence.com/en_US/home/company/careers.html,TBD,,workday,,cadence,wd1,External_Careers,validated_supported,Reviewed official-domain research; Official job search: https://cadence.wd1.myworkdayjobs.com/External_Careers; Required adapter: workday; Existing adapter reusable: yes; Official Cadence careers results expose complete Workday identifiers.,https://www.cadence.com/en_US/home/company/careers.html
+26,ASML,https://www.asml.com/en/careers,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://www.asml.com/en/careers/find-your-job; Required adapter: custom_company_api; Existing adapter reusable: no; Official ASML job search is confirmed but no current scanner adapter exists.,https://www.asml.com/en/careers
+27,Applied Materials,https://www.appliedmaterials.com/us/en/careers,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://jobs.appliedmaterials.com/en/search-jobs; Required adapter: custom_company_api; Existing adapter reusable: no; Official company careers and search pages confirmed; no supported ATS identifiers exposed.,https://www.appliedmaterials.com/us/en/careers
+28,Lam Research,https://www.lamresearch.com/careers/,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://opportunities.lamresearch.com/; Required adapter: custom_company_api; Existing adapter reusable: no; Official Lam Research career search confirmed; current scanner has no adapter.,https://opportunities.lamresearch.com/
+29,Micron,https://www.micron.com/about/careers,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://careers.micron.com/; Required adapter: custom_company_api; Existing adapter reusable: no; Official Micron careers and search portals confirmed; current scanner has no adapter.,https://www.micron.com/about/careers
+30,Texas Instruments,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+31,Analog Devices,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+32,NXP Semiconductors,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+33,Infineon Technologies,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+34,STMicroelectronics,https://stmicroelectronics.eightfold.ai/careers,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://stmicroelectronics.eightfold.ai/careers; Required adapter: custom_company_api; Existing adapter reusable: no; Confirmed company-branded Eightfold careers portal is unsupported by the scanner.,https://stmicroelectronics.eightfold.ai/careers
+35,Marvell Technology,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+36,MediaTek,https://careers.mediatek.com/en,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://careers.mediatek.com/en/jobs; Required adapter: custom_company_api; Existing adapter reusable: no; Official MediaTek job search confirmed; current scanner has no adapter.,https://careers.mediatek.com/en/jobs
+37,GlobalFoundries,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+38,onsemi,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+39,Microchip Technology,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+40,Lattice Semiconductor,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+41,KLA,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+42,Oracle,https://www.oracle.com/careers/,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://www.oracle.com/careers/; Required adapter: custom_company_api; Existing adapter reusable: no; Official Oracle job search confirmed; current scanner has no Oracle careers adapter.,https://www.oracle.com/careers/
+43,Adobe,https://adobe.wd5.myworkdayjobs.com/external_experienced,TBD,,workday,,adobe,wd5,external_experienced,existing_config,Preserved existing validated configuration,https://adobe.wd5.myworkdayjobs.com/external_experienced
+44,GitHub,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+45,Databricks,https://boards.greenhouse.io/databricks,TBD,,greenhouse,databricks,,,,existing_config,Preserved existing validated configuration,https://boards.greenhouse.io/databricks
+46,Snowflake,https://jobs.ashbyhq.com/snowflake,TBD,,ashby,snowflake,,,,existing_config,Preserved existing validated configuration,https://jobs.ashbyhq.com/snowflake
+47,Atlassian,https://www.atlassian.com/company/careers,TBD,,atlassian,,,,,existing_config,Preserved existing validated configuration,https://www.atlassian.com/company/careers
+48,Netflix,https://jobs.netflix.com/,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://jobs.netflix.com/search; Required adapter: custom_company_api; Existing adapter reusable: no; Official Netflix job search confirmed; current scanner has no adapter.,https://jobs.netflix.com/
+49,Uber,https://www.uber.com/us/en/careers/list/,TBD,,uber,,,,,existing_config,Preserved existing validated configuration,https://www.uber.com/us/en/careers/list/
+50,Airbnb,https://boards.greenhouse.io/airbnb,TBD,,greenhouse,airbnb,,,,existing_config,Preserved existing validated configuration,https://boards.greenhouse.io/airbnb
+51,Salesforce,https://salesforce.wd12.myworkdayjobs.com/External_Career_Site,TBD,,workday,,salesforce,wd12,External_Career_Site,existing_config,Preserved existing validated configuration,https://salesforce.wd12.myworkdayjobs.com/External_Career_Site
+52,MongoDB,https://boards.greenhouse.io/mongodb,TBD,,greenhouse,mongodb,,,,existing_config,Preserved existing validated configuration,https://boards.greenhouse.io/mongodb
+53,Figma,https://www.figma.com/careers/,TBD,,greenhouse,figma,,,,validated_supported,Reviewed official-domain research; Official job search: https://job-boards.greenhouse.io/figma; Required adapter: greenhouse; Existing adapter reusable: yes; Official Figma careers page and confirmed Greenhouse board expose the board slug.,https://www.figma.com/careers/
+54,Shopify,https://www.shopify.com/careers,TBD,,shopify,,,,,existing_config,Preserved existing validated configuration,https://www.shopify.com/careers
+55,Block,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+56,Visa,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+57,Mastercard,https://careers.mastercard.com/us/en/,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://careers.mastercard.com/us/en/search-results/; Required adapter: custom_company_api; Existing adapter reusable: no; Official Mastercard job search confirmed; current scanner has no adapter.,https://careers.mastercard.com/us/en/
+58,PayPal,https://paypal.wd1.myworkdayjobs.com/jobs,TBD,,workday,,paypal,wd1,jobs,existing_config,Preserved existing validated configuration,https://paypal.wd1.myworkdayjobs.com/jobs
+59,Bloomberg,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+60,Robinhood,https://careers.robinhood.com/,TBD,,greenhouse,robinhood,,,,validated_supported,Reviewed official-domain research; Official job search: https://job-boards.greenhouse.io/robinhood; Required adapter: greenhouse; Existing adapter reusable: yes; Official Robinhood careers page resolves from the confirmed Greenhouse board.,https://careers.robinhood.com/
+61,Coinbase,https://boards.greenhouse.io/coinbase,TBD,,greenhouse,coinbase,,,,existing_config,Preserved existing validated configuration,https://boards.greenhouse.io/coinbase
+62,Adyen,https://careers.adyen.com/,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://careers.adyen.com/vacancies; Required adapter: custom_company_api; Existing adapter reusable: no; Official Adyen vacancies search confirmed; current scanner has no adapter.,https://careers.adyen.com/
+63,Plaid,https://plaid.com/careers/,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://plaid.com/careers/; Required adapter: custom_company_api; Existing adapter reusable: no; Official Plaid careers page includes first-party job listings but no supported provider identifiers.,https://plaid.com/careers/
+64,Intuit,https://www.intuit.com/careers/,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://jobs.intuit.com/search-jobs; Required adapter: custom_company_api; Existing adapter reusable: no; Official Intuit job search confirmed; current scanner has no adapter.,https://www.intuit.com/careers/
+65,Wise,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+66,Revolut,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+67,Chime,https://careers.chime.com/jobs/,TBD,,greenhouse,chime,,,,validated_supported,Reviewed official-domain research; Official job search: https://job-boards.greenhouse.io/chime; Required adapter: greenhouse; Existing adapter reusable: yes; Official Chime careers page resolves from the confirmed Greenhouse board.,https://careers.chime.com/jobs/
+68,Brex,https://www.brex.com/careers,TBD,,greenhouse,brex,,,,validated_supported,Reviewed official-domain research; Official job search: https://job-boards.greenhouse.io/brex; Required adapter: greenhouse; Existing adapter reusable: yes; Official Brex careers page resolves from the confirmed Greenhouse board.,https://www.brex.com/careers
+69,Ramp,https://ramp.com/careers,TBD,,ashby,ramp,,,,validated_supported,Reviewed official-domain research; Official job search: https://jobs.ashbyhq.com/ramp; Required adapter: ashby; Existing adapter reusable: yes; Official Ramp careers page and confirmed Ashby organization expose the required slug.,https://ramp.com/careers
+70,Ripple,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+71,Kraken,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+72,SoFi,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+73,Nubank,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+74,Jane Street,https://www.janestreet.com/join-jane-street/,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://www.janestreet.com/join-jane-street/open-roles/; Required adapter: custom_company_api; Existing adapter reusable: no; Official Jane Street open-roles search confirmed; current scanner has no adapter.,https://www.janestreet.com/join-jane-street/
+75,Citadel Securities,https://www.citadelsecurities.com/careers/,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://www.citadelsecurities.com/careers/open-opportunities/; Required adapter: custom_company_api; Existing adapter reusable: no; Official Citadel Securities opportunities page confirmed; current scanner has no adapter.,https://www.citadelsecurities.com/careers/
+76,Hudson River Trading,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+77,Two Sigma,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+78,Jump Trading,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+79,DRW,https://drw.com/work-at-drw,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://drw.com/work-at-drw/listings; Required adapter: custom_company_api; Existing adapter reusable: no; Official DRW listings page confirmed; current scanner has no adapter.,https://drw.com/work-at-drw
+80,IMC Trading,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+81,Optiver,https://optiver.com/working-at-optiver/,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://optiver.com/working-at-optiver/career-opportunities/; Required adapter: custom_company_api; Existing adapter reusable: no; Official Optiver opportunities page confirmed; current scanner has no adapter.,https://optiver.com/working-at-optiver/
+82,SIG,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+83,Tower Research Capital,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+84,Goldman Sachs,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+85,JPMorgan Chase,https://careers.jpmorgan.com/,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://careers.jpmorgan.com/global/en/search-results; Required adapter: custom_company_api; Existing adapter reusable: no; Official JPMorgan Chase search confirmed; current scanner has no adapter.,https://careers.jpmorgan.com/
+86,Morgan Stanley,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+87,Bank of America,https://careers.bankofamerica.com/,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://careers.bankofamerica.com/en-us/job-search; Required adapter: custom_company_api; Existing adapter reusable: no; Official Bank of America job search confirmed; current scanner has no adapter.,https://careers.bankofamerica.com/
+88,BlackRock,https://careers.blackrock.com/,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://careers.blackrock.com/job-search-results/; Required adapter: custom_company_api; Existing adapter reusable: no; Official BlackRock job search confirmed; current scanner has no adapter.,https://careers.blackrock.com/
+89,Capital One,https://www.capitalonecareers.com/,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://www.capitalonecareers.com/search-jobs; Required adapter: custom_company_api; Existing adapter reusable: no; Official Capital One job search confirmed; current scanner has no adapter.,https://www.capitalonecareers.com/
+90,ABB,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+91,Siemens,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+92,Rockwell Automation,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+93,Schneider Electric,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+94,Emerson,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+95,Honeywell,https://careers.honeywell.com/,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://careers.honeywell.com/us/en/search-results; Required adapter: custom_company_api; Existing adapter reusable: no; Official Honeywell job search confirmed; current scanner has no adapter.,https://careers.honeywell.com/
+96,Bosch,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+97,Mitsubishi Electric,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+98,FANUC,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+99,KUKA,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+100,Yaskawa Electric,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+101,Omron,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+102,Beckhoff Automation,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+103,Keyence,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+104,Festo,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+105,Phoenix Contact,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+106,Eaton,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+107,Hitachi,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+108,GE Vernova,https://careers.gevernova.com/,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://careers.gevernova.com/global/en/search-results; Required adapter: custom_company_api; Existing adapter reusable: no; Official GE Vernova search confirmed; current scanner has no adapter.,https://careers.gevernova.com/
+109,Cognex,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+110,Universal Robots,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+111,Mercedes-Benz,https://group.mercedes-benz.com/careers/,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://jobs.mercedes-benz.com/en; Required adapter: custom_company_api; Existing adapter reusable: no; Official Mercedes-Benz jobs search confirmed; current scanner has no adapter.,https://group.mercedes-benz.com/careers/
+112,BMW,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+113,Toyota,https://careers.toyota.com/,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://careers.toyota.com/us/en/search-results; Required adapter: custom_company_api; Existing adapter reusable: no; Official Toyota job search confirmed; current scanner has no adapter.,https://careers.toyota.com/
+114,Porsche,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+115,General Motors,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+116,Rivian,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+117,Ford,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+118,Hyundai,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+119,Honda,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+120,Volkswagen Group,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+121,Volvo Cars,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+122,Lucid Motors,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+123,Ferrari,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+124,Continental,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+125,ZF Friedrichshafen,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+126,Aptiv,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+127,Magna International,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+128,Denso,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+129,Valeo,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+130,Mobileye,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+131,Aurora Innovation,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+132,Stellantis,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+133,BYD,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+134,CATL,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+135,Unity,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+136,Epic Games,https://www.epicgames.com/site/en-US/careers,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://www.epicgames.com/site/en-US/careers/jobs; Required adapter: custom_company_api; Existing adapter reusable: no; Official Epic Games job listings confirmed; current scanner has no adapter.,https://www.epicgames.com/site/en-US/careers
+137,Sony,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+138,Snap,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+139,Valve,https://www.valvesoftware.com/en/jobs,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://www.valvesoftware.com/en/jobs; Required adapter: static_html; Existing adapter reusable: no; Official Valve jobs page is a static custom listing unsupported by the scanner.,https://www.valvesoftware.com/en/jobs
+140,Magic Leap,https://www.magicleap.com/careers,TBD,,greenhouse,magicleap,,,,validated_supported,Reviewed official-domain research; Official job search: https://job-boards.greenhouse.io/magicleap; Required adapter: greenhouse; Existing adapter reusable: yes; Official Magic Leap jobs are served by the confirmed Greenhouse board.,https://www.magicleap.com/careers
+141,Niantic,https://nianticlabs.com/careers,TBD,,greenhouse,niantic,,,,validated_supported,Reviewed official-domain research; Official job search: https://job-boards.greenhouse.io/niantic; Required adapter: greenhouse; Existing adapter reusable: yes; Official Niantic careers results expose the confirmed Greenhouse board slug.,https://nianticlabs.com/careers
+142,HTC Vive,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+143,Roblox,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+144,Autodesk,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+145,Dassault Systèmes,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+146,PTC,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+147,Varjo,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+148,Lenovo,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+149,Canon,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+150,DJI,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+151,Skydio,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+152,Zoox,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+153,Agility Robotics,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+154,Figure AI,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+155,Sanctuary AI,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+156,Unitree Robotics,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+157,SLB,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+158,Halliburton,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+159,Baker Hughes,https://careers.bakerhughes.com/,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://careers.bakerhughes.com/global/en/search-results; Required adapter: custom_company_api; Existing adapter reusable: no; Official Baker Hughes job search confirmed; current scanner has no adapter.,https://careers.bakerhughes.com/
+160,John Deere,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+161,Caterpillar,https://careers.caterpillar.com/,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://careers.caterpillar.com/en/jobs/; Required adapter: custom_company_api; Existing adapter reusable: no; Official Caterpillar jobs search confirmed; current scanner has no adapter.,https://careers.caterpillar.com/
+162,Intuitive Surgical,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+163,Medtronic,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+164,ANYbotics,https://www.anybotics.com/careers/,TBD,,lever,anybotics,,,,validated_supported,Reviewed official-domain research; Official job search: https://jobs.lever.co/anybotics; Required adapter: lever; Existing adapter reusable: yes; Official ANYbotics listings are served by the confirmed Lever company slug.,https://www.anybotics.com/careers/
+165,Sarcos Robotics,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+166,Clearpath Robotics,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+167,OTTO Motors,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+168,Shell,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+169,Imperial Oil,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+170,Suncor Energy,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+171,Chevron,https://careers.chevron.com/,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://careers.chevron.com/search-jobs; Required adapter: custom_company_api; Existing adapter reusable: no; Official Chevron search confirmed; current scanner has no adapter.,https://careers.chevron.com/
+172,bp,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+173,Enbridge,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+174,Canadian Natural Resources,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+175,Cenovus Energy,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+176,TC Energy,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+177,ConocoPhillips,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+178,Pembina Pipeline,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+179,PETRONAS,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+180,Ovintiv,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+181,Tourmaline Oil,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+182,ARC Resources,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+183,Keyera,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+184,Precision Drilling,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+185,NASA Jet Propulsion Laboratory,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+186,Blue Origin,https://www.blueorigin.com/careers,TBD,,workday,,blueorigin,wd5,BlueOrigin,validated_supported,Reviewed official-domain research; Official job search: https://blueorigin.wd5.myworkdayjobs.com/BlueOrigin; Required adapter: workday; Existing adapter reusable: yes; Official Blue Origin job results expose complete Workday identifiers.,https://www.blueorigin.com/careers
+187,Rocket Lab,https://www.rocketlabusa.com/careers/,TBD,,greenhouse,rocketlab,,,,validated_supported,Reviewed official-domain research; Official job search: https://job-boards.greenhouse.io/rocketlab; Required adapter: greenhouse; Existing adapter reusable: yes; Official Rocket Lab openings are served by the confirmed Greenhouse board.,https://www.rocketlabusa.com/careers/
+188,Sierra Space,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+189,Astrobotic,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+190,Firefly Aerospace,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+191,Relativity Space,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+192,MDA Space,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+193,Vast,https://www.vastspace.com/careers,TBD,,greenhouse,vast,,,,validated_supported,Reviewed official-domain research; Official job search: https://job-boards.greenhouse.io/vast; Required adapter: greenhouse; Existing adapter reusable: yes; Official Vast careers content and confirmed Greenhouse board expose the board slug.,https://www.vastspace.com/careers
+194,Intuitive Machines,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+195,Loft Orbital,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+196,ispace,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+197,OHB SE,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+198,Alibaba,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+199,Mercado Libre,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+200,eBay,https://jobs.ebayinc.com/,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://jobs.ebayinc.com/us/en/search-results; Required adapter: custom_company_api; Existing adapter reusable: no; Official eBay job search confirmed; current scanner has no adapter.,https://jobs.ebayinc.com/
+201,Walmart Global Tech,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+202,Coupang,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+203,JD.com,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+204,Temu,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+205,Etsy,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+206,Instacart,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+207,DoorDash,https://careers.doordash.com/,TBD,,greenhouse,doordashusa,,,,validated_supported,Reviewed official-domain research; Official job search: https://job-boards.greenhouse.io/doordashusa; Required adapter: greenhouse; Existing adapter reusable: yes; Official DoorDash careers results expose the confirmed United States Greenhouse board.,https://careers.doordash.com/
+208,Uber Eats,https://www.uber.com/us/en/careers/list/,TBD,,uber,,,,,manual_review,Reviewed official-domain research; Official job search: https://www.uber.com/us/en/careers/list/?team=UberEats; Required adapter: existing Uber adapter with safe team filter; Existing adapter reusable: yes; Uber Eats is a business alias. Reuse the Uber adapter only after verifying a stable team filter and shared source-key behavior.,https://www.uber.com/us/en/careers/list/
+209,Flipkart,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+210,Zalando,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+211,Wayfair,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+212,Rakuten,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+213,SHEIN,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+214,Target Tech,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+215,Best Buy,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+216,Costco Technology,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+217,Faire,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+218,Bolt,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+219,Flexport,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+220,Deliveroo,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+221,Ocado Technology,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+222,ByteDance,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+223,X,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+224,Reddit,https://www.redditinc.com/careers,TBD,,greenhouse,reddit,,,,validated_supported,Reviewed official-domain research; Official job search: https://job-boards.greenhouse.io/reddit; Required adapter: greenhouse; Existing adapter reusable: yes; Official Reddit careers results expose the confirmed Greenhouse board.,https://www.redditinc.com/careers
+225,Discord,https://discord.com/careers,TBD,,greenhouse,discord,,,,validated_supported,Reviewed official-domain research; Official job search: https://job-boards.greenhouse.io/discord; Required adapter: greenhouse; Existing adapter reusable: yes; Official Discord openings are served by the confirmed Greenhouse board.,https://discord.com/careers
+226,LinkedIn,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+227,Pinterest,https://www.pinterestcareers.com/,TBD,,greenhouse,pinterest,,,,validated_supported,Reviewed official-domain research; Official job search: https://job-boards.greenhouse.io/pinterest; Required adapter: greenhouse; Existing adapter reusable: yes; Official Pinterest careers page resolves from the confirmed Greenhouse board.,https://www.pinterestcareers.com/
+228,Twitch,https://www.twitch.tv/jobs/,TBD,,amazon,,,,,manual_review,Reviewed official-domain research; Official job search: https://www.amazon.jobs/content/en/teams/twitch; Required adapter: existing Amazon adapter with safe team filter; Existing adapter reusable: yes; Twitch opportunities surface within the Amazon jobs family. Reuse requires a verified team filter and shared source-key handling.,https://www.twitch.tv/jobs/
+229,Spotify,https://www.lifeatspotify.com/jobs,TBD,,lever,spotify,,,,validated_supported,Reviewed official-domain research; Official job search: https://jobs.lever.co/spotify; Required adapter: lever; Existing adapter reusable: yes; Official Spotify job search is served by the confirmed Lever company slug.,https://www.lifeatspotify.com/jobs
+230,Telegram,https://telegram.org/jobs,TBD,,custom,,,,,validated_custom_adapter_required,Reviewed official-domain research; Official job search: https://telegram.org/jobs; Required adapter: static_html; Existing adapter reusable: no; Official Telegram jobs page is a custom static listing unsupported by the scanner.,https://telegram.org/jobs
+231,WhatsApp,https://www.metacareers.com/areas-of-work/whatsapp/,TBD,,meta,,,,,manual_review,Reviewed official-domain research; Official job search: https://www.metacareers.com/jobs/?teams[0]=WhatsApp; Required adapter: existing Meta adapter with safe team filter; Existing adapter reusable: yes; WhatsApp is a Meta product alias. Reuse requires a verified stable team filter and shared source-key handling.,https://www.metacareers.com/areas-of-work/whatsapp/
+232,Instagram,https://www.metacareers.com/areas-of-work/instagram/,TBD,,meta,,,,,manual_review,Reviewed official-domain research; Official job search: https://www.metacareers.com/jobs/?teams[0]=Instagram; Required adapter: existing Meta adapter with safe team filter; Existing adapter reusable: yes; Instagram is a Meta product alias. Reuse requires a verified stable team filter and shared source-key handling.,https://www.metacareers.com/areas-of-work/instagram/
+233,Threads,https://www.metacareers.com/jobs/,TBD,,meta,,,,,manual_review,Reviewed official-domain research; Official job search: https://www.metacareers.com/jobs/?q=Threads; Required adapter: existing Meta adapter with safe keyword filter; Existing adapter reusable: yes; Threads is a Meta product alias. Reuse requires a verified stable filter and shared source-key handling.,https://www.metacareers.com/jobs/
+234,Tencent,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+235,WeChat,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+236,Kakao,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+237,LINE,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+238,Quora,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+239,Bumble,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+240,Match Group,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+241,Vimeo,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+242,BeReal,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+243,Patreon,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+244,Medium,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+245,Substack,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
+246,Bluesky,,TBD,,,,,,,manual_review,Missing careers URL; official-site research required,
