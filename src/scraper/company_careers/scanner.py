@@ -11,6 +11,7 @@ from src.scraper.company_careers.adapters import (
     avature,
     ashby,
     atlassian,
+    browser_rendered_html,
     eightfold,
     embedded_data,
     google,
@@ -65,6 +66,7 @@ ADAPTERS: dict[str, AdapterFn] = {
     "icims": icims.fetch_jobs,
     "static_html": static_html.fetch_jobs,
     "javascript_embedded_data": embedded_data.fetch_jobs,
+    "browser_rendered_html": browser_rendered_html.fetch_jobs,
     "amazon": amazon.fetch_jobs,
     "custom:amazon": amazon.fetch_jobs,
     "shopify": shopify.fetch_jobs,
@@ -111,10 +113,34 @@ class CompanyCareersScanner:
         job_filter: Optional[JobFilterFn] = None,
         location_filter: Optional[LocationFilterFn] = None,
     ) -> CompanyCareersReport:
+        """Scan one registry, sharing a single Chromium process when needed."""
+        options = dict(
+            keywords=keywords,
+            locations=locations,
+            max_jobs_per_company=max_jobs_per_company,
+            job_filter=job_filter,
+            location_filter=location_filter,
+        )
+        if not any(target.platform == "browser_rendered_html" for target in self.targets):
+            return self._scan(**options)
+        with browser_rendered_html.BrowserBatch(timeout=self.timeout) as browser_batch:
+            return self._scan(browser_batch=browser_batch, **options)
+
+    def _scan(
+        self,
+        keywords: Optional[str] = None,
+        locations: Optional[Iterable[str]] = None,
+        max_jobs_per_company: Optional[int] = None,
+        job_filter: Optional[JobFilterFn] = None,
+        location_filter: Optional[LocationFilterFn] = None,
+        browser_batch: Optional[browser_rendered_html.BrowserBatch] = None,
+    ) -> CompanyCareersReport:
         results: List[CompanyScanResult] = []
 
         for target in self.targets:
             adapter = ADAPTERS.get(target.platform)
+            if target.platform == "browser_rendered_html" and browser_batch is not None:
+                adapter = lambda _session, current, timeout: browser_batch.fetch_jobs(current, timeout)
             if target.platform in {"manual", "manual_review"}:
                 results.append(
                     CompanyScanResult(

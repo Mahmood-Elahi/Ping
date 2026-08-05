@@ -33,7 +33,7 @@ aiofiles>=23.0.0
 nest_asyncio>=1.5.0
 
 # Web automation with Playwright
-playwright>=1.40.0
+playwright==1.57.0
 
 # FastAPI and API dependencies
 fastapi>=0.104.0

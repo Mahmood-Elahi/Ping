@@ -1,5 +1,5 @@
 """Career-site adapter package."""
 
-from . import static_html, embedded_data
+from . import browser_rendered_html, embedded_data, static_html
 
-__all__ = ["embedded_data", "static_html"]
+__all__ = ["browser_rendered_html", "embedded_data", "static_html"]

@@ -114,6 +114,11 @@ class CompanyTarget:
     next_page_selector: Optional[str] = None
     empty_selector: Optional[str] = None
     allow_url_id_fallback: bool = False
+    browser_wait_selector: Optional[str] = None
+    browser_scroll_steps: int = 0
+    browser_static_variant: Optional[str] = None
+    browser_identity_selector: Optional[str] = None
+    browser_identity_regex: Optional[str] = None
     embedded_script_selector: Optional[str] = None
     embedded_json_path: Optional[str] = None
     reference_url_attribute: Optional[str] = None
@@ -169,6 +174,11 @@ class CompanyTarget:
             next_page_selector=data.get("next_page_selector"),
             empty_selector=data.get("empty_selector"),
             allow_url_id_fallback=bool(data.get("allow_url_id_fallback", False)),
+            browser_wait_selector=data.get("browser_wait_selector"),
+            browser_scroll_steps=int(data.get("browser_scroll_steps") or 0),
+            browser_static_variant=data.get("browser_static_variant"),
+            browser_identity_selector=data.get("browser_identity_selector"),
+            browser_identity_regex=data.get("browser_identity_regex"),
             embedded_script_selector=data.get("embedded_script_selector"),
             embedded_json_path=data.get("embedded_json_path"),
             reference_url_attribute=data.get("reference_url_attribute"),
