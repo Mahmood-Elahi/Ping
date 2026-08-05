@@ -29,6 +29,7 @@ from src.scraper.company_careers.adapters import (
     greenhouse,
     lever,
     oracle_recruiting,
+    phenom,
     sap_successfactors,
     workday,
 )
@@ -47,6 +48,8 @@ SUCCESSFACTORS_CANDIDATE_CONFIG = Path("config/target_companies.successfactors_c
 SUCCESSFACTORS_VALIDATED_CONFIG = Path("config/target_companies.successfactors_validated.yaml")
 EIGHTFOLD_CANDIDATE_CONFIG = Path("config/target_companies.eightfold_candidates.yaml")
 EIGHTFOLD_VALIDATED_CONFIG = Path("config/target_companies.eightfold_validated.yaml")
+PHENOM_CANDIDATE_CONFIG = Path("config/target_companies.phenom_candidates.yaml")
+PHENOM_VALIDATED_CONFIG = Path("config/target_companies.phenom_validated.yaml")
 MAX_BATCH_SIZE = 5
 DEFAULT_TIMEOUT = 20
 DEFAULT_ATTEMPTS = 2
@@ -65,6 +68,7 @@ DUPLICATE_COMPANY = "duplicate_company"
 DUPLICATE_SOURCE = "duplicate_source"
 UNSUPPORTED_RESPONSE = "unsupported_response"
 MALFORMED_RESPONSE = "malformed_response"
+STALE_FINGERPRINT = "stale_fingerprint"
 
 VALIDATION_STATUSES = (
     VALIDATED_WITH_JOBS,
@@ -79,6 +83,7 @@ VALIDATION_STATUSES = (
     DUPLICATE_SOURCE,
     UNSUPPORTED_RESPONSE,
     MALFORMED_RESPONSE,
+    STALE_FINGERPRINT,
 )
 
 AdapterFn = Callable[[Any, CompanyTarget, int], list[JobRecord]]
@@ -91,6 +96,7 @@ ADAPTERS: dict[str, AdapterFn] = {
     "oracle_recruiting": oracle_recruiting.fetch_jobs,
     "sap_successfactors": sap_successfactors.fetch_jobs,
     "eightfold": eightfold.fetch_jobs,
+    "phenom": phenom.fetch_jobs,
 }
 
 
@@ -142,6 +148,10 @@ def source_key(entry: Mapping[str, Any]) -> Optional[str]:
     if platform == "eightfold":
         host = (urlparse(str(entry.get("endpoint_url") or "")).hostname or "").casefold()
         return f"eightfold:{host}" if host else None
+    if platform == "phenom":
+        host = (urlparse(str(entry.get("search_url") or "")).hostname or "").casefold()
+        ref_num = str(entry.get("ref_num") or "").strip().casefold()
+        return f"phenom:{host}:{ref_num}" if host and ref_num else None
     return None
 
 
@@ -181,6 +191,12 @@ def configured_identifiers(entry: Mapping[str, Any]) -> dict[str, Any]:
             "organization_id": entry.get("organization_id"),
             "endpoint_variant": entry.get("endpoint_variant"),
         }
+    if platform == "phenom":
+        return {
+            "ref_num": entry.get("ref_num"),
+            "locale": entry.get("locale"),
+            "endpoint_variant": entry.get("endpoint_variant"),
+        }
     return {}
 
 
@@ -213,6 +229,9 @@ def endpoint_for(entry: Mapping[str, Any]) -> Optional[str]:
         return endpoint or None
     if platform == "eightfold":
         endpoint = str(entry.get("endpoint_url") or "").strip()
+        return endpoint or None
+    if platform == "phenom":
+        endpoint = str(entry.get("search_url") or "").strip()
         return endpoint or None
     return None
 
@@ -264,6 +283,11 @@ def configuration_error(entry: Mapping[str, Any]) -> Optional[str]:
     if platform == "eightfold":
         try:
             eightfold.validate_target(target)
+        except AdapterError as exc:
+            return str(exc)
+    if platform == "phenom":
+        try:
+            phenom.validate_target(target)
         except AdapterError as exc:
             return str(exc)
     return None
@@ -325,9 +349,9 @@ class RecordingRetrySession:
 
 
 def _response_shape_error(platform: str, response: Any) -> Optional[str]:
-    if platform == "sap_successfactors":
-        # The production adapter validates every full page/fragment before it
-        # returns; unlike the other registered adapters, this contract is HTML.
+    if platform in {"sap_successfactors", "phenom"}:
+        # These production adapters validate every full HTML page/fragment
+        # before returning normalized jobs.
         return None
     try:
         payload = response.json()
@@ -434,11 +458,16 @@ def _base_result(entry: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "company": str(entry.get("name") or ""),
         "fingerprint_confidence": entry.get("fingerprint_confidence"),
+        "fingerprint_evidence": entry.get("fingerprint_evidence"),
         "platform": str(entry.get("platform") or ""),
         "endpoint_variant": entry.get("endpoint_variant"),
         "configured_identifiers": configured_identifiers(entry),
         "endpoint_tested": endpoint_for(entry),
-        "request_method": "GET" if str(entry.get("platform") or "").casefold() == "eightfold" else None,
+        "request_method": (
+            "GET"
+            if str(entry.get("platform") or "").casefold() in {"eightfold", "phenom"}
+            else None
+        ),
         "http_status": None,
         "result_status": "not_started",
         "jobs_returned": 0,
@@ -457,7 +486,7 @@ def _base_result(entry: Mapping[str, Any]) -> dict[str, Any]:
         "validation_status": INVALID_CONFIGURATION,
         "error": None,
         "exact_failure_reason": None,
-        "warning": None,
+        "warning": entry.get("fingerprint_warning"),
         "safe_to_activate": False,
         "redirects": [],
         "attempts": 0,
@@ -530,6 +559,18 @@ def validate_company(
     adapters: Optional[Mapping[str, AdapterFn]] = None,
 ) -> dict[str, Any]:
     result = _base_result(entry)
+    if entry.get("stale_fingerprint"):
+        reason = str(
+            entry.get("stale_fingerprint_reason")
+            or "Stored platform fingerprint is stale"
+        )
+        result.update(
+            result_status="stale_fingerprint",
+            validation_status=STALE_FINGERPRINT,
+            error=reason,
+            exact_failure_reason=reason,
+        )
+        return result
     if entry.get("browser_required"):
         reason = "Source requires browser automation"
         result.update(
@@ -590,7 +631,9 @@ def validate_company(
     if platform == "workday":
         target.max_pages = 1
     session_attempts = (
-        1 if platform in {"oracle_recruiting", "sap_successfactors", "eightfold"} else attempts
+        1
+        if platform in {"oracle_recruiting", "sap_successfactors", "eightfold", "phenom"}
+        else attempts
     )
     session = RecordingRetrySession(
         session_factory(), attempts=session_attempts, retry_delay=retry_delay, sleep=sleep
@@ -695,6 +738,18 @@ def validate_company(
                 result["warning"] = (
                     f"Skipped {len(diagnostics)} malformed or duplicate job entries"
                 )
+    elif platform == "phenom":
+        pagination = getattr(session, "phenom_pagination", None)
+        if isinstance(pagination, Mapping):
+            result["pagination_result"] = dict(pagination)
+            result["pages_requested"] = int(pagination.get("pages_fetched") or 0)
+            result["total_available_jobs"] = pagination.get("total_available")
+            diagnostics = list(pagination.get("diagnostics") or [])
+            if diagnostics and result["safe_to_activate"]:
+                message = f"Skipped {len(diagnostics)} malformed or duplicate job entries"
+                result["warning"] = (
+                    f"{result['warning']}; {message}" if result["warning"] else message
+                )
     response = session.final_response
     result["http_status"] = getattr(response, "status_code", None) if response is not None else None
     response_url = getattr(response, "url", None) if response is not None else None
@@ -779,6 +834,14 @@ def build_validated_registry_bytes(
         return b"target_companies:" + newline + appended
     separator = b"" if current_bytes.endswith((b"\n", b"\r")) else newline
     return current_bytes + separator + appended
+
+
+def build_candidate_registry_bytes(
+    current_path: Path | str,
+    candidate_additions: Iterable[Mapping[str, Any]],
+) -> bytes:
+    """Build a candidate registry with the current registry as an exact prefix."""
+    return build_validated_registry_bytes(current_path, candidate_additions)
 
 
 def _write_bytes_if_changed(path: Path, content: bytes) -> None:
@@ -936,18 +999,22 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     validated_config = args.validated_config
     if validated_config is None:
         validated_config = (
-            EIGHTFOLD_VALIDATED_CONFIG
-            if args.candidate_config == EIGHTFOLD_CANDIDATE_CONFIG
+            PHENOM_VALIDATED_CONFIG
+            if args.candidate_config == PHENOM_CANDIDATE_CONFIG
             else (
-                SUCCESSFACTORS_VALIDATED_CONFIG
-                if args.candidate_config == SUCCESSFACTORS_CANDIDATE_CONFIG
+                EIGHTFOLD_VALIDATED_CONFIG
+                if args.candidate_config == EIGHTFOLD_CANDIDATE_CONFIG
                 else (
-                    ORACLE_VALIDATED_CONFIG
-                    if args.candidate_config == ORACLE_CANDIDATE_CONFIG
+                    SUCCESSFACTORS_VALIDATED_CONFIG
+                    if args.candidate_config == SUCCESSFACTORS_CANDIDATE_CONFIG
                     else (
-                        WORKDAY_VALIDATED_CONFIG
-                        if args.candidate_config == WORKDAY_CANDIDATE_CONFIG
-                        else DEFAULT_VALIDATED_CONFIG
+                        ORACLE_VALIDATED_CONFIG
+                        if args.candidate_config == ORACLE_CANDIDATE_CONFIG
+                        else (
+                            WORKDAY_VALIDATED_CONFIG
+                            if args.candidate_config == WORKDAY_CANDIDATE_CONFIG
+                            else DEFAULT_VALIDATED_CONFIG
+                        )
                     )
                 )
             )

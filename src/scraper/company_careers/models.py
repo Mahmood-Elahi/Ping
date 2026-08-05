@@ -84,7 +84,10 @@ class CompanyTarget:
     endpoint_url: Optional[str] = None
     site_number: Optional[str] = None
     organization_id: Optional[str] = None
+    ref_num: Optional[str] = None
     locale: Optional[str] = None
+    allowed_apply_hosts: List[str] = field(default_factory=list)
+    apply_url_template: Optional[str] = None
     search_terms: List[str] = field(default_factory=list)
     max_pages: int = 5
 
@@ -104,7 +107,10 @@ class CompanyTarget:
             endpoint_url=data.get("endpoint_url"),
             site_number=data.get("site_number"),
             organization_id=data.get("organization_id"),
+            ref_num=data.get("ref_num"),
             locale=data.get("locale"),
+            allowed_apply_hosts=list(data.get("allowed_apply_hosts") or []),
+            apply_url_template=data.get("apply_url_template"),
             search_terms=list(data.get("search_terms") or []),
             max_pages=int(data.get("max_pages") or 5),
         )
