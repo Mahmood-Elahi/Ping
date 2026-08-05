@@ -17,7 +17,11 @@ from src.scraper.company_careers.registry import load_target_companies
 
 ROOT = Path(__file__).resolve().parents[1]
 BATCH_B_VALIDATED_REGISTRY = ROOT / "config" / "target_companies.adapter_extensions_v4b_validated.yaml"
-BATCH_B_LATER_PROMOTIONS = {"IMC Trading", "Unitree Robotics"}
+PILOT_VALIDATED_REGISTRY = ROOT / "config" / "target_companies.browser_pilot_v1_validated.yaml"
+LATER_PROMOTION_ARTIFACTS = {
+    BATCH_B_VALIDATED_REGISTRY: {"IMC Trading", "Unitree Robotics"},
+    PILOT_VALIDATED_REGISTRY: {"Figure AI", "LINE"},
+}
 
 EXPECTED_REVIEWED_COMPANIES = [
     "Waymo",
@@ -117,33 +121,32 @@ def additions(path: Path):
 
 
 class StaticEmbeddedBulkActivationTests(unittest.TestCase):
-    def assert_exclusions_respect_later_batch_b(self, production):
+    def assert_exclusions_respect_proven_later_activations(self, production):
         production_by_name = {validator._name_key(item): item for item in production}
-        batch_b_entries = entries(BATCH_B_VALIDATED_REGISTRY)
-        first_batch_b = next(
-            index for index, item in enumerate(batch_b_entries)
-            if validator._name_key(item) == validator._name_key({"name": "IMC Trading"})
-        )
-        batch_b_by_name = {
-            validator._name_key(item): item for item in batch_b_entries[first_batch_b:]
-        }
-        allowed = {
-            validator._name_key({"name": name}) for name in BATCH_B_LATER_PROMOTIONS
-        }
+        allowed_by_name = {}
+        for artifact, companies in LATER_PROMOTION_ARTIFACTS.items():
+            artifact_entries = entries(artifact)
+            for company in companies:
+                name_key = validator._name_key({"name": company})
+                matches = [item for item in artifact_entries if validator._name_key(item) == name_key]
+                self.assertEqual(len(matches), 1)
+                allowed_by_name[name_key] = matches[0]
         excluded = {
             validator._name_key({"name": name}) for name in EXPECTED_EXCLUDED_COMPANIES
         }
 
-        self.assertEqual(excluded & set(production_by_name), allowed)
-        for name_key in allowed:
-            self.assertIn(name_key, batch_b_by_name)
-            self.assertEqual(production_by_name[name_key], batch_b_by_name[name_key])
+        self.assertEqual(excluded & set(production_by_name), set(allowed_by_name))
+        for name_key, proven_entry in allowed_by_name.items():
+            self.assertEqual(
+                sum(validator._name_key(item) == name_key for item in production),
+                1,
+            )
+            self.assertEqual(production_by_name[name_key], proven_entry)
             self.assertEqual(
                 validator.source_key(production_by_name[name_key]),
-                validator.source_key(batch_b_by_name[name_key]),
+                validator.source_key(proven_entry),
             )
         self.assertNotIn("niantic", production_by_name)
-        self.assertNotIn("line", production_by_name)
 
     def test_01_exact_candidate_set_derived_from_research(self):
         self.assertEqual(rollout.EXPECTED_COMPANIES, EXPECTED_REVIEWED_COMPANIES)
@@ -165,7 +168,7 @@ class StaticEmbeddedBulkActivationTests(unittest.TestCase):
         self.assertEqual(len(candidate_names), len(candidate_set))
         self.assertEqual(inventory, EXPECTED_REVIEWED_COMPANIES)
         self.assertTrue({validator._name_key({"name": name}) for name in EXPECTED_SAFE_COMPANIES} <= set(production))
-        self.assert_exclusions_respect_later_batch_b(entries(rollout.PRODUCTION))
+        self.assert_exclusions_respect_proven_later_activations(entries(rollout.PRODUCTION))
 
     def test_03_candidate_order_follows_master_workbook(self):
         candidate_additions = additions(rollout.CANDIDATE_REGISTRY)
@@ -218,7 +221,7 @@ class StaticEmbeddedBulkActivationTests(unittest.TestCase):
             self.assertEqual(validated_entry["platform"], EXPECTED_SAFE_PLATFORMS[name])
             self.assertEqual(production_by_name[name_key]["platform"], validated_entry["platform"])
             self.assertEqual(validator.source_key(production_by_name[name_key]), validator.source_key(validated_entry))
-        self.assert_exclusions_respect_later_batch_b(production)
+        self.assert_exclusions_respect_proven_later_activations(production)
 
     def test_07_synthetic_baseline_delta_behavior(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -291,7 +294,7 @@ class StaticEmbeddedBulkActivationTests(unittest.TestCase):
             self.assertEqual(production_names.count(name_key), 1)
             self.assertEqual(production_by_name[name_key]["platform"], EXPECTED_SAFE_PLATFORMS[name])
             self.assertEqual(validator.source_key(production_by_name[name_key]), validator.source_key(validated_by_name[name_key]))
-        self.assert_exclusions_respect_later_batch_b(production)
+        self.assert_exclusions_respect_proven_later_activations(production)
         production_bytes = normalized_newlines(rollout.PRODUCTION.read_bytes())
         validated_bytes = normalized_newlines(rollout.VALIDATED_REGISTRY.read_bytes())
         self.assertTrue(production_bytes == validated_bytes or production_bytes.startswith(validated_bytes))

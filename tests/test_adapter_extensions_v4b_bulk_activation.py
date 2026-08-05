@@ -12,6 +12,7 @@ from unittest.mock import patch
 import yaml
 
 from scripts import validate_adapter_extensions_v4b as rollout
+from scripts import validate_browser_pilot_v1 as browser_pilot
 from scripts import validate_company_registry as registry_validator
 from src.scraper.company_careers import scanner
 from src.scraper.company_careers.adapters import lever, static_html
@@ -29,6 +30,7 @@ SOURCES = [
     "static_html:careers.roblox.com", "lever:zoox",
     "static_html:www.unitree.com", "lever:matchgroup",
 ]
+PILOT_VALIDATED_REGISTRY = browser_pilot.VALIDATED_REGISTRY
 
 
 def historical_prefix_bytes(path: Path) -> bytes:
@@ -177,7 +179,24 @@ class AdapterExtensionsV4BArtifactTests(unittest.TestCase):
             self.assertEqual(registry_validator.source_key(matches[0]), expected_source)
             self.assertEqual(production_sources.count(expected_source), 1)
         production_names = {registry_validator._name_key(entry) for entry in production}
-        self.assertFalse({"niantic", "line"} & production_names)
+        self.assertNotIn("niantic", production_names)
+
+        _, pilot_validated = registry_validator.load_registry(PILOT_VALIDATED_REGISTRY)
+        pilot_line = [
+            entry for entry in pilot_validated
+            if registry_validator._name_key(entry) == "line"
+        ]
+        production_line = [
+            entry for entry in production
+            if registry_validator._name_key(entry) == "line"
+        ]
+        self.assertEqual(len(pilot_line), 1)
+        self.assertEqual(production_line, pilot_line)
+        pilot_line_source = browser_pilot.source_key(pilot_line[0])
+        self.assertEqual(
+            sum(browser_pilot.source_key(entry) == pilot_line_source for entry in production),
+            1,
+        )
 
     def test_04_registry_loader_compatibility(self):
         self.assertEqual((len(self.candidates), len(self.validated)), (145, 145))

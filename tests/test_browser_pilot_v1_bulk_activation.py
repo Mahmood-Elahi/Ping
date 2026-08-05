@@ -18,6 +18,23 @@ def entries(path: Path):
     return (yaml.safe_load(path.read_text(encoding="utf-8")) or {})["target_companies"]
 
 
+def historical_prefix_bytes(path: Path) -> bytes:
+    first_pilot_company = pilot.registry_validator._name_key({"name": pilot.REVIEWED_COMPANIES[0]})
+    lines = path.read_bytes().splitlines(keepends=True)
+    for index, raw_line in enumerate(lines):
+        stripped = raw_line.decode("utf-8").strip()
+        if not stripped.startswith("- name:"):
+            continue
+        parsed = yaml.safe_load(stripped)
+        if isinstance(parsed, list) and pilot.registry_validator._name_key(parsed[0]) == first_pilot_company:
+            return b"".join(lines[:index])
+    raise AssertionError(f"Pilot boundary {pilot.REVIEWED_COMPANIES[0]!r} not found in {path}")
+
+
+def entries_from_bytes(content: bytes):
+    return (yaml.safe_load(content.decode("utf-8")) or {})["target_companies"]
+
+
 class BrowserPilotBulkActivationTests(unittest.TestCase):
     def test_01_exact_reviewed_set_and_rationale(self):
         with pilot.CANDIDATE_CSV.open(newline="", encoding="utf-8") as handle:
@@ -28,12 +45,18 @@ class BrowserPilotBulkActivationTests(unittest.TestCase):
         self.assertTrue(all(row["selected"] == "true" for row in rows))
 
     def test_02_candidate_has_exact_historical_145_entry_prefix(self):
-        production = pilot.PRODUCTION.read_bytes()
-        candidate = pilot.CANDIDATE_REGISTRY.read_bytes()
-        self.assertTrue(candidate.startswith(production))
-        self.assertEqual(len(entries(pilot.PRODUCTION)), 145)
-        self.assertEqual(len(entries(pilot.CANDIDATE_REGISTRY)), 148)
-        self.assertEqual([item["name"] for item in entries(pilot.CANDIDATE_REGISTRY)[145:]], pilot.REVIEWED_COMPANIES)
+        candidate_prefix = historical_prefix_bytes(pilot.CANDIDATE_REGISTRY)
+        validated_prefix = historical_prefix_bytes(pilot.VALIDATED_REGISTRY)
+        historical = entries_from_bytes(candidate_prefix)
+        candidate = entries(pilot.CANDIDATE_REGISTRY)
+        validated = entries(pilot.VALIDATED_REGISTRY)
+
+        self.assertEqual(candidate_prefix, validated_prefix)
+        self.assertEqual(len(historical), pilot.HISTORICAL_PRODUCTION_COUNT)
+        self.assertEqual(candidate[:len(historical)], historical)
+        self.assertEqual(validated[:len(historical)], historical)
+        self.assertEqual(len(candidate), 148)
+        self.assertEqual([item["name"] for item in candidate[len(historical):]], pilot.REVIEWED_COMPANIES)
 
     def test_03_validated_registry_only_contains_two_pass_successes(self):
         report = yaml.safe_load(pilot.REPORT.read_text(encoding="utf-8"))
@@ -72,9 +95,23 @@ class BrowserPilotBulkActivationTests(unittest.TestCase):
 
     def test_06_production_and_parent_mappings_unchanged(self):
         report = yaml.safe_load(pilot.REPORT.read_text(encoding="utf-8"))
-        self.assertEqual(hashlib.sha256(pilot.PRODUCTION.read_bytes()).hexdigest().upper(), report["production_registry_sha256"])
+        historical_prefix = historical_prefix_bytes(pilot.VALIDATED_REGISTRY)
+        validated = entries(pilot.VALIDATED_REGISTRY)
+        production = entries(pilot.PRODUCTION)
+
+        self.assertEqual(hashlib.sha256(historical_prefix).hexdigest().upper(), report["production_registry_sha256"])
         self.assertEqual(hashlib.sha256(pilot.PARENT_MAPPINGS.read_bytes()).hexdigest().upper(), report["parent_mappings_sha256"])
-        self.assertEqual(len(entries(pilot.PRODUCTION)), 145)
+        self.assertGreaterEqual(len(production), len(validated))
+        self.assertEqual(production[:len(validated)], validated)
+
+        production_sources = [pilot.source_key(item) for item in production]
+        for company in pilot.REVIEWED_COMPANIES:
+            name_key = pilot.registry_validator._name_key({"name": company})
+            expected = [item for item in validated if pilot.registry_validator._name_key(item) == name_key]
+            observed = [item for item in production if pilot.registry_validator._name_key(item) == name_key]
+            self.assertEqual(len(expected), 1)
+            self.assertEqual(observed, expected)
+            self.assertEqual(production_sources.count(pilot.source_key(expected[0])), 1)
         self.assertEqual(len(load_parent_source_mappings(pilot.PARENT_MAPPINGS)), 4)
 
     def test_07_no_persistence_or_dashboard_publication_imports(self):

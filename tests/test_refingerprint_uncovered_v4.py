@@ -121,7 +121,14 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
     def test_09_master_order_is_deterministic(self):
         ranks = [row["master_rank"] for row in self.master]
         self.assertEqual(ranks, sorted(ranks))
-        self.assertEqual(self.reconciliation.uncovered_names[:3], ["Apple", "Tesla", "SpaceX"])
+        uncovered_keys = {
+            mod.normalize_company_name(name) for name in self.reconciliation.uncovered_names
+        }
+        expected_order = [
+            row["company"] for row in self.master
+            if mod.normalize_company_name(row["company"]) in uncovered_keys
+        ]
+        self.assertEqual(self.reconciliation.uncovered_names, expected_order)
 
     def test_10_resume_skips_completed_companies(self):
         sources = [{"company": "A"}, {"company": "B"}]
