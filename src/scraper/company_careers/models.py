@@ -124,6 +124,7 @@ class CompanyTarget:
     date_field: Optional[str] = None
     department_field: Optional[str] = None
     remote_field: Optional[str] = None
+    department_allowlist: List[str] = field(default_factory=list)
     max_scripts: int = 20
     max_response_bytes: int = 3_000_000
     max_script_bytes: int = 1_000_000
@@ -178,6 +179,7 @@ class CompanyTarget:
             date_field=data.get("date_field"),
             department_field=data.get("department_field"),
             remote_field=data.get("remote_field"),
+            department_allowlist=list(data.get("department_allowlist") or []),
             max_scripts=int(data.get("max_scripts") or 20),
             max_response_bytes=int(data.get("max_response_bytes") or 3_000_000),
             max_script_bytes=int(data.get("max_script_bytes") or 1_000_000),

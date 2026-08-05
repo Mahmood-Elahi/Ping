@@ -508,6 +508,8 @@ def _adapter_error_status(response: Optional[Any], error: AdapterError) -> tuple
         return BROWSER_REQUIRED, "Endpoint requires JavaScript or browser execution"
     if "blocked" in text or "consent page" in text:
         return BLOCKED, "Endpoint returned blocked or consent content"
+    if any(contract in text for contract in ("stable job_id", "valid apply url", "apply host")):
+        return UNSUPPORTED_RESPONSE, str(error)
     status, message = _response_error_status(response)
     if getattr(response, "status_code", None) == 200:
         return MALFORMED_RESPONSE, "Endpoint returned malformed or unexpected content"

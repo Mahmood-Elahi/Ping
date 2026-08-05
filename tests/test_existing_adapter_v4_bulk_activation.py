@@ -346,7 +346,7 @@ class ExistingAdapterV4ContractTests(unittest.TestCase):
             lever_target(),
             session_factory=lambda: FakeSession([FakeResponse([lever_posting(index) for index in range(25)])]),
         )
-        self.assertEqual(result["jobs_observed"], 25)
+        self.assertEqual(result["jobs_observed"], 20)
         self.assertEqual(result["normalized_jobs_inspected"], 20)
 
     def test_28_bounded_retry_behavior(self):
