@@ -17,37 +17,151 @@ from src.scraper.company_careers.registry import load_target_companies
 
 ROOT = Path(__file__).resolve().parents[1]
 
+EXPECTED_REVIEWED_COMPANIES = [
+    "Waymo",
+    "ASML",
+    "Applied Materials",
+    "Adyen",
+    "Ripple",
+    "DRW",
+    "IMC Trading",
+    "Yaskawa Electric",
+    "General Motors",
+    "Aptiv",
+    "Mobileye",
+    "Aurora Innovation",
+    "Dassault Systèmes",
+    "Skydio",
+    "Figure AI",
+    "Unitree Robotics",
+    "Caterpillar",
+    "Intuitive Surgical",
+    "Tourmaline Oil",
+    "Coupang",
+    "Etsy",
+    "Zalando",
+    "Flexport",
+    "LinkedIn",
+    "LINE",
+    "Patreon",
+    "Bluesky",
+]
+EXPECTED_SAFE_COMPANIES = [
+    "Waymo",
+    "Applied Materials",
+    "Ripple",
+    "DRW",
+    "General Motors",
+    "Mobileye",
+    "Skydio",
+    "Caterpillar",
+    "Intuitive Surgical",
+    "Coupang",
+    "Etsy",
+    "Zalando",
+    "Flexport",
+    "Bluesky",
+]
+EXPECTED_EXCLUDED_COMPANIES = [
+    "ASML",
+    "Adyen",
+    "IMC Trading",
+    "Yaskawa Electric",
+    "Aptiv",
+    "Aurora Innovation",
+    "Dassault Systèmes",
+    "Figure AI",
+    "Unitree Robotics",
+    "Tourmaline Oil",
+    "LinkedIn",
+    "LINE",
+    "Patreon",
+]
+EXPECTED_SAFE_PLATFORMS = {
+    name: "static_html" for name in EXPECTED_SAFE_COMPANIES
+}
+EXPECTED_SAFE_PLATFORMS.update({"DRW": "javascript_embedded_data", "Bluesky": "javascript_embedded_data"})
+
 
 def entries(path: Path):
     return (yaml.safe_load(path.read_text(encoding="utf-8")) or {})["target_companies"]
 
 
+def normalized_newlines(content: bytes) -> bytes:
+    return content.replace(b"\r\n", b"\n")
+
+
+def historical_prefix_bytes(path: Path) -> bytes:
+    first_reviewed = validator._name_key({"name": EXPECTED_REVIEWED_COMPANIES[0]})
+    lines = path.read_bytes().splitlines(keepends=True)
+    for index, raw_line in enumerate(lines):
+        stripped = raw_line.decode("utf-8").strip()
+        if not stripped.startswith("- name:"):
+            continue
+        parsed = yaml.safe_load(stripped)
+        if isinstance(parsed, list) and validator._name_key(parsed[0]) == first_reviewed:
+            return b"".join(lines[:index])
+    raise AssertionError(f"Historical boundary {EXPECTED_REVIEWED_COMPANIES[0]!r} not found in {path}")
+
+
+def historical_entries():
+    data = yaml.safe_load(historical_prefix_bytes(rollout.CANDIDATE_REGISTRY).decode("utf-8")) or {}
+    return data["target_companies"]
+
+
 def additions(path: Path):
-    baseline = {validator._name_key(item) for item in entries(rollout.PRODUCTION)}
+    baseline = {validator._name_key(item) for item in historical_entries()}
     return [item for item in entries(path) if validator._name_key(item) not in baseline]
 
 
 class StaticEmbeddedBulkActivationTests(unittest.TestCase):
     def test_01_exact_candidate_set_derived_from_research(self):
+        self.assertEqual(rollout.EXPECTED_COMPANIES, EXPECTED_REVIEWED_COMPANIES)
         self.assertEqual(rollout._derived_research_candidates(), rollout.EXPECTED_COMPANIES)
         self.assertEqual((len(rollout.STATIC_COMPANIES), len(rollout.EMBEDDED_COMPANIES)), (18, 9))
 
-    def test_02_production_and_parent_covered_companies_excluded(self):
-        production = {validator._name_key(item) for item in entries(rollout.PRODUCTION)}
+    def test_02_reviewed_candidates_were_absent_from_historical_inventory(self):
+        historical = {validator._name_key(item) for item in historical_entries()}
         mappings = yaml.safe_load(rollout.PARENT_MAPPINGS.read_text(encoding="utf-8"))
         mapped = {" ".join(item["child_company"].casefold().split()) for item in mappings["company_parent_source_mappings"] if item["enabled"] is True}
-        candidates = {validator._name_key(item) for item in rollout.CANDIDATE_ENTRIES}
-        self.assertFalse(candidates & (production | mapped))
+        candidate_names = [validator._name_key(item) for item in rollout.CANDIDATE_ENTRIES]
+        candidate_set = set(candidate_names)
+        with rollout.CANDIDATE_INVENTORY.open(newline="", encoding="utf-8") as handle:
+            inventory = [row["company"] for row in csv.DictReader(handle)]
+        production = [validator._name_key(item) for item in entries(rollout.PRODUCTION)]
+
+        self.assertFalse(candidate_set & historical)
+        self.assertFalse(candidate_set & mapped)
+        self.assertEqual(len(candidate_names), len(candidate_set))
+        self.assertEqual(inventory, EXPECTED_REVIEWED_COMPANIES)
+        self.assertTrue({validator._name_key({"name": name}) for name in EXPECTED_SAFE_COMPANIES} <= set(production))
+        self.assertFalse({validator._name_key({"name": name}) for name in EXPECTED_EXCLUDED_COMPANIES} & set(production))
 
     def test_03_candidate_order_follows_master_workbook(self):
+        candidate_additions = additions(rollout.CANDIDATE_REGISTRY)
+        addition_names = [item["name"] for item in candidate_additions]
         ranks = [item["original_workbook_rank"] for item in rollout.CANDIDATE_ENTRIES]
-        self.assertEqual(ranks, sorted(ranks))
-        self.assertEqual([item["name"] for item in additions(rollout.CANDIDATE_REGISTRY)], rollout.EXPECTED_COMPANIES)
+        workbook_ranks = rollout._master_ranks()
+        workbook_order = sorted(EXPECTED_REVIEWED_COMPANIES, key=workbook_ranks.__getitem__)
 
-    def test_04_production_bytes_preserved_as_prefix(self):
-        production = rollout.PRODUCTION.read_bytes()
-        self.assertTrue(rollout.CANDIDATE_REGISTRY.read_bytes().startswith(production))
-        self.assertTrue(rollout.VALIDATED_REGISTRY.read_bytes().startswith(production))
+        self.assertEqual(len(candidate_additions), 27)
+        self.assertEqual(addition_names, EXPECTED_REVIEWED_COMPANIES)
+        self.assertEqual(ranks, sorted(ranks))
+        self.assertEqual(addition_names, workbook_order)
+        self.assertEqual(set(addition_names), set(EXPECTED_SAFE_COMPANIES) | set(EXPECTED_EXCLUDED_COMPANIES))
+
+    def test_04_historical_prefix_and_promotion_bytes_are_preserved(self):
+        candidate = normalized_newlines(rollout.CANDIDATE_REGISTRY.read_bytes())
+        validated = normalized_newlines(rollout.VALIDATED_REGISTRY.read_bytes())
+        production = normalized_newlines(rollout.PRODUCTION.read_bytes())
+        candidate_prefix = normalized_newlines(historical_prefix_bytes(rollout.CANDIDATE_REGISTRY))
+        validated_prefix = normalized_newlines(historical_prefix_bytes(rollout.VALIDATED_REGISTRY))
+
+        self.assertEqual(candidate_prefix, validated_prefix)
+        self.assertTrue(candidate.startswith(candidate_prefix))
+        self.assertTrue(validated.startswith(validated_prefix))
+        self.assertEqual(len(yaml.safe_load(candidate_prefix.decode("utf-8"))["target_companies"]), 105)
+        self.assertTrue(production == validated or production.startswith(validated))
 
     def test_05_candidate_loader_compatibility(self):
         self.assertEqual(len(load_target_companies(str(rollout.CANDIDATE_REGISTRY))), 132)
@@ -55,8 +169,27 @@ class StaticEmbeddedBulkActivationTests(unittest.TestCase):
     def test_06_validated_registry_contains_only_safe_candidates(self):
         with rollout.CANDIDATE_INVENTORY.open(newline="", encoding="utf-8") as handle:
             safe = [row["company"] for row in csv.DictReader(handle) if row["safe_to_activate"] == "true"]
-        self.assertEqual([item["name"] for item in additions(rollout.VALIDATED_REGISTRY)], safe)
-        self.assertTrue(safe)
+        validated_additions = additions(rollout.VALIDATED_REGISTRY)
+        validated_names = [item["name"] for item in validated_additions]
+        reviewed_names = {item["name"] for item in rollout.CANDIDATE_ENTRIES}
+        production = entries(rollout.PRODUCTION)
+        production_by_name = {validator._name_key(item): item for item in production}
+
+        self.assertEqual(safe, EXPECTED_SAFE_COMPANIES)
+        self.assertEqual(len(validated_additions), 14)
+        self.assertEqual(validated_names, EXPECTED_SAFE_COMPANIES)
+        self.assertTrue(set(validated_names) <= reviewed_names)
+        self.assertFalse(set(validated_names) & set(EXPECTED_EXCLUDED_COMPANIES))
+        self.assertEqual(len(load_target_companies(str(rollout.VALIDATED_REGISTRY))), 119)
+        for validated_entry in validated_additions:
+            name = validated_entry["name"]
+            name_key = validator._name_key(validated_entry)
+            self.assertEqual(sum(validator._name_key(item) == name_key for item in production), 1)
+            self.assertEqual(validated_entry["platform"], EXPECTED_SAFE_PLATFORMS[name])
+            self.assertEqual(production_by_name[name_key]["platform"], validated_entry["platform"])
+            self.assertEqual(validator.source_key(production_by_name[name_key]), validator.source_key(validated_entry))
+        production_names = set(production_by_name)
+        self.assertFalse({validator._name_key({"name": name}) for name in EXPECTED_EXCLUDED_COMPANIES} & production_names)
 
     def test_07_synthetic_baseline_delta_behavior(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -112,9 +245,30 @@ class StaticEmbeddedBulkActivationTests(unittest.TestCase):
         for forbidden in ("supabase", "gspread", "google_sheets", "sqlite3", "update_student_dashboard"):
             self.assertFalse(any(forbidden in module for module in imports), imports)
 
-    def test_17_production_registry_unchanged_and_counted(self):
-        self.assertEqual(len(entries(rollout.PRODUCTION)), 105)
-        self.assertEqual(len(entries(rollout.CANDIDATE_REGISTRY)), 132)
+    def test_17_promoted_static_embedded_sources_preserve_production_integrity(self):
+        production = entries(rollout.PRODUCTION)
+        validated_additions = additions(rollout.VALIDATED_REGISTRY)
+        validated_by_name = {validator._name_key(item): item for item in validated_additions}
+        production_names = [validator._name_key(item) for item in production]
+        production_by_name = {validator._name_key(item): item for item in production}
+        production_sources = [validator.source_key(item) for item in production]
+        production_sources = [item for item in production_sources if item]
+
+        self.assertEqual(len(load_target_companies(str(rollout.PRODUCTION))), len(production))
+        self.assertEqual(len(production_names), len(set(production_names)))
+        self.assertEqual(len(production_sources), len(set(production_sources)))
+        for name in EXPECTED_SAFE_COMPANIES:
+            name_key = validator._name_key({"name": name})
+            self.assertEqual(production_names.count(name_key), 1)
+            self.assertEqual(production_by_name[name_key]["platform"], EXPECTED_SAFE_PLATFORMS[name])
+            self.assertEqual(validator.source_key(production_by_name[name_key]), validator.source_key(validated_by_name[name_key]))
+        self.assertFalse(
+            {validator._name_key({"name": name}) for name in EXPECTED_EXCLUDED_COMPANIES}
+            & set(production_names)
+        )
+        production_bytes = normalized_newlines(rollout.PRODUCTION.read_bytes())
+        validated_bytes = normalized_newlines(rollout.VALIDATED_REGISTRY.read_bytes())
+        self.assertTrue(production_bytes == validated_bytes or production_bytes.startswith(validated_bytes))
 
     def test_18_inventory_and_registry_have_no_duplicates(self):
         names = [validator._name_key(item) for item in entries(rollout.CANDIDATE_REGISTRY)]
