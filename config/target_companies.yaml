@@ -337,3 +337,43 @@ target_companies:
     search_url: https://careers.pembina.com/search/
     endpoint_variant: rmk_tile
     max_pages: 2
+  - name: Microsoft
+    platform: eightfold
+    careers_url: https://apply.careers.microsoft.com/careers
+    endpoint_url: https://apply.careers.microsoft.com/api/pcsx/search
+    endpoint_variant: pcsx
+    organization_id: microsoft.com
+    max_pages: 2
+    fingerprint_confidence: high
+  - name: Qualcomm
+    platform: eightfold
+    careers_url: https://careers.qualcomm.com/careers
+    endpoint_url: https://careers.qualcomm.com/api/pcsx/search
+    endpoint_variant: pcsx
+    organization_id: qualcomm.com
+    max_pages: 2
+    fingerprint_confidence: high
+  - name: Micron
+    platform: eightfold
+    careers_url: https://careers.micron.com/careers
+    endpoint_url: https://careers.micron.com/api/pcsx/search
+    endpoint_variant: pcsx
+    organization_id: micron.com
+    max_pages: 2
+    fingerprint_confidence: high
+  - name: Morgan Stanley
+    platform: eightfold
+    careers_url: https://morganstanley.eightfold.ai/careers
+    endpoint_url: https://morganstanley.eightfold.ai/api/pcsx/search
+    endpoint_variant: pcsx
+    organization_id: morganstanley.com
+    max_pages: 2
+    fingerprint_confidence: high
+  - name: Eaton
+    platform: eightfold
+    careers_url: https://eaton.eightfold.ai/careers
+    endpoint_url: https://eaton.eightfold.ai/api/pcsx/search
+    endpoint_variant: pcsx
+    organization_id: eaton.com
+    max_pages: 2
+    fingerprint_confidence: high

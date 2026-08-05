@@ -270,6 +270,11 @@ class RegistryValidationTests(unittest.TestCase):
             "Halliburton": "sap_successfactors",
             "John Deere": "sap_successfactors",
             "Pembina Pipeline": "sap_successfactors",
+            "Microsoft": "eightfold",
+            "Qualcomm": "eightfold",
+            "Micron": "eightfold",
+            "Morgan Stanley": "eightfold",
+            "Eaton": "eightfold",
         }
         for company, platform in expected_platforms.items():
             matches = [

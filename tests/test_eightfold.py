@@ -306,11 +306,8 @@ class EightfoldValidationTests(unittest.TestCase):
         self.assertEqual(company["validation_status"], validator.DUPLICATE_COMPANY)
         self.assertEqual(source["validation_status"], validator.DUPLICATE_SOURCE)
 
-    def test_john_deere_is_not_in_eightfold_delta_or_duplicate_by_apply_path(self):
+    def test_john_deere_remains_successfactors_in_production_registry(self):
         _, current = validator.load_registry("config/target_companies.yaml")
-        _, candidates = validator.load_registry("config/target_companies.eightfold_candidates.yaml")
-        additions = validator.detect_additions(current, candidates)
-        self.assertNotIn("John Deere", [entry["name"] for entry in additions])
         john_deere = next(entry for entry in current if entry["name"] == "John Deere")
         self.assertEqual(john_deere["platform"], "sap_successfactors")
         self.assertEqual(validator.source_key(john_deere), "sap_successfactors:jobs.deere.com")
@@ -354,26 +351,68 @@ class EightfoldValidationTests(unittest.TestCase):
                 self.assertFalse(result["safe_to_activate"])
 
     def test_registry_loader_candidate_membership_order_uniqueness_and_byte_prefix(self):
-        baseline_path = Path("config/target_companies.yaml")
-        candidate_path = Path("config/target_companies.eightfold_candidates.yaml")
-        baseline_bytes = baseline_path.read_bytes()
-        candidate_bytes = candidate_path.read_bytes()
-        _, baseline = validator.load_registry(baseline_path)
-        _, candidates = validator.load_registry(candidate_path)
-        additions = validator.detect_additions(baseline, candidates)
         expected = ["Microsoft", "Qualcomm", "Micron", "Morgan Stanley", "Eaton"]
+        _, real_candidates = validator.load_registry(
+            "config/target_companies.eightfold_candidates.yaml"
+        )
+        eightfold_candidates = [
+            entry for entry in real_candidates if entry["platform"] == "eightfold"
+        ]
+        baseline_text = (
+            "target_companies:\n"
+            "  - name: Synthetic Greenhouse Baseline\n"
+            "    platform: greenhouse\n"
+            "    slug: synthetic-greenhouse-baseline\n"
+            "  - name: Synthetic Workday Baseline\n"
+            "    platform: workday\n"
+            "    tenant: synthetic-workday-baseline\n"
+            "    wd_subdomain: wd1\n"
+            "    site_id: Careers\n"
+        )
+
+        self.assertEqual([entry["name"] for entry in eightfold_candidates], expected)
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            baseline_path = root / "baseline.yaml"
+            candidate_path = root / "candidate.yaml"
+            baseline_path.write_text(baseline_text, encoding="utf-8", newline="\n")
+            candidate_path.write_bytes(
+                validator.build_validated_registry_bytes(
+                    baseline_path,
+                    eightfold_candidates,
+                )
+            )
+            baseline_bytes = baseline_path.read_bytes()
+            candidate_bytes = candidate_path.read_bytes()
+            _, baseline = validator.load_registry(baseline_path)
+            _, candidates = validator.load_registry(candidate_path)
+            additions = validator.detect_additions(baseline, candidates)
+            targets = load_target_companies(str(candidate_path))
+
         normalized_names = [validator._name_key(entry) for entry in candidates]
         source_keys = [validator.source_key(entry) for entry in candidates]
 
         self.assertEqual(candidate_bytes[: len(baseline_bytes)], baseline_bytes)
         self.assertEqual(candidates[: len(baseline)], baseline)
+        self.assertEqual(
+            [entry["name"] for entry in baseline],
+            ["Synthetic Greenhouse Baseline", "Synthetic Workday Baseline"],
+        )
+        self.assertEqual(len(additions), 5)
         self.assertEqual([entry["name"] for entry in additions], expected)
         self.assertTrue(all(entry["platform"] == "eightfold" for entry in additions))
         self.assertEqual(len(normalized_names), len(set(normalized_names)))
-        nonempty_sources = [key for key in source_keys if key]
-        self.assertEqual(len(nonempty_sources), len(set(nonempty_sources)))
-        targets = load_target_companies(str(candidate_path))
+        self.assertTrue(all(source_keys))
+        self.assertEqual(len(source_keys), len(set(source_keys)))
+        self.assertEqual(
+            [item.name for item in targets[: len(baseline)]],
+            ["Synthetic Greenhouse Baseline", "Synthetic Workday Baseline"],
+        )
         self.assertEqual([item.name for item in targets[-len(expected) :]], expected)
+        self.assertTrue(
+            all(item.platform == "eightfold" for item in targets[-len(expected) :])
+        )
 
     def test_validated_registry_builder_adds_only_safe_entries_deterministically(self):
         baseline = (
