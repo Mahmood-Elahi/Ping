@@ -222,8 +222,11 @@ class TSMCSourceRecoveryTests(unittest.TestCase):
         self.assertNotEqual(registry_validator.source_key(recovery.recovered_entry()), registry_validator.source_key(recovery.current_tsmc_entry()))
 
     def test_28_candidate_registry_loader_compatibility(self):
+        _, candidate = registry_validator.load_registry(recovery.CANDIDATE)
+        _, production = registry_validator.load_registry(recovery.PRODUCTION)
         self.assertEqual(len(load_target_companies(str(recovery.CANDIDATE))), 133)
-        self.assertTrue(recovery.CANDIDATE.read_bytes().startswith(recovery.PRODUCTION.read_bytes()))
+        self.assertGreaterEqual(len(production), len(candidate))
+        self.assertEqual(production[:len(candidate)], candidate)
 
     def test_29_validated_registry_loader_compatibility(self):
         self.assertEqual(len(load_target_companies(str(recovery.VALIDATED))), 133)
@@ -269,11 +272,18 @@ class TSMCSourceRecoveryTests(unittest.TestCase):
         self.assertEqual(validated, recovery.PRODUCTION.read_bytes())
 
     def test_35_production_registry_remains_unchanged(self):
-        result = subprocess.run(
-            ["git", "diff", "--exit-code", "--", "config/target_companies.yaml"],
-            cwd=ROOT, capture_output=True,
+        _, historical = registry_validator.load_registry(recovery.VALIDATED)
+        _, production = registry_validator.load_registry(recovery.PRODUCTION)
+        historical_tsmc = next(item for item in historical if item["name"] == "TSMC")
+        production_tsmc = [item for item in production if item["name"] == "TSMC"]
+
+        self.assertGreaterEqual(len(production), len(historical))
+        self.assertEqual(production[:len(historical)], historical)
+        self.assertEqual(production_tsmc, [historical_tsmc])
+        self.assertEqual(
+            registry_validator.source_key(production_tsmc[0]),
+            "avature:careers.tsmc.com:6",
         )
-        self.assertEqual(result.returncode, 0, result.stdout.decode(errors="replace"))
 
     def test_36_parent_mappings_remain_unchanged(self):
         data = yaml.safe_load(recovery.PARENT_MAPPINGS.read_text(encoding="utf-8"))
@@ -301,8 +311,10 @@ class TSMCSourceRecoveryTests(unittest.TestCase):
 
     def test_42_existing_full_suite_safety_contract(self):
         self.assertIs(scanner.ADAPTERS["avature"], avature.fetch_jobs)
-        self.assertEqual(recovery.VALIDATED.read_bytes(), recovery.PRODUCTION.read_bytes())
-        self.assertEqual(len(load_target_companies()), 133)
+        historical = load_target_companies(str(recovery.VALIDATED))
+        production = load_target_companies()
+        self.assertEqual(production[:len(historical)], historical)
+        self.assertEqual(len(production), 139)
 
     @staticmethod
     def _imports():

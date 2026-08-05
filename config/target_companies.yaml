@@ -1512,3 +1512,106 @@ target_companies:
     - jobs.lever.co
     max_pages: 1
     max_jobs: 20
+  - name: onsemi
+    platform: oracle_recruiting
+    careers_url: https://hctz.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001/jobs
+    search_url: https://www.onsemi.com/careers
+    endpoint_url: https://hctz.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+    endpoint_variant: hcmRestApi_recruitingCEJobRequisitions
+    site_number: CX_1001
+    locale: en
+    allowed_apply_hosts:
+    - hctz.fa.us2.oraclecloud.com
+    original_workbook_rank: 38
+    max_pages: 2
+    max_jobs: 20
+  - name: Siemens
+    platform: static_html
+    careers_url: https://www.siemens.com/global/en/company/jobs.html
+    listing_url: https://jobs.siemens.com/en_US/externaljobs/SearchJobs
+    endpoint_variant: server_rendered_cards
+    listing_selector: div.results--listed
+    job_card_selector: article.article--result
+    title_selector: h3.article__header__text__title a[href]
+    location_selector: span.list-item-location
+    detail_link_selector: h3.article__header__text__title a[href]
+    external_id_regex: /JobDetail/([0-9]+)
+    department_selector: span.list-item-family
+    next_page_selector: li.paginationNextLink a[href]
+    pagination_url_template: null
+    allowed_apply_hosts:
+    - jobs.siemens.com
+    original_workbook_rank: 91
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+  - name: Schneider Electric
+    platform: icims
+    tenant: schneider-electric
+    board_id: schneider-electric-public
+    careers_url: https://careers.se.com/careers-at-schneider-electric
+    search_url: https://careers.se.com/jobs
+    endpoint_url: https://careers.se.com/api/jobs
+    endpoint_variant: icims_jibe_api
+    allowed_apply_hosts:
+    - careers-se.icims.com
+    - zhcareers-se.icims.com
+    - frcareers-se.icims.com
+    - schneiderele.taleo.net
+    apply_url_id_query_param: job
+    original_workbook_rank: 93
+    page_size: 10
+    max_pages: 2
+    max_jobs: 20
+  - name: Chevron
+    platform: static_html
+    careers_url: https://careers.chevron.com/
+    listing_url: https://careers.chevron.com/search-jobs
+    endpoint_variant: server_rendered_cards
+    listing_selector: section#search-results
+    job_card_selector: section#search-results-list li
+    title_selector: a[data-job-id] h2
+    location_selector: a[data-job-id] span.job-location
+    detail_link_selector: a[data-job-id]
+    external_id_regex: /([0-9]+)/?$
+    department_selector: null
+    next_page_selector: null
+    pagination_url_template: https://careers.chevron.com/search-jobs?p={page}
+    allowed_apply_hosts:
+    - careers.chevron.com
+    original_workbook_rank: 171
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+  - name: Mercado Libre
+    platform: eightfold
+    careers_url: https://mercadolibre.eightfold.ai/careers
+    search_url: https://careers-meli.mercadolibre.com/es/positions
+    endpoint_url: https://mercadolibre.eightfold.ai/api/pcsx/search
+    endpoint_variant: pcsx
+    organization_id: mercadolibre.com
+    allowed_apply_hosts:
+    - mercadolibre.eightfold.ai
+    original_workbook_rank: 199
+    max_pages: 2
+    max_jobs: 20
+  - name: Bolt
+    platform: static_html
+    careers_url: https://bolt.eu/en/careers/
+    listing_url: https://bolt.eu/en/careers/positions/
+    endpoint_variant: server_rendered_cards
+    listing_selector: nav[aria-label=pagination]
+    job_card_selector: div[data-testid=AccordionItem]
+    title_selector: h3 span.rt-high-contrast
+    location_selector: h3 span.rt-truncate
+    detail_link_selector: a[href*=/careers/positions/]
+    external_id_regex: /positions/([0-9a-f-]{36})/
+    department_selector: h3 span.rt-r-size-1
+    next_page_selector: null
+    pagination_url_template: https://bolt.eu/en/careers/positions/?page={page}
+    allowed_apply_hosts:
+    - bolt.eu
+    original_workbook_rank: 218
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000

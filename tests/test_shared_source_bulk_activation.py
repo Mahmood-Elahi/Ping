@@ -329,8 +329,30 @@ class SharedSourceBulkActivationTests(unittest.TestCase):
             ]
             self.assertEqual(matches, [expected])
             self.assertEqual(validator.source_key(matches[0]), validator.source_key(expected))
-        rejected = {"Netflix", "Schneider Electric", "Continental", "Astrobotic"}
+        rejected = {"Netflix", "Continental", "Astrobotic"}
         self.assertFalse(rejected & {item["name"] for item in production})
+
+        batch_a = target_entries(
+            ROOT / "config" / "target_companies.adapter_extensions_v4a_validated.yaml"
+        )
+        first_batch_a = next(
+            index for index, item in enumerate(batch_a)
+            if validator._name_key(item) == "onsemi"
+        )
+        batch_a_additions = batch_a[first_batch_a:]
+        schneider = next(
+            item for item in batch_a_additions
+            if validator._name_key(item) == "schneider electric"
+        )
+        self.assertNotIn("Schneider Electric", [item["name"] for item in validated])
+        self.assertEqual(
+            validator.source_key(schneider),
+            "icims:careers.se.com:schneider-electric-public",
+        )
+        self.assertEqual(
+            [item for item in production if validator._name_key(item) == "schneider electric"],
+            [schneider],
+        )
 
     def test_27_production_mapping_is_exact_and_unique(self):
         historical = historical_mapping_prefix()

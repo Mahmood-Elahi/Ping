@@ -121,8 +121,18 @@ class AdapterExtensionsV4ABulkActivationTests(unittest.TestCase):
         self.assertEqual([int(row["master_rank"]) for row in self.inventory], sorted(int(row["master_rank"]) for row in self.inventory))
 
     def test_04_historical_133_entry_prefix_is_preserved(self):
-        self.assertTrue(rollout.CANDIDATE_REGISTRY.read_bytes().startswith(self.production_bytes))
-        self.assertEqual(len(load_target_companies(str(rollout.PRODUCTION))), 133)
+        _, candidate = registry_validator.load_registry(rollout.CANDIDATE_REGISTRY)
+        _, validated = registry_validator.load_registry(rollout.VALIDATED_REGISTRY)
+        _, production = registry_validator.load_registry(rollout.PRODUCTION)
+        first_batch_a = next(
+            index for index, item in enumerate(candidate)
+            if registry_validator._name_key(item) == "onsemi"
+        )
+        historical = candidate[:first_batch_a]
+        self.assertEqual(first_batch_a, rollout.HISTORICAL_PRODUCTION_COUNT)
+        self.assertEqual(validated[:first_batch_a], historical)
+        self.assertEqual(production[:first_batch_a], historical)
+        self.assertEqual(len(production), 139)
 
     def test_05_candidate_registry_loader_compatibility(self):
         self.assertEqual(len(self.candidate_targets), 139)
@@ -290,9 +300,35 @@ class AdapterExtensionsV4ABulkActivationTests(unittest.TestCase):
         self.assertLessEqual(rollout.MAX_BATCH_SIZE, registry_validator.MAX_BATCH_SIZE)
 
     def test_38_production_registry_remains_unchanged(self):
-        expected = subprocess.check_output(["git", "rev-parse", "HEAD:config/target_companies.yaml"], cwd=ROOT, text=True).strip()
-        observed = subprocess.check_output(["git", "hash-object", "--path=config/target_companies.yaml", "config/target_companies.yaml"], cwd=ROOT, text=True).strip()
-        self.assertEqual(observed, expected)
+        _, validated = registry_validator.load_registry(rollout.VALIDATED_REGISTRY)
+        _, production = registry_validator.load_registry(rollout.PRODUCTION)
+        first_batch_a = next(
+            index for index, item in enumerate(validated)
+            if registry_validator._name_key(item) == "onsemi"
+        )
+        historical = validated[:first_batch_a]
+        additions = validated[first_batch_a:]
+
+        self.assertEqual(first_batch_a, rollout.HISTORICAL_PRODUCTION_COUNT)
+        self.assertEqual([item["name"] for item in additions], SAFE)
+        self.assertGreaterEqual(len(production), len(validated))
+        self.assertEqual(production[:first_batch_a], historical)
+        self.assertEqual(
+            production[first_batch_a:first_batch_a + len(additions)],
+            additions,
+        )
+        for expected in additions:
+            matches = [
+                item for item in production
+                if registry_validator._name_key(item) == registry_validator._name_key(expected)
+            ]
+            self.assertEqual(matches, [expected])
+            self.assertEqual(
+                registry_validator.source_key(matches[0]),
+                registry_validator.source_key(expected),
+            )
+        excluded = {"yaskawa electric", "aptiv", "ohb se"}
+        self.assertFalse(excluded & {registry_validator._name_key(item) for item in production})
 
     def test_39_parent_mappings_remain_unchanged(self):
         expected = subprocess.check_output(["git", "show", "HEAD:config/company_parent_source_mappings.yaml"], cwd=ROOT)
