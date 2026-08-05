@@ -667,3 +667,12 @@ target_companies:
     - jobs.lever.co
     max_pages: 1
     max_jobs: 20
+  - name: Teradyne
+    platform: sap_successfactors
+    careers_url: https://www.teradyne.com/careers/
+    search_url: https://jobs.teradyne.com/search/
+    endpoint_variant: rmk_table
+    allowed_apply_hosts:
+    - jobs.teradyne.com
+    max_pages: 2
+    max_jobs: 20
