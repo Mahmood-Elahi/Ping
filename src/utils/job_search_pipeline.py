@@ -50,7 +50,8 @@ class JobSearchPipeline:
                  company_careers_location_filter: Optional[
                      Callable[[Any], Optional[str]]
                  ] = None,
-                 company_careers_ranked_writer: Optional[Callable[..., None]] = None):
+                 company_careers_ranked_writer: Optional[Callable[..., None]] = None,
+                 company_careers_diagnostics_builder: Optional[Callable[..., Dict[str, Any]]] = None):
         """
         Initialize the job search pipeline.
         
@@ -68,6 +69,7 @@ class JobSearchPipeline:
             company_careers_job_filter: Optional opt-in title/filter callback
             company_careers_location_filter: Optional opt-in location callback
             company_careers_ranked_writer: Optional opt-in ranked-artifact writer
+            company_careers_diagnostics_builder: Optional normalized-job diagnostics callback
         """
         self.keywords = keywords
         self.locations = locations or jobsearch_config.get('locations', ["remote"])
@@ -83,6 +85,7 @@ class JobSearchPipeline:
         self.company_careers_job_filter = company_careers_job_filter
         self.company_careers_location_filter = company_careers_location_filter
         self.company_careers_ranked_writer = company_careers_ranked_writer
+        self.company_careers_diagnostics_builder = company_careers_diagnostics_builder
         self.company_careers_report = None
         self.company_careers_summary = None
         
@@ -138,6 +141,7 @@ class JobSearchPipeline:
             "ranked_json": os.path.join(self.output_dir, f"company_careers_ranked_{timestamp}.json"),
             "ranked_csv": os.path.join(self.output_dir, f"company_careers_ranked_{timestamp}.csv"),
             "jobs_json": os.path.join(self.output_dir, f"job_postings_{timestamp}.json"),
+            "diagnostics_json": os.path.join(self.output_dir, f"student_search_diagnostics_{timestamp}.json"),
         }
 
     def _write_company_careers_report(self, report, paths: Dict[str, str]) -> None:
@@ -240,6 +244,15 @@ class JobSearchPipeline:
         for scan_result in report.results:
             for reason, count in scan_result.exclusion_counts.items():
                 exclusion_counts[reason] = exclusion_counts.get(reason, 0) + count
+        diagnostics = None
+        if self.company_careers_diagnostics_builder is not None:
+            diagnostics = self.company_careers_diagnostics_builder(
+                report.normalized_jobs,
+                locations=self.locations,
+            )
+            with open(output_paths["diagnostics_json"], "w", encoding="utf-8") as file:
+                json.dump(diagnostics, file, indent=2, ensure_ascii=False)
+
         self.company_careers_summary = {
             "companies_checked": len(report.results),
             "canonical_sources_checked": len(report.results),
@@ -258,6 +271,8 @@ class JobSearchPipeline:
             "database_failures": failed_saves,
             "coverage_report_path": output_paths["coverage_md"],
             "ranked_results_path": output_paths["ranked_json"],
+            "diagnostics_path": output_paths["diagnostics_json"] if diagnostics is not None else None,
+            "diagnostics": diagnostics,
         }
 
         print(
@@ -268,6 +283,8 @@ class JobSearchPipeline:
         print(f"  [SUMMARY] Coverage summary: {output_paths['coverage_md']}")
         print(f"  [SUMMARY] Failure summary: {output_paths['failures_json']}")
         print(f"  [SUMMARY] Ranked review: {output_paths['ranked_json']}")
+        if diagnostics is not None:
+            print(f"  [SUMMARY] Search diagnostics: {output_paths['diagnostics_json']}")
         return results
     
     async def _initialize_scrapers_async(self):

@@ -193,6 +193,7 @@ class CompanyCareersScanner:
                     CompanyScanResult(
                         target=target,
                         jobs=matched_jobs,
+                        normalized_jobs=fetched_jobs,
                         status=status,
                         fetched_count=len(fetched_jobs),
                         exclusion_counts=exclusion_counts,
@@ -368,7 +369,18 @@ class CompanyCareersScanner:
         seen: set[tuple[str, str, str]] = set()
         unique_jobs: List[JobRecord] = []
         for job in jobs:
-            key = (job.url, job.job_id, job.title.lower())
+            source_identity = (job.source or job.company).strip().casefold()
+            stable_id = job.job_id.strip()
+            if stable_id:
+                key = ("id", source_identity, stable_id)
+            elif job.url.strip():
+                key = ("url", source_identity, job.url.split("#", 1)[0].rstrip("/"))
+            else:
+                key = (
+                    "fallback",
+                    source_identity,
+                    f"{job.title.casefold()}\x1f{job.location.casefold()}",
+                )
             if key in seen:
                 continue
             seen.add(key)

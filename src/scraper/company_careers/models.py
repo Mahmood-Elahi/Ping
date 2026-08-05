@@ -212,6 +212,7 @@ class CompanyTarget:
 class CompanyScanResult:
     target: CompanyTarget
     jobs: List[JobRecord] = field(default_factory=list)
+    normalized_jobs: List[JobRecord] = field(default_factory=list, repr=False)
     status: str = CoverageStatus.FETCHED
     error: Optional[str] = None
     error_type: Optional[str] = None
@@ -251,6 +252,11 @@ class CompanyCareersReport:
     @property
     def jobs(self) -> List[JobRecord]:
         return [job for result in self.results for job in result.jobs]
+
+    @property
+    def normalized_jobs(self) -> List[JobRecord]:
+        """Return all normalized jobs, including jobs later excluded by filters."""
+        return [job for result in self.results for job in result.normalized_jobs]
 
     def coverage(self) -> List[Dict[str, Any]]:
         return [result.to_coverage_dict() for result in self.results] + [

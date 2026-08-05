@@ -183,6 +183,39 @@ class UpdateStudentDashboardTests(unittest.TestCase):
         self.assertIn("SQLite writes: disabled", text)
         self.assertIn("No scan, artifacts, SQLite writes, Supabase calls, or Google calls", text)
 
+    def test_audit_scans_without_supabase_sheets_or_sqlite(self):
+        audit_summary = dict(
+            self.summary,
+            diagnostics={
+                "total_normalized_jobs": 2,
+                "before_retained_jobs": 1,
+                "after_retained_jobs": 1,
+                "exclusions_by_reason": {"job_type": 1},
+                "newly_accepted_jobs_by_matching_rule": {},
+                "location_distribution": {"eligible_canada": 1},
+                "title_signal_distribution": {"intern": 1},
+                "season_distribution": {"unspecified": 1},
+            },
+            diagnostics_path="jobs/diagnostics.json",
+        )
+        pipeline = FakePipeline(self.report, audit_summary)
+        output = io.StringIO()
+        with (
+            patch.object(dashboard, "load_target_companies", return_value=[self.target]),
+            patch.object(dashboard, "build_pipeline", return_value=pipeline),
+            patch.object(dashboard.SupabaseJobStore, "from_env") as store_factory,
+            patch.object(dashboard.GoogleSheetsPublisher, "from_env") as publisher_factory,
+            redirect_stdout(output),
+        ):
+            exit_code = dashboard.main(["--audit"])
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(pipeline.search_calls, 1)
+        store_factory.assert_not_called()
+        publisher_factory.assert_not_called()
+        self.assertIn("Supabase: disabled", output.getvalue())
+        self.assertIn("SQLite: disabled", output.getvalue())
+
     def test_skip_sheets_updates_supabase_without_google_calls(self):
         pipeline = FakePipeline(self.report, self.summary)
         store = FakeStore()

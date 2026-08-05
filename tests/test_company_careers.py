@@ -149,20 +149,20 @@ class CompanyCareersTests(unittest.TestCase):
             (
                 "Software Engineering Intern",
                 "Remote - USA",
-                "excluded_us_only",
-                "location",
+                "eligible_remote_us",
+                None,
             ),
             (
                 "Software Engineering Intern",
                 "United States",
-                "excluded_us_only",
-                "location",
+                "eligible_us_onsite",
+                None,
             ),
             (
                 "Software Engineering Intern",
                 "Seattle, WA",
-                "excluded_us_only",
-                "location",
+                "eligible_us_onsite",
+                None,
             ),
             (
                 "Software Engineering Intern",
@@ -277,9 +277,8 @@ class CompanyCareersTests(unittest.TestCase):
         self.assertGreater(ranked[0]["relevance_score"], ranked[1]["relevance_score"])
         self.assertIn("embedded_firmware", intern_score["matched_categories"])
         self.assertIn("eligible_canada", intern_score["positive_signals"])
-        self.assertEqual(ranked[1]["location_status"], "excluded_us_only")
+        self.assertEqual(ranked[1]["location_status"], "eligible_remote_us")
         self.assertIn("staff", ranked[1]["negative_signals"])
-        self.assertIn("us_only", ranked[1]["negative_signals"])
 
     def test_student_relevance_rewards_recent_parseable_source_dates(self):
         recent = self._student_job(
@@ -311,13 +310,15 @@ class CompanyCareersTests(unittest.TestCase):
             recent_score["positive_signals"],
         )
 
-    def test_new_grad_titles_require_explicit_opt_in(self):
+    def test_new_grad_titles_remain_excluded_even_with_legacy_opt_in(self):
         for title in ("New Grad Software Engineer", "Entry-Level Software Engineer"):
             job = self._student_job(title)
             with self.subTest(title=title):
-                self.assertEqual(student_job_exclusion_reason(job), "job_type")
-                self.assertIsNone(
-                    student_job_exclusion_reason(job, include_new_grad=True)
+                expected = "new_grad" if title.startswith("New Grad") else "job_type"
+                self.assertEqual(student_job_exclusion_reason(job), expected)
+                self.assertEqual(
+                    student_job_exclusion_reason(job, include_new_grad=True),
+                    expected,
                 )
 
     def test_student_filter_reports_location_and_title_exclusions(self):
@@ -355,7 +356,7 @@ class CompanyCareersTests(unittest.TestCase):
 
         configured = configure_student_targets(targets)
 
-        self.assertIn("Intern", configured[0].search_terms[0])
+        self.assertEqual(configured[0].search_terms[0], "intern")
         self.assertEqual(configured[1].search_terms, ["hashicorp"])
         self.assertEqual(targets[0].search_terms, ["Staff"])
 

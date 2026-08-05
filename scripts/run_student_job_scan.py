@@ -20,6 +20,7 @@ from src.scraper.company_careers.models import CoverageStatus
 from src.scraper.company_careers.scanner import CompanyCareersScanner
 from src.scraper.company_careers.student_roles import (
     build_student_job_filter,
+    build_student_search_diagnostics,
     build_student_location_filter,
     configure_student_targets,
     rank_student_jobs,
@@ -31,8 +32,8 @@ from src.integrations.supabase_job_store import SupabaseJobStore
 from src.utils.job_search_pipeline import JobSearchPipeline
 
 
-DEFAULT_LOCATIONS = ["Canada", "Remote"]
-DEFAULT_MAX_JOBS = 10
+DEFAULT_LOCATIONS = ["Canada", "United States", "Remote"]
+DEFAULT_MAX_JOBS = None
 
 
 def configure_console() -> None:
@@ -65,12 +66,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--max-jobs",
         type=positive_integer,
         default=DEFAULT_MAX_JOBS,
-        help="Maximum retained jobs per company",
+        help="Optional maximum retained jobs per company (default keeps every eligible role)",
     )
     parser.add_argument(
         "--include-new-grad",
         action="store_true",
-        help="Also retain New Grad, Graduate, and Entry Level titles",
+        help="Deprecated compatibility flag; new-grad roles remain excluded",
     )
     parser.add_argument(
         "--dry-run",
@@ -86,8 +87,8 @@ def print_plan(args: argparse.Namespace, company_count: int) -> None:
     print("  Experience level: entry")
     print(f"  Locations: {', '.join(args.locations)}")
     print("  Scraper: company_careers")
-    print(f"  Maximum jobs per company: {args.max_jobs}")
-    print(f"  Include new-grad roles: {'yes' if args.include_new_grad else 'no'}")
+    print(f"  Maximum jobs per company: {args.max_jobs or 'unlimited'}")
+    print("  Include new-grad roles: no")
     print(f"  Title terms: {', '.join(student_search_terms(args.include_new_grad))}")
     print(f"  Configured companies: {company_count}")
 
@@ -170,6 +171,7 @@ def main(argv: list[str] | None = None) -> int:
             write_student_ranked_jobs_artifacts,
             include_new_grad=args.include_new_grad,
         ),
+        company_careers_diagnostics_builder=build_student_search_diagnostics,
     )
     try:
         pipeline.search_jobs()

@@ -22,6 +22,7 @@ from src.scraper.company_careers.registry import load_target_companies
 from src.scraper.company_careers.scanner import CompanyCareersScanner
 from src.scraper.company_careers.student_roles import (
     build_student_job_filter,
+    build_student_search_diagnostics,
     build_student_location_filter,
     configure_student_targets,
     rank_student_jobs,
@@ -32,8 +33,8 @@ from src.scraper.company_careers.student_roles import (
 from src.utils.job_search_pipeline import JobSearchPipeline
 
 
-DEFAULT_LOCATIONS = ["Canada", "Remote"]
-DEFAULT_MAX_JOBS = 10
+DEFAULT_LOCATIONS = ["Canada", "United States", "Remote"]
+DEFAULT_MAX_JOBS = None
 
 
 def configure_console() -> None:
@@ -66,12 +67,17 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--max-jobs",
         type=positive_integer,
         default=DEFAULT_MAX_JOBS,
-        help="Maximum retained jobs per company",
+        help="Optional maximum retained jobs per company (default keeps every eligible role)",
     )
     parser.add_argument(
         "--include-new-grad",
         action="store_true",
-        help="Also retain New Grad, Graduate, and Entry Level titles",
+        help="Deprecated compatibility flag; new-grad roles remain excluded",
+    )
+    parser.add_argument(
+        "--audit",
+        action="store_true",
+        help="Run the live scan and diagnostics with Supabase, Sheets, and SQLite disabled",
     )
     parser.add_argument(
         "--dry-run",
@@ -92,15 +98,16 @@ def print_plan(args: argparse.Namespace, company_count: int) -> None:
     print("  Experience level: entry")
     print(f"  Locations: {', '.join(args.locations)}")
     print("  Scraper: company_careers")
-    print(f"  Maximum jobs per company: {args.max_jobs}")
-    print(f"  Include new-grad roles: {'yes' if args.include_new_grad else 'no'}")
+    print(f"  Maximum jobs per company: {args.max_jobs or 'unlimited'}")
+    print("  Include new-grad roles: no")
     print(f"  Title terms: {', '.join(student_search_terms(args.include_new_grad))}")
     print(f"  Configured companies: {company_count}")
-    print(f"  Supabase: {'disabled (dry-run)' if args.dry_run else 'enabled'}")
+    external_disabled = args.dry_run or args.audit
+    print(f"  Supabase: {'disabled (read-only)' if external_disabled else 'enabled'}")
     sheets_status = (
         "disabled (--skip-sheets)"
         if args.skip_sheets
-        else "disabled (dry-run)" if args.dry_run else "enabled"
+        else "disabled (read-only)" if external_disabled else "enabled"
     )
     print(f"  Google Sheets: {sheets_status}")
     print("  SQLite writes: disabled")
@@ -140,6 +147,7 @@ def build_pipeline(args: argparse.Namespace, targets: list[Any]) -> JobSearchPip
             write_student_ranked_jobs_artifacts,
             include_new_grad=args.include_new_grad,
         ),
+        company_careers_diagnostics_builder=build_student_search_diagnostics,
     )
 
 
@@ -153,6 +161,15 @@ def run_update(args: argparse.Namespace) -> int:
     if args.dry_run:
         print_required_environment(skip_sheets=args.skip_sheets)
         print("\nNo scan, artifacts, SQLite writes, Supabase calls, or Google calls were made.")
+        return 0
+
+    if args.audit:
+        pipeline = build_pipeline(args, targets)
+        pipeline.search_jobs()
+        summary = pipeline.company_careers_summary
+        if summary is None:
+            raise RuntimeError("The company-careers pipeline did not expose its scan summary")
+        print_audit_summary(summary)
         return 0
 
     started_at = datetime.now(timezone.utc)
@@ -267,6 +284,26 @@ def print_summary(
         print(f"  New Jobs rows: {sheet_counts['new_jobs']}")
         print(f"  Active Jobs rows: {sheet_counts['active_jobs']}")
         print(f"  Companies rows: {sheet_counts['companies']}")
+
+
+def print_audit_summary(summary: dict[str, Any]) -> None:
+    diagnostics = summary.get("diagnostics") or {}
+    print("\nRead-only search audit")
+    print("  Supabase: disabled")
+    print("  Google Sheets: disabled")
+    print("  SQLite: disabled")
+    print(f"  Total normalized jobs: {diagnostics.get('total_normalized_jobs', 0)}")
+    print(f"  Before retained jobs: {diagnostics.get('before_retained_jobs', 0)}")
+    print(f"  After retained jobs: {diagnostics.get('after_retained_jobs', 0)}")
+    print(f"  Exclusions by reason: {diagnostics.get('exclusions_by_reason', {})}")
+    print(
+        "  Newly accepted by rule: "
+        f"{diagnostics.get('newly_accepted_jobs_by_matching_rule', {})}"
+    )
+    print(f"  Location distribution: {diagnostics.get('location_distribution', {})}")
+    print(f"  Title-signal distribution: {diagnostics.get('title_signal_distribution', {})}")
+    print(f"  Season distribution: {diagnostics.get('season_distribution', {})}")
+    print(f"  Diagnostics path: {summary.get('diagnostics_path')}")
 
 
 def main(argv: list[str] | None = None) -> int:

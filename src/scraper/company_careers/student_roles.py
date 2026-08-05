@@ -1,33 +1,75 @@
-"""Conservative title filters for student and internship searches."""
+"""Student-role eligibility, search scope, ranking, and diagnostics."""
 
 from __future__ import annotations
 
 import csv
 import json
 import re
+from collections import Counter
 from dataclasses import replace
 from datetime import datetime, timezone
 from functools import partial
 from pathlib import Path
-from typing import Callable, Iterable, Optional
+from typing import Any, Callable, Iterable, Mapping, Optional
 
 from src.scraper.company_careers.models import CompanyTarget, JobRecord
 
 
-STUDENT_TITLE_PATTERNS = (
-    r"\bintern\b",
-    r"\binternship\b",
-    r"\bco[ -]?op\b",
-    r"\bstudent\b",
-    r"\buniversity\b",
+STUDENT_ROLE_QUERIES = (
+    "intern",
+    "internship",
+    "co-op",
+    "student",
+    "undergraduate",
+    "engineering intern",
+    "software intern",
+    "research intern",
+    "machine learning intern",
+    "AI intern",
+    "robotics intern",
+    "embedded intern",
+    "firmware intern",
+    "hardware intern",
+    "electrical engineering intern",
 )
-NEW_GRAD_TITLE_PATTERNS = (
-    r"\bnew grad(?:uate)?\b",
-    r"\bgraduate\b",
-    r"\bentry[ -]?level\b",
+
+STRONG_STUDENT_PATTERNS = (
+    ("university_intern", r"\buniversity\s*[-/]?\s*intern(?:ship)?s?\b"),
+    ("student_engineer", r"\bstudents?\s*[-/]?\s*engineers?\b"),
+    ("research_intern", r"\bresearch\s*[-/]?\s*intern(?:ship)?s?\b"),
+    ("student_researcher", r"\bstudents?\s*[-/]?\s*researchers?\b"),
+    ("summer_analyst", r"\bsummer\s*[-/]?\s*analysts?\b"),
+    ("off_cycle_intern", r"\boff\s*[- /]?\s*cycle\s*[-/]?\s*intern(?:ship)?s?\b"),
+    ("industrial_placement", r"\bindustrial\s*[-/]?\s*placements?\b"),
+    ("year_in_industry", r"\byears?\s*(?:[-/]\s*|\s+)in\s*(?:[-/]\s*|\s+)(?:the\s+)?industry\b"),
+    ("working_student", r"\bworking\s*[-/]?\s*students?\b"),
+    ("undergraduate", r"\bundergraduates?\b"),
+    ("internship", r"\binternships?\b"),
+    ("intern", r"\binterns?\b"),
+    ("co_op", r"\bco\s*(?:[-/]\s*)?op(?:s)?\b"),
+    ("student", r"\bstudents?\b"),
+)
+CONTEXTUAL_STUDENT_PATTERNS = (
+    ("summer", r"\bsummers?\b"),
+    ("fall", r"\bfall\b"),
+    ("winter", r"\bwinter\b"),
+    ("university", r"\buniversit(?:y|ies)\b"),
+    ("campus", r"\bcampus(?:es)?\b"),
+    ("early_talent", r"\bearly\s*[-/]?\s*talent\b"),
+    ("emerging_talent", r"\bemerging\s*[-/]?\s*talent\b"),
+    ("placement", r"\bplacements?\b"),
+    ("temporary", r"\btemporary\b|\btemp\b"),
+)
+
+NEW_GRAD_PATTERNS = (
+    r"\bnew\s*[-/]?\s*grads?\b",
+    r"\bnew\s*[-/]?\s*graduates?\b",
+    r"\bgraduate\s*[-/]?\s*program(?:me)?s?\b",
+    r"\bgraduate\s*[-/]?\s*scheme\b",
 )
 SENIORITY_TITLE_PATTERN = re.compile(
-    r"\b(?:senior|staff|principal|manager|director|lead|architect)\b",
+    r"\b(?:senior|staff|principal|manager|director|lead|architect|head|executive)\b|"
+    r"(?:^|[^A-Za-z])(?:vp|v\.p\.)(?:[^A-Za-z]|$)|\bvice\s+president\b",
     flags=re.IGNORECASE,
 )
 RESTRICTED_PROGRAM_PATTERNS = (
@@ -35,343 +77,316 @@ RESTRICTED_PROGRAM_PATTERNS = (
     (r"\bmilitary fellowship\b", "military_fellowship"),
     (r"\btransitioning service member\b", "transitioning_service_member"),
     (r"\bveteran fellowship\b", "veteran_fellowship"),
+    (r"\bexperienced\s*[-/]?\s*(?:hires?|professionals?)\b", "experienced_hire"),
+    (r"\bpost\s*[- ]?doctoral\b|\bpostdocs?\b", "postdoctoral"),
+)
+RESTRICTED_DEGREE_PATTERNS = (
+    (r"\bm\.?b\.?a\.?\b", "mba_only"),
+    (r"\bph\.?d\.?\b|\bdoctoral\b", "phd_only"),
+    (r"\bmaster['’]?s\b|\bmasters\b", "masters_only"),
 )
 
 CANADIAN_PROVINCE_TERMS = (
-    "alberta",
-    "british columbia",
-    "manitoba",
-    "new brunswick",
-    "newfoundland and labrador",
-    "nova scotia",
-    "ontario",
-    "prince edward island",
-    "quebec",
-    "saskatchewan",
-    "northwest territories",
-    "nunavut",
-    "yukon",
+    "alberta", "british columbia", "manitoba", "new brunswick",
+    "newfoundland and labrador", "nova scotia", "ontario",
+    "prince edward island", "quebec", "saskatchewan",
+    "northwest territories", "nunavut", "yukon",
 )
 CANADIAN_LOCATION_TERMS = CANADIAN_PROVINCE_TERMS + (
-    "calgary",
-    "edmonton",
-    "fredericton",
-    "halifax",
-    "kitchener",
-    "laval",
-    "mississauga",
-    "montreal",
-    "ottawa",
-    "quebec city",
-    "regina",
-    "saskatoon",
-    "st. john's",
-    "toronto",
-    "vancouver",
-    "waterloo",
-    "winnipeg",
+    "calgary", "edmonton", "fredericton", "halifax", "kitchener", "laval",
+    "mississauga", "montreal", "ottawa", "quebec city", "regina",
+    "saskatoon", "st. john's", "toronto", "vancouver", "waterloo", "winnipeg",
 )
 CANADIAN_PROVINCE_CODES = {
-    "ab",
-    "bc",
-    "mb",
-    "nb",
-    "nl",
-    "ns",
-    "nt",
-    "nu",
-    "on",
-    "pe",
-    "qc",
-    "sk",
-    "yt",
+    "ab", "bc", "mb", "nb", "nl", "ns", "nt", "nu", "on", "pe", "qc", "sk", "yt",
 }
 US_LOCATION_TERMS = (
-    "alabama",
-    "alaska",
-    "arizona",
-    "arkansas",
-    "california",
-    "colorado",
-    "connecticut",
-    "delaware",
-    "district of columbia",
-    "florida",
-    "georgia",
-    "hawaii",
-    "idaho",
-    "illinois",
-    "indiana",
-    "iowa",
-    "kansas",
-    "kentucky",
-    "louisiana",
-    "maine",
-    "maryland",
-    "massachusetts",
-    "michigan",
-    "minnesota",
-    "mississippi",
-    "missouri",
-    "montana",
-    "nebraska",
-    "nevada",
-    "new hampshire",
-    "new jersey",
-    "new mexico",
-    "new york",
-    "north carolina",
-    "north dakota",
-    "ohio",
-    "oklahoma",
-    "oregon",
-    "pennsylvania",
-    "rhode island",
-    "south carolina",
-    "south dakota",
-    "tennessee",
-    "texas",
-    "utah",
-    "vermont",
-    "virginia",
-    "washington",
-    "west virginia",
-    "wisconsin",
-    "wyoming",
-    "austin",
-    "boston",
-    "chicago",
-    "denver",
-    "los angeles",
-    "new york city",
-    "san diego",
-    "san francisco",
-    "seattle",
+    "alabama", "alaska", "arizona", "arkansas", "california", "colorado",
+    "connecticut", "delaware", "district of columbia", "florida", "georgia",
+    "hawaii", "idaho", "illinois", "indiana", "iowa", "kansas", "kentucky",
+    "louisiana", "maine", "maryland", "massachusetts", "michigan", "minnesota",
+    "mississippi", "missouri", "montana", "nebraska", "nevada", "new hampshire",
+    "new jersey", "new mexico", "new york", "north carolina", "north dakota",
+    "ohio", "oklahoma", "oregon", "pennsylvania", "rhode island",
+    "south carolina", "south dakota", "tennessee", "texas", "utah", "vermont",
+    "virginia", "washington", "west virginia", "wisconsin", "wyoming",
+    "austin", "boston", "chicago", "denver", "los angeles", "new york city",
+    "san diego", "san francisco", "seattle",
 )
 US_STATE_CODES = {
-    "ak",
-    "al",
-    "ar",
-    "az",
-    "ca",
-    "co",
-    "ct",
-    "dc",
-    "de",
-    "fl",
-    "ga",
-    "hi",
-    "ia",
-    "id",
-    "il",
-    "in",
-    "ks",
-    "ky",
-    "la",
-    "ma",
-    "md",
-    "me",
-    "mi",
-    "mn",
-    "mo",
-    "ms",
-    "mt",
-    "nc",
-    "nd",
-    "ne",
-    "nh",
-    "nj",
-    "nm",
-    "nv",
-    "ny",
-    "oh",
-    "ok",
-    "or",
-    "pa",
-    "ri",
-    "sc",
-    "sd",
-    "tn",
-    "tx",
-    "ut",
-    "va",
-    "vt",
-    "wa",
-    "wi",
-    "wv",
-    "wy",
+    "ak", "al", "ar", "az", "ca", "co", "ct", "dc", "de", "fl", "ga", "hi",
+    "ia", "id", "il", "in", "ks", "ky", "la", "ma", "md", "me", "mi", "mn",
+    "mo", "ms", "mt", "nc", "nd", "ne", "nh", "nj", "nm", "nv", "ny", "oh",
+    "ok", "or", "pa", "ri", "sc", "sd", "tn", "tx", "ut", "va", "vt", "wa",
+    "wi", "wv", "wy",
+}
+OUTSIDE_NORTH_AMERICA_TERMS = (
+    "australia", "austria", "belgium", "brazil", "china", "denmark", "finland",
+    "france", "germany", "hong kong", "india", "ireland", "israel", "italy", "japan",
+    "korea", "mexico", "netherlands", "new zealand", "norway", "poland", "portugal",
+    "singapore", "spain", "sweden", "switzerland", "taiwan", "united kingdom",
+    "england", "scotland", "wales", "europe", "emea", "apac", "asia", "africa",
+    "bengaluru", "bangalore", "berlin", "dublin", "london", "melbourne", "munich",
+    "paris", "sydney", "tokyo", "zurich",
+    "baunatal", "bochum", "eschborn", "ingolstadt", "mönsheim", "monsheim",
+    "münchen", "munchen", "wolfsburg", "north rhine-westphalia", "hesse",
+)
+OUTSIDE_COUNTRY_CODES = {
+    "ae", "ar", "at", "au", "be", "br", "ch", "cn", "cz", "de", "dk",
+    "es", "fi", "fr", "gb", "hk", "id", "ie", "il", "in", "it", "jp",
+    "kr", "my", "nl", "no", "nz", "ph", "pl", "pt", "ro", "se", "sg",
+    "th", "tw", "ua", "uk", "vn", "za",
 }
 
 STUDENT_CATEGORY_PATTERNS = (
-    ("software_engineering", r"\bsoftware\b|\bswe\b|\bsde\b|\bdeveloper\b", 20),
-    ("machine_learning_ai", r"\bmachine learning\b|\bml\b|\bartificial intelligence\b|\bai\b", 18),
-    ("robotics_autonomy", r"\brobot(?:ics)?\b|\bautonom(?:y|ous)\b", 18),
-    ("computer_vision_perception", r"\bcomputer vision\b|\bperception\b", 18),
-    (
-        "embedded_firmware",
-        r"\bembedded\b|\bfirmware\b|(?<!\w)c\+\+(?!\w)",
-        20,
-    ),
-    (
-        "hardware_silicon_electrical_computer",
-        r"\bhardware\b|\bfpga\b|\bsilicon\b|\belectrical\b|\bcomputer engineering\b",
-        18,
-    ),
-    ("research_applied_science", r"\bresearch(?:er)?\b|\bapplied scien(?:ce|tist)\b", 15),
+    ("software_engineering", r"\bsoftware\b|\bswe\b|\bsde\b|\bdeveloper\b", 24),
+    ("machine_learning_ai", r"\bmachine learning\b|\bml\b|\bartificial intelligence\b|\bai\b", 24),
+    ("computer_vision", r"\bcomputer vision\b", 23),
+    ("robotics_autonomous_systems", r"\brobot(?:ics)?\b|\bautonom(?:y|ous)\b", 23),
+    ("embedded_software", r"\bembedded(?: software| systems?)?\b", 23),
+    ("firmware", r"\bfirmware\b", 23),
+    ("embedded_firmware", r"\bembedded\b|\bfirmware\b", 0),
+    ("electrical_engineering", r"\belectrical(?: engineering| engineer)?\b|\bece\b", 22),
+    ("hardware_engineering", r"\bhardware(?: engineering| engineer)?\b|\bcomputer engineering\b", 22),
+    ("fpga_asic", r"\bfpga\b|\basic\b", 24),
+    ("semiconductor_design_verification", r"\bsemiconductor\b|\bsilicon\b|\bdesign verification\b|\bverification engineer", 24),
+    ("controls", r"\bcontrols?\b", 21),
+    ("perception", r"\bperception\b", 23),
+    ("systems_engineering", r"\bsystems? engineering\b|\bsystems? engineer", 21),
+    ("research_applied_science", r"\bresearch(?:er)?\b|\bapplied scien(?:ce|tist)\b", 14),
 )
 
-# These adapters query by role text. Other adapters already fetch broad listings,
-# while IBM's configured search term identifies the company rather than the role.
+# Only these collectors search by role text. Complete-board collectors remain untouched.
 ROLE_QUERY_PLATFORMS = {
-    "amazon",
-    "custom:amazon",
-    "google",
-    "custom:google",
-    "meta",
-    "custom:meta",
+    "amazon", "custom:amazon", "google", "custom:google", "meta", "custom:meta",
+}
+STRUCTURED_JOB_TYPE_KEYS = {
+    "employmenttype", "employmenttypes", "jobtype", "jobtypes", "positiontype",
+    "positiontypes", "workertype", "workertypes", "timetype", "schedule",
+}
+PROGRAM_METADATA_KEYS = {
+    "program", "programname", "programtype", "talentprogram", "recruitingprogram",
+    "candidateprogram", "earlycareerprogram",
+}
+RESTRICTED_PROGRAM_METADATA_KEYS = PROGRAM_METADATA_KEYS | {
+    "category", "categories", "candidatecategory", "candidatecategories",
+    "talentcategory", "talentcategories", "tags", "tags1", "tags2", "tags3",
+}
+SPONSORSHIP_METADATA_FRAGMENTS = (
+    "sponsor", "visa", "workauthorization", "workauthorisation", "authorizedtowork",
+    "authorisedtowork", "immigration",
+)
+TARGET_SEASONS = {
+    "Fall 2026", "September 2026", "Winter 2027", "January 2027",
+    "Summer 2027", "May 2027", "2027 internship",
 }
 
 
 def student_search_terms(include_new_grad: bool = False) -> list[str]:
-    """Return the human-readable title terms covered by the student scan."""
-    terms = ["Intern", "Internship", "Co-op", "Coop", "Student", "University"]
-    if include_new_grad:
-        terms.extend(["New Grad", "Graduate", "Entry Level"])
-    return terms
+    """Return the deterministic bounded role-query set."""
+    del include_new_grad  # Retained for CLI compatibility; v1 always excludes new-grad roles.
+    return list(STUDENT_ROLE_QUERIES)
 
 
 def student_search_query(include_new_grad: bool = False) -> str:
-    """Build one broad query for adapters that accept search text."""
+    """Return a display/fallback OR query; query collectors use individual variants."""
     return " OR ".join(f'"{term}"' for term in student_search_terms(include_new_grad))
 
 
 def configure_student_targets(
-    targets: Iterable[CompanyTarget],
-    *,
-    include_new_grad: bool = False,
+    targets: Iterable[CompanyTarget], *, include_new_grad: bool = False,
 ) -> list[CompanyTarget]:
-    """Override senior-oriented role queries without mutating registry targets."""
-    query = student_search_query(include_new_grad)
+    """Apply role queries only to collectors that do not enumerate the full board."""
+    queries = student_search_terms(include_new_grad)
     return [
-        replace(target, search_terms=[query])
-        if target.platform in ROLE_QUERY_PLATFORMS
-        else target
+        replace(target, search_terms=list(queries))
+        if target.platform in ROLE_QUERY_PLATFORMS else target
         for target in targets
     ]
 
 
 def classify_student_location(
-    job: JobRecord,
-    *,
-    locations: Optional[Iterable[str]] = None,
+    job: JobRecord, *, locations: Optional[Iterable[str]] = None,
 ) -> str:
-    """Classify location eligibility without inspecting the job description."""
-    requested = [value.strip().lower() for value in (locations or []) if value.strip()]
-    wants_canada = any(value == "canada" for value in requested)
-    wants_remote = any(value == "remote" for value in requested)
-    wants_united_states = any(
-        re.search(r"\b(?:united states|u\.?s\.?a?)\b", value)
-        for value in requested
-    )
-
+    """Classify the fixed v1 Canada/US/remote scope from explicit location data."""
+    del locations  # Scope Expansion v1 is intentionally consistent across entry points.
     location = (job.location or "").strip()
-    location_lower = location.lower()
-    title_location = f"{job.title} {location}".lower()
-    remote = bool(re.search(r"\bremote\b", location_lower))
-    worldwide = bool(
-        re.search(r"\b(?:worldwide|global|anywhere)\b", location_lower)
-    )
-    north_america = "north america" in location_lower
-    united_states = _has_us_location(location_lower) or bool(
-        re.search(
-            r"\b(?:united states|u\.?s\.?a?)\b(?:\s*-?\s*only)?",
-            location_lower,
-        )
-        or re.search(
-            r"\b(?:united states|u\.?s\.?a?)[ -]?only\b",
-            (job.title or "").lower(),
-        )
-    )
-    explicit_canada = bool(
-        re.search(r"\b(?:canada|canadian)\b", title_location)
-    ) or (
-        any(term in location_lower for term in CANADIAN_PROVINCE_TERMS)
-        or bool(_location_codes(location_lower) & CANADIAN_PROVINCE_CODES)
-    )
-    canada = explicit_canada or (
-        _has_canadian_location(location_lower) and not united_states
-    )
-
-    # Explicit Canada/worldwide eligibility wins over a simultaneous US mention.
-    if canada and wants_canada:
-        return "eligible_remote_canada" if remote else "eligible_canada"
-    if worldwide and (wants_canada or wants_remote):
-        return "eligible_worldwide"
-    if north_america and wants_canada:
-        return "eligible_north_america"
-    if united_states:
-        return "eligible_requested" if wants_united_states else "excluded_us_only"
+    lowered = location.casefold()
+    title = (job.title or "").casefold()
     if not location:
         return "manual_review_missing"
-    if remote and wants_remote:
+
+    remote = bool(re.search(r"\bremote\b", lowered))
+    hybrid = bool(re.search(r"\bhybrid\b", lowered))
+    worldwide = bool(re.search(r"\b(?:worldwide|global remote|remote globally|anywhere)\b", lowered))
+    north_america = "north america" in lowered
+    explicit_us = bool(
+        re.search(r"(?<![A-Za-z])(?:united states|u\.?s\.?a?|us[- ]only)(?![A-Za-z])", lowered)
+        or re.search(r"(?<![A-Za-z])(?:u\.?s\.?a?|united states)[- ]only(?![A-Za-z])", title)
+    )
+    us = _has_us_location(lowered) or explicit_us
+    explicit_canada = bool(re.search(r"\b(?:canada|canadian)\b", f"{title} {lowered}")) or (
+        any(term in lowered for term in CANADIAN_PROVINCE_TERMS)
+        or bool(_location_codes(lowered) & CANADIAN_PROVINCE_CODES)
+    )
+    canada = explicit_canada or (_has_canadian_location(lowered) and not us)
+    outside = _has_explicit_outside_location(lowered)
+
+    if worldwide and remote:
+        return "eligible_worldwide"
+    if outside and not explicit_us and not explicit_canada and not any(
+        term in lowered for term in US_LOCATION_TERMS
+    ):
+        return "excluded_other_location"
+    if canada and us:
+        return "eligible_remote_canada" if remote else "eligible_canada"
+    if north_america:
+        return "eligible_remote_north_america" if remote else "eligible_north_america"
+    if canada:
+        return "eligible_remote_canada" if remote else "eligible_canada"
+    if us:
+        if remote:
+            return "eligible_remote_us"
+        if hybrid:
+            return "eligible_us_hybrid"
+        return "eligible_us_onsite"
+    if _has_explicit_outside_location(lowered):
+        return "excluded_other_location"
+    if remote:
         return "eligible_remote_unspecified"
-    if any(value in location_lower or location_lower in value for value in requested):
-        return "eligible_requested"
     return "excluded_other_location"
 
 
 def student_location_exclusion_reason(
-    job: JobRecord,
-    *,
-    locations: Optional[Iterable[str]] = None,
+    job: JobRecord, *, locations: Optional[Iterable[str]] = None,
 ) -> Optional[str]:
-    """Return the scanner counter category for an ineligible location."""
     status = classify_student_location(job, locations=locations)
     return "location" if status.startswith("excluded_") else None
 
 
 def build_student_location_filter(
-    *,
-    locations: Optional[Iterable[str]] = None,
+    *, locations: Optional[Iterable[str]] = None,
 ) -> Callable[[JobRecord], Optional[str]]:
-    """Create the opt-in student location callback for the scanner."""
     return partial(student_location_exclusion_reason, locations=list(locations or []))
 
 
-def student_job_exclusion_reason(
-    job: JobRecord,
-    *,
-    include_new_grad: bool = False,
-) -> Optional[str]:
-    """Return an exclusion category, or ``None`` when a title is retained.
-
-    Seniority is checked only in the title. Descriptions and departments are
-    intentionally ignored so unrelated prose cannot exclude a student role.
-    """
+def student_job_signals(job: JobRecord) -> dict[str, Any]:
+    """Return explainable title and structured-metadata student signals."""
     title = job.title or ""
-    if SENIORITY_TITLE_PATTERN.search(title):
+    strong_title = _matched_signals(title, STRONG_STUDENT_PATTERNS)
+    contextual_title = _matched_signals(title, CONTEXTUAL_STUDENT_PATTERNS)
+    structured_values = _metadata_values(job.raw_metadata, STRUCTURED_JOB_TYPE_KEYS)
+    structured_strong = _unique(
+        signal for value in structured_values
+        for signal in _matched_signals(value, STRONG_STUDENT_PATTERNS)
+    )
+    structured_corroboration = [
+        value for value in structured_values
+        if re.search(
+            r"\bintern(?:ship)?s?\b|\bco\s*(?:[-/]\s*)?op\b|\bstudents?\b|"
+            r"\btemporary\b|\bseasonal\b|\bfixed\s*[- ]?term\b|\bplacement\b",
+            value,
+            flags=re.IGNORECASE,
+        )
+    ]
+    program_values = _metadata_values(job.raw_metadata, PROGRAM_METADATA_KEYS)
+    student_program_values = [
+        value for value in program_values
+        if _matched_signals(value, STRONG_STUDENT_PATTERNS + CONTEXTUAL_STUDENT_PATTERNS)
+    ]
+
+    if strong_title:
+        matching_rule = f"strong_title:{strong_title[0]}"
+    elif structured_strong:
+        matching_rule = f"structured_job_type:{structured_strong[0]}"
+    elif contextual_title and structured_corroboration:
+        matching_rule = "contextual_title+structured_job_type"
+    elif contextual_title and student_program_values:
+        matching_rule = "contextual_title+program_metadata"
+    else:
+        matching_rule = None
+
+    return {
+        "strong_title": strong_title,
+        "contextual_title": contextual_title,
+        "structured_strong": structured_strong,
+        "structured_job_types": structured_corroboration,
+        "program_metadata": student_program_values,
+        "matching_rule": matching_rule,
+    }
+
+
+def student_job_exclusion_reason(
+    job: JobRecord, *, include_new_grad: bool = False,
+) -> Optional[str]:
+    """Return an exclusion category; sponsorship is deliberately never a gate."""
+    del include_new_grad
+    title = job.title or ""
+    exempt_manager_intern = bool(
+        re.search(
+            r"\b(?:product|program|technical\s+program)\s+managers?\b.*\bintern(?:ship)?s?\b",
+            title,
+            flags=re.IGNORECASE,
+        )
+    )
+    seniority_match = SENIORITY_TITLE_PATTERN.search(title)
+    if seniority_match and not (
+        seniority_match.group(0).strip().casefold() == "manager" and exempt_manager_intern
+    ):
         return "seniority"
-    if _restricted_program_signals(title):
+    if any(re.search(pattern, title, flags=re.IGNORECASE) for pattern in NEW_GRAD_PATTERNS):
+        return "new_grad"
+    if _restricted_program_signals(job):
         return "eligibility"
-
-    patterns = list(STUDENT_TITLE_PATTERNS)
-    if include_new_grad:
-        patterns.extend(NEW_GRAD_TITLE_PATTERNS)
-    if not any(re.search(pattern, title, flags=re.IGNORECASE) for pattern in patterns):
+    if not student_job_signals(job)["matching_rule"]:
         return "job_type"
-
     return None
 
 
 def build_student_job_filter(
-    *,
-    include_new_grad: bool = False,
+    *, include_new_grad: bool = False,
 ) -> Callable[[JobRecord], Optional[str]]:
-    """Create the scanner callback for one student-search configuration."""
-    return partial(
-        student_job_exclusion_reason,
-        include_new_grad=include_new_grad,
-    )
+    return partial(student_job_exclusion_reason, include_new_grad=include_new_grad)
+
+
+def detect_student_seasons(job: JobRecord) -> list[str]:
+    """Detect and normalize season/year annotations from title and metadata."""
+    metadata_text = " ".join(_metadata_scalar_values(job.raw_metadata))
+    text = f"{job.title} {metadata_text}"
+    seasons: list[str] = []
+    season_names = {"fall": "Fall", "autumn": "Fall", "winter": "Winter", "summer": "Summer", "spring": "Spring"}
+    month_names = {
+        "january": "January", "jan": "January", "may": "May",
+        "september": "September", "sept": "September", "sep": "September",
+    }
+    for match in re.finditer(
+        r"\b(fall|autumn|winter|summer|spring)\s*[-/'’]?\s*(20\d{2})\b",
+        text,
+        flags=re.IGNORECASE,
+    ):
+        seasons.append(f"{season_names[match.group(1).casefold()]} {match.group(2)}")
+    for match in re.finditer(
+        r"\b(january|jan|may|september|sept|sep)\s*[-/'’]?\s*(20\d{2})\b",
+        text,
+        flags=re.IGNORECASE,
+    ):
+        seasons.append(f"{month_names[match.group(1).casefold()]} {match.group(2)}")
+    for match in re.finditer(r"\b(20\d{2})[-/](01|05|09)(?:[-/]\d{1,2})?\b", text):
+        month = {"01": "January", "05": "May", "09": "September"}[match.group(2)]
+        seasons.append(f"{month} {match.group(1)}")
+    for match in re.finditer(r"\b(20\d{2})\s*[-/]?\s*intern(?:ship)?s?\b", text, flags=re.IGNORECASE):
+        seasons.append(f"{match.group(1)} internship")
+    return _unique(seasons)
+
+
+def sponsorship_metadata(job: JobRecord) -> dict[str, Any]:
+    """Extract explicit authorization/sponsorship fields without filtering on them."""
+    found: dict[str, Any] = {}
+    for path, value in _metadata_items(job.raw_metadata):
+        normalized = _normalize_key(path.rsplit(".", 1)[-1])
+        if any(fragment in normalized for fragment in SPONSORSHIP_METADATA_FRAGMENTS):
+            found[path] = value
+    return found
 
 
 def score_student_job(
@@ -380,73 +395,51 @@ def score_student_job(
     include_new_grad: bool = False,
     locations: Optional[Iterable[str]] = None,
     now: Optional[datetime] = None,
-) -> dict:
-    """Return a deterministic, student-focused relevance score and explanation."""
-    title = (job.title or "").lower()
-    score = 0
-    matched_categories: list[str] = []
-    positive_signals: list[str] = []
-    negative_signals: list[str] = []
-
-    student_signals = (
-        (r"\binternship\b", "internship", 34),
-        (r"\bintern\b", "intern", 34),
-        (r"\bco[ -]?op\b", "co_op", 34),
-        (r"\bstudent\b", "student", 30),
-        (r"\buniversity\b", "university", 28),
+) -> dict[str, Any]:
+    """Return deterministic student relevance with domain and season annotations."""
+    del include_new_grad
+    title = (job.title or "").casefold()
+    signal_info = student_job_signals(job)
+    score = 34 if signal_info["matching_rule"] else 0
+    positive_signals = _unique(
+        signal_info["strong_title"]
+        + signal_info["contextual_title"]
+        + signal_info["structured_strong"]
     )
-    for pattern, signal, points in student_signals:
-        if re.search(pattern, title):
-            score += points
-            positive_signals.append(signal)
-
-    if include_new_grad:
-        new_grad_signals = (
-            (r"\bnew grad(?:uate)?\b", "new_grad"),
-            (r"\bgraduate\b", "graduate"),
-            (r"\bentry[ -]?level\b", "entry_level"),
-        )
-        for pattern, signal in new_grad_signals:
-            if re.search(pattern, title):
-                score += 28
-                positive_signals.append(signal)
-
+    negative_signals: list[str] = []
+    matched_categories: list[str] = []
+    domain_priority = 0
     for category, pattern, points in STUDENT_CATEGORY_PATTERNS:
-        if re.search(pattern, title):
-            score += points
+        if re.search(pattern, title, flags=re.IGNORECASE):
             matched_categories.append(category)
-            positive_signals.extend(_pattern_signal_words(category, title))
+            domain_priority += points
+    score += min(domain_priority, 38)
 
     location_status = classify_student_location(job, locations=locations)
-    location_points = {
-        "eligible_canada": 16,
-        "eligible_remote_canada": 18,
-        "eligible_worldwide": 14,
-        "eligible_north_america": 12,
-        "eligible_remote_unspecified": 10,
-        "eligible_requested": 10,
-        "manual_review_missing": 0,
-    }
-    if location_status in location_points:
-        score += location_points[location_status]
-        if location_status != "manual_review_missing":
-            positive_signals.append(location_status)
-    elif location_status == "excluded_us_only":
-        score -= 40
-        negative_signals.append("us_only")
-    else:
-        score -= 20
-        negative_signals.append("outside_requested_locations")
+    if location_status.startswith("eligible_"):
+        score += 12
+        positive_signals.append(location_status)
+    elif location_status.startswith("excluded_"):
+        score -= 25
+        negative_signals.append("outside_canada_us_scope")
 
     seniority_signals = _seniority_signals(title)
     if seniority_signals:
-        score -= 45
+        score -= 50
         negative_signals.extend(seniority_signals)
-
-    restricted_signals = _restricted_program_signals(title)
+    restricted_signals = _restricted_program_signals(job)
     if restricted_signals:
         score -= 60
         negative_signals.extend(restricted_signals)
+    if any(re.search(pattern, title, flags=re.IGNORECASE) for pattern in NEW_GRAD_PATTERNS):
+        score -= 55
+        negative_signals.append("new_grad")
+
+    seasons = detect_student_seasons(job)
+    target_seasons = [season for season in seasons if season in TARGET_SEASONS]
+    season_boost = 8 if target_seasons else (3 if seasons else 0)
+    score += season_boost
+    positive_signals.extend(f"target_season:{season}" for season in target_seasons)
 
     recency_signal, recency_points = _recency_signal(job.updated_at, now=now)
     if recency_signal:
@@ -457,166 +450,263 @@ def score_student_job(
     return {
         "score": score,
         "band": _student_relevance_band(score),
-        "matched_categories": _unique(matched_categories),
+        "matched_categories": matched_categories,
+        "domain_priority": domain_priority,
         "positive_signals": _unique(positive_signals),
         "negative_signals": _unique(negative_signals),
+        "title_signals": _unique(signal_info["strong_title"] + signal_info["contextual_title"]),
+        "matching_rule": signal_info["matching_rule"],
         "location_status": location_status,
+        "seasons": seasons,
+        "season_boost": season_boost,
+        "work_authorization": sponsorship_metadata(job),
     }
 
 
 def rank_student_jobs(
-    jobs: Iterable[JobRecord],
-    *,
-    include_new_grad: bool = False,
-    locations: Optional[Iterable[str]] = None,
-    limit: Optional[int] = None,
-) -> list[dict]:
-    """Rank normalized jobs using only the opt-in student scoring rules."""
-    ranked = []
+    jobs: Iterable[JobRecord], *, include_new_grad: bool = False,
+    locations: Optional[Iterable[str]] = None, limit: Optional[int] = None,
+) -> list[dict[str, Any]]:
+    ranked: list[dict[str, Any]] = []
     for job in jobs:
-        relevance = score_student_job(
-            job,
-            include_new_grad=include_new_grad,
-            locations=locations,
-        )
+        relevance = score_student_job(job, include_new_grad=include_new_grad, locations=locations)
         item = job.to_dict()
-        item.update(
-            {
-                "score": relevance["score"],
-                "relevance_score": relevance["score"],
-                "relevance_band": relevance["band"],
-                "matched_categories": relevance["matched_categories"],
-                "positive_signals": relevance["positive_signals"],
-                "negative_signals": relevance["negative_signals"],
-                "location_status": relevance["location_status"],
-            }
-        )
+        item.update({
+            "score": relevance["score"],
+            "relevance_score": relevance["score"],
+            "relevance_band": relevance["band"],
+            "matched_categories": relevance["matched_categories"],
+            "domain_priority": relevance["domain_priority"],
+            "positive_signals": relevance["positive_signals"],
+            "negative_signals": relevance["negative_signals"],
+            "title_signals": relevance["title_signals"],
+            "matching_rule": relevance["matching_rule"],
+            "location_status": relevance["location_status"],
+            "seasons": relevance["seasons"],
+            "season_boost": relevance["season_boost"],
+            "work_authorization": relevance["work_authorization"],
+        })
         ranked.append(item)
-
-    ranked.sort(
-        key=lambda item: (-item["relevance_score"], item["company"], item["title"])
-    )
+    ranked.sort(key=lambda item: (
+        -item["relevance_score"], -item["domain_priority"], -item["season_boost"],
+        item["company"].casefold(), item["title"].casefold(), item["job_id"],
+    ))
     return ranked[:limit] if limit else ranked
 
 
-def write_student_ranked_jobs_artifacts(
-    jobs: Iterable[JobRecord],
-    *,
-    json_path: str,
-    csv_path: str,
-    keywords: Optional[str] = None,
-    locations: Optional[Iterable[str]] = None,
-    limit: Optional[int] = None,
-    include_new_grad: bool = False,
-) -> None:
-    """Write student-scored JSON and CSV artifacts using existing output paths."""
-    del keywords
-    ranked = rank_student_jobs(
-        jobs,
-        include_new_grad=include_new_grad,
-        locations=locations,
-        limit=limit,
-    )
-    Path(json_path).write_text(
-        json.dumps(ranked, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
+def build_student_search_diagnostics(
+    normalized_jobs: Iterable[JobRecord], *, locations: Optional[Iterable[str]] = None,
+    example_limit: int = 10,
+) -> dict[str, Any]:
+    """Compare legacy and v1 eligibility on the same normalized job set."""
+    jobs = list(normalized_jobs)
+    accepted: list[JobRecord] = []
+    rejected: list[tuple[JobRecord, str]] = []
+    newly_accepted: list[tuple[JobRecord, str]] = []
+    exclusion_counts: Counter[str] = Counter()
+    locations_seen: Counter[str] = Counter()
+    title_signals: Counter[str] = Counter()
+    seasons_seen: Counter[str] = Counter()
+    before_count = 0
 
+    for job in jobs:
+        reason = student_job_exclusion_reason(job)
+        location_reason = student_location_exclusion_reason(job, locations=locations)
+        final_reason = reason or location_reason
+        if final_reason:
+            exclusion_counts[final_reason] += 1
+            rejected.append((job, final_reason))
+        else:
+            accepted.append(job)
+            location_status = classify_student_location(job, locations=locations)
+            locations_seen[location_status] += 1
+            signals = student_job_signals(job)
+            for signal in _unique(signals["strong_title"] + signals["contextual_title"] + signals["structured_strong"]):
+                title_signals[signal] += 1
+            detected_seasons = detect_student_seasons(job)
+            for season in detected_seasons or ["unspecified"]:
+                seasons_seen[season] += 1
+
+        legacy_reason = _legacy_student_exclusion_reason(job) or _legacy_location_exclusion_reason(job)
+        if legacy_reason is None:
+            before_count += 1
+        elif final_reason is None:
+            if legacy_reason == "location":
+                rule = f"location:{classify_student_location(job, locations=locations)}"
+            else:
+                rule = f"student:{student_job_signals(job)['matching_rule']}"
+            newly_accepted.append((job, rule))
+
+    newly_by_rule = Counter(rule for _, rule in newly_accepted)
+    return {
+        "total_normalized_jobs": len(jobs),
+        "before_retained_jobs": before_count,
+        "accepted_jobs": len(accepted),
+        "after_retained_jobs": len(accepted),
+        "exclusions_by_reason": dict(sorted(exclusion_counts.items())),
+        "newly_accepted_jobs_by_matching_rule": dict(sorted(newly_by_rule.items())),
+        "location_distribution": dict(sorted(locations_seen.items())),
+        "title_signal_distribution": dict(sorted(title_signals.items())),
+        "season_distribution": dict(sorted(seasons_seen.items())),
+        "newly_accepted_examples": [
+            _diagnostic_example(job, rule) for job, rule in newly_accepted[:example_limit]
+        ],
+        "still_rejected_examples": [
+            _diagnostic_example(job, reason) for job, reason in rejected[:example_limit]
+        ],
+    }
+
+
+def write_student_diagnostics(diagnostics: Mapping[str, Any], *, path: str) -> None:
+    Path(path).write_text(json.dumps(dict(diagnostics), indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def write_student_ranked_jobs_artifacts(
+    jobs: Iterable[JobRecord], *, json_path: str, csv_path: str,
+    keywords: Optional[str] = None, locations: Optional[Iterable[str]] = None,
+    limit: Optional[int] = None, include_new_grad: bool = False,
+) -> None:
+    del keywords
+    ranked = rank_student_jobs(jobs, include_new_grad=include_new_grad, locations=locations, limit=limit)
+    Path(json_path).write_text(json.dumps(ranked, indent=2, ensure_ascii=False), encoding="utf-8")
     fieldnames = [
-        "company",
-        "title",
-        "location",
-        "relevance_score",
-        "relevance_band",
-        "matched_categories",
-        "positive_signals",
-        "negative_signals",
-        "location_status",
-        "url",
-        "source",
-        "updated_at",
+        "company", "title", "location", "relevance_score", "relevance_band",
+        "matched_categories", "title_signals", "matching_rule", "seasons",
+        "positive_signals", "negative_signals", "location_status", "url", "source", "updated_at",
     ]
     with Path(csv_path).open("w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
         for item in ranked:
-            writer.writerow(
-                {
-                    "company": item["company"],
-                    "title": item["title"],
-                    "location": item["location"],
-                    "relevance_score": item["relevance_score"],
-                    "relevance_band": item["relevance_band"],
-                    "matched_categories": "; ".join(item["matched_categories"]),
-                    "positive_signals": "; ".join(item["positive_signals"]),
-                    "negative_signals": "; ".join(item["negative_signals"]),
-                    "location_status": item["location_status"],
-                    "url": item["url"],
-                    "source": item["source"],
-                    "updated_at": item["updated_at"],
-                }
-            )
+            writer.writerow({
+                key: "; ".join(item[key]) if isinstance(item.get(key), list) else item.get(key, "")
+                for key in fieldnames
+            })
 
 
 def _has_canadian_location(location: str) -> bool:
-    if any(term in location for term in CANADIAN_LOCATION_TERMS):
-        return True
-    return bool(_location_codes(location) & CANADIAN_PROVINCE_CODES)
+    return any(term in location for term in CANADIAN_LOCATION_TERMS) or bool(
+        _location_codes(location) & CANADIAN_PROVINCE_CODES
+    )
 
 
 def _has_us_location(location: str) -> bool:
-    if any(term in location for term in US_LOCATION_TERMS):
-        return True
-    return bool(_location_codes(location) & US_STATE_CODES)
+    return any(term in location for term in US_LOCATION_TERMS) or bool(
+        _location_codes(location) & US_STATE_CODES
+    )
+
+
+def _has_explicit_outside_location(location: str) -> bool:
+    return any(term in location for term in OUTSIDE_NORTH_AMERICA_TERMS) or bool(
+        _location_codes(location) & OUTSIDE_COUNTRY_CODES
+    )
 
 
 def _location_codes(location: str) -> set[str]:
     return {
-        match.group(1).lower()
+        match.group(1).casefold()
         for match in re.finditer(r"(?:^|[,/|])\s*([A-Za-z]{2})(?=\s*(?:$|[,/|]))", location)
     }
 
 
+def _matched_signals(text: str, patterns: Iterable[tuple[str, str]]) -> list[str]:
+    return [signal for signal, pattern in patterns if re.search(pattern, text, flags=re.IGNORECASE)]
+
+
+def _restricted_program_signals(job: JobRecord) -> list[str]:
+    text = " ".join(
+        [job.title or ""]
+        + _metadata_values(job.raw_metadata, RESTRICTED_PROGRAM_METADATA_KEYS)
+    )
+    signals = [
+        signal for pattern, signal in RESTRICTED_PROGRAM_PATTERNS
+        if re.search(pattern, text, flags=re.IGNORECASE)
+    ]
+    broader_degree = bool(re.search(r"\b(?:undergraduate|bachelor|b\.?s\.?|all degree)\b", text, flags=re.IGNORECASE))
+    for pattern, signal in RESTRICTED_DEGREE_PATTERNS:
+        if re.search(pattern, text, flags=re.IGNORECASE) and not broader_degree:
+            signals.append(signal)
+    return _unique(signals)
+
+
 def _seniority_signals(title: str) -> list[str]:
-    return [
-        term
-        for term in ("senior", "staff", "principal", "manager", "director", "lead", "architect")
-        if re.search(rf"\b{term}\b", title)
-    ]
+    values = ["senior", "staff", "principal", "director", "head", "vice president", "executive"]
+    found = [term for term in values if re.search(rf"\b{re.escape(term)}\b", title, flags=re.IGNORECASE)]
+    if re.search(r"(?:^|[^A-Za-z])(?:vp|v\.p\.)(?:[^A-Za-z]|$)", title, flags=re.IGNORECASE):
+        found.append("vp")
+    return found
 
 
-def _restricted_program_signals(title: str) -> list[str]:
-    return [
-        signal
-        for pattern, signal in RESTRICTED_PROGRAM_PATTERNS
-        if re.search(pattern, title, flags=re.IGNORECASE)
-    ]
+def _metadata_values(metadata: Mapping[str, Any], keys: set[str]) -> list[str]:
+    values: list[str] = []
+    for path, value in _metadata_items(metadata):
+        if _normalize_key(path.rsplit(".", 1)[-1]) not in keys:
+            continue
+        if isinstance(value, (str, int, float, bool)):
+            values.append(str(value))
+        elif isinstance(value, (list, tuple, set)):
+            values.extend(str(item) for item in value if isinstance(item, (str, int, float, bool)))
+    return values
 
 
-def _pattern_signal_words(category: str, title: str) -> list[str]:
-    signal_patterns = {
-        "software_engineering": ("software", "swe", "sde", "developer"),
-        "machine_learning_ai": ("machine learning", "ml", "artificial intelligence", "ai"),
-        "robotics_autonomy": ("robotics", "robot", "autonomy", "autonomous"),
-        "computer_vision_perception": ("computer vision", "perception"),
-        "embedded_firmware": ("embedded", "firmware", "c++"),
-        "hardware_silicon_electrical_computer": (
-            "hardware",
-            "fpga",
-            "silicon",
-            "electrical",
-            "computer engineering",
-        ),
-        "research_applied_science": ("research", "researcher", "applied science"),
-    }
-    return [signal for signal in signal_patterns[category] if signal in title]
+def _metadata_items(value: Any, prefix: str = "") -> Iterable[tuple[str, Any]]:
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            path = f"{prefix}.{key}" if prefix else str(key)
+            yield path, item
+            yield from _metadata_items(item, path)
+    elif isinstance(value, (list, tuple)):
+        for index, item in enumerate(value):
+            yield from _metadata_items(item, f"{prefix}[{index}]")
 
 
-def _recency_signal(
-    updated_at: str,
-    *,
-    now: Optional[datetime] = None,
-) -> tuple[Optional[str], int]:
+def _metadata_scalar_values(value: Any, parent_key: str = "") -> list[str]:
+    if _normalize_key(parent_key) in {"description", "content", "qualifications", "responsibilities"}:
+        return []
+    if isinstance(value, Mapping):
+        return [
+            scalar for key, item in value.items()
+            for scalar in _metadata_scalar_values(item, str(key))
+        ]
+    if isinstance(value, (list, tuple)):
+        return [scalar for item in value for scalar in _metadata_scalar_values(item, parent_key)]
+    return [str(value)] if isinstance(value, (str, int, float)) else []
+
+
+def _normalize_key(value: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", value.casefold())
+
+
+def _legacy_student_exclusion_reason(job: JobRecord) -> Optional[str]:
+    title = job.title or ""
+    if re.search(r"\b(?:senior|staff|principal|manager|director|lead|architect)\b", title, flags=re.IGNORECASE):
+        return "seniority"
+    if any(re.search(pattern, title, flags=re.IGNORECASE) for pattern, _ in RESTRICTED_PROGRAM_PATTERNS[:4]):
+        return "eligibility"
+    if not re.search(r"\bintern\b|\binternship\b|\bco[ -]?op\b|\bstudent\b|\buniversity\b", title, flags=re.IGNORECASE):
+        return "job_type"
+    return None
+
+
+def _legacy_location_exclusion_reason(job: JobRecord) -> Optional[str]:
+    location = (job.location or "").casefold()
+    title_location = f"{job.title} {location}".casefold()
+    remote = bool(re.search(r"\bremote\b", location))
+    worldwide = bool(re.search(r"\b(?:worldwide|global|anywhere)\b", location))
+    us = _has_us_location(location) or bool(re.search(r"\b(?:united states|u\.?s\.?a?)\b", location))
+    canada = bool(re.search(r"\b(?:canada|canadian)\b", title_location)) or (_has_canadian_location(location) and not us)
+    if canada or worldwide or "north america" in location or (remote and not us):
+        return None
+    if not location:
+        return None
+    return "location"
+
+
+def _diagnostic_example(job: JobRecord, rule: str) -> dict[str, str]:
+    return {"company": job.company, "title": job.title, "location": job.location, "rule": rule}
+
+
+def _recency_signal(updated_at: str, *, now: Optional[datetime] = None) -> tuple[Optional[str], int]:
     if not updated_at:
         return None, 0
     try:
