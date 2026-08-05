@@ -51,6 +51,7 @@ EIGHTFOLD_VALIDATED_CONFIG = Path("config/target_companies.eightfold_validated.y
 PHENOM_CANDIDATE_CONFIG = Path("config/target_companies.phenom_candidates.yaml")
 PHENOM_VALIDATED_CONFIG = Path("config/target_companies.phenom_validated.yaml")
 MAX_BATCH_SIZE = 5
+MAX_NORMALIZED_JOBS = 20
 DEFAULT_TIMEOUT = 20
 DEFAULT_ATTEMPTS = 2
 DEFAULT_RETRY_DELAY = 0.5
@@ -446,14 +447,54 @@ def _adapter_error_status(response: Optional[Any], error: AdapterError) -> tuple
     return status, message
 
 
-def _valid_job_error(jobs: list[JobRecord]) -> Optional[str]:
+def _allowed_apply_host(host: str, allowed_hosts: Iterable[str]) -> bool:
+    normalized_host = host.strip().casefold().rstrip(".")
+    return any(
+        normalized_host == str(allowed).strip().casefold().rstrip(".")
+        for allowed in allowed_hosts
+        if str(allowed).strip()
+    )
+
+
+def _valid_job_error(
+    jobs: list[JobRecord],
+    allowed_apply_hosts: Iterable[str] = (),
+) -> Optional[str]:
+    seen_ids: set[tuple[str, str]] = set()
+    configured_hosts = [str(host) for host in allowed_apply_hosts if str(host).strip()]
     for index, job in enumerate(jobs, start=1):
         if not job.job_id or not job.source:
             return f"Job {index} has no stable job_id/source identifier"
+        identity = (job.source.casefold(), job.job_id.casefold())
+        if identity in seen_ids:
+            return f"Job {index} duplicates stable job_id/source identifier"
+        seen_ids.add(identity)
         parsed_url = urlparse(job.url)
         if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
             return f"Job {index} has no valid apply URL"
+        if configured_hosts and not _allowed_apply_host(parsed_url.hostname or "", configured_hosts):
+            return f"Job {index} apply host is not allow-listed: {parsed_url.hostname or ''}"
     return None
+
+
+def _reported_total(platform: str, response: Any) -> Optional[int]:
+    try:
+        payload = response.json()
+    except (AttributeError, ValueError, requests.RequestException):
+        return None
+    candidate: Any = None
+    if platform == "lever" and isinstance(payload, list):
+        candidate = len(payload)
+    elif isinstance(payload, Mapping):
+        if platform == "greenhouse" and isinstance(payload.get("meta"), Mapping):
+            candidate = payload["meta"].get("total")
+        elif platform == "ashby" and isinstance(payload.get("jobs"), list):
+            candidate = len(payload["jobs"])
+        else:
+            candidate = payload.get("total")
+    if isinstance(candidate, bool) or not isinstance(candidate, int) or candidate < 0:
+        return None
+    return candidate
 
 
 def _base_result(entry: Mapping[str, Any]) -> dict[str, Any]:
@@ -473,6 +514,7 @@ def _base_result(entry: Mapping[str, Any]) -> dict[str, Any]:
         "http_status": None,
         "result_status": "not_started",
         "jobs_returned": 0,
+        "jobs_normalized": 0,
         "pages_requested": 0,
         "total_available_jobs": None,
         "sample_job_id": None,
@@ -559,6 +601,7 @@ def validate_company(
     session_factory: Callable[[], Any] = requests.Session,
     sleep: Callable[[float], None] = time.sleep,
     adapters: Optional[Mapping[str, AdapterFn]] = None,
+    max_normalized_jobs: int = MAX_NORMALIZED_JOBS,
 ) -> dict[str, Any]:
     result = _base_result(entry)
     if entry.get("stale_fingerprint"):
@@ -669,23 +712,36 @@ def validate_company(
             error=f"Unexpected {exc.__class__.__name__}: {exc}",
         )
     else:
+        jobs_returned = len(jobs)
+        jobs = jobs[: max(0, max_normalized_jobs)]
         response = session.final_response
         shape_error = (
             _response_shape_error(platform, response)
             if response is not None
             else "Adapter made no HTTP request"
         )
-        job_error = _valid_job_error(jobs)
+        job_error = _valid_job_error(jobs, target.allowed_apply_hosts)
         if not shape_error:
             if jobs:
                 result["stable_job_id_result"] = (
-                    "valid" if all(job.job_id and job.source for job in jobs) else "invalid"
+                    "valid"
+                    if all(job.job_id and job.source for job in jobs)
+                    and len({(job.source.casefold(), job.job_id.casefold()) for job in jobs})
+                    == len(jobs)
+                    else "invalid"
                 )
                 result["apply_url_result"] = (
                     "valid"
                     if all(
                         urlparse(job.url).scheme in {"http", "https"}
                         and bool(urlparse(job.url).netloc)
+                        and (
+                            not target.allowed_apply_hosts
+                            or _allowed_apply_host(
+                                urlparse(job.url).hostname or "",
+                                target.allowed_apply_hosts,
+                            )
+                        )
                         for job in jobs
                     )
                     else "invalid"
@@ -703,7 +759,8 @@ def validate_company(
             sample = jobs[0] if jobs else None
             result.update(
                 result_status="success",
-                jobs_returned=len(jobs),
+                jobs_returned=jobs_returned,
+                jobs_normalized=len(jobs),
                 sample_job_id=sample.job_id if sample else None,
                 sample_job_title=sample.title if sample else None,
                 sample_apply_url=sample.url if sample else None,
@@ -762,6 +819,10 @@ def validate_company(
                     f"{result['warning']}; {message}" if result["warning"] else message
                 )
     response = session.final_response
+    if response is not None and result["total_available_jobs"] is None:
+        result["total_available_jobs"] = _reported_total(platform, response)
+    if result["pages_requested"] == 0:
+        result["pages_requested"] = len(session.responses)
     result["http_status"] = getattr(response, "status_code", None) if response is not None else None
     response_url = getattr(response, "url", None) if response is not None else None
     result["endpoint_tested"] = (
