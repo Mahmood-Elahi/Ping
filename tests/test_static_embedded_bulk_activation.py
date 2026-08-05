@@ -16,6 +16,8 @@ from src.scraper.company_careers.registry import load_target_companies
 
 
 ROOT = Path(__file__).resolve().parents[1]
+BATCH_B_VALIDATED_REGISTRY = ROOT / "config" / "target_companies.adapter_extensions_v4b_validated.yaml"
+BATCH_B_LATER_PROMOTIONS = {"IMC Trading", "Unitree Robotics"}
 
 EXPECTED_REVIEWED_COMPANIES = [
     "Waymo",
@@ -115,6 +117,34 @@ def additions(path: Path):
 
 
 class StaticEmbeddedBulkActivationTests(unittest.TestCase):
+    def assert_exclusions_respect_later_batch_b(self, production):
+        production_by_name = {validator._name_key(item): item for item in production}
+        batch_b_entries = entries(BATCH_B_VALIDATED_REGISTRY)
+        first_batch_b = next(
+            index for index, item in enumerate(batch_b_entries)
+            if validator._name_key(item) == validator._name_key({"name": "IMC Trading"})
+        )
+        batch_b_by_name = {
+            validator._name_key(item): item for item in batch_b_entries[first_batch_b:]
+        }
+        allowed = {
+            validator._name_key({"name": name}) for name in BATCH_B_LATER_PROMOTIONS
+        }
+        excluded = {
+            validator._name_key({"name": name}) for name in EXPECTED_EXCLUDED_COMPANIES
+        }
+
+        self.assertEqual(excluded & set(production_by_name), allowed)
+        for name_key in allowed:
+            self.assertIn(name_key, batch_b_by_name)
+            self.assertEqual(production_by_name[name_key], batch_b_by_name[name_key])
+            self.assertEqual(
+                validator.source_key(production_by_name[name_key]),
+                validator.source_key(batch_b_by_name[name_key]),
+            )
+        self.assertNotIn("niantic", production_by_name)
+        self.assertNotIn("line", production_by_name)
+
     def test_01_exact_candidate_set_derived_from_research(self):
         self.assertEqual(rollout.EXPECTED_COMPANIES, EXPECTED_REVIEWED_COMPANIES)
         self.assertEqual(rollout._derived_research_candidates(), rollout.EXPECTED_COMPANIES)
@@ -135,7 +165,7 @@ class StaticEmbeddedBulkActivationTests(unittest.TestCase):
         self.assertEqual(len(candidate_names), len(candidate_set))
         self.assertEqual(inventory, EXPECTED_REVIEWED_COMPANIES)
         self.assertTrue({validator._name_key({"name": name}) for name in EXPECTED_SAFE_COMPANIES} <= set(production))
-        self.assertFalse({validator._name_key({"name": name}) for name in EXPECTED_EXCLUDED_COMPANIES} & set(production))
+        self.assert_exclusions_respect_later_batch_b(entries(rollout.PRODUCTION))
 
     def test_03_candidate_order_follows_master_workbook(self):
         candidate_additions = additions(rollout.CANDIDATE_REGISTRY)
@@ -188,8 +218,7 @@ class StaticEmbeddedBulkActivationTests(unittest.TestCase):
             self.assertEqual(validated_entry["platform"], EXPECTED_SAFE_PLATFORMS[name])
             self.assertEqual(production_by_name[name_key]["platform"], validated_entry["platform"])
             self.assertEqual(validator.source_key(production_by_name[name_key]), validator.source_key(validated_entry))
-        production_names = set(production_by_name)
-        self.assertFalse({validator._name_key({"name": name}) for name in EXPECTED_EXCLUDED_COMPANIES} & production_names)
+        self.assert_exclusions_respect_later_batch_b(production)
 
     def test_07_synthetic_baseline_delta_behavior(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -262,10 +291,7 @@ class StaticEmbeddedBulkActivationTests(unittest.TestCase):
             self.assertEqual(production_names.count(name_key), 1)
             self.assertEqual(production_by_name[name_key]["platform"], EXPECTED_SAFE_PLATFORMS[name])
             self.assertEqual(validator.source_key(production_by_name[name_key]), validator.source_key(validated_by_name[name_key]))
-        self.assertFalse(
-            {validator._name_key({"name": name}) for name in EXPECTED_EXCLUDED_COMPANIES}
-            & set(production_names)
-        )
+        self.assert_exclusions_respect_later_batch_b(production)
         production_bytes = normalized_newlines(rollout.PRODUCTION.read_bytes())
         validated_bytes = normalized_newlines(rollout.VALIDATED_REGISTRY.read_bytes())
         self.assertTrue(production_bytes == validated_bytes or production_bytes.startswith(validated_bytes))

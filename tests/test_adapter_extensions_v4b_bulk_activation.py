@@ -9,6 +9,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import yaml
+
 from scripts import validate_adapter_extensions_v4b as rollout
 from scripts import validate_company_registry as registry_validator
 from src.scraper.company_careers import scanner
@@ -27,6 +29,19 @@ SOURCES = [
     "static_html:careers.roblox.com", "lever:zoox",
     "static_html:www.unitree.com", "lever:matchgroup",
 ]
+
+
+def historical_prefix_bytes(path: Path) -> bytes:
+    first_batch_b = registry_validator._name_key({"name": SAFE[0]})
+    lines = path.read_bytes().splitlines(keepends=True)
+    for index, raw_line in enumerate(lines):
+        stripped = raw_line.decode("utf-8").strip()
+        if not stripped.startswith("- name:"):
+            continue
+        parsed = yaml.safe_load(stripped)
+        if isinstance(parsed, list) and registry_validator._name_key(parsed[0]) == first_batch_b:
+            return b"".join(lines[:index])
+    raise AssertionError(f"Batch B boundary {SAFE[0]!r} not found in {path}")
 
 
 class Response:
@@ -138,10 +153,31 @@ class AdapterExtensionsV4BArtifactTests(unittest.TestCase):
         self.assertEqual(rollout.EXPECTED_COMPANIES, EXPECTED)
 
     def test_03_exact_historical_139_entry_prefix(self):
-        production = rollout.PRODUCTION.read_bytes()
-        self.assertTrue(rollout.CANDIDATE_REGISTRY.read_bytes().startswith(production))
-        self.assertTrue(rollout.VALIDATED_REGISTRY.read_bytes().startswith(production))
-        self.assertEqual(len(self.production), rollout.HISTORICAL_PRODUCTION_COUNT)
+        candidate_prefix = historical_prefix_bytes(rollout.CANDIDATE_REGISTRY)
+        validated_prefix = historical_prefix_bytes(rollout.VALIDATED_REGISTRY)
+        historical = (yaml.safe_load(candidate_prefix.decode("utf-8")) or {})["target_companies"]
+        _, production = registry_validator.load_registry(rollout.PRODUCTION)
+        _, milestone = registry_validator.load_registry(rollout.VALIDATED_REGISTRY)
+
+        self.assertEqual(candidate_prefix, validated_prefix)
+        self.assertEqual(len(historical), rollout.HISTORICAL_PRODUCTION_COUNT)
+        self.assertEqual(production[:len(historical)], historical)
+
+        promoted = milestone[len(historical):]
+        self.assertEqual([entry["name"] for entry in promoted], SAFE)
+        self.assertEqual([registry_validator.source_key(entry) for entry in promoted], SOURCES)
+        production_sources = [registry_validator.source_key(entry) for entry in production]
+        for expected in promoted:
+            matches = [
+                entry for entry in production
+                if registry_validator._name_key(entry) == registry_validator._name_key(expected)
+            ]
+            self.assertEqual(matches, [expected])
+            expected_source = registry_validator.source_key(expected)
+            self.assertEqual(registry_validator.source_key(matches[0]), expected_source)
+            self.assertEqual(production_sources.count(expected_source), 1)
+        production_names = {registry_validator._name_key(entry) for entry in production}
+        self.assertFalse({"niantic", "line"} & production_names)
 
     def test_04_registry_loader_compatibility(self):
         self.assertEqual((len(self.candidates), len(self.validated)), (145, 145))
@@ -180,7 +216,10 @@ class AdapterExtensionsV4BArtifactTests(unittest.TestCase):
         self.assertEqual(totals["projected_original_company_coverage"], 140)
 
     def test_11_production_and_parent_mappings_unchanged(self):
-        self.assertEqual(self.report["production_registry_sha256"], hashlib.sha256(rollout.PRODUCTION.read_bytes()).hexdigest().upper())
+        candidate_prefix = historical_prefix_bytes(rollout.CANDIDATE_REGISTRY)
+        validated_prefix = historical_prefix_bytes(rollout.VALIDATED_REGISTRY)
+        self.assertEqual(candidate_prefix, validated_prefix)
+        self.assertEqual(self.report["production_registry_sha256"], hashlib.sha256(candidate_prefix).hexdigest().upper())
         self.assertEqual(self.report["parent_mappings_sha256"], hashlib.sha256(rollout.PARENT_MAPPINGS.read_bytes()).hexdigest().upper())
 
     def test_12_future_append_only_production_growth_does_not_change_milestone_delta(self):

@@ -314,7 +314,14 @@ class TSMCSourceRecoveryTests(unittest.TestCase):
         historical = load_target_companies(str(recovery.VALIDATED))
         production = load_target_companies()
         self.assertEqual(production[:len(historical)], historical)
-        self.assertEqual(len(production), 139)
+        self.assertGreaterEqual(len(production), 139)
+        historical_tsmc = next(target for target in historical if target.name == "TSMC")
+        self.assertEqual([target for target in production if target.name == "TSMC"], [historical_tsmc])
+        self.assertEqual(historical_tsmc.platform, "avature")
+        self.assertEqual(historical_tsmc.tenant, "careers.tsmc.com")
+        self.assertEqual(historical_tsmc.board_id, "6")
+        self.assertEqual(historical_tsmc.search_url, recovery.OLD_AVATURE_URL)
+        self.assertEqual(historical_tsmc.endpoint_variant, avature.PORTAL_HTML)
 
     @staticmethod
     def _imports():

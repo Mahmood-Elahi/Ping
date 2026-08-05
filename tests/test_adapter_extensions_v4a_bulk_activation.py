@@ -132,7 +132,8 @@ class AdapterExtensionsV4ABulkActivationTests(unittest.TestCase):
         self.assertEqual(first_batch_a, rollout.HISTORICAL_PRODUCTION_COUNT)
         self.assertEqual(validated[:first_batch_a], historical)
         self.assertEqual(production[:first_batch_a], historical)
-        self.assertEqual(len(production), 139)
+        self.assertGreaterEqual(len(production), len(validated))
+        self.assertEqual(production[:len(validated)], validated)
 
     def test_05_candidate_registry_loader_compatibility(self):
         self.assertEqual(len(self.candidate_targets), 139)

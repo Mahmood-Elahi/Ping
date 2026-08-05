@@ -1615,3 +1615,101 @@ target_companies:
     max_pages: 2
     max_jobs: 20
     max_response_bytes: 3000000
+  - name: IMC Trading
+    platform: static_html
+    careers_url: https://www.imc.com/us/careers
+    listing_url: https://www.imc.com/us/search-careers
+    endpoint_variant: server_rendered_links
+    listing_selector: h2
+    job_card_selector: a[href*=/us/careers/jobs/]
+    title_selector: h2
+    location_selector: null
+    detail_link_selector: :self
+    external_id_regex: /jobs/([0-9]+)$
+    department_selector: null
+    allowed_apply_hosts:
+    - www.imc.com
+    original_workbook_rank: 80
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+  - name: Valve
+    platform: static_html
+    careers_url: https://www.valvesoftware.com/en/about
+    listing_url: https://www.valvesoftware.com/en/
+    endpoint_variant: server_rendered_links
+    listing_selector: a[href*=job_id=]
+    job_card_selector: a[href*=job_id=]
+    title_selector: h5.job_title
+    location_selector: null
+    detail_link_selector: :self
+    external_id_regex: '[?&]job_id=([0-9]+)'
+    department_selector: null
+    allowed_apply_hosts:
+    - www.valvesoftware.com
+    original_workbook_rank: 139
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+  - name: Roblox
+    platform: static_html
+    careers_url: https://careers.roblox.com/
+    listing_url: https://careers.roblox.com/jobs
+    endpoint_variant: server_rendered_links
+    listing_selector: a[href^=/jobs/]
+    job_card_selector: a[href^=/jobs/]
+    title_selector: p.body--large
+    location_selector: span.caption:first-child
+    detail_link_selector: :self
+    external_id_regex: /jobs/([0-9]+)$
+    department_selector: span.caption:nth-child(2)
+    allowed_apply_hosts:
+    - careers.roblox.com
+    original_workbook_rank: 143
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+  - name: Zoox
+    platform: lever
+    slug: zoox
+    careers_url: https://zoox.com/careers
+    search_url: https://jobs.lever.co/zoox
+    endpoint_variant: postings_api_v0
+    allowed_apply_hosts:
+    - jobs.lever.co
+    original_workbook_rank: 152
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+  - name: Unitree Robotics
+    platform: static_html
+    careers_url: https://www.unitree.com/careers
+    listing_url: https://www.unitree.com/position/
+    endpoint_variant: server_rendered_links
+    listing_selector: a[href^=/position/]
+    job_card_selector: a[href^=/position/]
+    title_selector: p.title
+    location_selector: p.base-info
+    detail_link_selector: :self
+    external_id_regex: /position/([0-9]+)$
+    department_selector: null
+    allowed_apply_hosts:
+    - www.unitree.com
+    original_workbook_rank: 156
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+  - name: Match Group
+    platform: lever
+    slug: matchgroup
+    careers_url: https://mtch.com/careers
+    search_url: https://jobs.lever.co/matchgroup
+    endpoint_variant: postings_api_v0
+    allowed_apply_hosts:
+    - jobs.lever.co
+    original_workbook_rank: 240
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    department_allowlist:
+    - Match Group
