@@ -25,8 +25,10 @@ if str(Path(__file__).resolve().parents[1]) not in sys.path:
 
 from src.scraper.company_careers.adapters import (
     ashby,
+    avature,
     eightfold,
     greenhouse,
+    icims,
     lever,
     oracle_recruiting,
     phenom,
@@ -98,6 +100,8 @@ ADAPTERS: dict[str, AdapterFn] = {
     "sap_successfactors": sap_successfactors.fetch_jobs,
     "eightfold": eightfold.fetch_jobs,
     "phenom": phenom.fetch_jobs,
+    "avature": avature.fetch_jobs,
+    "icims": icims.fetch_jobs,
 }
 
 
@@ -153,6 +157,10 @@ def source_key(entry: Mapping[str, Any]) -> Optional[str]:
         host = (urlparse(str(entry.get("search_url") or "")).hostname or "").casefold()
         ref_num = str(entry.get("ref_num") or "").strip().casefold()
         return f"phenom:{host}:{ref_num}" if host and ref_num else None
+    if platform in {"avature", "icims"}:
+        host = (urlparse(str(entry.get("endpoint_url") or entry.get("search_url") or "")).hostname or "").casefold()
+        board_id = str(entry.get("board_id") or "").strip().casefold()
+        return f"{platform}:{host}:{board_id}" if host and board_id else None
     return None
 
 
@@ -198,6 +206,13 @@ def configured_identifiers(entry: Mapping[str, Any]) -> dict[str, Any]:
             "locale": entry.get("locale"),
             "endpoint_variant": entry.get("endpoint_variant"),
         }
+    if platform in {"avature", "icims"}:
+        return {
+            "tenant": entry.get("tenant"),
+            "site_id": entry.get("site_id"),
+            "board_id": entry.get("board_id"),
+            "endpoint_variant": entry.get("endpoint_variant"),
+        }
     return {}
 
 
@@ -233,6 +248,9 @@ def endpoint_for(entry: Mapping[str, Any]) -> Optional[str]:
         return endpoint or None
     if platform == "phenom":
         endpoint = str(entry.get("search_url") or "").strip()
+        return endpoint or None
+    if platform in {"avature", "icims"}:
+        endpoint = str(entry.get("endpoint_url") or entry.get("search_url") or "").strip()
         return endpoint or None
     return None
 
@@ -289,6 +307,16 @@ def configuration_error(entry: Mapping[str, Any]) -> Optional[str]:
     if platform == "phenom":
         try:
             phenom.validate_target(target)
+        except AdapterError as exc:
+            return str(exc)
+    if platform == "avature":
+        try:
+            avature.validate_target(target)
+        except AdapterError as exc:
+            return str(exc)
+    if platform == "icims":
+        try:
+            icims.validate_target(target)
         except AdapterError as exc:
             return str(exc)
     return None
@@ -350,7 +378,10 @@ class RecordingRetrySession:
 
 
 def _response_shape_error(platform: str, response: Any) -> Optional[str]:
-    if platform in {"sap_successfactors", "phenom"}:
+    if platform in {"sap_successfactors", "phenom", "avature"} or (
+        platform == "icims"
+        and "html" in str(getattr(response, "headers", {}).get("content-type", "")).casefold()
+    ):
         # These production adapters validate every full HTML page/fragment
         # before returning normalized jobs.
         return None
@@ -391,6 +422,15 @@ def _response_shape_error(platform: str, response: Any) -> Optional[str]:
             isinstance(count, bool) or not isinstance(count, int) or count < 0
         ):
             return "Eightfold data must contain a non-negative count"
+        return None
+    if platform == "icims":
+        if not isinstance(payload, Mapping):
+            return "iCIMS Jibe response must be a JSON object"
+        if not isinstance(payload.get("jobs"), list):
+            return "iCIMS Jibe response must contain a jobs list"
+        total = payload.get("totalCount")
+        if isinstance(total, bool) or not isinstance(total, int) or total < 0:
+            return "iCIMS Jibe totalCount must be a non-negative integer"
         return None
     expected_key = {
         "greenhouse": "jobs",
@@ -677,7 +717,7 @@ def validate_company(
         target.max_pages = 1
     session_attempts = (
         1
-        if platform in {"oracle_recruiting", "sap_successfactors", "eightfold", "phenom"}
+        if platform in {"oracle_recruiting", "sap_successfactors", "eightfold", "phenom", "avature", "icims"}
         else attempts
     )
     session = RecordingRetrySession(
@@ -818,6 +858,19 @@ def validate_company(
                 result["warning"] = (
                     f"{result['warning']}; {message}" if result["warning"] else message
                 )
+    elif platform in {"avature", "icims"}:
+        pagination = getattr(session, f"{platform}_pagination", None)
+        if isinstance(pagination, Mapping):
+            result["pagination_result"] = dict(pagination)
+            result["pages_requested"] = int(pagination.get("pages_fetched") or 0)
+            result["total_available_jobs"] = pagination.get("total_available")
+            warnings = list(pagination.get("warnings") or [])
+            diagnostics = list(pagination.get("diagnostics") or [])
+            if result["safe_to_activate"] and (warnings or diagnostics):
+                messages = [str(item) for item in warnings]
+                if diagnostics:
+                    messages.append(f"Skipped {len(diagnostics)} malformed or duplicate job entries")
+                result["warning"] = "; ".join(messages)
     response = session.final_response
     if response is not None and result["total_available_jobs"] is None:
         result["total_available_jobs"] = _reported_total(platform, response)

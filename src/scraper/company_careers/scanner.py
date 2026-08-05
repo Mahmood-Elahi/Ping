@@ -8,12 +8,14 @@ import requests
 
 from src.scraper.company_careers.adapters import (
     amazon,
+    avature,
     ashby,
     atlassian,
     eightfold,
     google,
     greenhouse,
     ibm_search,
+    icims,
     lever,
     meta,
     oracle_recruiting,
@@ -57,6 +59,8 @@ ADAPTERS: dict[str, AdapterFn] = {
     "phenom": phenom.fetch_jobs,
     "sap_successfactors": sap_successfactors.fetch_jobs,
     "eightfold": eightfold.fetch_jobs,
+    "avature": avature.fetch_jobs,
+    "icims": icims.fetch_jobs,
     "amazon": amazon.fetch_jobs,
     "custom:amazon": amazon.fetch_jobs,
     "shopify": shopify.fetch_jobs,
