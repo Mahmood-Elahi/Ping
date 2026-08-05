@@ -546,27 +546,71 @@ class PhenomValidationAndRegistryTests(unittest.TestCase):
         self.assertEqual(len(sources), len(set(sources)))
         self.assertEqual([item.name for item in targets[-6:]], EXPECTED_COMPANIES)
 
-    def test_real_candidate_registry_preserves_production_bytes_and_entries(self):
-        current = Path("config/target_companies.yaml").read_bytes()
-        candidate = Path("config/target_companies.phenom_candidates.yaml").read_bytes()
-        _, current_entries = validator.load_registry("config/target_companies.yaml")
-        _, candidate_entries = validator.load_registry(
-            "config/target_companies.phenom_candidates.yaml"
-        )
-        self.assertEqual(candidate[: len(current)], current)
-        self.assertEqual(candidate_entries[: len(current_entries)], current_entries)
+    def test_promoted_phenom_companies_appear_exactly_once_in_production(self):
+        _, production_entries = validator.load_registry("config/target_companies.yaml")
+
+        for expected_name in EXPECTED_COMPANIES:
+            with self.subTest(company=expected_name):
+                matches = [
+                    entry
+                    for entry in production_entries
+                    if validator._name_key(entry) == expected_name.casefold()
+                ]
+                self.assertEqual(len(matches), 1)
+                self.assertEqual(str(matches[0].get("platform")).casefold(), "phenom")
 
     def test_validated_registry_contains_only_safe_companies_when_present(self):
-        path = Path("config/target_companies.phenom_validated.yaml")
-        if not path.exists():
-            self.skipTest("live validated registry is generated after unit tests")
-        _, current = validator.load_registry("config/target_companies.yaml")
-        _, validated = validator.load_registry(path)
-        additions = validator.detect_additions(current, validated)
-        report_path = Path("output/phenom_candidate_validation.json")
-        report = json.loads(report_path.read_text(encoding="utf-8"))
-        safe = report["summary"]["safe_to_activate"]
-        self.assertEqual([entry["name"] for entry in additions], safe)
+        _, validated_entries = validator.load_registry(
+            "config/target_companies.phenom_validated.yaml"
+        )
+        validated_phenom = []
+        for expected_name in EXPECTED_COMPANIES:
+            matches = [
+                entry
+                for entry in validated_entries
+                if validator._name_key(entry) == expected_name.casefold()
+                and str(entry.get("platform")).casefold() == "phenom"
+            ]
+            self.assertEqual(len(matches), 1, expected_name)
+            validated_phenom.append(matches[0])
+
+        baseline_text = (
+            "target_companies:\n"
+            "  - name: Synthetic Greenhouse Baseline\n"
+            "    platform: greenhouse\n"
+            "    slug: synthetic-greenhouse-baseline\n"
+            "  - name: Synthetic Workday Baseline\n"
+            "    platform: workday\n"
+            "    tenant: synthetic-workday-baseline\n"
+            "    wd_subdomain: wd1\n"
+            "    site_id: Careers\n"
+        )
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            baseline = root / "baseline.yaml"
+            generated = root / "validated.yaml"
+            baseline.write_text(baseline_text, encoding="utf-8", newline="\n")
+            baseline_bytes = baseline.read_bytes()
+            generated.write_bytes(
+                validator.build_validated_registry_bytes(baseline, validated_phenom)
+            )
+            generated_bytes = generated.read_bytes()
+            _, baseline_entries = validator.load_registry(baseline)
+            _, generated_entries = validator.load_registry(generated)
+            loaded_targets = load_target_companies(str(generated))
+
+        additions = validator.detect_additions(baseline_entries, generated_entries)
+        normalized_names = [validator._name_key(entry) for entry in generated_entries]
+        normalized_sources = [validator.source_key(entry) for entry in generated_entries]
+        self.assertEqual(generated_bytes[: len(baseline_bytes)], baseline_bytes)
+        self.assertEqual(generated_entries[: len(baseline_entries)], baseline_entries)
+        self.assertEqual(len(additions), 6)
+        self.assertEqual([entry["name"] for entry in additions], EXPECTED_COMPANIES)
+        self.assertTrue(all(entry["platform"] == "phenom" for entry in additions))
+        self.assertEqual(len(normalized_names), len(set(normalized_names)))
+        self.assertTrue(all(normalized_sources))
+        self.assertEqual(len(normalized_sources), len(set(normalized_sources)))
+        self.assertEqual([target.name for target in loaded_targets[-6:]], EXPECTED_COMPANIES)
 
     def test_candidate_delta_tests_do_not_depend_on_historical_production_count(self):
         baseline = "target_companies:\n  - name: One\n    platform: greenhouse\n    slug: one\n  - name: Two\n    platform: ashby\n    slug: two\n"

@@ -377,3 +377,79 @@ target_companies:
     organization_id: eaton.com
     max_pages: 2
     fingerprint_confidence: high
+  - name: Mastercard
+    platform: phenom
+    careers_url: https://careers.mastercard.com/us/en/
+    search_url: https://careers.mastercard.com/us/en/search-results/
+    endpoint_variant: embedded_refine_search
+    ref_num: MASRUS
+    locale: en_us
+    allowed_apply_hosts:
+    - mastercard.wd1.myworkdayjobs.com
+    max_pages: 2
+    fingerprint_confidence: high
+    fingerprint_evidence: 'page source marker: marker=phenompeople.com; stored fetch HTTP 200 at https://careers.mastercard.com/us/en/search-results'
+  - name: ABB
+    platform: phenom
+    careers_url: https://careers.abb/global/en
+    search_url: https://careers.abb/global/en/search-results
+    endpoint_variant: embedded_refine_search
+    ref_num: ABB1GLOBAL
+    locale: en_global
+    allowed_apply_hosts:
+    - abb.wd3.myworkdayjobs.com
+    max_pages: 2
+    fingerprint_confidence: high
+    fingerprint_evidence: 'page source marker: marker=phenompeople.com; stored fetch HTTP 200 at https://careers.abb/global/en/search-results'
+  - name: Toyota
+    platform: phenom
+    careers_url: https://careers.toyota.com/us/en
+    search_url: https://careers.toyota.com/us/en/search-results
+    endpoint_variant: embedded_refine_search
+    ref_num: TOYOUS
+    locale: en_us
+    allowed_apply_hosts:
+    - toyota.wd503.myworkdayjobs.com
+    max_pages: 2
+    fingerprint_confidence: high
+    fingerprint_evidence: 'page source marker: marker=phenompeople.com; stored fetch HTTP 200 at https://careers.toyota.com/us/en/search-results'
+  - name: Honda
+    platform: phenom
+    careers_url: https://careers.honda.com/us/en
+    search_url: https://careers.honda.com/us/en/search-results
+    endpoint_variant: embedded_refine_search
+    ref_num: AHMAHMUS
+    locale: en_us
+    allowed_apply_hosts:
+    - careers.honda.com
+    - career41.sapsf.com
+    apply_url_template: https://careers.honda.com/us/en/hvhapply?jobSeqNo={job_seq_no}
+    max_pages: 2
+    fingerprint_confidence: high
+    fingerprint_evidence: 'page source marker: marker=phenompeople.com; stored fetch HTTP 200 at https://careers.honda.com/us/en'
+    fingerprint_warning: Stored corporate careers URL https://global.honda/en/career/ is HTTP 404; current official Phenom home and search links were reconfirmed at careers.honda.com.
+  - name: NASA Jet Propulsion Laboratory
+    platform: phenom
+    careers_url: https://www.jpl.jobs/
+    search_url: https://www.jpl.jobs/search-results
+    endpoint_variant: embedded_refine_search
+    ref_num: JJPLUS
+    locale: en_us
+    allowed_apply_hosts:
+    - citjpl.wd5.myworkdayjobs.com
+    max_pages: 2
+    fingerprint_confidence: high
+    fingerprint_evidence: 'page source marker: marker=phenompeople.com; stored fetch HTTP 404 at https://www.jpl.jobs/jobs'
+    fingerprint_warning: Stored /jobs path is stale and HTTP 404; the current official home links to the verified /search-results Phenom contract.
+  - name: eBay
+    platform: phenom
+    careers_url: https://jobs.ebayinc.com/us/en
+    search_url: https://jobs.ebayinc.com/us/en/search-results
+    endpoint_variant: embedded_refine_search
+    ref_num: EBAEBAUS
+    locale: en_us
+    allowed_apply_hosts:
+    - ebay.wd5.myworkdayjobs.com
+    max_pages: 2
+    fingerprint_confidence: high
+    fingerprint_evidence: 'page source marker: marker=phenompeople.com; stored fetch HTTP 200 at https://jobs.ebayinc.com/us/en/search-results'
