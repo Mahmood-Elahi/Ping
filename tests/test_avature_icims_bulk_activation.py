@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import ast
 import csv
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -22,14 +21,87 @@ CANDIDATES = ROOT / "config" / "target_companies.avature_icims_candidates.yaml"
 VALIDATED = ROOT / "config" / "target_companies.avature_icims_validated.yaml"
 INVENTORY = ROOT / "config" / "company_avature_icims_candidates.csv"
 
+REVIEWED_CANDIDATES = [
+    "AMD",
+    "TSMC",
+    "ARM",
+    "Synopsys",
+    "Lattice Semiconductor",
+    "GitHub",
+    "Intuit",
+    "Two Sigma",
+    "SIG",
+    "Bank of America",
+    "Siemens",
+    "Rivian",
+    "Lenovo",
+    "bp",
+    "Wayfair",
+]
+VALIDATED_SAFE_CANDIDATES = [
+    "AMD",
+    "TSMC",
+    "ARM",
+    "Synopsys",
+    "Lattice Semiconductor",
+    "GitHub",
+    "Intuit",
+    "Two Sigma",
+    "SIG",
+    "Bank of America",
+    "Rivian",
+    "Lenovo",
+]
+EXCLUDED_CANDIDATES = {"Siemens", "bp", "Wayfair"}
+EXPECTED_PLATFORMS = {
+    "AMD": "icims",
+    "TSMC": "avature",
+    "ARM": "icims",
+    "Synopsys": "avature",
+    "Lattice Semiconductor": "icims",
+    "GitHub": "icims",
+    "Intuit": "avature",
+    "Two Sigma": "avature",
+    "SIG": "icims",
+    "Bank of America": "avature",
+    "Rivian": "icims",
+    "Lenovo": "avature",
+}
+
 
 def entries(path: Path):
     return (yaml.safe_load(path.read_text(encoding="utf-8")) or {})["target_companies"]
 
 
+def historical_baseline_bytes(path: Path) -> bytes:
+    """Return the artifact prefix before its first reviewed milestone candidate."""
+    content = path.read_bytes()
+    artifact_entries = entries(path)
+    reviewed_names = {" ".join(name.casefold().split()) for name in REVIEWED_CANDIDATES}
+    first_candidate = next(
+        index
+        for index, item in enumerate(artifact_entries)
+        if validator._name_key(item) in reviewed_names
+    )
+    entry_offsets = []
+    offset = 0
+    for line in content.splitlines(keepends=True):
+        if line.startswith(b"  - name: "):
+            entry_offsets.append(offset)
+        offset += len(line)
+    if len(entry_offsets) != len(artifact_entries):
+        raise ValueError(f"Could not locate every YAML entry boundary in {path}")
+    return content[: entry_offsets[first_candidate]]
+
+
+def historical_baseline_entries():
+    data = yaml.safe_load(historical_baseline_bytes(CANDIDATES).decode("utf-8")) or {}
+    return data["target_companies"]
+
+
 def additions(path: Path):
-    production_names = {validator._name_key(item) for item in entries(PRODUCTION)}
-    return [item for item in entries(path) if validator._name_key(item) not in production_names]
+    baseline_names = {validator._name_key(item) for item in historical_baseline_entries()}
+    return [item for item in entries(path) if validator._name_key(item) not in baseline_names]
 
 
 class AvatureICIMSBulkActivationTests(unittest.TestCase):
@@ -37,7 +109,8 @@ class AvatureICIMSBulkActivationTests(unittest.TestCase):
         self.assertEqual(rollout._derived_research_candidates(), rollout.EXPECTED_COMPANIES)
         self.assertEqual(len(rollout.EXPECTED_COMPANIES), 15)
 
-    def test_34_already_covered_companies_are_excluded(self):
+    def test_34_historical_candidate_inventory_was_uncovered_and_is_exact(self):
+        baseline_names = {validator._name_key(item) for item in historical_baseline_entries()}
         production = {validator._name_key(item) for item in entries(PRODUCTION)}
         mappings = yaml.safe_load(rollout.PARENT_MAPPINGS.read_text(encoding="utf-8"))
         mapped = {
@@ -45,28 +118,85 @@ class AvatureICIMSBulkActivationTests(unittest.TestCase):
             for item in mappings["company_parent_source_mappings"]
             if item["enabled"] is True
         }
-        candidates = {validator._name_key(item) for item in rollout.CANDIDATE_ENTRIES}
-        self.assertFalse(candidates & (production | mapped))
+        candidate_names = [item["name"] for item in rollout.CANDIDATE_ENTRIES]
+        candidate_keys = [validator._name_key(item) for item in rollout.CANDIDATE_ENTRIES]
+        with INVENTORY.open(newline="", encoding="utf-8") as handle:
+            inventory_names = [row["company"] for row in csv.DictReader(handle)]
 
-    def test_35_production_registry_is_exact_candidate_prefix(self):
-        self.assertTrue(CANDIDATES.read_bytes().startswith(PRODUCTION.read_bytes()))
+        self.assertEqual(candidate_names, REVIEWED_CANDIDATES)
+        self.assertEqual(inventory_names, REVIEWED_CANDIDATES)
+        self.assertEqual(len(candidate_keys), len(set(candidate_keys)))
+        self.assertFalse(set(candidate_keys) & baseline_names)
+        self.assertFalse(set(candidate_keys) & mapped)
+        self.assertTrue(
+            {" ".join(name.casefold().split()) for name in VALIDATED_SAFE_CANDIDATES}
+            <= production
+        )
+        self.assertFalse(
+            {" ".join(name.casefold().split()) for name in EXCLUDED_CANDIDATES}
+            & production
+        )
+
+    def test_35_historical_registry_prefixes_and_promoted_registry_order(self):
+        candidate_baseline = historical_baseline_bytes(CANDIDATES)
+        validated_baseline = historical_baseline_bytes(VALIDATED)
+
+        self.assertTrue(CANDIDATES.read_bytes().startswith(candidate_baseline))
+        self.assertTrue(VALIDATED.read_bytes().startswith(validated_baseline))
+        self.assertEqual(candidate_baseline, validated_baseline)
+        self.assertEqual(len(historical_baseline_entries()), 93)
+        self.assertTrue(PRODUCTION.read_bytes().startswith(VALIDATED.read_bytes()))
 
     def test_36_master_workbook_candidate_order(self):
         ranks = [item["original_workbook_rank"] for item in rollout.CANDIDATE_ENTRIES]
+        candidate_additions = additions(CANDIDATES)
+
         self.assertEqual(ranks, sorted(ranks))
-        self.assertEqual([item["name"] for item in additions(CANDIDATES)], rollout.EXPECTED_COMPANIES)
+        self.assertEqual(len(candidate_additions), 15)
+        self.assertEqual([item["name"] for item in candidate_additions], REVIEWED_CANDIDATES)
+        self.assertEqual([item["name"] for item in candidate_additions], rollout.EXPECTED_COMPANIES)
+        self.assertTrue(EXCLUDED_CANDIDATES <= {item["name"] for item in candidate_additions})
 
     def test_37_candidate_loader_compatibility(self):
-        baseline = len(load_target_companies(str(PRODUCTION)))
-        self.assertEqual(len(load_target_companies(str(CANDIDATES))), baseline + 15)
+        with tempfile.TemporaryDirectory() as directory:
+            baseline_path = Path(directory) / "historical_baseline.yaml"
+            baseline_path.write_bytes(historical_baseline_bytes(CANDIDATES))
+            baseline_count = len(load_target_companies(str(baseline_path)))
+
+        self.assertEqual(baseline_count, 93)
+        self.assertEqual(len(load_target_companies(str(CANDIDATES))), baseline_count + 15)
+        self.assertEqual(len(load_target_companies(str(VALIDATED))), baseline_count + 12)
+        self.assertTrue(load_target_companies(str(PRODUCTION)))
 
     def test_38_validated_registry_contains_only_safe_candidates(self):
         with INVENTORY.open(newline="", encoding="utf-8") as handle:
             safe = [row["company"] for row in csv.DictReader(handle) if row["safe_to_activate"] == "true"]
-        self.assertEqual([item["name"] for item in additions(VALIDATED)], safe)
-        self.assertNotIn("Siemens", safe)
-        self.assertNotIn("bp", safe)
-        self.assertNotIn("Wayfair", safe)
+        candidate_additions = additions(CANDIDATES)
+        validated_additions = additions(VALIDATED)
+        candidate_by_name = {validator._name_key(item): item for item in candidate_additions}
+        production_entries = entries(PRODUCTION)
+        production_names = [validator._name_key(item) for item in production_entries]
+
+        self.assertEqual(safe, VALIDATED_SAFE_CANDIDATES)
+        self.assertEqual(len(validated_additions), 12)
+        self.assertEqual(
+            [item["name"] for item in validated_additions], VALIDATED_SAFE_CANDIDATES
+        )
+        self.assertTrue(
+            {validator._name_key(item) for item in validated_additions}
+            <= set(candidate_by_name)
+        )
+        for item in validated_additions:
+            expected = candidate_by_name[validator._name_key(item)]
+            self.assertEqual(item["platform"], expected["platform"])
+            self.assertIsNotNone(validator.source_key(item))
+            self.assertEqual(validator.source_key(item), validator.source_key(expected))
+            self.assertEqual(production_names.count(validator._name_key(item)), 1)
+        self.assertFalse(EXCLUDED_CANDIDATES & set(safe))
+        self.assertFalse(
+            {" ".join(name.casefold().split()) for name in EXCLUDED_CANDIDATES}
+            & set(production_names)
+        )
 
     def test_39_synthetic_baseline_delta_calculation(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -128,11 +258,36 @@ class AvatureICIMSBulkActivationTests(unittest.TestCase):
     def test_49_no_sqlite_initialization(self):
         self._assert_no_imports("sqlite3")
 
-    def test_50_production_config_remains_unchanged(self):
-        committed = subprocess.check_output(
-            ["git", "show", "HEAD:config/target_companies.yaml"], cwd=ROOT
+    def test_50_promoted_production_registry_integrity(self):
+        production_entries = entries(PRODUCTION)
+        production_names = [validator._name_key(item) for item in production_entries]
+        production_by_name = {
+            validator._name_key(item): item for item in production_entries
+        }
+        validated_additions = additions(VALIDATED)
+        validated_by_name = {
+            validator._name_key(item): item for item in validated_additions
+        }
+
+        for name, platform in EXPECTED_PLATFORMS.items():
+            key = " ".join(name.casefold().split())
+            self.assertEqual(production_names.count(key), 1)
+            self.assertEqual(production_by_name[key]["platform"], platform)
+            self.assertIsNotNone(validator.source_key(production_by_name[key]))
+            self.assertEqual(
+                validator.source_key(production_by_name[key]),
+                validator.source_key(validated_by_name[key]),
+            )
+        self.assertFalse(
+            {" ".join(name.casefold().split()) for name in EXCLUDED_CANDIDATES}
+            & set(production_names)
         )
-        self.assertEqual(PRODUCTION.read_bytes().replace(b"\r\n", b"\n"), committed.replace(b"\r\n", b"\n"))
+        self.assertEqual(len(production_names), len(set(production_names)))
+        source_keys = [validator.source_key(item) for item in production_entries]
+        source_keys = [key for key in source_keys if key]
+        self.assertEqual(len(source_keys), len(set(source_keys)))
+        self.assertTrue(load_target_companies(str(PRODUCTION)))
+        self.assertTrue(PRODUCTION.read_bytes().startswith(VALIDATED.read_bytes()))
 
     def test_51_inventory_and_registries_have_no_duplicates(self):
         with INVENTORY.open(newline="", encoding="utf-8") as handle:

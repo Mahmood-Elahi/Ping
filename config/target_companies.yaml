@@ -676,3 +676,219 @@ target_companies:
     - jobs.teradyne.com
     max_pages: 2
     max_jobs: 20
+  - name: AMD
+    platform: icims
+    tenant: amd
+    board_id: amd-public
+    careers_url: https://www.amd.com/en/corporate/careers.html
+    search_url: https://careers.amd.com/careers-home/jobs
+    endpoint_variant: icims_jibe_api
+    original_workbook_rank: 17
+    industry: Not recorded in repository master workbook
+    allowed_apply_hosts:
+    - careers-amd.icims.com
+    - canadacareers-amd.icims.com
+    - global-external-amd.icims.com
+    page_size: 10
+    max_pages: 2
+    max_jobs: 20
+    evidence_source: config/company_remaining_inventory_v2.csv
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-05T01:24:24+00:00'
+    endpoint_url: https://careers.amd.com/api/jobs
+  - name: TSMC
+    platform: avature
+    tenant: careers.tsmc.com
+    board_id: '6'
+    careers_url: https://www.tsmc.com/static/english/careers/index.htm
+    search_url: https://careers.tsmc.com/en_US/careers/SearchJobs
+    endpoint_variant: avature_portal_html
+    original_workbook_rank: 20
+    industry: Not recorded in repository master workbook
+    allowed_apply_hosts:
+    - careers.tsmc.com
+    page_size: 10
+    max_pages: 2
+    max_jobs: 20
+    evidence_source: config/company_remaining_inventory_v2.csv
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-05T01:24:24+00:00'
+    site_id: en_US/careers
+  - name: ARM
+    platform: icims
+    tenant: arm
+    board_id: '33099'
+    careers_url: https://careers.arm.com/
+    search_url: https://careers.arm.com/en/search-jobs
+    endpoint_variant: icims_radancy_html
+    original_workbook_rank: 23
+    industry: Not recorded in repository master workbook
+    allowed_apply_hosts:
+    - careers.arm.com
+    page_size: 15
+    max_pages: 2
+    max_jobs: 20
+    evidence_source: config/company_remaining_inventory_v2.csv
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-05T01:24:24+00:00'
+  - name: Synopsys
+    platform: avature
+    tenant: synopsys.avature.net
+    board_id: '44408'
+    careers_url: https://www.synopsys.com/careers/global.html
+    search_url: https://careers.synopsys.com/search-jobs
+    endpoint_variant: avature_radancy_html
+    original_workbook_rank: 24
+    industry: Not recorded in repository master workbook
+    allowed_apply_hosts:
+    - careers.synopsys.com
+    page_size: 15
+    max_pages: 2
+    max_jobs: 20
+    evidence_source: config/company_remaining_inventory_v2.csv
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-05T01:24:24+00:00'
+  - name: Lattice Semiconductor
+    platform: icims
+    tenant: latticesemi
+    board_id: latticesemi-public
+    careers_url: https://careers-latticesemi.icims.com/jobs/intro?hashed=-625919477
+    search_url: https://careers-latticesemi.icims.com/jobs/search?hashed=-625919477
+    endpoint_variant: icims_legacy_portal_html
+    original_workbook_rank: 40
+    industry: Not recorded in repository master workbook
+    allowed_apply_hosts:
+    - careers-latticesemi.icims.com
+    page_size: 50
+    max_pages: 2
+    max_jobs: 20
+    evidence_source: config/company_unknown_investigation_v3.csv
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-05T02:53:16+00:00'
+    site_id: '-625919477'
+  - name: GitHub
+    platform: icims
+    tenant: githubinc
+    board_id: githubinc-public
+    careers_url: https://www.github.careers/careers-home
+    search_url: https://www.github.careers/careers-home/jobs
+    endpoint_variant: icims_jibe_api
+    original_workbook_rank: 44
+    industry: Not recorded in repository master workbook
+    allowed_apply_hosts:
+    - careers-githubinc.icims.com
+    - globalcareers-githubinc.icims.com
+    page_size: 10
+    max_pages: 2
+    max_jobs: 20
+    evidence_source: config/company_remaining_inventory_v2.csv
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-05T01:24:24+00:00'
+    endpoint_url: https://www.github.careers/api/jobs
+  - name: Intuit
+    platform: avature
+    tenant: intuit.avature.net
+    board_id: '27595'
+    careers_url: https://www.intuit.com/careers/
+    search_url: https://jobs.intuit.com/search-jobs
+    endpoint_variant: avature_radancy_html
+    original_workbook_rank: 64
+    industry: Not recorded in repository master workbook
+    allowed_apply_hosts:
+    - jobs.intuit.com
+    page_size: 15
+    max_pages: 2
+    max_jobs: 20
+    evidence_source: config/company_remaining_inventory_v2.csv
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-05T01:24:24+00:00'
+  - name: Two Sigma
+    platform: avature
+    tenant: careers.twosigma.com
+    board_id: '106'
+    careers_url: https://www.twosigma.com/careers/
+    search_url: https://careers.twosigma.com/careers
+    endpoint_variant: avature_portal_html
+    original_workbook_rank: 77
+    industry: Not recorded in repository master workbook
+    allowed_apply_hosts:
+    - careers.twosigma.com
+    page_size: 4
+    max_pages: 2
+    max_jobs: 20
+    evidence_source: config/company_remaining_inventory_v2.csv
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-05T01:24:24+00:00'
+    site_id: careers
+  - name: SIG
+    platform: icims
+    tenant: sig
+    board_id: sig-public
+    careers_url: https://sig.com/careers/
+    search_url: https://careers.sig.com/jobs
+    endpoint_variant: icims_jibe_api
+    original_workbook_rank: 82
+    industry: Not recorded in repository master workbook
+    allowed_apply_hosts:
+    - careers-sig.icims.com
+    page_size: 10
+    max_pages: 2
+    max_jobs: 20
+    evidence_source: config/company_remaining_inventory_v2.csv
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-05T01:24:24+00:00'
+    endpoint_url: https://careers.sig.com/api/jobs
+  - name: Bank of America
+    platform: avature
+    tenant: bankofamerica.avature.net
+    board_id: professional-us
+    careers_url: https://careers.bankofamerica.com/
+    search_url: https://careers.bankofamerica.com/en-us/job-search.html
+    endpoint_variant: avature_aem_html
+    original_workbook_rank: 87
+    industry: Not recorded in repository master workbook
+    allowed_apply_hosts:
+    - careers.bankofamerica.com
+    page_size: 10
+    max_pages: 2
+    max_jobs: 20
+    evidence_source: config/company_remaining_inventory_v2.csv
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-05T01:24:24+00:00'
+  - name: Rivian
+    platform: icims
+    tenant: rivian
+    board_id: rivian-public
+    careers_url: https://careers.rivian.com/
+    search_url: https://careers.rivian.com/careers-home/jobs
+    endpoint_variant: icims_jibe_api
+    original_workbook_rank: 116
+    industry: Not recorded in repository master workbook
+    allowed_apply_hosts:
+    - us-careers-rivian.icims.com
+    - sb-careers-rivian.icims.com
+    page_size: 10
+    max_pages: 2
+    max_jobs: 20
+    evidence_source: config/company_remaining_inventory_v2.csv
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-05T01:24:24+00:00'
+    endpoint_url: https://careers.rivian.com/api/jobs
+  - name: Lenovo
+    platform: avature
+    tenant: jobs.lenovo.com
+    board_id: '4'
+    careers_url: https://jobs.lenovo.com/
+    search_url: https://jobs.lenovo.com/en_US/careers/SearchJobs
+    endpoint_variant: avature_portal_html
+    original_workbook_rank: 148
+    industry: Not recorded in repository master workbook
+    allowed_apply_hosts:
+    - jobs.lenovo.com
+    page_size: 10
+    max_pages: 2
+    max_jobs: 20
+    evidence_source: config/company_remaining_inventory_v2.csv
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-05T01:24:24+00:00'
+    site_id: en_US/careers
