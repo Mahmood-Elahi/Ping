@@ -669,6 +669,7 @@ def validate_company(
     sleep: Callable[[float], None] = time.sleep,
     adapters: Optional[Mapping[str, AdapterFn]] = None,
     max_normalized_jobs: int = MAX_NORMALIZED_JOBS,
+    max_pages_limit: int = 1,
 ) -> dict[str, Any]:
     result = _base_result(entry)
     if entry.get("stale_fingerprint"):
@@ -741,7 +742,7 @@ def validate_company(
     platform = str(entry["platform"]).strip().casefold()
     target = CompanyTarget.from_dict(dict(entry))
     if platform == "workday":
-        target.max_pages = 1
+        target.max_pages = min(max(1, target.max_pages), max(1, max_pages_limit))
     session_attempts = (
         1
         if platform in {"oracle_recruiting", "sap_successfactors", "eightfold", "phenom", "avature", "icims"}

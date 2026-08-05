@@ -54,6 +54,24 @@ def _body_variants(offset: int) -> List[Dict[str, object]]:
     ]
 
 
+def _stable_job_id(bullet_fields: List[object], external_path: str) -> str:
+    """Prefer the requisition field corroborated by Workday's detail path.
+
+    Most sites put the requisition ID first. Some prepend a presentation badge
+    such as ``Spotlight Job`` and put the stable ID later. Matching a bullet
+    field against the terminal path token preserves the common case while
+    avoiding a non-unique badge as the source identifier.
+    """
+    path_token = external_path.rstrip("/").rsplit("/", 1)[-1]
+    for value in bullet_fields:
+        candidate = str(value).strip()
+        if candidate and path_token.casefold().endswith(candidate.casefold()):
+            return candidate
+    if bullet_fields:
+        return str(bullet_fields[0]).strip()
+    return path_token
+
+
 def _fetch_pages(
     session: requests.Session,
     target: CompanyTarget,
@@ -84,7 +102,7 @@ def _fetch_pages(
             external_path = item.get("externalPath", "") or ""
             location = item.get("locationsText", "") or ""
             bullet_fields = item.get("bulletFields") or []
-            job_id = str(bullet_fields[0]) if bullet_fields else external_path.split("/")[-1]
+            job_id = _stable_job_id(bullet_fields, external_path)
             jobs.append(
                 JobRecord(
                     job_id=job_id,
