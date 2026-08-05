@@ -61,12 +61,13 @@ class BrowserExpansionV1BArtifactTests(unittest.TestCase):
     def test_01_exact_156_entry_production_byte_prefix(self):
         validated_historical_bytes = historical_prefix_bytes(batch.VALIDATED_REGISTRY)
         self.assertEqual(len(self.historical), 156)
-        self.assertEqual(self.historical_bytes, self.production_bytes)
-        self.assertEqual(validated_historical_bytes, self.production_bytes)
-        self.assertTrue(self.candidate_bytes.startswith(self.production_bytes))
-        self.assertTrue(self.validated_bytes.startswith(self.production_bytes))
-        self.assertEqual(self.candidates[:156], self.production)
-        self.assertEqual(self.validated[:156], self.production)
+        self.assertEqual(validated_historical_bytes, self.historical_bytes)
+        self.assertTrue(self.candidate_bytes.startswith(self.historical_bytes))
+        self.assertTrue(self.validated_bytes.startswith(self.historical_bytes))
+        self.assertTrue(self.production_bytes.startswith(self.historical_bytes))
+        self.assertEqual(self.candidates[:156], self.historical)
+        self.assertEqual(self.validated[:156], self.historical)
+        self.assertEqual(self.production[:156], self.historical)
 
     def test_02_exact_seven_company_inventory_in_master_order(self):
         self.assertEqual([row["company"] for row in self.inventory], batch.REVIEWED_COMPANIES)
@@ -132,7 +133,7 @@ class BrowserExpansionV1BArtifactTests(unittest.TestCase):
 
     def test_09_production_and_parent_mappings_are_unchanged(self):
         self.assertEqual(
-            hashlib.sha256(self.production_bytes).hexdigest().upper(),
+            hashlib.sha256(self.historical_bytes).hexdigest().upper(),
             self.report["production_registry_sha256"],
         )
         self.assertEqual(
@@ -140,13 +141,16 @@ class BrowserExpansionV1BArtifactTests(unittest.TestCase):
             self.report["parent_mappings_sha256"],
         )
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
-        self.assertEqual(
-            [entry["name"] for entry in self.validated[156:]],
-            ["Tourmaline Oil", "MDA Space", "JD.com", "Patreon"],
-        )
-        self.assertEqual(len(self.production), 156)
+        expected_promotions = ["Tourmaline Oil", "MDA Space", "JD.com", "Patreon"]
+        validated_promotions = self.validated[156:]
+        self.assertEqual([entry["name"] for entry in validated_promotions], expected_promotions)
+        self.assertEqual(len(self.production), 160)
+        self.assertEqual(self.production[156:], validated_promotions)
+        for validated_entry in validated_promotions:
+            matches = [entry for entry in self.production if entry["name"] == validated_entry["name"]]
+            self.assertEqual(matches, [validated_entry])
         self.assertTrue(
-            {"Tourmaline Oil", "Astrobotic", "MDA Space", "Intuitive Machines", "Walmart Global Tech", "JD.com", "Patreon"}.isdisjoint(
+            {"Astrobotic", "Intuitive Machines", "Walmart Global Tech"}.isdisjoint(
                 {entry["name"] for entry in self.production}
             )
         )

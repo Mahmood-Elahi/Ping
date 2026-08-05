@@ -69,7 +69,7 @@ class BrowserExpansionV1AArtifactTests(unittest.TestCase):
         self.assertEqual(self.candidates[:148], self.historical)
         self.assertEqual(self.validated[:148], self.historical)
         self.assertEqual(self.production[:148], self.historical)
-        self.assertEqual(len(self.production), 156)
+        self.assertEqual(len(self.production), 160)
 
     def test_02_exact_ten_company_inventory_in_master_order(self):
         self.assertEqual([row["company"] for row in self.inventory], batch.REVIEWED_COMPANIES)
@@ -141,7 +141,7 @@ class BrowserExpansionV1AArtifactTests(unittest.TestCase):
         ]
         validated_promotions = self.validated[148:]
         self.assertEqual([entry["name"] for entry in validated_promotions], expected_promotions)
-        self.assertEqual(self.production[148:], validated_promotions)
+        self.assertEqual(self.production[148:156], validated_promotions)
         for validated_entry in validated_promotions:
             matches = [entry for entry in self.production if entry["name"] == validated_entry["name"]]
             self.assertEqual(matches, [validated_entry])

@@ -1935,3 +1935,73 @@ target_companies:
     max_pages: 1
     max_jobs: 20
     max_response_bytes: 3000000
+  - name: Tourmaline Oil
+    platform: javascript_embedded_data
+    careers_url: https://www.tourmalineoil.com/careers
+    source_identity_regex: Tourmaline Oil
+    allowed_apply_hosts:
+    - tourmaline.cdn.prismic.io
+    original_workbook_rank: 181
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    listing_url: https://www.tourmalineoil.com/careers
+    endpoint_variant: next_data
+    embedded_script_selector: script#__NEXT_DATA__
+    embedded_json_path: props.pageProps.pageData.data.body[1].items
+    id_field: link.id
+    title_field: label
+    url_field: link.url
+    max_scripts: 1
+    max_script_bytes: 1000000
+  - name: MDA Space
+    platform: browser_rendered_html
+    careers_url: https://mda.space/careers
+    listing_url: https://recruiting.ultipro.ca/MAC5000MCDW/JobBoard/664818ff-3594-4bec-9f30-3394e59e19f3/
+    endpoint_variant: browser_rendered_html_v1
+    browser_wait_selector: a[data-automation='job-title']
+    browser_scroll_steps: 0
+    browser_static_variant: server_rendered_links
+    browser_identity_selector: body
+    browser_identity_regex: MDA Space
+    listing_selector: div#Opportunities
+    job_card_selector: a[data-automation=job-title]
+    title_selector: :self
+    location_selector: null
+    detail_link_selector: :self
+    external_id_regex: '[?&]opportunityId=([0-9a-f-]+)'
+    external_id_attribute: null
+    department_selector: null
+    date_selector: null
+    allowed_apply_hosts:
+    - recruiting.ultipro.ca
+    original_workbook_rank: 192
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+  - name: JD.com
+    platform: workday
+    careers_url: https://corporate.jd.com/careers
+    source_identity_regex: JoyGen
+    allowed_apply_hosts:
+    - jd.wd103.myworkdayjobs.com
+    original_workbook_rank: 203
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    tenant: jd
+    wd_subdomain: wd103
+    site_id: Campus_Career_Site
+    search_url: https://jd.wd103.myworkdayjobs.com/Campus_Career_Site
+  - name: Patreon
+    platform: ashby
+    careers_url: https://www.patreon.com/careers
+    source_identity_regex: Patreon
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+    original_workbook_rank: 243
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: patreon
+    search_url: https://jobs.ashbyhq.com/patreon

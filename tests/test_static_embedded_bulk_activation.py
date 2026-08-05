@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BATCH_B_VALIDATED_REGISTRY = ROOT / "config" / "target_companies.adapter_extensions_v4b_validated.yaml"
 PILOT_VALIDATED_REGISTRY = ROOT / "config" / "target_companies.browser_pilot_v1_validated.yaml"
 BROWSER_EXPANSION_V1A_VALIDATED_REGISTRY = ROOT / "config" / "target_companies.browser_expansion_v1a_validated.yaml"
+BROWSER_EXPANSION_V1B_VALIDATED_REGISTRY = ROOT / "config" / "target_companies.browser_expansion_v1b_validated.yaml"
 LATER_PROMOTION_ARTIFACTS = {
     BATCH_B_VALIDATED_REGISTRY: {"IMC Trading", "Unitree Robotics"},
     PILOT_VALIDATED_REGISTRY: {"Figure AI", "LINE"},
@@ -28,6 +29,7 @@ LATER_PROMOTION_ARTIFACTS = {
         "Aurora Innovation",
         "Dassault Systèmes",
     },
+    BROWSER_EXPANSION_V1B_VALIDATED_REGISTRY: {"Tourmaline Oil", "Patreon"},
 }
 
 EXPECTED_REVIEWED_COMPANIES = [
