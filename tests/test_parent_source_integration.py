@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch
 
 import yaml
 
+from scripts import validate_company_registry as registry_validation
 from scripts import validate_parent_source_integration as validation
 from src.integrations.google_sheets_publisher import GoogleSheetsPublisher
 from src.integrations.supabase_job_store import (
@@ -433,22 +434,132 @@ class ParentSourceSheetsAndRegistryTests(unittest.TestCase):
         self.assertEqual(applications.clear_calls, 0)
         self.assertEqual(applications.update_calls, [])
 
-    def test_30_candidate_registries_preserve_production_bytes_and_append_only_teradyne(self):
-        production = PRODUCTION.read_bytes()
-        for path in (CANDIDATES, VALIDATED):
-            data = path.read_bytes()
-            self.assertTrue(data.startswith(production))
-            targets = load_target_companies(str(path))
-            appended = targets[len(load_target_companies(str(PRODUCTION))) :]
-            self.assertEqual([target.name for target in appended], ["Teradyne"])
+    def test_30_historical_registries_append_only_reviewed_teradyne_source(self):
+        teradyne_marker = b"  - name: Teradyne"
+        candidate_bytes = CANDIDATES.read_bytes()
+        validated_bytes = VALIDATED.read_bytes()
+
+        self.assertEqual(candidate_bytes.count(teradyne_marker), 1)
+        self.assertEqual(validated_bytes.count(teradyne_marker), 1)
+        candidate_prefix = candidate_bytes[: candidate_bytes.index(teradyne_marker)]
+        validated_prefix = validated_bytes[: validated_bytes.index(teradyne_marker)]
+        self.assertEqual(candidate_prefix, validated_prefix)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            historical_path = Path(temp_dir) / "historical_parent_source_baseline.yaml"
+            historical_path.write_bytes(candidate_prefix)
+            historical_targets = load_target_companies(str(historical_path))
+
+        self.assertEqual(len(historical_targets), 92)
+        historical_names = [target.name for target in historical_targets]
+        for path, data in (
+            (CANDIDATES, candidate_bytes),
+            (VALIDATED, validated_bytes),
+        ):
+            with self.subTest(registry=path.name):
+                _, entries = registry_validation.load_registry(path)
+                targets = load_target_companies(str(path))
+                self.assertTrue(data.startswith(candidate_prefix))
+                self.assertEqual(
+                    [target.name for target in targets],
+                    [entry["name"] for entry in entries],
+                )
+                self.assertEqual(
+                    [target.name for target in targets[: len(historical_targets)]],
+                    historical_names,
+                )
+
+                appended = entries[len(historical_targets) :]
+                self.assertEqual(len(appended), 1)
+                teradyne = appended[0]
+                self.assertEqual(teradyne["name"], "Teradyne")
+                self.assertEqual(teradyne["platform"], "sap_successfactors")
+                self.assertEqual(
+                    teradyne["search_url"], "https://jobs.teradyne.com/search/"
+                )
+                self.assertEqual(teradyne["allowed_apply_hosts"], ["jobs.teradyne.com"])
+                self.assertEqual(
+                    registry_validation.source_key(teradyne),
+                    "sap_successfactors:jobs.teradyne.com",
+                )
+
+                normalized_names = [
+                    registry_validation._name_key(entry) for entry in entries
+                ]
+                normalized_sources = [
+                    source
+                    for entry in entries
+                    if (source := registry_validation.source_key(entry)) is not None
+                ]
+                self.assertNotIn("Universal Robots", [entry["name"] for entry in entries])
+                self.assertTrue(all(normalized_names))
+                self.assertEqual(len(normalized_names), len(set(normalized_names)))
+                self.assertEqual(len(normalized_sources), len(set(normalized_sources)))
+
+        self.assertTrue(PRODUCTION.read_bytes().startswith(validated_bytes))
 
     def test_31_universal_robots_is_never_an_independent_registry_target(self):
         for path in (PRODUCTION, CANDIDATES, VALIDATED):
             names = {target.name for target in load_target_companies(str(path))}
             self.assertNotIn("Universal Robots", names)
 
-    def test_32_production_registry_remains_unchanged_at_92_entries(self):
-        self.assertEqual(len(load_target_companies(str(PRODUCTION))), 92)
+    def test_32_promoted_parent_source_preserves_production_integrity(self):
+        _, production = registry_validation.load_registry(PRODUCTION)
+        loaded_targets = load_target_companies(str(PRODUCTION))
+        teradyne_entries = [
+            entry
+            for entry in production
+            if registry_validation._name_key(entry) == "teradyne"
+        ]
+
+        self.assertEqual(len(teradyne_entries), 1)
+        teradyne = teradyne_entries[0]
+        self.assertEqual(teradyne["platform"], "sap_successfactors")
+        self.assertEqual(teradyne["search_url"], "https://jobs.teradyne.com/search/")
+        self.assertEqual(teradyne["allowed_apply_hosts"], ["jobs.teradyne.com"])
+        self.assertEqual(
+            registry_validation.source_key(teradyne),
+            "sap_successfactors:jobs.teradyne.com",
+        )
+
+        production_names = [entry["name"] for entry in production]
+        self.assertNotIn("Universal Robots", production_names)
+
+        mappings = load_parent_source_mappings(MAPPINGS_PATH)
+        self.assertEqual(
+            {
+                mapping.child_company: (
+                    mapping.parent_company,
+                    mapping.canonical_source,
+                )
+                for mapping in mappings
+            },
+            {
+                "Instagram": ("Meta", "custom:meta"),
+                "WhatsApp": ("Meta", "custom:meta"),
+                "Universal Robots": (
+                    "Teradyne",
+                    "sap_successfactors:jobs.teradyne.com",
+                ),
+            },
+        )
+        self.assertTrue(all(mapping.enabled for mapping in mappings))
+
+        normalized_names = [
+            registry_validation._name_key(entry) for entry in production
+        ]
+        normalized_sources = [
+            source
+            for entry in production
+            if (source := registry_validation.source_key(entry)) is not None
+        ]
+        self.assertTrue(all(normalized_names))
+        self.assertEqual(len(normalized_names), len(set(normalized_names)))
+        self.assertEqual(len(normalized_sources), len(set(normalized_sources)))
+        self.assertEqual(
+            [target.name for target in loaded_targets],
+            production_names,
+        )
 
 
 class ParentSourceValidationIsolationTests(unittest.TestCase):
