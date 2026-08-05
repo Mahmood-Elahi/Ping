@@ -27,12 +27,14 @@ from src.scraper.company_careers.adapters import (
     ashby,
     avature,
     eightfold,
+    embedded_data,
     greenhouse,
     icims,
     lever,
     oracle_recruiting,
     phenom,
     sap_successfactors,
+    static_html,
     workday,
 )
 from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
@@ -102,6 +104,8 @@ ADAPTERS: dict[str, AdapterFn] = {
     "phenom": phenom.fetch_jobs,
     "avature": avature.fetch_jobs,
     "icims": icims.fetch_jobs,
+    "static_html": static_html.fetch_jobs,
+    "javascript_embedded_data": embedded_data.fetch_jobs,
 }
 
 
@@ -161,6 +165,9 @@ def source_key(entry: Mapping[str, Any]) -> Optional[str]:
         host = (urlparse(str(entry.get("endpoint_url") or entry.get("search_url") or "")).hostname or "").casefold()
         board_id = str(entry.get("board_id") or "").strip().casefold()
         return f"{platform}:{host}:{board_id}" if host and board_id else None
+    if platform in {"static_html", "javascript_embedded_data"}:
+        host = (urlparse(str(entry.get("listing_url") or "")).hostname or "").casefold()
+        return f"{platform}:{host}" if host else None
     return None
 
 
@@ -213,6 +220,13 @@ def configured_identifiers(entry: Mapping[str, Any]) -> dict[str, Any]:
             "board_id": entry.get("board_id"),
             "endpoint_variant": entry.get("endpoint_variant"),
         }
+    if platform in {"static_html", "javascript_embedded_data"}:
+        return {
+            "listing_url": entry.get("listing_url"),
+            "endpoint_variant": entry.get("endpoint_variant"),
+            "job_card_selector": entry.get("job_card_selector"),
+            "embedded_json_path": entry.get("embedded_json_path"),
+        }
     return {}
 
 
@@ -251,6 +265,9 @@ def endpoint_for(entry: Mapping[str, Any]) -> Optional[str]:
         return endpoint or None
     if platform in {"avature", "icims"}:
         endpoint = str(entry.get("endpoint_url") or entry.get("search_url") or "").strip()
+        return endpoint or None
+    if platform in {"static_html", "javascript_embedded_data"}:
+        endpoint = str(entry.get("listing_url") or "").strip()
         return endpoint or None
     return None
 
@@ -319,6 +336,16 @@ def configuration_error(entry: Mapping[str, Any]) -> Optional[str]:
             icims.validate_target(target)
         except AdapterError as exc:
             return str(exc)
+    if platform == "static_html":
+        try:
+            static_html.validate_target(target)
+        except AdapterError as exc:
+            return str(exc)
+    if platform == "javascript_embedded_data":
+        try:
+            embedded_data.validate_target(target)
+        except AdapterError as exc:
+            return str(exc)
     return None
 
 
@@ -378,7 +405,7 @@ class RecordingRetrySession:
 
 
 def _response_shape_error(platform: str, response: Any) -> Optional[str]:
-    if platform in {"sap_successfactors", "phenom", "avature"} or (
+    if platform in {"sap_successfactors", "phenom", "avature", "static_html", "javascript_embedded_data"} or (
         platform == "icims"
         and "html" in str(getattr(response, "headers", {}).get("content-type", "")).casefold()
     ):
@@ -866,6 +893,19 @@ def validate_company(
             result["total_available_jobs"] = pagination.get("total_available")
             warnings = list(pagination.get("warnings") or [])
             diagnostics = list(pagination.get("diagnostics") or [])
+            if result["safe_to_activate"] and (warnings or diagnostics):
+                messages = [str(item) for item in warnings]
+                if diagnostics:
+                    messages.append(f"Skipped {len(diagnostics)} malformed or duplicate job entries")
+                result["warning"] = "; ".join(messages)
+    elif platform in {"static_html", "javascript_embedded_data"}:
+        attribute = "static_html_pagination" if platform == "static_html" else "embedded_data_pagination"
+        pagination = getattr(session, attribute, None)
+        if isinstance(pagination, Mapping):
+            result["pagination_result"] = dict(pagination)
+            result["pages_requested"] = int(pagination.get("pages_fetched") or 0)
+            diagnostics = list(pagination.get("diagnostics") or [])
+            warnings = list(pagination.get("warnings") or [])
             if result["safe_to_activate"] and (warnings or diagnostics):
                 messages = [str(item) for item in warnings]
                 if diagnostics:

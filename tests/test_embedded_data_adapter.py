@@ -1,0 +1,194 @@
+from __future__ import annotations
+
+import json
+import unittest
+from unittest.mock import patch
+
+from src.scraper.company_careers.adapters import embedded_data
+from src.scraper.company_careers.models import AdapterError, CompanyTarget
+
+
+class Response:
+    def __init__(self, body: str, status: int = 200, content_type: str = "text/html"):
+        self.text = body
+        self.content = body.encode()
+        self.status_code = status
+        self.url = "https://careers.example.test/jobs"
+        self.headers = {"content-type": content_type}
+        self.history = []
+
+
+class Session:
+    def __init__(self, *responses):
+        self.responses = list(responses)
+        self.calls = []
+
+    def get(self, url, **kwargs):
+        self.calls.append((url, kwargs))
+        value = self.responses.pop(0)
+        if isinstance(value, Exception):
+            raise value
+        value.url = url
+        return value
+
+
+def item(job_id="1", title="Engineer", url="https://apply.example.test/jobs/1", **extra):
+    return {"id": job_id, "title": title, "url": url, "locations": ["Remote", "Calgary"],
+            "date": "2026-08-01", "departments": ["Engineering"], "mode": "Hybrid", **extra}
+
+
+def document(payload, selector_id="state", script_type="application/json", extra=""):
+    body = json.dumps(payload)
+    return f"<html><title>Jobs</title><body><script id='{selector_id}' type='{script_type}'>{body}</script>{extra}</body></html>"
+
+
+def target(**overrides):
+    values = dict(name="Example", platform="javascript_embedded_data", listing_url="https://careers.example.test/jobs",
+                  endpoint_variant="inline_json", embedded_script_selector="script#state",
+                  embedded_json_path="data.jobs", id_field="id", title_field="title", url_field="url",
+                  location_field="locations", date_field="date", department_field="departments",
+                  remote_field="mode", allowed_apply_hosts=["apply.example.test"], max_pages=1, max_jobs=20)
+    values.update(overrides)
+    return CompanyTarget(**values)
+
+
+class EmbeddedDataAdapterTests(unittest.TestCase):
+    def test_01_json_ld_job_posting_normalization(self):
+        posting = {"@context": "https://schema.org", "@type": "JobPosting", "title": "ML Engineer",
+                   "identifier": {"value": "abc"}, "url": "https://apply.example.test/jobs/abc",
+                   "datePosted": "2026-08-01", "jobLocationType": "TELECOMMUTE",
+                   "jobLocation": [{"address": {"addressLocality": "Calgary", "addressRegion": "AB", "addressCountry": "CA"}}]}
+        html = document(posting, selector_id="", script_type="application/ld+json")
+        t = target(endpoint_variant="json_ld_job_posting", embedded_script_selector=None,
+                   embedded_json_path=None, id_field=None, title_field=None, url_field=None)
+        job = embedded_data.fetch_jobs(Session(Response(html)), t)[0]
+        self.assertEqual((job.title, job.location), ("ML Engineer", "Calgary, AB, CA | TELECOMMUTE"))
+
+    def test_02_inline_json_normalization(self):
+        job = embedded_data.fetch_jobs(Session(Response(document({"data": {"jobs": [item()]}}))), target())[0]
+        self.assertEqual(job.departments, ["Engineering"])
+
+    def test_03_next_data_normalization(self):
+        t = target(endpoint_variant="next_data", embedded_script_selector="script#__NEXT_DATA__", embedded_json_path="props.pageProps.jobs")
+        html = document({"props": {"pageProps": {"jobs": [item()]}}}, selector_id="__NEXT_DATA__")
+        self.assertEqual(embedded_data.fetch_jobs(Session(Response(html)), t)[0].title, "Engineer")
+
+    def test_04_reviewed_json_path_enforcement(self):
+        with self.assertRaisesRegex(AdapterError, "missing component"):
+            embedded_data.fetch_jobs(Session(Response(document({"other": []}))), target())
+
+    def test_05_stable_id_and_apply_host(self):
+        job = embedded_data.fetch_jobs(Session(Response(document({"data": {"jobs": [item("stable-7")]}}))), target())[0]
+        self.assertTrue(job.job_id.endswith(":stable-7"))
+        with self.assertRaisesRegex(AdapterError, "allowed-host"):
+            embedded_data.fetch_jobs(Session(Response(document({"data": {"jobs": [item(url="https://evil.test/1")]}}))), target())
+
+    def test_06_multiple_locations_date_department_remote(self):
+        job = embedded_data.fetch_jobs(Session(Response(document({"data": {"jobs": [item()]}}))), target())[0]
+        self.assertEqual(job.offices, ["Remote", "Calgary", "Hybrid"])
+        self.assertEqual((job.updated_at, job.departments), ("2026-08-01", ["Engineering"]))
+        self.assertEqual(job.raw_metadata["work_modes"], ["Remote", "Hybrid"])
+
+    @patch("src.scraper.company_careers.adapters.embedded_data.time.sleep", lambda _: None)
+    def test_07_deterministic_pagination(self):
+        session = Session(Response(document({"data": {"jobs": [item("1")]}})), Response(document({"data": {"jobs": [item("2", url="https://apply.example.test/jobs/2")]}})))
+        jobs = embedded_data.fetch_jobs(session, target(max_pages=2, pagination_url_template="https://careers.example.test/jobs?page={page}"))
+        self.assertEqual(len(jobs), 2)
+
+    @patch("src.scraper.company_careers.adapters.embedded_data.time.sleep", lambda _: None)
+    def test_08_repeated_data_termination(self):
+        body = document({"data": {"jobs": [item()]}})
+        session = Session(Response(body), Response(body))
+        embedded_data.fetch_jobs(session, target(max_pages=2, pagination_url_template="https://careers.example.test/jobs?page={page}"))
+        self.assertEqual(session.embedded_data_pagination["stop_reason"], "repeated_data")
+
+    @patch("src.scraper.company_careers.adapters.embedded_data.time.sleep", lambda _: None)
+    def test_09_no_new_id_termination(self):
+        a = document({"data": {"jobs": [item("1", url="https://apply.example.test/jobs/a")]}})
+        b = document({"data": {"jobs": [item("1", url="https://apply.example.test/jobs/b")]}})
+        session = Session(Response(a), Response(b))
+        embedded_data.fetch_jobs(session, target(max_pages=2, pagination_url_template="https://careers.example.test/jobs?page={page}"))
+        self.assertEqual(session.embedded_data_pagination["stop_reason"], "no_new_stable_ids")
+
+    def test_10_valid_empty_embedded_collection(self):
+        session = Session(Response(document({"data": {"jobs": []}})))
+        self.assertEqual(embedded_data.fetch_jobs(session, target()), [])
+        self.assertTrue(session.embedded_data_pagination["zero_job_contract"])
+
+    def test_11_malformed_json_rejection(self):
+        with self.assertRaisesRegex(AdapterError, "malformed JSON"):
+            embedded_data.fetch_jobs(Session(Response("<html><script id='state' type='application/json'>{bad</script></html>")), target())
+
+    def test_12_generic_script_bundle_rejection(self):
+        body = "<html><script id='state' src='/bundle.js'></script></html>"
+        with self.assertRaisesRegex(AdapterError, "external script bundles"):
+            embedded_data.fetch_jobs(Session(Response(body)), target())
+
+    def test_13_script_count_limit(self):
+        scripts = "".join(f"<script class='state' type='application/json'>{{\"data\":{{\"jobs\":[]}}}}</script>" for _ in range(3))
+        with self.assertRaisesRegex(AdapterError, "script-count"):
+            embedded_data.fetch_jobs(Session(Response(f"<html>{scripts}</html>")), target(embedded_script_selector="script.state", max_scripts=2))
+
+    def test_14_script_and_response_byte_limits(self):
+        with self.assertRaisesRegex(AdapterError, "script byte"):
+            embedded_data.fetch_jobs(Session(Response(document({"data": {"jobs": [], "pad": "x" * 100}}))), target(max_script_bytes=20))
+        with self.assertRaisesRegex(AdapterError, "response exceeded"):
+            embedded_data.fetch_jobs(Session(Response(document({"data": {"jobs": []}}))), target(max_response_bytes=10))
+
+    def test_15_authentication_browser_session_blocked_rejection(self):
+        bodies = [("<html><title>Login</title></html>", "authentication"),
+                  ("<html>Enable JavaScript to continue</html>", "browser"),
+                  ("<html><title>Session Expired</title></html>", "session"),
+                  ("<html>Cloudflare challenge</html>", "blocked")]
+        for body, message in bodies:
+            with self.subTest(message=message), self.assertRaisesRegex(AdapterError, message):
+                embedded_data.fetch_jobs(Session(Response(body)), target())
+
+    @patch("src.scraper.company_careers.adapters.embedded_data.time.sleep", lambda _: None)
+    def test_16_retry_bounds(self):
+        session = Session(Response("", 503), Response(document({"data": {"jobs": []}})))
+        self.assertEqual(embedded_data.fetch_jobs(session, target()), [])
+        self.assertEqual(len(session.calls), 2)
+
+    def test_17_page_and_job_limits(self):
+        with self.assertRaisesRegex(AdapterError, "hard maximum"):
+            embedded_data.validate_target(target(max_pages=3))
+        jobs = [item(str(i), url=f"https://apply.example.test/jobs/{i}") for i in range(10)]
+        self.assertEqual(len(embedded_data.fetch_jobs(Session(Response(document({"data": {"jobs": jobs}}))), target(max_jobs=3))), 3)
+
+    def test_18_unsupported_schema_and_path_rejection(self):
+        with self.assertRaisesRegex(AdapterError, "unsupported variant"):
+            embedded_data.validate_target(target(endpoint_variant="nuxt_reference_state"))
+        with self.assertRaisesRegex(AdapterError, "JSON path is invalid"):
+            embedded_data.validate_target(target(embedded_json_path="data.*"))
+
+    def test_19_fallback_id_and_apply_template(self):
+        raw = item(job_id="", url="slug", slug="job-slug")
+        t = target(id_field=None, allow_url_id_fallback=True, apply_url_template="https://apply.example.test/jobs/{slug}")
+        job = embedded_data.fetch_jobs(Session(Response(document({"data": {"jobs": [raw]}}))), t)[0]
+        self.assertEqual(job.url, "https://apply.example.test/jobs/job-slug")
+        self.assertTrue(job.job_id)
+
+    def test_20_no_javascript_execution_surface(self):
+        import inspect
+        source = inspect.getsource(embedded_data)
+        for forbidden in ("eval(", "exec(", "playwright", "selenium"):
+            self.assertNotIn(forbidden, source.casefold())
+
+    def test_21_non_html_and_missing_script_rejected(self):
+        with self.assertRaises(AdapterError):
+            embedded_data.fetch_jobs(Session(Response("{}", content_type="application/json")), target())
+        with self.assertRaisesRegex(AdapterError, "did not match"):
+            embedded_data.fetch_jobs(Session(Response("<html><title>Jobs</title></html>")), target())
+
+    def test_22_explicit_public_json_reference(self):
+        page = "<html><title>Jobs</title><script data-jobs-url='https://careers.example.test/api/jobs'></script></html>"
+        payload = json.dumps({"data": {"jobs": [item()]}})
+        session = Session(Response(page), Response(payload, content_type="application/json"))
+        t = target(endpoint_variant="public_json_reference", embedded_script_selector="script[data-jobs-url]",
+                   endpoint_url="https://careers.example.test/api/jobs", reference_url_attribute="data-jobs-url")
+        self.assertEqual(embedded_data.fetch_jobs(session, t)[0].title, "Engineer")
+
+
+if __name__ == "__main__":
+    unittest.main()
