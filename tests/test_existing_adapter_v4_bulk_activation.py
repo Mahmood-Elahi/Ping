@@ -9,6 +9,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+import yaml
+
 from scripts import validate_company_registry as validator
 from scripts import validate_existing_adapter_v4_batch as batch
 from src.scraper.company_careers import scanner
@@ -19,9 +21,45 @@ from src.scraper.company_careers.registry import load_target_companies
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PRODUCTION_SHA256 = "966175F9AA6D0595903CB1AF527CF92A068CA21AFCC71551CBC535BBFA121C35"
+HISTORICAL_PRODUCTION_SHA256 = "966175F9AA6D0595903CB1AF527CF92A068CA21AFCC71551CBC535BBFA121C35"
 PARENT_MAPPINGS_SHA256 = "9FCFA2C5A6B78BB170422E7FD752569AB26BB38ED415F32782E28DB303A323B5"
 EXPECTED = ["Intel", "NXP Semiconductors", "KLA", "Capital One", "Unity", "Loft Orbital"]
+EXPECTED_SOURCE_IDENTITIES = [
+    "workday:intel:External",
+    "workday:nxp:careers",
+    "workday:kla:Search",
+    "workday:capitalone:Capital_One",
+    "workday:unitytech:Unity",
+    "lever:loftorbital",
+]
+
+
+def historical_prefix_bytes(path: Path) -> bytes:
+    marker = f"  - name: {EXPECTED[0]}".encode("utf-8")
+    content = path.read_bytes()
+    for line in content.splitlines(keepends=True):
+        if line.rstrip(b"\r\n") == marker:
+            return content[:content.index(line)]
+    raise AssertionError(f"{path} does not contain the first reviewed candidate {EXPECTED[0]}")
+
+
+def registry_entries_from_bytes(content: bytes) -> list[dict]:
+    data = yaml.safe_load(content.decode("utf-8")) or {}
+    return list(data.get("target_companies") or [])
+
+
+def historical_baseline_entries() -> list[dict]:
+    return registry_entries_from_bytes(historical_prefix_bytes(batch.CANDIDATE_REGISTRY))
+
+
+def configured_source_identity(entry: dict) -> str:
+    if entry["platform"] == "workday":
+        return f"workday:{entry['tenant']}:{entry['site_id']}"
+    return f"{entry['platform']}:{entry['slug']}"
+
+
+def normalized_newlines(content: bytes) -> bytes:
+    return content.replace(b"\r\n", b"\n")
 
 
 class FakeResponse:
@@ -123,11 +161,10 @@ class ExistingAdapterV4ArtifactTests(unittest.TestCase):
         batch.reconcile_candidates()
         self.assertEqual(batch.EXPECTED_COMPANIES, EXPECTED)
 
-    def test_03_current_production_companies_are_excluded_from_additions(self):
-        _, production = validator.load_registry(batch.PRODUCTION)
+    def test_03_candidate_additions_derive_from_historical_artifact_prefix(self):
         _, candidates = validator.load_registry(batch.CANDIDATE_REGISTRY)
         self.assertEqual(
-            [entry["name"] for entry in validator.detect_additions(production, candidates)],
+            [entry["name"] for entry in validator.detect_additions(historical_baseline_entries(), candidates)],
             EXPECTED,
         )
 
@@ -143,12 +180,18 @@ class ExistingAdapterV4ArtifactTests(unittest.TestCase):
         self.assertEqual(ranks, sorted(ranks))
 
     def test_06_historical_127_entry_byte_prefix_is_preserved(self):
-        production = batch.PRODUCTION.read_bytes()
-        self.assertTrue(batch.CANDIDATE_REGISTRY.read_bytes().startswith(production))
-        self.assertTrue(batch.VALIDATED_REGISTRY.read_bytes().startswith(production))
+        candidate_prefix = historical_prefix_bytes(batch.CANDIDATE_REGISTRY)
+        validated_prefix = historical_prefix_bytes(batch.VALIDATED_REGISTRY)
+        self.assertEqual(candidate_prefix, validated_prefix)
+        self.assertEqual(len(registry_entries_from_bytes(candidate_prefix)), batch.HISTORICAL_PRODUCTION_COUNT)
+        self.assertEqual(hashlib.sha256(candidate_prefix).hexdigest().upper(), HISTORICAL_PRODUCTION_SHA256)
+        self.assertTrue(batch.PRODUCTION.read_bytes().startswith(candidate_prefix))
 
-    def test_07_candidate_registry_count_is_127_plus_six(self):
-        self.assertEqual(len(load_target_companies(str(batch.CANDIDATE_REGISTRY))), 133)
+    def test_07_candidate_registry_contains_exactly_six_historical_additions(self):
+        _, candidates = validator.load_registry(batch.CANDIDATE_REGISTRY)
+        additions = validator.detect_additions(historical_baseline_entries(), candidates)
+        self.assertEqual([entry["name"] for entry in additions], EXPECTED)
+        self.assertEqual(len(additions), 6)
 
     def test_08_candidate_registry_is_loader_compatible(self):
         _, entries = validator.load_registry(batch.CANDIDATE_REGISTRY)
@@ -157,15 +200,17 @@ class ExistingAdapterV4ArtifactTests(unittest.TestCase):
     def test_09_validated_registry_contains_only_safe_candidates(self):
         report = __import__("json").loads(batch.REPORT.read_text(encoding="utf-8"))
         safe = [row["company"] for row in report["results"] if row["safe_to_activate"]]
-        _, production = validator.load_registry(batch.PRODUCTION)
         _, validated = validator.load_registry(batch.VALIDATED_REGISTRY)
-        additions = validator.detect_additions(production, validated)
+        additions = validator.detect_additions(historical_baseline_entries(), validated)
         self.assertEqual([entry["name"] for entry in additions], safe)
+        self.assertEqual(len(additions), 6)
 
     def test_10_validated_additions_preserve_candidate_order(self):
-        _, production = validator.load_registry(batch.PRODUCTION)
         _, validated = validator.load_registry(batch.VALIDATED_REGISTRY)
-        names = [entry["name"] for entry in validator.detect_additions(production, validated)]
+        names = [
+            entry["name"]
+            for entry in validator.detect_additions(historical_baseline_entries(), validated)
+        ]
         self.assertEqual(names, [name for name in EXPECTED if name in names])
 
     def test_11_historical_delta_uses_controlled_synthetic_baseline(self):
@@ -359,9 +404,39 @@ class ExistingAdapterV4ContractTests(unittest.TestCase):
             self._zero_job_validation()
         initialize.assert_not_called()
 
-    def test_37_production_registry_remains_unchanged(self):
-        digest = hashlib.sha256(batch.PRODUCTION.read_bytes()).hexdigest().upper()
-        self.assertEqual(digest, PRODUCTION_SHA256)
+    def test_37_production_contains_exact_promotions_and_remains_append_only(self):
+        _, production = validator.load_registry(batch.PRODUCTION)
+        _, validated = validator.load_registry(batch.VALIDATED_REGISTRY)
+        additions = validator.detect_additions(historical_baseline_entries(), validated)
+        production_names = [validator._name_key(entry) for entry in production]
+        production_sources = [validator.source_key(entry) for entry in production]
+        production_sources = [source for source in production_sources if source]
+
+        self.assertEqual(len(production_names), len(set(production_names)))
+        self.assertEqual(len(production_sources), len(set(production_sources)))
+        self.assertEqual([configured_source_identity(entry) for entry in additions], EXPECTED_SOURCE_IDENTITIES)
+        for addition in additions:
+            matches = [
+                entry for entry in production
+                if validator._name_key(entry) == validator._name_key(addition)
+            ]
+            self.assertEqual(matches, [addition])
+
+        workday_sites = [
+            (entry["tenant"].casefold(), entry["site_id"].casefold())
+            for entry in production if entry["platform"] == "workday"
+        ]
+        lever_boards = [
+            entry["slug"].casefold()
+            for entry in production if entry["platform"] == "lever"
+        ]
+        self.assertEqual(len(workday_sites), len(set(workday_sites)))
+        self.assertEqual(len(lever_boards), len(set(lever_boards)))
+        self.assertTrue(
+            normalized_newlines(batch.PRODUCTION.read_bytes()).startswith(
+                normalized_newlines(batch.VALIDATED_REGISTRY.read_bytes())
+            )
+        )
 
     def test_38_parent_mapping_configuration_remains_unchanged(self):
         digest = hashlib.sha256(batch.PARENT_MAPPINGS.read_bytes()).hexdigest().upper()

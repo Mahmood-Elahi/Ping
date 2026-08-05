@@ -97,7 +97,12 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
             if row["current_coverage_status"] == "uncovered"
         ]
         self.assertEqual(derived, self.reconciliation.uncovered_names)
-        self.assertEqual(len(derived), 124)
+        self.assertEqual(
+            len(derived),
+            self.reconciliation.total
+            - len(self.reconciliation.canonical_names)
+            - len(self.reconciliation.mapped_names),
+        )
 
     def test_06_every_original_company_appears_exactly_once(self):
         keys = [mod.normalize_company_name(row["company"]) for row in self.reconciliation.rows]
@@ -350,10 +355,14 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
         rows = [record(index, value, value, confidence="high") for index, value in enumerate(sorted(mod.UNSAFE_NEXT_BATCH_CLASSES), 1)]
         self.assertEqual(mod.build_next_batch(rows), [])
 
-    def test_57_production_registry_remains_byte_identical_to_head(self):
-        expected = subprocess.check_output(["git", "rev-parse", "HEAD:config/target_companies.yaml"], cwd=ROOT, text=True).strip()
-        observed = subprocess.check_output(["git", "hash-object", "--path=config/target_companies.yaml", "config/target_companies.yaml"], cwd=ROOT, text=True).strip()
-        self.assertEqual(observed, expected)
+    def test_57_reconciliation_does_not_modify_production_registry(self):
+        before = mod.PRODUCTION_REGISTRY.read_bytes()
+        mod.reconcile_master(
+            mod.load_master_workbook(),
+            mod.load_target_companies(str(mod.PRODUCTION_REGISTRY)),
+            mod.load_parent_source_mappings(mod.PARENT_MAPPINGS),
+        )
+        self.assertEqual(mod.PRODUCTION_REGISTRY.read_bytes(), before)
 
     def test_58_parent_mappings_remain_byte_identical_to_head(self):
         expected = subprocess.check_output(["git", "rev-parse", "HEAD:config/company_parent_source_mappings.yaml"], cwd=ROOT, text=True).strip()

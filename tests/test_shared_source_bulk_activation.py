@@ -122,8 +122,13 @@ class SharedSourceBulkActivationTests(unittest.TestCase):
             len(load_target_companies(str(rollout.CANDIDATE_REGISTRY))),
             historical_count + len(rollout.CANONICAL_ENTRIES),
         )
+        production = target_entries(rollout.PRODUCTION)
         self.assertEqual(
             len(load_target_companies(str(rollout.PRODUCTION))),
+            len(production),
+        )
+        self.assertGreaterEqual(
+            len(production),
             historical_count + len(rollout.SAFE_CANONICAL_NAMES),
         )
 
@@ -309,9 +314,12 @@ class SharedSourceBulkActivationTests(unittest.TestCase):
         production = target_entries(rollout.PRODUCTION)
         validated = additions(rollout.VALIDATED_REGISTRY)
         self.assertEqual(production[:len(historical)], historical)
-        self.assertEqual(production[len(historical):], validated)
         self.assertEqual(
-            [item["name"] for item in production[len(historical):]],
+            production[len(historical):len(historical) + len(validated)],
+            validated,
+        )
+        self.assertEqual(
+            [item["name"] for item in production[len(historical):len(historical) + len(validated)]],
             rollout.SAFE_CANONICAL_NAMES,
         )
         for expected in validated:
