@@ -9,8 +9,9 @@ import requests
 
 from scripts import validate_company_registry as validator
 from src.scraper.company_careers.adapters import eightfold
-from src.scraper.company_careers.models import AdapterError, CompanyTarget
+from src.scraper.company_careers.models import AdapterError, CompanyTarget, CoverageStatus
 from src.scraper.company_careers.registry import load_target_companies
+from src.scraper.company_careers.scanner import CompanyCareersScanner
 
 
 class FakeResponse:
@@ -194,7 +195,9 @@ class EightfoldAdapterTests(unittest.TestCase):
             [],
             {"status": 200},
             {"status": 200, "data": {"positions": {}, "count": 0}},
+            {"status": 200, "data": {"positions": []}},
             {"status": 200, "data": {"positions": [], "count": -1}},
+            {"status": 200, "data": {"positions": [], "count": "0"}},
             {"status": 500, "data": {"positions": [], "count": 0}},
         ]
         for value in invalid_payloads:
@@ -217,33 +220,127 @@ class EightfoldAdapterTests(unittest.TestCase):
         self.assertEqual([call[1]["params"]["start"] for call in session.calls], ["0", "10"])
         self.assertEqual(session.eightfold_pagination["offsets"], [0, 10])
         self.assertEqual(session.eightfold_pagination["stop_reason"], "total_jobs_reached")
+        self.assertEqual(session.eightfold_pagination["initial_total_available"], 15)
+        self.assertEqual(session.eightfold_pagination["final_total_available"], 15)
+        self.assertEqual(session.eightfold_pagination["observed_total_counts"], [15, 15])
+        self.assertFalse(session.eightfold_pagination["total_count_changed"])
+        self.assertEqual(session.eightfold_pagination["warnings"], [])
+
+    def test_total_count_increase_is_a_warning_and_unique_jobs_are_retained(self):
+        first = [position(index) for index in range(1, 11)]
+        second = [position(index) for index in range(11, 16)]
+        jobs, session = self.fetch(
+            [FakeResponse(payload(first, count=30)), FakeResponse(payload(second, count=31))]
+        )
+        pagination = session.eightfold_pagination
+        self.assertEqual(len(jobs), 15)
+        self.assertEqual(pagination["observed_total_counts"], [30, 31])
+        self.assertEqual(pagination["initial_total_available"], 30)
+        self.assertEqual(pagination["final_total_available"], 31)
+        self.assertTrue(pagination["total_count_changed"])
+        self.assertEqual(pagination["stop_reason"], "short_page")
+        self.assertIn(
+            "Eightfold total job count changed during pagination: 30 -> 31",
+            pagination["warnings"],
+        )
+
+    def test_total_count_decrease_uses_latest_hint_without_discarding_jobs(self):
+        first = [position(index) for index in range(1, 11)]
+        second = [position(index) for index in range(11, 20)]
+        jobs, session = self.fetch(
+            [FakeResponse(payload(first, count=30)), FakeResponse(payload(second, count=19))]
+        )
+        self.assertEqual(len(jobs), 19)
+        self.assertEqual(session.eightfold_pagination["final_total_available"], 19)
+        self.assertEqual(session.eightfold_pagination["stop_reason"], "total_jobs_reached")
+
+    def test_later_page_may_omit_count_but_not_jobs(self):
+        first = [position(index) for index in range(1, 11)]
+        second = [position(index) for index in range(11, 16)]
+        second_payload = payload(second, count=30)
+        second_payload["data"].pop("count")
+        jobs, session = self.fetch(
+            [FakeResponse(payload(first, count=30)), FakeResponse(second_payload)]
+        )
+        pagination = session.eightfold_pagination
+        self.assertEqual(len(jobs), 15)
+        self.assertEqual(pagination["observed_total_counts"], [30])
+        self.assertEqual(pagination["final_total_available"], 30)
+        self.assertEqual(pagination["stop_reason"], "short_page")
+        self.assertIn("omitted during pagination", pagination["warnings"][0])
+        self.assertEqual(pagination["diagnostics"][0]["level"], "warning")
+
+    def test_malformed_later_count_remains_fatal(self):
+        first = [position(index) for index in range(1, 11)]
+        with self.assertRaisesRegex(AdapterError, "count must be a non-negative integer"):
+            self.fetch(
+                [
+                    FakeResponse(payload(first, count=30)),
+                    FakeResponse(payload([position(11)], count="not-a-count")),
+                ]
+            )
 
     def test_repeated_page_detection(self):
         page = [position(index) for index in range(1, 11)]
         jobs, session = self.fetch(
-            [FakeResponse(payload(page, count=30)), FakeResponse(payload(page, count=30))]
+            [FakeResponse(payload(page, count=30)), FakeResponse(payload(page, count=31))]
         )
         self.assertEqual(len(jobs), 10)
         self.assertEqual(session.eightfold_pagination["stop_reason"], "repeated_page")
+        self.assertTrue(session.eightfold_pagination["total_count_changed"])
 
     def test_no_new_stable_id_stop(self):
         first = [position(index) for index in range(1, 11)]
         second = list(reversed(first))
         jobs, session = self.fetch(
-            [FakeResponse(payload(first, count=30)), FakeResponse(payload(second, count=30))]
+            [FakeResponse(payload(first, count=30)), FakeResponse(payload(second, count=29))]
         )
         self.assertEqual(len(jobs), 10)
         self.assertEqual(session.eightfold_pagination["stop_reason"], "no_new_stable_ids")
+        self.assertTrue(session.eightfold_pagination["total_count_changed"])
+
+    def test_all_total_observations_and_changes_are_diagnostic(self):
+        pages = [
+            FakeResponse(payload([position(index) for index in range(1, 11)], count=30)),
+            FakeResponse(payload([position(index) for index in range(11, 21)], count=31)),
+            FakeResponse(payload([position(index) for index in range(21, 30)], count=29)),
+        ]
+        jobs, session = self.fetch(pages, max_pages=3)
+        pagination = session.eightfold_pagination
+        self.assertEqual(len(jobs), 29)
+        self.assertEqual(pagination["observed_total_counts"], [30, 31, 29])
+        self.assertEqual(len(pagination["warnings"]), 2)
+        self.assertEqual(
+            [item["warning"] for item in pagination["diagnostics"]],
+            pagination["warnings"],
+        )
 
     def test_maximum_pages_and_results_are_enforced(self):
         pages = [
-            FakeResponse(payload([position(page * 10 + index) for index in range(1, 11)], count=100))
+            FakeResponse(
+                payload(
+                    [position(page * 10 + index) for index in range(1, 11)],
+                    count=100 + page,
+                )
+            )
             for page in range(5)
         ]
         jobs, session = self.fetch(pages, max_pages=5)
         self.assertEqual(len(jobs), eightfold.MAX_RESULTS)
         self.assertEqual(len(session.calls), eightfold.MAX_PAGES)
         self.assertEqual(session.eightfold_pagination["stop_reason"], "maximum_results_reached")
+        self.assertEqual(
+            session.eightfold_pagination["observed_total_counts"],
+            [100, 101, 102, 103, 104],
+        )
+
+    def test_empty_page_stops_safely_despite_reported_total(self):
+        first = [position(index) for index in range(1, 11)]
+        jobs, session = self.fetch(
+            [FakeResponse(payload(first, count=30)), FakeResponse(payload([], count=29))]
+        )
+        self.assertEqual(len(jobs), 10)
+        self.assertEqual(session.eightfold_pagination["stop_reason"], "empty_page")
 
     def test_maximum_page_configuration_is_rejected_without_network(self):
         session = FakeSession([])
@@ -330,6 +427,66 @@ class EightfoldValidationTests(unittest.TestCase):
         self.assertEqual(result["sample_job_id"], "eightfold:careers.example.com:REQ-1")
         self.assertEqual(result["sample_location"], "Calgary, Alberta, Canada | Edmonton, Alberta, Canada | Hybrid")
         self.assertEqual(result["sample_posting_date"], "2026-08-04")
+
+    @patch.object(eightfold.time, "sleep", return_value=None)
+    def test_validator_succeeds_with_total_drift_and_reports_warning(self, _sleep):
+        first = [position(index) for index in range(1, 11)]
+        second = [position(index) for index in range(11, 21)]
+        session = FakeSession(
+            [FakeResponse(payload(first, count=1790)), FakeResponse(payload(second, count=1789))]
+        )
+        result = validator.validate_company(
+            registry_entry(),
+            session_factory=lambda: session,
+            sleep=lambda _: None,
+        )
+        self.assertEqual(result["validation_status"], validator.VALIDATED_WITH_JOBS)
+        self.assertEqual(result["result_status"], "success")
+        self.assertTrue(result["safe_to_activate"])
+        self.assertEqual(result["jobs_returned"], 20)
+        self.assertEqual(result["total_available_jobs"], 1789)
+        self.assertEqual(
+            result["warning"],
+            "Eightfold total job count changed during pagination: 1790 -> 1789",
+        )
+        self.assertEqual(
+            result["pagination_result"]["observed_total_counts"],
+            [1790, 1789],
+        )
+
+    @patch.object(eightfold.time, "sleep", return_value=None)
+    def test_microsoft_style_two_page_scanner_scan_is_not_failed_technical(self, _sleep):
+        first = [position(index) for index in range(1, 11)]
+        second = [position(index) for index in range(11, 21)]
+        session = FakeSession(
+            [FakeResponse(payload(first, count=1790)), FakeResponse(payload(second, count=1789))]
+        )
+        microsoft = target(
+            name="Microsoft",
+            careers_url="https://apply.careers.microsoft.com/careers",
+            endpoint_url="https://apply.careers.microsoft.com/api/pcsx/search",
+            organization_id="microsoft.com",
+        )
+        report = CompanyCareersScanner(targets=[microsoft], session=session).scan()
+        result = report.results[0]
+        self.assertEqual(result.status, CoverageStatus.FETCHED)
+        self.assertNotEqual(result.status, CoverageStatus.FAILED_TECHNICAL)
+        self.assertEqual(result.fetched_count, 20)
+        self.assertTrue(
+            all(
+                job.job_id.startswith("eightfold:apply.careers.microsoft.com:")
+                for job in result.jobs
+            )
+        )
+        self.assertTrue(
+            all(
+                job.url.startswith(
+                    "https://apply.careers.microsoft.com/careers/job/"
+                )
+                for job in result.jobs
+            )
+        )
+        self.assertTrue(session.eightfold_pagination["total_count_changed"])
 
     def test_validator_classifies_auth_browser_session_blocked_and_malformed(self):
         cases = [

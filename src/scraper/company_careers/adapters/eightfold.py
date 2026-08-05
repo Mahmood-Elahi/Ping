@@ -54,11 +54,16 @@ def fetch_jobs(
         "maximum_pages": max_pages,
         "maximum_results": maximum_results,
         "total_available": None,
+        "initial_total_available": None,
+        "final_total_available": None,
+        "observed_total_counts": [],
+        "total_count_changed": False,
         "jobs_normalized": 0,
         "offsets": [],
         "pages": [],
         "stop_reason": "not_started",
         "diagnostics": [],
+        "warnings": [],
     }
     setattr(session, "eightfold_pagination", metadata)
 
@@ -78,12 +83,12 @@ def fetch_jobs(
             "start": str(offset),
         }
         response = _get_page(session, target, params, timeout)
-        positions, total = _parse_page(response, offset)
-
-        if metadata["total_available"] is None:
-            metadata["total_available"] = total
-        elif total != metadata["total_available"]:
-            raise AdapterError("Eightfold total job count changed during pagination")
+        positions, total = _parse_page(
+            response,
+            offset,
+            allow_missing_count=metadata["final_total_available"] is not None,
+        )
+        _record_total_observation(metadata, offset, total)
 
         page_ids = tuple(_position_identity(item) for item in positions)
         if positions and page_ids in seen_page_ids:
@@ -93,6 +98,7 @@ def fetch_jobs(
                     "url": getattr(response, "url", str(target.endpoint_url)),
                     "jobs_returned": len(positions),
                     "jobs_normalized": 0,
+                    "reported_total": total,
                 }
             )
             metadata["offsets"].append(offset)
@@ -132,19 +138,24 @@ def fetch_jobs(
                 "url": getattr(response, "url", str(target.endpoint_url)),
                 "jobs_returned": len(positions),
                 "jobs_normalized": new_id_count,
+                "reported_total": total,
             }
         )
         metadata["offsets"].append(offset)
         metadata["pages_fetched"] = len(metadata["pages"])
         metadata["jobs_normalized"] = len(jobs)
 
-        if total == 0:
+        if total == 0 and offset == 0 and not jobs:
             metadata["stop_reason"] = "validated_zero_jobs"
+            break
+        if not positions:
+            metadata["stop_reason"] = "empty_page"
             break
         if positions and new_id_count == 0:
             metadata["stop_reason"] = "no_new_stable_ids"
             break
-        if offset + len(positions) >= total:
+        latest_total = metadata["final_total_available"]
+        if latest_total is not None and offset + len(positions) >= latest_total:
             metadata["stop_reason"] = "total_jobs_reached"
             break
         if len(positions) < PAGE_SIZE:
@@ -161,6 +172,47 @@ def fetch_jobs(
     if metadata["stop_reason"] == "not_started":
         metadata["stop_reason"] = "maximum_pages_reached"
     return jobs
+
+
+def _record_total_observation(
+    metadata: dict[str, Any],
+    offset: int,
+    total: Optional[int],
+) -> None:
+    if total is None:
+        message = (
+            "Eightfold total job count was omitted during pagination; "
+            f"using last observed count {metadata['final_total_available']}"
+        )
+        metadata["warnings"].append(message)
+        metadata["diagnostics"].append(
+            {"offset": offset, "level": "warning", "warning": message}
+        )
+        return
+
+    previous_total = metadata["final_total_available"]
+    metadata["observed_total_counts"].append(total)
+    if metadata["initial_total_available"] is None:
+        metadata["initial_total_available"] = total
+    elif previous_total is not None and total != previous_total:
+        message = (
+            "Eightfold total job count changed during pagination: "
+            f"{previous_total} -> {total}"
+        )
+        metadata["total_count_changed"] = True
+        metadata["warnings"].append(message)
+        metadata["diagnostics"].append(
+            {
+                "offset": offset,
+                "level": "warning",
+                "warning": message,
+                "previous_total_available": previous_total,
+                "total_available": total,
+            }
+        )
+    metadata["final_total_available"] = total
+    # Retain the existing field as a compatibility alias for the latest valid hint.
+    metadata["total_available"] = total
 
 
 def validate_target(target: CompanyTarget) -> None:
@@ -242,7 +294,12 @@ def _get_page(
     raise AdapterError(f"Eightfold request attempts exhausted for {target.name}")
 
 
-def _parse_page(response: Any, offset: int) -> tuple[list[Mapping[str, Any]], int]:
+def _parse_page(
+    response: Any,
+    offset: int,
+    *,
+    allow_missing_count: bool = False,
+) -> tuple[list[Mapping[str, Any]], Optional[int]]:
     content_type = str(getattr(response, "headers", {}).get("content-type", ""))
     text = str(getattr(response, "text", "") or "")
     if "html" in content_type.casefold() or text.lstrip().startswith("<"):
@@ -270,10 +327,13 @@ def _parse_page(response: Any, offset: int) -> tuple[list[Mapping[str, Any]], in
     if not isinstance(data, Mapping):
         raise AdapterError("Eightfold response must contain a data object")
     positions = data.get("positions")
+    count_present = "count" in data
     total = data.get("count")
     if not isinstance(positions, list):
         raise AdapterError("Eightfold data.positions must be a list")
-    if isinstance(total, bool) or not isinstance(total, int) or total < 0:
+    if not count_present and allow_missing_count:
+        total = None
+    elif isinstance(total, bool) or not isinstance(total, int) or total < 0:
         raise AdapterError("Eightfold data.count must be a non-negative integer")
     if len(positions) > PAGE_SIZE:
         raise AdapterError("Eightfold page exceeded the observed page size")
@@ -281,8 +341,6 @@ def _parse_page(response: Any, offset: int) -> tuple[list[Mapping[str, Any]], in
         raise AdapterError("Eightfold position entries must be JSON objects")
     if total == 0 and positions:
         raise AdapterError("Eightfold zero-job response unexpectedly contained positions")
-    if total > offset and not positions:
-        raise AdapterError("Eightfold response ended before its reported total job count")
     return positions, total
 
 

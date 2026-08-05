@@ -386,7 +386,9 @@ def _response_shape_error(platform: str, response: Any) -> Optional[str]:
         if not isinstance(data.get("positions"), list):
             return "Eightfold data must contain a positions list"
         count = data.get("count")
-        if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+        if "count" in data and (
+            isinstance(count, bool) or not isinstance(count, int) or count < 0
+        ):
             return "Eightfold data must contain a non-negative count"
         return None
     expected_key = {
@@ -732,12 +734,21 @@ def validate_company(
         if isinstance(pagination, Mapping):
             result["pagination_result"] = dict(pagination)
             result["pages_requested"] = int(pagination.get("pages_fetched") or 0)
-            result["total_available_jobs"] = pagination.get("total_available")
+            result["total_available_jobs"] = pagination.get("final_total_available")
             diagnostics = list(pagination.get("diagnostics") or [])
-            if diagnostics and result["safe_to_activate"]:
-                result["warning"] = (
-                    f"Skipped {len(diagnostics)} malformed or duplicate job entries"
-                )
+            error_diagnostics = [item for item in diagnostics if item.get("error")]
+            pagination_warnings = list(pagination.get("warnings") or [])
+            if result["safe_to_activate"]:
+                warning_messages = []
+                if result["warning"]:
+                    warning_messages.append(str(result["warning"]))
+                warning_messages.extend(str(message) for message in pagination_warnings)
+                if error_diagnostics:
+                    warning_messages.append(
+                        "Skipped "
+                        f"{len(error_diagnostics)} malformed or duplicate job entries"
+                    )
+                result["warning"] = "; ".join(warning_messages) or None
     elif platform == "phenom":
         pagination = getattr(session, "phenom_pagination", None)
         if isinstance(pagination, Mapping):
