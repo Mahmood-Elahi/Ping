@@ -10,7 +10,7 @@ import re
 import time
 from datetime import datetime
 from typing import Any, Iterable, List, Mapping, Optional
-from urllib.parse import urljoin, urlparse, urlunparse
+from urllib.parse import parse_qs, urljoin, urlparse, urlunparse
 
 import requests
 from lxml import html
@@ -199,6 +199,11 @@ def validate_target(target: CompanyTarget) -> None:
     for host in target.allowed_apply_hosts:
         if not HOST_RE.fullmatch(str(host)):
             raise AdapterError("iCIMS allowed_apply_hosts contains an invalid host")
+    if target.apply_url_id_query_param:
+        if target.endpoint_variant != JIBE_API:
+            raise AdapterError("iCIMS apply_url_id_query_param is supported only for Jibe feeds")
+        if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{0,63}", str(target.apply_url_id_query_param)):
+            raise AdapterError("iCIMS apply_url_id_query_param is invalid")
     if not 1 <= int(target.page_size) <= MAX_PAGE_SIZE:
         raise AdapterError(f"iCIMS page_size must be between 1 and {MAX_PAGE_SIZE}")
 
@@ -469,6 +474,13 @@ def _official_url(value: Any, target: CompanyTarget) -> tuple[str, str]:
         identifier = matches[-1] if matches else ""
     else:
         identifier = match.group(1) if match else ""
+    if not identifier and target.apply_url_id_query_param:
+        values = parse_qs(parsed.query, keep_blank_values=True).get(
+            str(target.apply_url_id_query_param), []
+        )
+        identifier = _clean(values[0]) if len(values) == 1 else ""
+        if identifier and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", identifier):
+            raise AdapterError("iCIMS apply URL query identifier is invalid")
     if not identifier:
         raise AdapterError("iCIMS apply URL has no stable job identifier")
     return urlunparse(parsed._replace(fragment="")), identifier

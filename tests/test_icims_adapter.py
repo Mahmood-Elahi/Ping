@@ -166,6 +166,37 @@ class ICIMSAdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(AdapterError, "endpoint_variant"):
             icims.fetch_jobs(Session([]), target(endpoint_variant="unknown"))
 
+    def test_33_allowlisted_query_parameter_apply_id(self):
+        record = item("009JY5")
+        record["data"]["apply_url"] = (
+            "https://legacy.example.com/careersection/2/jobdetail.ftl?job=009JY5&lang=en_US"
+        )
+        job = icims.fetch_jobs(
+            Session([page(record, total=1)]),
+            target(
+                page_size=10,
+                allowed_apply_hosts=["legacy.example.com"],
+                apply_url_id_query_param="job",
+            ),
+        )[0]
+        self.assertEqual(job.job_id, "icims:example:009JY5")
+        self.assertIn("job=009JY5", job.url)
+
+    def test_34_query_parameter_apply_id_requires_explicit_configuration(self):
+        record = item("009JY5")
+        record["data"]["apply_url"] = "https://legacy.example.com/jobdetail.ftl?job=009JY5"
+        with self.assertRaisesRegex(AdapterError, "none were valid"):
+            icims.fetch_jobs(
+                Session([page(record, total=1)]),
+                target(page_size=10, allowed_apply_hosts=["legacy.example.com"]),
+            )
+
+    def test_35_invalid_query_parameter_contract_fails_before_network(self):
+        session = Session([])
+        with self.assertRaisesRegex(AdapterError, "apply_url_id_query_param is invalid"):
+            icims.fetch_jobs(session, target(apply_url_id_query_param="job[]"))
+        self.assertEqual(session.calls, [])
+
 
 if __name__ == "__main__":
     unittest.main()

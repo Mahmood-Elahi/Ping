@@ -134,6 +134,7 @@ class CompanyTarget:
     locale: Optional[str] = None
     allowed_apply_hosts: List[str] = field(default_factory=list)
     apply_url_template: Optional[str] = None
+    apply_url_id_query_param: Optional[str] = None
     search_terms: List[str] = field(default_factory=list)
     max_pages: int = 5
     max_jobs: int = 20
@@ -187,6 +188,7 @@ class CompanyTarget:
             locale=data.get("locale"),
             allowed_apply_hosts=list(data.get("allowed_apply_hosts") or []),
             apply_url_template=data.get("apply_url_template"),
+            apply_url_id_query_param=data.get("apply_url_id_query_param"),
             search_terms=list(data.get("search_terms") or []),
             max_pages=int(data.get("max_pages") or 5),
             max_jobs=int(data.get("max_jobs") or 20),
