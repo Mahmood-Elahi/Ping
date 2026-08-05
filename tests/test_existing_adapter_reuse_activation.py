@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import sqlite3
-import subprocess
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -18,6 +17,27 @@ ROOT = Path(__file__).resolve().parents[1]
 PRODUCTION = ROOT / "config" / "target_companies.yaml"
 CANDIDATES = ROOT / "config" / "target_companies.adapter_reuse_candidates.yaml"
 VALIDATED = ROOT / "config" / "target_companies.adapter_reuse_validated.yaml"
+HISTORICAL_BASELINE = ROOT / "config" / "target_companies.quick_wins_validated.yaml"
+
+EXPECTED_PLATFORMS = {
+    "Samsung Electronics": "workday",
+    "Visa": "workday",
+    "Plaid": "ashby",
+    "Kraken": "ashby",
+    "Hudson River Trading": "greenhouse",
+    "Rockwell Automation": "workday",
+    "Phoenix Contact": "greenhouse",
+    "GE Vernova": "workday",
+    "Valeo": "workday",
+    "PTC": "workday",
+    "Agility Robotics": "greenhouse",
+    "TC Energy": "workday",
+    "ConocoPhillips": "workday",
+    "Ovintiv": "workday",
+    "Keyera": "workday",
+    "Sierra Space": "workday",
+    "ispace": "lever",
+}
 
 
 class FakeResponse:
@@ -100,32 +120,79 @@ class AdapterReuseRegistryTests(unittest.TestCase):
         self.assertEqual(set(reuse._research_candidates()), set(reuse.EXPECTED_COMPANIES))
         reuse.reconcile_candidates()
 
-    def test_03_candidate_registry_preserves_production_bytes_as_prefix(self):
-        self.assertTrue(CANDIDATES.read_bytes().startswith(PRODUCTION.read_bytes()))
+    def test_03_candidate_registry_preserves_historical_baseline_bytes_as_prefix(self):
+        self.assertTrue(CANDIDATES.read_bytes().startswith(HISTORICAL_BASELINE.read_bytes()))
 
-    def test_04_production_order_is_unchanged(self):
-        _, production = validator.load_registry(PRODUCTION)
+    def test_04_historical_baseline_order_is_unchanged(self):
+        _, historical = validator.load_registry(HISTORICAL_BASELINE)
         _, candidates = validator.load_registry(CANDIDATES)
-        self.assertEqual(candidates[: len(production)], production)
+        self.assertEqual(candidates[: len(historical)], historical)
 
     def test_05_candidate_order_follows_workbook(self):
-        _, production = validator.load_registry(PRODUCTION)
-        _, candidates = validator.load_registry(CANDIDATES)
-        additions = validator.detect_additions(production, candidates)
+        baseline = (
+            b"target_companies:\n"
+            b"  - name: Synthetic Greenhouse Baseline\n"
+            b"    platform: greenhouse\n"
+            b"    slug: synthetic-greenhouse-baseline\n"
+            b"  - name: Synthetic Workday Baseline\n"
+            b"    platform: workday\n"
+            b"    tenant: synthetic-workday-baseline\n"
+            b"    wd_subdomain: wd1\n"
+            b"    site_id: Careers\n"
+        )
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            baseline_path = root / "baseline.yaml"
+            candidate_path = root / "candidate.yaml"
+            baseline_path.write_bytes(baseline)
+            candidate_path.write_bytes(
+                validator.build_candidate_registry_bytes(
+                    baseline_path,
+                    reuse.CANDIDATE_ENTRIES,
+                )
+            )
+            candidate_bytes = candidate_path.read_bytes()
+            _, baseline_entries = validator.load_registry(baseline_path)
+            _, candidates = validator.load_registry(candidate_path)
+            loaded_targets = load_target_companies(str(candidate_path))
+
+        additions = validator.detect_additions(baseline_entries, candidates)
+        normalized_names = [validator._name_key(entry) for entry in candidates]
+        normalized_sources = [validator.source_key(entry) for entry in candidates]
+
+        self.assertEqual(candidate_bytes[: len(baseline)], baseline)
+        self.assertEqual(candidates[: len(baseline_entries)], baseline_entries)
+        self.assertEqual(
+            [entry["name"] for entry in baseline_entries],
+            ["Synthetic Greenhouse Baseline", "Synthetic Workday Baseline"],
+        )
+        self.assertEqual(len(additions), 17)
         self.assertEqual([entry["name"] for entry in additions], reuse.EXPECTED_COMPANIES)
         self.assertEqual(
             [entry["original_workbook_rank"] for entry in additions],
             sorted(entry["original_workbook_rank"] for entry in additions),
         )
+        self.assertEqual(
+            {entry["name"]: entry["platform"] for entry in additions},
+            EXPECTED_PLATFORMS,
+        )
+        self.assertEqual(len(normalized_names), len(set(normalized_names)))
+        self.assertTrue(all(normalized_sources))
+        self.assertEqual(len(normalized_sources), len(set(normalized_sources)))
+        self.assertEqual(
+            [target.name for target in loaded_targets],
+            [entry["name"] for entry in candidates],
+        )
 
     def test_06_candidate_registry_is_loader_compatible(self):
-        self.assertEqual(len(load_target_companies(str(CANDIDATES))), 92)
+        _, candidates = validator.load_registry(CANDIDATES)
+        self.assertEqual(len(load_target_companies(str(CANDIDATES))), len(candidates))
 
     def test_07_validated_registry_contains_only_safe_candidates(self):
-        _, production = validator.load_registry(PRODUCTION)
+        _, historical = validator.load_registry(HISTORICAL_BASELINE)
         _, validated = validator.load_registry(VALIDATED)
-        additions = validator.detect_additions(production, validated)
-        self.assertTrue({entry["name"] for entry in additions} <= set(reuse.EXPECTED_COMPANIES))
+        additions = validator.detect_additions(historical, validated)
+        self.assertEqual([entry["name"] for entry in additions], reuse.EXPECTED_COMPANIES)
 
     def test_08_candidate_delta_uses_a_synthetic_baseline(self):
         baseline = b"target_companies:\n  - name: Synthetic\n    platform: greenhouse\n    slug: synthetic\n"
@@ -160,13 +227,37 @@ class AdapterReuseRegistryTests(unittest.TestCase):
         self.assertNotIn(None, identities)
         self.assertEqual(len(identities), len(set(identities)))
 
-    def test_12_production_config_is_byte_identical_to_head(self):
-        comparison = subprocess.run(
-            ["git", "diff", "--exit-code", "--", "config/target_companies.yaml"],
-            cwd=ROOT,
-            capture_output=True,
+    def test_12_promoted_companies_preserve_production_integrity(self):
+        _, production = validator.load_registry(PRODUCTION)
+
+        for expected_name, expected_platform in EXPECTED_PLATFORMS.items():
+            with self.subTest(company=expected_name):
+                expected_key = validator._name_key({"name": expected_name})
+                matches = [
+                    entry
+                    for entry in production
+                    if validator._name_key(entry) == expected_key
+                ]
+                self.assertEqual(len(matches), 1)
+                self.assertEqual(
+                    str(matches[0].get("platform") or "").casefold(),
+                    expected_platform,
+                )
+
+        normalized_names = [validator._name_key(entry) for entry in production]
+        normalized_sources = [
+            source
+            for entry in production
+            if (source := validator.source_key(entry)) is not None
+        ]
+        self.assertTrue(all(normalized_names))
+        self.assertEqual(len(normalized_names), len(set(normalized_names)))
+        self.assertEqual(len(normalized_sources), len(set(normalized_sources)))
+        loaded_targets = load_target_companies(str(PRODUCTION))
+        self.assertEqual(
+            [target.name for target in loaded_targets],
+            [entry["name"] for entry in production],
         )
-        self.assertEqual(comparison.returncode, 0, comparison.stdout.decode(errors="replace"))
 
 
 class AdapterReuseContractTests(unittest.TestCase):

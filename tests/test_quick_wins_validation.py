@@ -18,6 +18,7 @@ from src.scraper.company_careers.parent_sources import (
     load_parent_source_mappings,
     matching_child_brands,
 )
+from src.scraper.company_careers.registry import load_target_companies
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -50,25 +51,61 @@ def job(
 
 
 class QuickWinsRegistryTests(unittest.TestCase):
-    def test_01_production_registry_is_exact_candidate_byte_prefix(self):
-        production = PRODUCTION.read_bytes()
+    def test_01_historical_validated_registry_is_exact_candidate_byte_prefix(self):
+        historical = VALIDATED.read_bytes()
         candidate = CANDIDATES.read_bytes()
-        self.assertEqual(candidate[: len(production)], production)
+        self.assertEqual(candidate[: len(historical)], historical)
+        _, historical_entries = validator.load_registry(VALIDATED)
+        loaded_targets = load_target_companies(str(VALIDATED))
+        self.assertEqual(
+            [target.name for target in loaded_targets],
+            [entry["name"] for entry in historical_entries],
+        )
 
-    def test_02_candidate_order_preserves_production_then_investigated_additions(self):
-        _, production = validator.load_registry(PRODUCTION)
+    def test_02_candidate_order_preserves_historical_then_investigated_additions(self):
+        _, historical = validator.load_registry(VALIDATED)
         _, candidates = validator.load_registry(CANDIDATES)
-        additions = validator.detect_additions(production, candidates)
-        self.assertEqual(candidates[: len(production)], production)
+        additions = validator.detect_additions(historical, candidates)
+        self.assertEqual(candidates[: len(historical)], historical)
         self.assertEqual([entry["name"] for entry in additions], ["STMicroelectronics"])
+        self.assertEqual(
+            additions[0],
+            {
+                "name": "STMicroelectronics",
+                "platform": "eightfold",
+                "careers_url": "https://stmicroelectronics.eightfold.ai/careers",
+                "endpoint_url": "https://stmicroelectronics.eightfold.ai/api/pcsx/search",
+                "endpoint_variant": "pcsx",
+                "organization_id": "stmicroelectronics.com",
+                "max_pages": 2,
+            },
+        )
+        normalized_names = [validator._name_key(entry) for entry in candidates]
+        normalized_sources = [
+            source
+            for entry in candidates
+            if (source := validator.source_key(entry)) is not None
+        ]
+        self.assertEqual(len(normalized_names), len(set(normalized_names)))
+        self.assertEqual(len(normalized_sources), len(set(normalized_sources)))
 
     def test_03_validated_registry_contains_only_safe_registry_candidates(self):
         report = json.loads(REPORT.read_text(encoding="utf-8"))
-        _, production = validator.load_registry(PRODUCTION)
+        _, candidates = validator.load_registry(CANDIDATES)
         _, validated = validator.load_registry(VALIDATED)
-        additions = validator.detect_additions(production, validated)
+        additions = validator.detect_additions(validated, candidates)
+        unsafe_report_names = {
+            result["company"]
+            for result in report["results"]
+            if not result["safe_to_activate"]
+        }
+        unsafe_registry_additions = {
+            entry["name"] for entry in additions if entry["name"] in unsafe_report_names
+        }
+        validated_names = {validator._name_key(entry) for entry in validated}
         self.assertEqual(report["summary"]["eightfold_safe_to_activate"], [])
-        self.assertEqual(additions, [])
+        self.assertEqual(unsafe_registry_additions, {"STMicroelectronics"})
+        self.assertNotIn("stmicroelectronics", validated_names)
 
     def test_04_candidate_builder_uses_controlled_synthetic_baseline(self):
         baseline = (
@@ -232,12 +269,21 @@ class QuickWinsIsolationTests(unittest.TestCase):
             self._exercise_mapping()
         initialize.assert_not_called()
 
-    def test_20_production_config_matches_the_report_and_validated_prefix(self):
+    def test_20_historical_config_matches_report_and_current_production_prefix(self):
+        historical = VALIDATED.read_bytes()
         production = PRODUCTION.read_bytes()
         report = json.loads(REPORT.read_text(encoding="utf-8"))
-        digest = hashlib.sha256(production).hexdigest().upper()
+        digest = hashlib.sha256(historical).hexdigest().upper()
         self.assertEqual(digest, report["production_registry_sha256"])
-        self.assertEqual(VALIDATED.read_bytes(), production)
+        self.assertEqual(production[: len(historical)], historical)
+
+        _, historical_entries = validator.load_registry(VALIDATED)
+        _, production_entries = validator.load_registry(PRODUCTION)
+        self.assertGreaterEqual(len(production_entries), len(historical_entries))
+        self.assertEqual(
+            production_entries[: len(historical_entries)],
+            historical_entries,
+        )
 
 
 if __name__ == "__main__":
