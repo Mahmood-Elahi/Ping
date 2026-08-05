@@ -453,3 +453,217 @@ target_companies:
     max_pages: 2
     fingerprint_confidence: high
     fingerprint_evidence: 'page source marker: marker=phenompeople.com; stored fetch HTTP 200 at https://jobs.ebayinc.com/us/en/search-results'
+  - name: Samsung Electronics
+    platform: workday
+    tenant: sec
+    wd_subdomain: wd3
+    site_id: Samsung_Careers
+    careers_url: https://www.samsung.com/us/careers/
+    search_url: https://sec.wd3.myworkdayjobs.com/Samsung_Careers
+    endpoint_variant: wday_cxs_v1
+    original_workbook_rank: 21
+    allowed_apply_hosts:
+    - sec.wd3.myworkdayjobs.com
+    max_pages: 1
+    max_jobs: 20
+  - name: Visa
+    platform: workday
+    tenant: visa
+    wd_subdomain: wd5
+    site_id: Visa
+    careers_url: https://corporate.visa.com/en/careers.html
+    search_url: https://visa.wd5.myworkdayjobs.com/Visa
+    endpoint_variant: wday_cxs_v1
+    original_workbook_rank: 56
+    allowed_apply_hosts:
+    - visa.wd5.myworkdayjobs.com
+    max_pages: 1
+    max_jobs: 20
+  - name: Plaid
+    platform: ashby
+    slug: plaid
+    careers_url: https://plaid.com/careers/
+    search_url: https://jobs.ashbyhq.com/plaid
+    endpoint_variant: posting_api_job_board
+    original_workbook_rank: 63
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+    max_pages: 1
+    max_jobs: 20
+  - name: Kraken
+    platform: ashby
+    slug: kraken.com
+    careers_url: https://www.kraken.com/careers
+    search_url: https://jobs.ashbyhq.com/kraken.com
+    endpoint_variant: posting_api_job_board
+    original_workbook_rank: 71
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+    max_pages: 1
+    max_jobs: 20
+  - name: Hudson River Trading
+    platform: greenhouse
+    slug: hrttalentcommunity
+    careers_url: https://www.hudsonrivertrading.com/careers/
+    search_url: https://job-boards.greenhouse.io/hrttalentcommunity
+    endpoint_variant: boards_api_v1
+    original_workbook_rank: 76
+    allowed_apply_hosts:
+    - boards.greenhouse.io
+    - job-boards.greenhouse.io
+    - www.hudsonrivertrading.com
+    max_pages: 1
+    max_jobs: 20
+  - name: Rockwell Automation
+    platform: workday
+    tenant: rockwellautomation
+    wd_subdomain: wd1
+    site_id: External_Rockwell_Automation
+    careers_url: https://www.rockwellautomation.com/en-us/careers.html
+    search_url: https://rockwellautomation.wd1.myworkdayjobs.com/External_Rockwell_Automation
+    endpoint_variant: wday_cxs_v1
+    original_workbook_rank: 92
+    allowed_apply_hosts:
+    - rockwellautomation.wd1.myworkdayjobs.com
+    max_pages: 1
+    max_jobs: 20
+  - name: Phoenix Contact
+    platform: greenhouse
+    slug: phoenixcontact
+    careers_url: https://www.phoenixcontact.com/en-us/company/careers
+    search_url: https://job-boards.greenhouse.io/phoenixcontact
+    endpoint_variant: boards_api_v1
+    original_workbook_rank: 105
+    allowed_apply_hosts:
+    - boards.greenhouse.io
+    - job-boards.greenhouse.io
+    max_pages: 1
+    max_jobs: 20
+  - name: GE Vernova
+    platform: workday
+    tenant: gevernova
+    wd_subdomain: wd5
+    site_id: Vernova_ExternalSite
+    careers_url: https://careers.gevernova.com/
+    search_url: https://gevernova.wd5.myworkdayjobs.com/Vernova_ExternalSite
+    endpoint_variant: wday_cxs_v1
+    original_workbook_rank: 108
+    allowed_apply_hosts:
+    - gevernova.wd5.myworkdayjobs.com
+    max_pages: 1
+    max_jobs: 20
+  - name: Valeo
+    platform: workday
+    tenant: valeo
+    wd_subdomain: wd3
+    site_id: valeo_jobs
+    careers_url: https://www.valeo.com/en/careers/
+    search_url: https://valeo.wd3.myworkdayjobs.com/valeo_jobs
+    endpoint_variant: wday_cxs_v1
+    original_workbook_rank: 129
+    allowed_apply_hosts:
+    - valeo.wd3.myworkdayjobs.com
+    max_pages: 1
+    max_jobs: 20
+  - name: PTC
+    platform: workday
+    tenant: ptc
+    wd_subdomain: wd1
+    site_id: PTC
+    careers_url: https://www.ptc.com/en/careers
+    search_url: https://ptc.wd1.myworkdayjobs.com/PTC
+    endpoint_variant: wday_cxs_v1
+    original_workbook_rank: 146
+    allowed_apply_hosts:
+    - ptc.wd1.myworkdayjobs.com
+    max_pages: 1
+    max_jobs: 20
+  - name: Agility Robotics
+    platform: greenhouse
+    slug: agilityrobotics
+    careers_url: https://www.agilityrobotics.com/careers
+    search_url: https://job-boards.greenhouse.io/agilityrobotics
+    endpoint_variant: boards_api_v1
+    original_workbook_rank: 153
+    allowed_apply_hosts:
+    - boards.greenhouse.io
+    - job-boards.greenhouse.io
+    - www.agilityrobotics.com
+    max_pages: 1
+    max_jobs: 20
+  - name: TC Energy
+    platform: workday
+    tenant: tcenergy
+    wd_subdomain: wd3
+    site_id: CAREER_SITE_TC
+    careers_url: https://www.tcenergy.com/careers/
+    search_url: https://tcenergy.wd3.myworkdayjobs.com/CAREER_SITE_TC
+    endpoint_variant: wday_cxs_v1
+    original_workbook_rank: 176
+    allowed_apply_hosts:
+    - tcenergy.wd3.myworkdayjobs.com
+    max_pages: 1
+    max_jobs: 20
+  - name: ConocoPhillips
+    platform: workday
+    tenant: conocophillips
+    wd_subdomain: wd1
+    site_id: External
+    careers_url: https://careers.conocophillips.com/
+    search_url: https://conocophillips.wd1.myworkdayjobs.com/External
+    endpoint_variant: wday_cxs_v1
+    original_workbook_rank: 177
+    allowed_apply_hosts:
+    - conocophillips.wd1.myworkdayjobs.com
+    max_pages: 1
+    max_jobs: 20
+  - name: Ovintiv
+    platform: workday
+    tenant: ovintiv
+    wd_subdomain: wd3
+    site_id: ovintivcareers
+    careers_url: https://www.ovintiv.com/careers/
+    search_url: https://ovintiv.wd3.myworkdayjobs.com/ovintivcareers
+    endpoint_variant: wday_cxs_v1
+    original_workbook_rank: 180
+    allowed_apply_hosts:
+    - ovintiv.wd3.myworkdayjobs.com
+    max_pages: 1
+    max_jobs: 20
+  - name: Keyera
+    platform: workday
+    tenant: keyera
+    wd_subdomain: wd10
+    site_id: Keyera_Careers
+    careers_url: https://www.keyera.com/careers/
+    search_url: https://keyera.wd10.myworkdayjobs.com/Keyera_Careers
+    endpoint_variant: wday_cxs_v1
+    original_workbook_rank: 183
+    allowed_apply_hosts:
+    - keyera.wd10.myworkdayjobs.com
+    max_pages: 1
+    max_jobs: 20
+  - name: Sierra Space
+    platform: workday
+    tenant: snc
+    wd_subdomain: wd1
+    site_id: Sierra_Space_External_Career_Site
+    careers_url: https://www.sierraspace.com/careers/
+    search_url: https://snc.wd1.myworkdayjobs.com/Sierra_Space_External_Career_Site
+    endpoint_variant: wday_cxs_v1
+    original_workbook_rank: 188
+    allowed_apply_hosts:
+    - snc.wd1.myworkdayjobs.com
+    max_pages: 1
+    max_jobs: 20
+  - name: ispace
+    platform: lever
+    slug: ispace-inc
+    careers_url: https://www.ispace-inc.com/careers/
+    search_url: https://jobs.lever.co/ispace-inc
+    endpoint_variant: postings_api_v0
+    original_workbook_rank: 196
+    allowed_apply_hosts:
+    - jobs.lever.co
+    max_pages: 1
+    max_jobs: 20
