@@ -26,6 +26,7 @@ NEW_JOBS_HEADERS = [
     "Positive Signals",
     "Apply URL",
     "Source Key",
+    "Child Brands",
 ]
 
 ACTIVE_JOBS_HEADERS = [
@@ -42,10 +43,19 @@ ACTIVE_JOBS_HEADERS = [
     "Source Updated",
     "Apply URL",
     "Source Key",
+    "Child Brands",
 ]
 
 SYSTEM_STATUS_HEADERS = ["Metric", "Value"]
-COMPANIES_HEADERS = ["Company", "Platform", "Enabled", "Latest Scan Status"]
+COMPANIES_HEADERS = [
+    "Company",
+    "Platform",
+    "Enabled",
+    "Latest Scan Status",
+    "Coverage Relationship",
+    "Canonical Parent",
+    "Mapped Jobs",
+]
 MANAGED_TABS = ("New Jobs", "Active Jobs", "System Status", "Companies")
 PROTECTED_TABS = ("Applications",)
 
@@ -65,12 +75,14 @@ TAB_FORMATS = {
             "Positive Signals": 300,
             "Apply URL": 240,
             "Source Key": 220,
+            "Child Brands": 180,
         },
         "wrapped": {
             "Position",
             "Matched Categories",
             "Location",
             "Positive Signals",
+            "Child Brands",
         },
     },
     "Active Jobs": {
@@ -88,8 +100,9 @@ TAB_FORMATS = {
             "Source Updated": 160,
             "Apply URL": 240,
             "Source Key": 220,
+            "Child Brands": 180,
         },
-        "wrapped": {"Position", "Matched Categories", "Location"},
+        "wrapped": {"Position", "Matched Categories", "Location", "Child Brands"},
     },
     "System Status": {
         "widths": {"Metric": 220, "Value": 320},
@@ -101,8 +114,11 @@ TAB_FORMATS = {
             "Platform": 130,
             "Enabled": 90,
             "Latest Scan Status": 240,
+            "Coverage Relationship": 190,
+            "Canonical Parent": 170,
+            "Mapped Jobs": 100,
         },
-        "wrapped": {"Latest Scan Status"},
+        "wrapped": {"Latest Scan Status", "Coverage Relationship"},
     },
 }
 
@@ -228,6 +244,7 @@ class GoogleSheetsPublisher:
         scan_run: Optional[Mapping[str, Any]],
         companies: Iterable[Mapping[str, Any] | Any],
         company_statuses: Optional[Mapping[str, str]] = None,
+        coverage_summary: Optional[Mapping[str, Any]] = None,
     ) -> dict[str, int]:
         """Replace all managed tabs and return the number of data rows written."""
         jobs = [_as_mapping(job) for job in active_jobs]
@@ -245,7 +262,7 @@ class GoogleSheetsPublisher:
             "Active Jobs": [ACTIVE_JOBS_HEADERS]
             + [_active_job_row(job) for job in active_jobs_sorted],
             "System Status": [SYSTEM_STATUS_HEADERS]
-            + _system_status_rows(scan_run or {}, statuses),
+            + _system_status_rows(scan_run or {}, statuses, coverage_summary or {}),
             "Companies": [COMPANIES_HEADERS]
             + _company_rows(companies, statuses),
         }
@@ -430,6 +447,7 @@ def _new_job_row(job: Mapping[str, Any]) -> list[Any]:
         _cell(job.get("positive_signals")),
         _cell(job.get("apply_url", job.get("url"))),
         _cell(job.get("source_key")),
+        _cell(_child_brands(job)),
     ]
 
 
@@ -448,12 +466,14 @@ def _active_job_row(job: Mapping[str, Any]) -> list[Any]:
         _timestamp_cell(job.get("source_updated_at", job.get("updated_at"))),
         _cell(job.get("apply_url", job.get("url"))),
         _cell(job.get("source_key")),
+        _cell(_child_brands(job)),
     ]
 
 
 def _system_status_rows(
     scan_run: Mapping[str, Any],
     company_statuses: Mapping[str, str],
+    coverage_summary: Mapping[str, Any],
 ) -> list[list[Any]]:
     success = scan_run.get("success")
     status = "success" if success is True else "failed" if success is False else "unknown"
@@ -462,6 +482,15 @@ def _system_status_rows(
         ["Start Time", _timestamp_cell(scan_run.get("started_at"))],
         ["Completion Time", _timestamp_cell(scan_run.get("completed_at"))],
         ["Companies Checked", _cell(scan_run.get("companies_checked"))],
+        ["Canonical Sources Checked", _cell(scan_run.get("companies_checked"))],
+        [
+            "Mapped Child Brands Covered",
+            _cell(coverage_summary.get("mapped_child_brands_covered")),
+        ],
+        [
+            "Total Original Companies Covered",
+            _cell(coverage_summary.get("total_original_companies_covered")),
+        ],
         ["Jobs Fetched", _cell(scan_run.get("jobs_fetched"))],
         ["Jobs Retained", _cell(scan_run.get("jobs_retained"))],
         ["Inserted Count", _cell(scan_run.get("jobs_inserted"))],
@@ -492,10 +521,32 @@ def _company_rows(
                 name,
                 _cell(values.get("platform")),
                 "yes" if bool(enabled) else "no",
-                _cell(company_statuses.get(name)),
+                _cell(company_statuses.get(name, values.get("status"))),
+                _cell(values.get("coverage_relationship") or "canonical_source"),
+                _cell(values.get("canonical_parent")),
+                _cell(values.get("mapped_jobs")),
             ]
         )
     return sorted(rows, key=lambda row: str(row[0]).casefold())
+
+
+def _child_brands(job: Mapping[str, Any]) -> list[str]:
+    values = job.get("child_brands")
+    if not isinstance(values, list):
+        raw_data = job.get("raw_data")
+        if isinstance(raw_data, Mapping):
+            values = raw_data.get("child_brands")
+            if not isinstance(values, list):
+                metadata = raw_data.get("raw_metadata")
+                values = metadata.get("child_brands") if isinstance(metadata, Mapping) else []
+    if not isinstance(values, list):
+        return []
+    unique: dict[str, str] = {}
+    for value in values:
+        cleaned = str(value).strip()
+        if cleaned:
+            unique.setdefault(cleaned.casefold(), cleaned)
+    return [unique[key] for key in sorted(unique)]
 
 
 def _job_sort_key(job: Mapping[str, Any]) -> tuple[Any, ...]:

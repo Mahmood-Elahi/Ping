@@ -237,8 +237,16 @@ class GoogleSheetsPublisherTests(unittest.TestCase):
         self.assertEqual(
             company_values[1:],
             [
-                ["Alpha", "ashby", "yes", "fetched"],
-                ["Beta", "greenhouse", "no", "failed_technical"],
+                ["Alpha", "ashby", "yes", "fetched", "canonical_source", "", ""],
+                [
+                    "Beta",
+                    "greenhouse",
+                    "no",
+                    "failed_technical",
+                    "canonical_source",
+                    "",
+                    "",
+                ],
             ],
         )
 

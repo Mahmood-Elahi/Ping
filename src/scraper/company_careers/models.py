@@ -13,6 +13,10 @@ class CoverageStatus:
     FAILED_TECHNICAL = "failed_technical"
     NOT_IMPLEMENTED = "not_implemented"
     MANUAL_REVIEW_REQUIRED = "manual_review_required"
+    COVERED_VIA_PARENT_SOURCE = "covered_via_parent_source"
+    MAPPED_NO_CURRENT_JOBS = "mapped_no_current_jobs"
+    PARENT_FAILED_TECHNICAL = "parent_failed_technical"
+    PARENT_SOURCE_NOT_CONFIGURED = "parent_source_not_configured"
 
 
 class AdapterError(Exception):
@@ -66,7 +70,21 @@ class JobRecord:
             "offices": self.offices,
             "description": self.description,
             "raw_metadata": self.raw_metadata,
+            "child_brands": self.child_brands,
         }
+
+    @property
+    def child_brands(self) -> List[str]:
+        """Return deterministic, case-insensitively deduplicated brand metadata."""
+        values = self.raw_metadata.get("child_brands")
+        if not isinstance(values, list):
+            return []
+        unique: Dict[str, str] = {}
+        for value in values:
+            cleaned = str(value).strip()
+            if cleaned:
+                unique.setdefault(cleaned.casefold(), cleaned)
+        return [unique[key] for key in sorted(unique)]
 
 
 @dataclass
@@ -126,6 +144,7 @@ class CompanyScanResult:
     remediation: Optional[str] = None
     fetched_count: int = 0
     exclusion_counts: Dict[str, int] = field(default_factory=dict)
+    mapped_child_brand_counts: Dict[str, int] = field(default_factory=dict)
 
     @property
     def matched_count(self) -> int:
@@ -152,17 +171,24 @@ class CompanyScanResult:
 @dataclass
 class CompanyCareersReport:
     results: List[CompanyScanResult]
+    mapped_coverage: List[Dict[str, Any]] = field(default_factory=list)
+    original_coverage: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def jobs(self) -> List[JobRecord]:
         return [job for result in self.results for job in result.jobs]
 
     def coverage(self) -> List[Dict[str, Any]]:
-        return [result.to_coverage_dict() for result in self.results]
+        return [result.to_coverage_dict() for result in self.results] + [
+            dict(item) for item in self.mapped_coverage
+        ]
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "total_companies": len(self.results),
+            "canonical_sources_checked": len(self.results),
+            "mapped_child_brands": len(self.mapped_coverage),
+            "original_coverage": dict(self.original_coverage),
             "total_jobs": len(self.jobs),
             "coverage": self.coverage(),
             "jobs": [job.to_dict() for job in self.jobs],

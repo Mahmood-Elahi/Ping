@@ -122,6 +122,8 @@ class JobSearchPipeline:
                 "departments": job.get("departments", []),
                 "offices": job.get("offices", []),
                 "company_careers_job_id": job.get("job_id"),
+                "child_brands": job.get("child_brands", []),
+                "raw_metadata": job.get("raw_metadata", {}),
             },
             "apply_info": {"apply_url": job.get("url")},
         }
@@ -240,6 +242,14 @@ class JobSearchPipeline:
                 exclusion_counts[reason] = exclusion_counts.get(reason, 0) + count
         self.company_careers_summary = {
             "companies_checked": len(report.results),
+            "canonical_sources_checked": len(report.results),
+            "mapped_child_brands_covered": report.original_coverage.get(
+                "mapped_child_brands_covered", 0
+            ),
+            "total_original_companies_covered": report.original_coverage.get(
+                "total_original_companies_covered", 0
+            ),
+            "original_list_total": report.original_coverage.get("original_list_total", 0),
             "jobs_fetched": sum(item.fetched_count for item in report.results),
             "jobs_retained": len(report.jobs),
             "exclusion_counts": exclusion_counts,

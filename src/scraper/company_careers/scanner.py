@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Callable, Iterable, List, Optional
+from typing import Any, Callable, Iterable, List, Optional, Sequence
 
 import requests
 
@@ -33,6 +33,14 @@ from src.scraper.company_careers.models import (
 )
 from src.scraper.company_careers.registry import DEFAULT_REGISTRY_PATH, load_target_companies
 from src.scraper.company_careers.relevance import is_relevant_job
+from src.scraper.company_careers.parent_sources import (
+    DEFAULT_PARENT_MAPPING_PATH,
+    DEFAULT_ORIGINAL_COMPANY_INVENTORY_PATH,
+    ParentSourceMapping,
+    annotate_child_brand_metadata,
+    load_parent_source_mappings,
+    original_company_coverage,
+)
 
 
 AdapterFn = Callable[[requests.Session, CompanyTarget, int], List[JobRecord]]
@@ -73,10 +81,19 @@ class CompanyCareersScanner:
         config_path: str = DEFAULT_REGISTRY_PATH,
         session: Optional[requests.Session] = None,
         timeout: int = 60,
+        parent_source_mappings: Optional[Sequence[ParentSourceMapping]] = None,
+        parent_mapping_path: str = DEFAULT_PARENT_MAPPING_PATH,
+        original_company_inventory_path: str = DEFAULT_ORIGINAL_COMPANY_INVENTORY_PATH,
     ):
         self.targets = targets if targets is not None else load_target_companies(config_path)
         self.session = session or requests.Session()
         self.timeout = timeout
+        self.original_company_inventory_path = original_company_inventory_path
+        self.parent_source_mappings = list(
+            parent_source_mappings
+            if parent_source_mappings is not None
+            else load_parent_source_mappings(parent_mapping_path)
+        )
 
     def scan(
         self,
@@ -115,6 +132,11 @@ class CompanyCareersScanner:
 
             try:
                 fetched_jobs = self._dedupe(adapter(self.session, target, self.timeout))
+                fetched_jobs = [
+                    annotate_child_brand_metadata(job, self.parent_source_mappings)
+                    for job in fetched_jobs
+                ]
+                mapped_child_brand_counts = self._mapped_brand_counts(fetched_jobs)
                 matched_jobs, exclusion_counts = self._filter_jobs(
                     fetched_jobs,
                     keywords,
@@ -140,6 +162,7 @@ class CompanyCareersScanner:
                         status=status,
                         fetched_count=len(fetched_jobs),
                         exclusion_counts=exclusion_counts,
+                        mapped_child_brand_counts=mapped_child_brand_counts,
                     )
                 )
             except AdapterError as exc:
@@ -173,7 +196,86 @@ class CompanyCareersScanner:
                     )
                 )
 
-        return CompanyCareersReport(results=results)
+        return CompanyCareersReport(
+            results=results,
+            mapped_coverage=self._mapped_coverage(results),
+            original_coverage=original_company_coverage(
+                self.targets,
+                self.parent_source_mappings,
+                inventory_path=self.original_company_inventory_path,
+            ),
+        )
+
+    @staticmethod
+    def _mapped_brand_counts(jobs: Iterable[JobRecord]) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for job in jobs:
+            for child_brand in job.child_brands:
+                counts[child_brand] = counts.get(child_brand, 0) + 1
+        return counts
+
+    def _mapped_coverage(
+        self,
+        results: Sequence[CompanyScanResult],
+    ) -> list[dict[str, Any]]:
+        by_parent = {
+            result.target.name.casefold(): result
+            for result in results
+        }
+        rows: list[dict[str, Any]] = []
+        for mapping in self.parent_source_mappings:
+            parent = by_parent.get(mapping.parent_company.casefold())
+            mapped_jobs = (
+                parent.mapped_child_brand_counts.get(mapping.child_company, 0)
+                if parent is not None
+                else 0
+            )
+            if parent is None:
+                status = CoverageStatus.PARENT_SOURCE_NOT_CONFIGURED
+                parent_scan_status = "not_scanned"
+                fetched_count = 0
+                error = None
+                warning = "Canonical parent source is not present in this registry."
+            elif parent.status == CoverageStatus.FAILED_TECHNICAL:
+                status = CoverageStatus.PARENT_FAILED_TECHNICAL
+                parent_scan_status = parent.status
+                fetched_count = parent.fetched_count
+                error = parent.error
+                warning = "Mapping inherited the canonical parent's technical failure."
+            else:
+                status = (
+                    CoverageStatus.COVERED_VIA_PARENT_SOURCE
+                    if mapped_jobs
+                    else CoverageStatus.MAPPED_NO_CURRENT_JOBS
+                )
+                parent_scan_status = parent.status
+                fetched_count = parent.fetched_count
+                error = None
+                warning = "" if mapped_jobs else "Parent scan succeeded with zero exact mapped jobs."
+
+            rows.append(
+                {
+                    "company": mapping.child_company,
+                    "platform": mapping.canonical_source,
+                    "status": status,
+                    "fetched_count": fetched_count,
+                    "matched_count": mapped_jobs,
+                    "mapped_jobs": mapped_jobs,
+                    "coverage_relationship": "parent_company_source",
+                    "canonical_parent": mapping.parent_company,
+                    "parent_source": mapping.canonical_source,
+                    "parent_scan_status": parent_scan_status,
+                    "mapping_enabled": mapping.enabled,
+                    "match_field": mapping.match_field,
+                    "match_type": mapping.match_type,
+                    "accepted_values": list(mapping.exact_values),
+                    "error": error,
+                    "error_type": "inherited_parent_failure" if error else None,
+                    "remediation": None,
+                    "warnings": [warning] if warning else [],
+                }
+            )
+        return rows
 
     def _filter_jobs(
         self,

@@ -18,6 +18,10 @@ STATUS_ORDER = [
     CoverageStatus.FAILED_TECHNICAL,
     CoverageStatus.NOT_IMPLEMENTED,
     CoverageStatus.PARTIAL_LINKEDIN_ONLY,
+    CoverageStatus.COVERED_VIA_PARENT_SOURCE,
+    CoverageStatus.MAPPED_NO_CURRENT_JOBS,
+    CoverageStatus.PARENT_FAILED_TECHNICAL,
+    CoverageStatus.PARENT_SOURCE_NOT_CONFIGURED,
 ]
 
 FAILURE_STATUSES = {
@@ -44,9 +48,20 @@ def coverage_markdown(
         "",
         "## Summary",
         "",
-        f"- Total companies: {len(coverage)}",
+        f"- Canonical sources checked: {len(report.results)}",
+        f"- Mapped child brands represented: {len(report.mapped_coverage)}",
         f"- Matched jobs: {len(report.jobs)}",
     ]
+    if report.original_coverage:
+        lines.extend(
+            [
+                "- Original-list companies covered: "
+                f"{report.original_coverage.get('total_original_companies_covered', 0)}"
+                f"/{report.original_coverage.get('original_list_total', 0)}",
+                "- Mapped child brands covered: "
+                f"{report.original_coverage.get('mapped_child_brands_covered', 0)}",
+            ]
+        )
 
     for status in STATUS_ORDER:
         if counts.get(status):
@@ -169,6 +184,13 @@ def _write_coverage_csv(coverage: Iterable[dict], csv_path: str) -> None:
         "error",
         "error_type",
         "remediation",
+        "coverage_relationship",
+        "canonical_parent",
+        "parent_scan_status",
+        "mapped_jobs",
+        "mapping_enabled",
+        "match_field",
+        "warnings",
     ]
     with Path(csv_path).open("w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
@@ -185,6 +207,13 @@ def _write_coverage_csv(coverage: Iterable[dict], csv_path: str) -> None:
                     "error": item.get("error") or "",
                     "error_type": item.get("error_type") or "",
                     "remediation": item.get("remediation") or "",
+                    "coverage_relationship": item.get("coverage_relationship") or "canonical_source",
+                    "canonical_parent": item.get("canonical_parent") or "",
+                    "parent_scan_status": item.get("parent_scan_status") or item.get("status") or "",
+                    "mapped_jobs": item.get("mapped_jobs", ""),
+                    "mapping_enabled": item.get("mapping_enabled", ""),
+                    "match_field": item.get("match_field") or "",
+                    "warnings": "; ".join(item.get("warnings") or []),
                 }
             )
 
@@ -210,6 +239,8 @@ def _coverage_sort_key(item: dict) -> tuple[int, str]:
 
 
 def _source_label(item: dict) -> str:
+    if item.get("parent_source"):
+        return str(item["parent_source"])
     if item.get("slug"):
         return str(item["slug"])
     if item.get("tenant"):
@@ -227,6 +258,10 @@ def _note_label(item: dict) -> str:
         return "Fetched successfully; no roles matched current filters."
     if item["status"] == CoverageStatus.FETCHED:
         return "Fetched successfully."
+    if item.get("coverage_relationship") == "parent_company_source":
+        parent = item.get("canonical_parent") or "parent"
+        count = item.get("mapped_jobs", 0)
+        return f"Covered via {parent}; {count} exact mapped jobs."
     return ""
 
 

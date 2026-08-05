@@ -202,8 +202,9 @@ def run_update(args: argparse.Namespace) -> int:
         sheet_counts = publisher.publish(
             active_jobs=dashboard_data.active_jobs,
             scan_run=dashboard_data.latest_scan,
-            companies=targets,
+            companies=report.coverage(),
             company_statuses=company_statuses,
+            coverage_summary=report.original_coverage,
         )
 
     print_summary(summary, sync_result, sheet_counts, skip_sheets=args.skip_sheets)
@@ -242,6 +243,13 @@ def print_summary(
     exclusions = summary["exclusion_counts"]
     print("\nDashboard update summary")
     print(f"  Companies checked: {summary['companies_checked']}")
+    print(f"  Canonical sources checked: {summary.get('canonical_sources_checked', summary['companies_checked'])}")
+    print(f"  Mapped child brands covered: {summary.get('mapped_child_brands_covered', 0)}")
+    print(
+        "  Original companies covered: "
+        f"{summary.get('total_original_companies_covered', 0)}/"
+        f"{summary.get('original_list_total', 0)}"
+    )
     print(f"  Jobs fetched: {summary['jobs_fetched']}")
     print(f"  Jobs retained: {summary['jobs_retained']}")
     print(f"  Exclusion counts: {exclusions}")

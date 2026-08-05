@@ -370,7 +370,7 @@ class SupabaseJobStore:
                 .select(
                     "source_key,company,title,location,apply_url,primary_category,"
                     "matched_categories,relevance_score,relevance_band,positive_signals,"
-                    "location_status,source_updated_at,first_seen_at,last_seen_at,status"
+                    "location_status,source_updated_at,first_seen_at,last_seen_at,status,raw_data"
                 )
                 .eq("status", "active")
                 .order("relevance_score", desc=True)
@@ -401,8 +401,11 @@ class SupabaseJobStore:
         ):
             raise RuntimeError("Supabase latest-scan query returned an invalid response")
 
+        active_jobs = [dict(row) for row in jobs_data]
+        for row in active_jobs:
+            row["child_brands"] = _dashboard_child_brands(row)
         return DashboardData(
-            active_jobs=[dict(row) for row in jobs_data],
+            active_jobs=active_jobs,
             latest_scan=dict(scan_data[0]) if scan_data else None,
         )
 
@@ -462,6 +465,22 @@ def _string_list(value: Any) -> list[str]:
     if isinstance(value, str):
         return [value.strip()] if value.strip() else []
     return [str(item).strip() for item in value if str(item).strip()]
+
+
+def _dashboard_child_brands(row: Mapping[str, Any]) -> list[str]:
+    raw_data = row.get("raw_data")
+    if not isinstance(raw_data, Mapping):
+        return []
+    values = raw_data.get("child_brands")
+    if not isinstance(values, list):
+        metadata = raw_data.get("raw_metadata")
+        values = metadata.get("child_brands") if isinstance(metadata, Mapping) else []
+    unique: dict[str, str] = {}
+    for value in values if isinstance(values, list) else []:
+        cleaned = str(value).strip()
+        if cleaned:
+            unique.setdefault(cleaned.casefold(), cleaned)
+    return [unique[key] for key in sorted(unique)]
 
 
 def _normalized_timestamp(value: Any) -> Optional[str]:
