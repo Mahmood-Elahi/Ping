@@ -1785,3 +1785,153 @@ target_companies:
     max_pages: 1
     max_jobs: 20
     max_response_bytes: 3000000
+  - name: SpaceX
+    platform: greenhouse
+    careers_url: https://www.spacex.com/careers/
+    source_identity_regex: SpaceX
+    allowed_apply_hosts:
+    - boards.greenhouse.io
+    original_workbook_rank: 14
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: spacex
+    search_url: https://boards.greenhouse.io/spacex
+  - name: Broadcom
+    platform: workday
+    careers_url: https://www.broadcom.com/company/careers
+    source_identity_regex: Broadcom
+    allowed_apply_hosts:
+    - broadcom.wd1.myworkdayjobs.com
+    original_workbook_rank: 22
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    tenant: broadcom
+    wd_subdomain: wd1
+    site_id: External_Career
+    search_url: https://broadcom.wd1.myworkdayjobs.com/External_Career
+  - name: ASML
+    platform: browser_rendered_html
+    careers_url: https://www.asml.com/en/careers
+    listing_url: https://www.asml.com/en/careers/find-your-job
+    endpoint_variant: browser_rendered_html_v1
+    browser_wait_selector: a.search-results__item
+    browser_scroll_steps: 0
+    browser_static_variant: server_rendered_links
+    browser_identity_selector: head title
+    browser_identity_regex: ASML
+    listing_selector: a.search-results__item
+    job_card_selector: a.search-results__item
+    title_selector: h2.search-results-title-text
+    location_selector: ul.search-results__fields li:first-child
+    detail_link_selector: :self
+    external_id_regex: -([jJ][0-9]+)$
+    external_id_attribute: null
+    department_selector: ul.search-results__fields li:nth-child(2)
+    date_selector: null
+    allowed_apply_hosts:
+    - www.asml.com
+    original_workbook_rank: 26
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+  - name: Adyen
+    platform: greenhouse
+    careers_url: https://careers.adyen.com/
+    source_identity_regex: Adyen
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+    original_workbook_rank: 62
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: adyen
+    search_url: https://job-boards.greenhouse.io/adyen
+  - name: Jane Street
+    platform: greenhouse
+    careers_url: https://www.janestreet.com/join-jane-street/
+    source_identity_regex: Jane Street
+    allowed_apply_hosts:
+    - www.janestreet.com
+    original_workbook_rank: 74
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: janestreet
+    search_url: https://www.janestreet.com/join-jane-street/open-roles/
+  - name: Goldman Sachs
+    platform: browser_rendered_html
+    careers_url: https://www.goldmansachs.com/careers
+    listing_url: https://higher.gs.com/results
+    endpoint_variant: browser_rendered_html_v1
+    browser_wait_selector: a[href^='/roles/']
+    browser_scroll_steps: 0
+    browser_static_variant: server_rendered_links
+    browser_identity_selector: head title
+    browser_identity_regex: Goldman Sachs
+    listing_selector: a[href^=/roles/]
+    job_card_selector: a[href^=/roles/]
+    title_selector: span.gs-text:first-child
+    location_selector: div[data-testid=location]
+    detail_link_selector: :self
+    external_id_regex: /roles/([0-9]+)$
+    external_id_attribute: null
+    department_selector: null
+    date_selector: null
+    allowed_apply_hosts:
+    - higher.gs.com
+    original_workbook_rank: 84
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+  - name: Aurora Innovation
+    platform: browser_rendered_html
+    careers_url: https://aurora.tech/careers
+    listing_url: https://aurora.tech/careers
+    endpoint_variant: browser_rendered_html_v1
+    browser_wait_selector: div.section-job-board__list-item
+    browser_scroll_steps: 0
+    browser_static_variant: server_rendered_links
+    browser_identity_selector: body
+    browser_identity_regex: Aurora
+    listing_selector: div.section-job-board__list-item
+    job_card_selector: div.section-job-board__list-item
+    title_selector: p.section-job-board__list-item-heading
+    location_selector: p.section-job-board__list-item-meta span:nth-child(2)
+    detail_link_selector: a.section-job-board__link
+    external_id_regex: /careers/([0-9a-f-]+)$
+    external_id_attribute: null
+    department_selector: p.section-job-board__list-item-meta span:first-child
+    date_selector: null
+    allowed_apply_hosts:
+    - aurora.tech
+    original_workbook_rank: 131
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+  - name: Dassault Systèmes
+    platform: browser_rendered_html
+    careers_url: https://www.3ds.com/careers
+    listing_url: https://www.3ds.com/careers/jobs
+    endpoint_variant: browser_rendered_html_v1
+    browser_wait_selector: div.ds-jobs-details-wraper
+    browser_scroll_steps: 0
+    browser_static_variant: server_rendered_links
+    browser_identity_selector: head title
+    browser_identity_regex: Dassault Systèmes
+    listing_selector: div.ds-jobs-details-wraper
+    job_card_selector: div.ds-jobs-details-wraper
+    title_selector: h2.job-details-title
+    location_selector: div.job-details-place
+    detail_link_selector: div.job-details-apply a[href]
+    external_id_regex: '[?&]job=([0-9]+)'
+    external_id_attribute: null
+    department_selector: div.job-details-subtitle
+    date_selector: null
+    allowed_apply_hosts:
+    - talentacquisition.3ds.com
+    original_workbook_rank: 145
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000

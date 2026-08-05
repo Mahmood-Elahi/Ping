@@ -26,6 +26,19 @@ def entries(path: Path) -> list[dict]:
     return (yaml.safe_load(path.read_text(encoding="utf-8")) or {})["target_companies"]
 
 
+def historical_prefix_bytes(path: Path) -> bytes:
+    first_candidate = batch.CANDIDATE_ENTRIES[0]["name"]
+    lines = path.read_bytes().splitlines(keepends=True)
+    for index, raw_line in enumerate(lines):
+        stripped = raw_line.decode("utf-8").strip()
+        if not stripped.startswith("- name:"):
+            continue
+        parsed = yaml.safe_load(stripped)
+        if isinstance(parsed, list) and parsed[0].get("name") == first_candidate:
+            return b"".join(lines[:index])
+    raise AssertionError(f"Historical boundary {first_candidate!r} not found in {path}")
+
+
 def job(job_id: str = "1", url: str = "https://jobs.example.test/job/1") -> SimpleNamespace:
     return SimpleNamespace(job_id=job_id, url=url)
 
@@ -35,18 +48,28 @@ class BrowserExpansionV1AArtifactTests(unittest.TestCase):
     def setUpClass(cls):
         cls.production_bytes = batch.PRODUCTION.read_bytes()
         cls.production = entries(batch.PRODUCTION)
+        cls.candidate_bytes = batch.CANDIDATE_REGISTRY.read_bytes()
+        cls.validated_bytes = batch.VALIDATED_REGISTRY.read_bytes()
         cls.candidates = entries(batch.CANDIDATE_REGISTRY)
         cls.validated = entries(batch.VALIDATED_REGISTRY)
+        cls.historical_bytes = historical_prefix_bytes(batch.CANDIDATE_REGISTRY)
+        cls.historical = (yaml.safe_load(cls.historical_bytes.decode("utf-8")) or {})["target_companies"]
         cls.report = json.loads(batch.REPORT.read_text(encoding="utf-8"))
         with batch.CANDIDATE_CSV.open(newline="", encoding="utf-8") as handle:
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_exact_historical_148_entry_byte_prefix(self):
-        self.assertEqual(len(self.production), 148)
-        self.assertTrue(batch.CANDIDATE_REGISTRY.read_bytes().startswith(self.production_bytes))
-        self.assertTrue(batch.VALIDATED_REGISTRY.read_bytes().startswith(self.production_bytes))
-        self.assertEqual(self.candidates[:148], self.production)
-        self.assertEqual(self.validated[:148], self.production)
+        validated_historical_bytes = historical_prefix_bytes(batch.VALIDATED_REGISTRY)
+
+        self.assertEqual(len(self.historical), 148)
+        self.assertEqual(validated_historical_bytes, self.historical_bytes)
+        self.assertTrue(self.candidate_bytes.startswith(self.historical_bytes))
+        self.assertTrue(self.validated_bytes.startswith(self.historical_bytes))
+        self.assertTrue(self.production_bytes.startswith(self.historical_bytes))
+        self.assertEqual(self.candidates[:148], self.historical)
+        self.assertEqual(self.validated[:148], self.historical)
+        self.assertEqual(self.production[:148], self.historical)
+        self.assertEqual(len(self.production), 156)
 
     def test_02_exact_ten_company_inventory_in_master_order(self):
         self.assertEqual([row["company"] for row in self.inventory], batch.REVIEWED_COMPANIES)
@@ -102,9 +125,28 @@ class BrowserExpansionV1AArtifactTests(unittest.TestCase):
         self.assertEqual(by_name["Broadcom"]["platform"], "workday")
 
     def test_09_production_and_parent_mappings_are_unchanged(self):
-        self.assertEqual(hashlib.sha256(self.production_bytes).hexdigest().upper(), self.report["production_registry_sha256"])
+        self.assertEqual(hashlib.sha256(self.historical_bytes).hexdigest().upper(), self.report["production_registry_sha256"])
         self.assertEqual(hashlib.sha256(batch.PARENT_MAPPINGS.read_bytes()).hexdigest().upper(), self.report["parent_mappings_sha256"])
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
+
+        expected_promotions = [
+            "SpaceX",
+            "Broadcom",
+            "ASML",
+            "Adyen",
+            "Jane Street",
+            "Goldman Sachs",
+            "Aurora Innovation",
+            "Dassault Systèmes",
+        ]
+        validated_promotions = self.validated[148:]
+        self.assertEqual([entry["name"] for entry in validated_promotions], expected_promotions)
+        self.assertEqual(self.production[148:], validated_promotions)
+        for validated_entry in validated_promotions:
+            matches = [entry for entry in self.production if entry["name"] == validated_entry["name"]]
+            self.assertEqual(matches, [validated_entry])
+        production_names = {entry["name"] for entry in self.production}
+        self.assertTrue({"Bosch", "DJI"}.isdisjoint(production_names))
 
     def test_10_projection_uses_only_validated_sources(self):
         totals = self.report["totals"]
