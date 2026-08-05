@@ -1265,3 +1265,174 @@ target_companies:
     date_field: updatedAt
     department_field: department
     remote_field: locationType
+  - name: Wise
+    platform: static_html
+    careers_url: https://wise.jobs/jobs
+    original_workbook_rank: 65
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: bounded anonymous recheck
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-05T07:10:00+00:00'
+    listing_url: https://wise.jobs/jobs
+    endpoint_variant: server_rendered_cards
+    listing_selector: body
+    job_card_selector: div.attrax-vacancy-tile
+    title_selector: a.attrax-vacancy-tile__title
+    detail_link_selector: a.attrax-vacancy-tile__title
+    external_id_regex: null
+    external_id_attribute: data-jobid
+    location_selector: div.attrax-vacancy-tile__location-freetext p.attrax-vacancy-tile__item-value
+    department_selector: div.attrax-vacancy-tile__option-job-family-group p.attrax-vacancy-tile__item-value
+    pagination_url_template: null
+    allow_url_id_fallback: false
+    allowed_apply_hosts:
+    - wise.jobs
+    candidate_family: existing_adapter_reuse
+    prior_classification: custom_rest_api
+  - name: Jump Trading
+    platform: greenhouse
+    careers_url: https://www.jumptrading.com/careers
+    original_workbook_rank: 78
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: bounded anonymous recheck
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-05T07:10:00+00:00'
+    slug: jumptrading
+    allowed_apply_hosts:
+    - www.jumptrading.com
+    candidate_family: existing_adapter_reuse
+    prior_classification: existing_adapter_extension
+  - name: Optiver
+    platform: static_html
+    careers_url: https://www.optiver.com/join-us/jobs/
+    original_workbook_rank: 81
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: bounded anonymous recheck
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-05T07:10:00+00:00'
+    listing_url: https://www.optiver.com/join-us/jobs/
+    endpoint_variant: server_rendered_cards
+    listing_selector: div[role=region]
+    job_card_selector: div[role=region] ul.flex.flex-col.gap-3 li
+    title_selector: h3 a
+    detail_link_selector: h3 a
+    external_id_regex: null
+    external_id_attribute: null
+    location_selector: p.text-body-s
+    department_selector: span.text-label-s
+    pagination_url_template: null
+    allow_url_id_fallback: true
+    allowed_apply_hosts:
+    - www.optiver.com
+    candidate_family: existing_adapter_reuse
+    prior_classification: custom_rest_api
+  - name: BlackRock
+    platform: static_html
+    careers_url: https://careers.blackrock.com/en/search-jobs
+    original_workbook_rank: 88
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: bounded anonymous recheck
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-05T07:10:00+00:00'
+    listing_url: https://careers.blackrock.com/en/search-jobs
+    endpoint_variant: server_rendered_cards
+    listing_selector: ul.section3__search-results-ul
+    job_card_selector: a.section3__search-results-a
+    title_selector: h2.section3__job-title
+    detail_link_selector: :self
+    external_id_regex: null
+    external_id_attribute: data-job-id
+    location_selector: span.job-location span.section3__job-info
+    department_selector: span.job-category span.section3__job-info
+    pagination_url_template: https://careers.blackrock.com/en/search-jobs?p={page}
+    allow_url_id_fallback: false
+    allowed_apply_hosts:
+    - careers.blackrock.com
+    candidate_family: talentbrew_radancy
+    prior_classification: talentbrew_radancy
+  - name: Snap
+    platform: static_html
+    careers_url: https://careers.snap.com/jobs
+    original_workbook_rank: 138
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: bounded anonymous recheck
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-05T07:10:00+00:00'
+    listing_url: https://careers.snap.com/jobs
+    endpoint_variant: server_rendered_cards
+    listing_selector: table
+    job_card_selector: tr[role=row]
+    title_selector: a[href*='/job?id=']
+    detail_link_selector: a[href*='/job?id=']
+    external_id_regex: id=([^&]+)
+    external_id_attribute: null
+    location_selector: td:nth-child(4)
+    department_selector: td:nth-child(2)
+    pagination_url_template: null
+    allow_url_id_fallback: false
+    allowed_apply_hosts:
+    - careers.snap.com
+    candidate_family: existing_adapter_reuse
+    prior_classification: custom_graphql
+  - name: bp
+    platform: workday
+    careers_url: https://bpinternational.wd3.myworkdayjobs.com/bpCareers
+    original_workbook_rank: 172
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: bounded anonymous recheck
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-05T07:10:00+00:00'
+    tenant: bpinternational
+    wd_subdomain: wd3
+    site_id: bpCareers
+    endpoint_variant: wday_cxs_v1
+    allowed_apply_hosts:
+    - bpinternational.wd3.myworkdayjobs.com
+    candidate_family: existing_adapter_reuse
+    prior_classification: avature
+  - name: Canadian Natural Resources
+    platform: oracle_recruiting
+    careers_url: https://ehaa.fa.ca2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CNRL-Professional/jobs
+    original_workbook_rank: 174
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: bounded anonymous recheck
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-05T07:10:00+00:00'
+    endpoint_url: https://ehaa.fa.ca2.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+    site_number: CNRL-Professional
+    locale: en
+    endpoint_variant: recruiting_ce_v1
+    allowed_apply_hosts:
+    - ehaa.fa.ca2.oraclecloud.com
+    candidate_family: existing_adapter_reuse
+    prior_classification: existing_adapter_extension
+  - name: Relativity Space
+    platform: greenhouse
+    careers_url: https://www.relativityspace.com/jobs
+    original_workbook_rank: 191
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: bounded anonymous recheck
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-05T07:10:00+00:00'
+    slug: relativity
+    allowed_apply_hosts:
+    - boards.greenhouse.io
+    - job-boards.greenhouse.io
+    candidate_family: existing_adapter_reuse
+    prior_classification: existing_adapter_extension

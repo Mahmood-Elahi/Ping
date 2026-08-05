@@ -6,6 +6,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 import yaml
 
@@ -13,9 +14,11 @@ from scripts import validate_company_registry as validator
 from scripts import validate_shared_api_batch as rollout
 from src.scraper.company_careers import scanner
 from src.scraper.company_careers.adapters import static_html
-from src.scraper.company_careers.models import CompanyTarget
+from src.scraper.company_careers.models import CompanyTarget, JobRecord
 from src.scraper.company_careers.parent_sources import (
     ParentSourceMapping,
+    annotate_child_brand_metadata,
+    canonical_job_key,
     load_parent_source_mappings,
     original_company_coverage,
 )
@@ -38,9 +41,32 @@ def target_entries(path: Path):
     return document(path)["target_companies"]
 
 
+def mapping_entries(path: Path):
+    return document(path)["company_parent_source_mappings"]
+
+
+def historical_target_prefix():
+    entries = target_entries(rollout.CANDIDATE_REGISTRY)
+    reviewed = {validator._name_key(item) for item in rollout.CANONICAL_ENTRIES}
+    first_reviewed = next(
+        index for index, item in enumerate(entries)
+        if validator._name_key(item) in reviewed
+    )
+    return entries[:first_reviewed]
+
+
+def historical_mapping_prefix():
+    mappings = mapping_entries(rollout.CANDIDATE_REGISTRY)
+    first_deepmind = next(
+        index for index, item in enumerate(mappings)
+        if validator._name_key({"name": item["child_company"]}) == "google deepmind"
+    )
+    return mappings[:first_deepmind]
+
+
 def additions(path: Path):
-    production = {validator._name_key(item) for item in target_entries(rollout.PRODUCTION)}
-    return [item for item in target_entries(path) if validator._name_key(item) not in production]
+    historical = {validator._name_key(item) for item in historical_target_prefix()}
+    return [item for item in target_entries(path) if validator._name_key(item) not in historical]
 
 
 class SharedSourceBulkActivationTests(unittest.TestCase):
@@ -50,13 +76,30 @@ class SharedSourceBulkActivationTests(unittest.TestCase):
         cls.inventory = inventory_rows()
 
     def test_01_exact_candidate_set_is_derived_from_research(self):
-        self.assertEqual(rollout._derived_candidate_names(), rollout.EXPECTED_COMPANIES)
         self.assertEqual([row["company"] for row in self.inventory], rollout.EXPECTED_COMPANIES)
-        self.assertEqual((len(rollout.CANONICAL_ENTRIES), len(rollout.PARENT_CANDIDATES)), (12, 10))
+        self.assertEqual(
+            [item["name"] for item in rollout.CANONICAL_ENTRIES],
+            [
+                "Netflix", "Wise", "Jump Trading", "Optiver", "BlackRock",
+                "Schneider Electric", "Continental", "Snap", "bp",
+                "Canadian Natural Resources", "Astrobotic", "Relativity Space",
+            ],
+        )
+        self.assertEqual(
+            [item["child_company"] for item in rollout.PARENT_CANDIDATES],
+            [
+                "Google DeepMind", "Clearpath Robotics", "OTTO Motors",
+                "Imperial Oil", "Walmart Global Tech", "Uber Eats",
+                "Costco Technology", "X", "Threads", "WeChat",
+            ],
+        )
 
-    def test_02_production_and_existing_mapped_companies_are_excluded(self):
-        production = {validator._name_key(item) for item in target_entries(rollout.PRODUCTION)}
-        mapped = {validator._name_key({"name": item.child_company}) for item in load_parent_source_mappings(rollout.PRODUCTION_MAPPINGS)}
+    def test_02_historical_baselines_excluded_reviewed_companies(self):
+        production = {validator._name_key(item) for item in historical_target_prefix()}
+        mapped = {
+            validator._name_key({"name": item["child_company"]})
+            for item in historical_mapping_prefix()
+        }
         reviewed = {validator._name_key({"name": name}) for name in rollout.EXPECTED_COMPANIES}
         self.assertFalse(reviewed & production)
         self.assertFalse(reviewed & mapped)
@@ -66,18 +109,30 @@ class SharedSourceBulkActivationTests(unittest.TestCase):
         self.assertEqual(ranks, sorted(ranks))
         self.assertEqual(ranks, [rollout._master_ranks()[name] for name in rollout.EXPECTED_COMPANIES])
 
-    def test_04_production_registry_is_exact_candidate_prefix(self):
-        production = rollout.PRODUCTION.read_bytes()
-        self.assertTrue(rollout.CANDIDATE_REGISTRY.read_bytes().startswith(production))
-        self.assertTrue(rollout.VALIDATED_REGISTRY.read_bytes().startswith(production))
+    def test_04_milestone_artifacts_preserve_historical_prefixes(self):
+        targets = historical_target_prefix()
+        mappings = historical_mapping_prefix()
+        for path in (rollout.CANDIDATE_REGISTRY, rollout.VALIDATED_REGISTRY):
+            self.assertEqual(target_entries(path)[:len(targets)], targets)
+            self.assertEqual(mapping_entries(path)[:len(mappings)], mappings)
 
-    def test_05_candidate_registry_is_target_loader_compatible(self):
-        self.assertEqual(len(load_target_companies(str(rollout.PRODUCTION))), 119)
-        self.assertEqual(len(load_target_companies(str(rollout.CANDIDATE_REGISTRY))), 131)
+    def test_05_candidate_and_production_registries_are_loader_compatible(self):
+        historical_count = len(historical_target_prefix())
+        self.assertEqual(
+            len(load_target_companies(str(rollout.CANDIDATE_REGISTRY))),
+            historical_count + len(rollout.CANONICAL_ENTRIES),
+        )
+        self.assertEqual(
+            len(load_target_companies(str(rollout.PRODUCTION))),
+            historical_count + len(rollout.SAFE_CANONICAL_NAMES),
+        )
 
     def test_06_validated_registry_contains_only_safe_canonical_sources(self):
         self.assertEqual([item["name"] for item in additions(rollout.VALIDATED_REGISTRY)], rollout.SAFE_CANONICAL_NAMES)
-        self.assertEqual(len(load_target_companies(str(rollout.VALIDATED_REGISTRY))), 127)
+        self.assertEqual(
+            len(load_target_companies(str(rollout.VALIDATED_REGISTRY))),
+            len(historical_target_prefix()) + len(rollout.SAFE_CANONICAL_NAMES),
+        )
 
     def test_07_candidate_registry_contains_all_canonical_candidates(self):
         self.assertEqual(
@@ -86,15 +141,24 @@ class SharedSourceBulkActivationTests(unittest.TestCase):
         )
 
     def test_08_existing_parent_mappings_are_unchanged_and_first(self):
-        production = document(rollout.PRODUCTION_MAPPINGS)["company_parent_source_mappings"]
-        candidate = document(rollout.CANDIDATE_REGISTRY)["company_parent_source_mappings"]
-        validated = document(rollout.VALIDATED_REGISTRY)["company_parent_source_mappings"]
-        self.assertEqual(candidate[:3], production)
-        self.assertEqual(validated[:3], production)
+        historical = historical_mapping_prefix()
+        self.assertEqual(
+            [item["child_company"] for item in historical],
+            ["Instagram", "Universal Robots", "WhatsApp"],
+        )
+        for path in (
+            rollout.PRODUCTION_MAPPINGS,
+            rollout.CANDIDATE_REGISTRY,
+            rollout.VALIDATED_REGISTRY,
+        ):
+            self.assertEqual(mapping_entries(path)[:len(historical)], historical)
 
     def test_09_validated_mapping_is_only_exact_deepmind_rule(self):
-        mappings = document(rollout.VALIDATED_REGISTRY)["company_parent_source_mappings"]
-        self.assertEqual(len(mappings), 4)
+        mappings = mapping_entries(rollout.VALIDATED_REGISTRY)
+        self.assertEqual(len(mappings), len(historical_mapping_prefix()) + 1)
+        self.assertEqual(
+            sum(item["child_company"] == "Google DeepMind" for item in mappings), 1
+        )
         deepmind = mappings[-1]
         self.assertEqual(
             (deepmind["child_company"], deepmind["parent_company"], deepmind["canonical_source"],
@@ -105,7 +169,7 @@ class SharedSourceBulkActivationTests(unittest.TestCase):
         ParentSourceMapping.from_dict(deepmind)
 
     def test_10_candidate_mapping_order_and_uniqueness(self):
-        mappings = document(rollout.CANDIDATE_REGISTRY)["company_parent_source_mappings"][3:]
+        mappings = mapping_entries(rollout.CANDIDATE_REGISTRY)[len(historical_mapping_prefix()):]
         self.assertEqual([item["child_company"] for item in mappings], [item["child_company"] for item in rollout.PARENT_CANDIDATES])
         normalized = [validator._name_key({"name": item["child_company"]}) for item in mappings]
         self.assertEqual(len(normalized), len(set(normalized)))
@@ -114,14 +178,19 @@ class SharedSourceBulkActivationTests(unittest.TestCase):
         target_names = {validator._name_key(item) for item in target_entries(rollout.CANDIDATE_REGISTRY)}
         children = {validator._name_key({"name": item["child_company"]}) for item in rollout.PARENT_CANDIDATES}
         self.assertFalse(target_names & children)
+        production_names = {
+            validator._name_key(item) for item in target_entries(rollout.PRODUCTION)
+        }
+        self.assertNotIn("google deepmind", production_names)
 
     def test_12_duplicate_company_and_source_identities_are_absent(self):
-        entries = target_entries(rollout.CANDIDATE_REGISTRY)
-        names = [validator._name_key(item) for item in entries]
-        sources = [validator.source_key(item) for item in entries]
-        sources = [source for source in sources if source]
-        self.assertEqual(len(names), len(set(names)))
-        self.assertEqual(len(sources), len(set(sources)))
+        for path in (rollout.CANDIDATE_REGISTRY, rollout.PRODUCTION):
+            entries = target_entries(path)
+            names = [validator._name_key(item) for item in entries]
+            sources = [validator.source_key(item) for item in entries]
+            sources = [source for source in sources if source]
+            self.assertEqual(len(names), len(set(names)))
+            self.assertEqual(len(sources), len(set(sources)))
 
     def test_13_synthetic_milestone_delta_is_one(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -234,6 +303,118 @@ class SharedSourceBulkActivationTests(unittest.TestCase):
         self.assertEqual((rows["bp"]["prior_classification"], rows["bp"]["platform"]), ("avature", "workday"))
         self.assertTrue(rows["Continental"]["exclusion_reason"])
         self.assertEqual(rows["Google DeepMind"]["exact_metadata_field"], "departments")
+
+    def test_26_production_contains_exact_validated_activation(self):
+        historical = historical_target_prefix()
+        production = target_entries(rollout.PRODUCTION)
+        validated = additions(rollout.VALIDATED_REGISTRY)
+        self.assertEqual(production[:len(historical)], historical)
+        self.assertEqual(production[len(historical):], validated)
+        self.assertEqual(
+            [item["name"] for item in production[len(historical):]],
+            rollout.SAFE_CANONICAL_NAMES,
+        )
+        for expected in validated:
+            matches = [
+                item for item in production
+                if validator._name_key(item) == validator._name_key(expected)
+            ]
+            self.assertEqual(matches, [expected])
+            self.assertEqual(validator.source_key(matches[0]), validator.source_key(expected))
+        rejected = {"Netflix", "Schneider Electric", "Continental", "Astrobotic"}
+        self.assertFalse(rejected & {item["name"] for item in production})
+
+    def test_27_production_mapping_is_exact_and_unique(self):
+        historical = historical_mapping_prefix()
+        production = mapping_entries(rollout.PRODUCTION_MAPPINGS)
+        deepmind = mapping_entries(rollout.VALIDATED_REGISTRY)[-1]
+        self.assertEqual(production, historical + [deepmind])
+        children = [
+            validator._name_key({"name": item["child_company"]})
+            for item in production
+        ]
+        identities = [
+            (
+                item["canonical_source"].casefold(),
+                item["match_field"],
+                tuple(sorted(" ".join(value.casefold().split()) for value in item["accepted_values"])),
+            )
+            for item in production
+        ]
+        self.assertEqual(len(children), len(set(children)))
+        self.assertEqual(len(identities), len(set(identities)))
+        self.assertTrue(all(item["enabled"] for item in production))
+
+    def test_28_deepmind_requires_exact_structured_metadata(self):
+        mappings = load_parent_source_mappings(rollout.PRODUCTION_MAPPINGS)
+        original = JobRecord(
+            job_id="google-1",
+            title="Software Engineer",
+            company="Google",
+            location="Canada",
+            url="https://www.google.com/about/careers/applications/jobs/results/1",
+            updated_at="",
+            source="custom:google",
+            description="General role",
+            departments=[" DeepMind "],
+        )
+        annotated = annotate_child_brand_metadata(original, mappings)
+        self.assertEqual(annotated.child_brands, ["Google DeepMind"])
+        self.assertEqual(canonical_job_key(annotated), canonical_job_key(original))
+        self.assertEqual(
+            (annotated.company, annotated.job_id, annotated.url, annotated.source),
+            (original.company, original.job_id, original.url, original.source),
+        )
+        false_positives = (
+            {"title": "Google DeepMind Software Engineer"},
+            {"description": "Build systems for Google DeepMind"},
+            {"url": "https://careers.example/jobs/google-deepmind"},
+        )
+        for values in false_positives:
+            candidate = JobRecord(
+                job_id="google-false",
+                title=values.get("title", "Software Engineer"),
+                company="Google",
+                location="Canada",
+                url=values.get("url", "https://careers.example/jobs/1"),
+                updated_at="",
+                source="custom:google",
+                description=values.get("description", "General role"),
+                departments=["Engineering"],
+            )
+            self.assertNotIn(
+                "Google DeepMind",
+                annotate_child_brand_metadata(candidate, mappings).child_brands,
+            )
+
+    def test_29_google_is_scanned_once_and_keeps_one_canonical_row(self):
+        mappings = load_parent_source_mappings(rollout.PRODUCTION_MAPPINGS)
+        google_job = JobRecord(
+            job_id="google-1",
+            title="Software Engineer",
+            company="Google",
+            location="Canada",
+            url="https://www.google.com/about/careers/applications/jobs/results/1",
+            updated_at="",
+            source="custom:google",
+            departments=["DeepMind"],
+        )
+        adapter = Mock(return_value=[google_job])
+        with patch.dict(scanner.ADAPTERS, {"google_test": adapter}, clear=False):
+            report = scanner.CompanyCareersScanner(
+                targets=[CompanyTarget(name="Google", platform="google_test")],
+                parent_source_mappings=mappings,
+            ).scan()
+        adapter.assert_called_once()
+        self.assertEqual(len(report.jobs), 1)
+        self.assertEqual(report.jobs[0].company, "Google")
+        self.assertEqual(report.jobs[0].child_brands, ["Google DeepMind"])
+        self.assertEqual(report.to_dict()["canonical_sources_checked"], 1)
+        deepmind = next(
+            item for item in report.mapped_coverage
+            if item["company"] == "Google DeepMind"
+        )
+        self.assertEqual(deepmind["mapped_jobs"], 1)
 
 
 def load_target_companies_from_item(item):

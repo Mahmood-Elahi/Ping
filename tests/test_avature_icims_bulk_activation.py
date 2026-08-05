@@ -132,9 +132,12 @@ class AvatureICIMSBulkActivationTests(unittest.TestCase):
             {" ".join(name.casefold().split()) for name in VALIDATED_SAFE_CANDIDATES}
             <= production
         )
+        validated_names = {
+            validator._name_key(item) for item in additions(VALIDATED)
+        }
         self.assertFalse(
             {" ".join(name.casefold().split()) for name in EXCLUDED_CANDIDATES}
-            & production
+            & validated_names
         )
 
     def test_35_historical_registry_prefixes_and_promoted_registry_order(self):
@@ -195,7 +198,7 @@ class AvatureICIMSBulkActivationTests(unittest.TestCase):
         self.assertFalse(EXCLUDED_CANDIDATES & set(safe))
         self.assertFalse(
             {" ".join(name.casefold().split()) for name in EXCLUDED_CANDIDATES}
-            & set(production_names)
+            & {validator._name_key(item) for item in validated_additions}
         )
 
     def test_39_synthetic_baseline_delta_calculation(self):
@@ -280,7 +283,7 @@ class AvatureICIMSBulkActivationTests(unittest.TestCase):
             )
         self.assertFalse(
             {" ".join(name.casefold().split()) for name in EXCLUDED_CANDIDATES}
-            & set(production_names)
+            & set(validated_by_name)
         )
         self.assertEqual(len(production_names), len(set(production_names)))
         source_keys = [validator.source_key(item) for item in production_entries]

@@ -90,12 +90,12 @@ class ParentSourceConfigurationTests(unittest.TestCase):
     def setUp(self):
         self.mappings = load_parent_source_mappings(MAPPINGS_PATH)
 
-    def test_01_exactly_three_enabled_mappings(self):
-        self.assertEqual(len(self.mappings), 3)
+    def test_01_exactly_four_enabled_mappings(self):
+        self.assertEqual(len(self.mappings), 4)
         self.assertTrue(all(item.enabled for item in self.mappings))
         self.assertEqual(
             [item.child_company for item in self.mappings],
-            ["Instagram", "Universal Robots", "WhatsApp"],
+            ["Google DeepMind", "Instagram", "Universal Robots", "WhatsApp"],
         )
 
     def test_02_loader_remains_compatible_with_reviewed_legacy_schema(self):
@@ -251,7 +251,7 @@ class ParentSourceScannerCoverageTests(unittest.TestCase):
             ).scan()
         adapter.assert_called_once()
         self.assertEqual(len(report.jobs), 1)
-        self.assertEqual(len(report.mapped_coverage), 3)
+        self.assertEqual(len(report.mapped_coverage), len(self.mappings))
 
     def test_18_zero_mapped_jobs_is_not_a_technical_failure(self):
         with patch.dict(
@@ -295,7 +295,10 @@ class ParentSourceScannerCoverageTests(unittest.TestCase):
 
     def test_21_candidate_original_coverage_becomes_87_without_live_count_constant(self):
         targets = load_target_companies(str(CANDIDATES))
-        coverage = original_company_coverage(targets, self.mappings)
+        historical_mappings = [
+            item for item in self.mappings if item.child_company != "Google DeepMind"
+        ]
+        coverage = original_company_coverage(targets, historical_mappings)
         self.assertEqual(coverage["total_original_companies_covered"], 87)
         self.assertEqual(coverage["mapped_child_brands_covered"], 3)
 
@@ -535,6 +538,7 @@ class ParentSourceSheetsAndRegistryTests(unittest.TestCase):
                 for mapping in mappings
             },
             {
+                "Google DeepMind": ("Google", "custom:google"),
                 "Instagram": ("Meta", "custom:meta"),
                 "WhatsApp": ("Meta", "custom:meta"),
                 "Universal Robots": (
@@ -564,6 +568,11 @@ class ParentSourceSheetsAndRegistryTests(unittest.TestCase):
 
 class ParentSourceValidationIsolationTests(unittest.TestCase):
     def test_33_validation_is_bounded_read_only_and_initializes_no_persistence(self):
+        historical_mappings = [
+            item
+            for item in load_parent_source_mappings(MAPPINGS_PATH)
+            if item.child_company != "Google DeepMind"
+        ]
         meta_jobs = [job(job_id=f"meta-{index}", departments=["Instagram"]) for index in range(25)]
         teradyne_jobs = [
             job(
@@ -578,6 +587,11 @@ class ParentSourceValidationIsolationTests(unittest.TestCase):
         with (
             tempfile.TemporaryDirectory() as temp_dir,
             patch.object(validation, "OUTPUT_PATH", Path(temp_dir) / "report.json"),
+            patch.object(
+                validation,
+                "load_parent_source_mappings",
+                return_value=historical_mappings,
+            ),
             patch.object(validation.meta, "fetch_jobs", return_value=meta_jobs),
             patch.object(
                 validation.sap_successfactors, "fetch_jobs", return_value=teradyne_jobs

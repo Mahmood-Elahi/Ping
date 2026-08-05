@@ -41,3 +41,17 @@ company_parent_source_mappings:
       official_child_careers_url: https://www.metacareers.com/areas-of-work/whatsapp/
       official_parent_search_url: https://www.metacareers.com/jobsearch/?teams%5B0%5D=WhatsApp
       validation_artifact: output/quick_wins_candidate_validation.json
+  - child_company: Google DeepMind
+    parent_company: Google
+    enabled: true
+    match_field: departments
+    match_type: exact_normalized
+    accepted_values:
+      - DeepMind
+    canonical_source: custom:google
+    display_behavior: child_brand_metadata
+    confidence: high
+    evidence:
+      validation_artifact: output/shared_api_validation.json
+      evidence_source: bounded production-parent recheck
+      validation_status: validated_parent_mapping_with_current_jobs
