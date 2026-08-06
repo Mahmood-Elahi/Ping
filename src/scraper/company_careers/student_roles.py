@@ -12,6 +12,13 @@ from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Optional
 
+from src.scraper.company_careers.education_eligibility import (
+    AMBIGUOUS,
+    GRADUATE_ONLY,
+    UNDERGRADUATE_ALLOWED,
+    annotate_education_eligibility,
+    classify_education_eligibility,
+)
 from src.scraper.company_careers.models import CompanyTarget, JobRecord
 
 
@@ -78,14 +85,7 @@ RESTRICTED_PROGRAM_PATTERNS = (
     (r"\btransitioning service member\b", "transitioning_service_member"),
     (r"\bveteran fellowship\b", "veteran_fellowship"),
     (r"\bexperienced\s*[-/]?\s*(?:hires?|professionals?)\b", "experienced_hire"),
-    (r"\bpost\s*[- ]?doctoral\b|\bpostdocs?\b", "postdoctoral"),
 )
-RESTRICTED_DEGREE_PATTERNS = (
-    (r"\bm\.?b\.?a\.?\b", "mba_only"),
-    (r"\bph\.?d\.?\b|\bdoctoral\b", "phd_only"),
-    (r"\bmaster['’]?s\b|\bmasters\b", "masters_only"),
-)
-
 CANADIAN_PROVINCE_TERMS = (
     "alberta", "british columbia", "manitoba", "new brunswick",
     "newfoundland and labrador", "nova scotia", "ontario",
@@ -321,25 +321,12 @@ def student_job_exclusion_reason(
 ) -> Optional[str]:
     """Return an exclusion category; sponsorship is deliberately never a gate."""
     del include_new_grad
-    title = job.title or ""
-    exempt_manager_intern = bool(
-        re.search(
-            r"\b(?:product|program|technical\s+program)\s+managers?\b.*\bintern(?:ship)?s?\b",
-            title,
-            flags=re.IGNORECASE,
-        )
-    )
-    seniority_match = SENIORITY_TITLE_PATTERN.search(title)
-    if seniority_match and not (
-        seniority_match.group(0).strip().casefold() == "manager" and exempt_manager_intern
-    ):
-        return "seniority"
-    if any(re.search(pattern, title, flags=re.IGNORECASE) for pattern in NEW_GRAD_PATTERNS):
-        return "new_grad"
-    if _restricted_program_signals(job):
-        return "eligibility"
-    if not student_job_signals(job)["matching_rule"]:
-        return "job_type"
+    existing_reason = _student_job_exclusion_reason_before_education(job)
+    if existing_reason:
+        return existing_reason
+    education = annotate_education_eligibility(job)
+    if education["education_eligibility"] == GRADUATE_ONLY:
+        return "graduate_only"
     return None
 
 
@@ -399,6 +386,7 @@ def score_student_job(
     """Return deterministic student relevance with domain and season annotations."""
     del include_new_grad
     title = (job.title or "").casefold()
+    education = annotate_education_eligibility(job)
     signal_info = student_job_signals(job)
     score = 34 if signal_info["matching_rule"] else 0
     positive_signals = _unique(
@@ -460,6 +448,8 @@ def score_student_job(
         "seasons": seasons,
         "season_boost": season_boost,
         "work_authorization": sponsorship_metadata(job),
+        "education_eligibility": education["education_eligibility"],
+        "education_evidence": education["education_evidence"],
     }
 
 
@@ -485,6 +475,8 @@ def rank_student_jobs(
             "seasons": relevance["seasons"],
             "season_boost": relevance["season_boost"],
             "work_authorization": relevance["work_authorization"],
+            "education_eligibility": relevance["education_eligibility"],
+            "education_evidence": relevance["education_evidence"],
         })
         ranked.append(item)
     ranked.sort(key=lambda item: (
@@ -498,7 +490,7 @@ def build_student_search_diagnostics(
     normalized_jobs: Iterable[JobRecord], *, locations: Optional[Iterable[str]] = None,
     example_limit: int = 10,
 ) -> dict[str, Any]:
-    """Compare legacy and v1 eligibility on the same normalized job set."""
+    """Compare retained jobs before and after the education gate."""
     jobs = list(normalized_jobs)
     accepted: list[JobRecord] = []
     rejected: list[tuple[JobRecord, str]] = []
@@ -508,11 +500,32 @@ def build_student_search_diagnostics(
     title_signals: Counter[str] = Counter()
     seasons_seen: Counter[str] = Counter()
     before_count = 0
+    graduate_only_removed: list[dict[str, str]] = []
+    ambiguous_retained: list[dict[str, str]] = []
+    false_positive_samples: list[dict[str, str]] = []
 
     for job in jobs:
+        base_reason = _student_job_exclusion_reason_before_education(job)
+        education = (
+            annotate_education_eligibility(job)
+            if base_reason is None else classify_education_eligibility(job)
+        )
         reason = student_job_exclusion_reason(job)
         location_reason = student_location_exclusion_reason(job, locations=locations)
         final_reason = reason or location_reason
+        if base_reason is None and education["education_eligibility"] == GRADUATE_ONLY:
+            graduate_only_removed.append(_education_diagnostic_example(job, education))
+        if base_reason is None and location_reason is None:
+            before_count += 1
+            review = _education_diagnostic_example(job, education)
+            if education["education_eligibility"] == AMBIGUOUS:
+                ambiguous_retained.append(review)
+                false_positive_samples.append(review)
+            elif education["education_eligibility"] == UNDERGRADUATE_ALLOWED and re.search(
+                r"\b(?:graduate|master|ph\.?\s?d|doctoral|mba|j\.?d\.?|m\.?d\.?)\b",
+                education["education_evidence"], flags=re.IGNORECASE,
+            ):
+                false_positive_samples.append(review)
         if final_reason:
             exclusion_counts[final_reason] += 1
             rejected.append((job, final_reason))
@@ -528,9 +541,7 @@ def build_student_search_diagnostics(
                 seasons_seen[season] += 1
 
         legacy_reason = _legacy_student_exclusion_reason(job) or _legacy_location_exclusion_reason(job)
-        if legacy_reason is None:
-            before_count += 1
-        elif final_reason is None:
+        if legacy_reason is not None and final_reason is None:
             if legacy_reason == "location":
                 rule = f"location:{classify_student_location(job, locations=locations)}"
             else:
@@ -554,6 +565,9 @@ def build_student_search_diagnostics(
         "still_rejected_examples": [
             _diagnostic_example(job, reason) for job, reason in rejected[:example_limit]
         ],
+        "graduate_only_roles_removed": graduate_only_removed,
+        "ambiguous_roles_retained": ambiguous_retained,
+        "false_positive_review_samples": false_positive_samples[:example_limit],
     }
 
 
@@ -572,7 +586,8 @@ def write_student_ranked_jobs_artifacts(
     fieldnames = [
         "company", "title", "location", "relevance_score", "relevance_band",
         "matched_categories", "title_signals", "matching_rule", "seasons",
-        "positive_signals", "negative_signals", "location_status", "url", "source", "updated_at",
+        "positive_signals", "negative_signals", "location_status", "education_eligibility",
+        "education_evidence", "url", "source", "updated_at",
     ]
     with Path(csv_path).open("w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
@@ -622,11 +637,28 @@ def _restricted_program_signals(job: JobRecord) -> list[str]:
         signal for pattern, signal in RESTRICTED_PROGRAM_PATTERNS
         if re.search(pattern, text, flags=re.IGNORECASE)
     ]
-    broader_degree = bool(re.search(r"\b(?:undergraduate|bachelor|b\.?s\.?|all degree)\b", text, flags=re.IGNORECASE))
-    for pattern, signal in RESTRICTED_DEGREE_PATTERNS:
-        if re.search(pattern, text, flags=re.IGNORECASE) and not broader_degree:
-            signals.append(signal)
     return _unique(signals)
+
+
+def _student_job_exclusion_reason_before_education(job: JobRecord) -> Optional[str]:
+    """Return existing student-role exclusions without the education gate."""
+    title = job.title or ""
+    exempt_manager_intern = bool(re.search(
+        r"\b(?:product|program|technical\s+program)\s+managers?\b.*\bintern(?:ship)?s?\b",
+        title, flags=re.IGNORECASE,
+    ))
+    seniority_match = SENIORITY_TITLE_PATTERN.search(title)
+    if seniority_match and not (
+        seniority_match.group(0).strip().casefold() == "manager" and exempt_manager_intern
+    ):
+        return "seniority"
+    if any(re.search(pattern, title, flags=re.IGNORECASE) for pattern in NEW_GRAD_PATTERNS):
+        return "new_grad"
+    if _restricted_program_signals(job):
+        return "eligibility"
+    if not student_job_signals(job)["matching_rule"]:
+        return "job_type"
+    return None
 
 
 def _seniority_signals(title: str) -> list[str]:
@@ -704,6 +736,18 @@ def _legacy_location_exclusion_reason(job: JobRecord) -> Optional[str]:
 
 def _diagnostic_example(job: JobRecord, rule: str) -> dict[str, str]:
     return {"company": job.company, "title": job.title, "location": job.location, "rule": rule}
+
+
+def _education_diagnostic_example(
+    job: JobRecord, education: Mapping[str, str],
+) -> dict[str, str]:
+    return {
+        "company": job.company,
+        "title": job.title,
+        "location": job.location,
+        "education_eligibility": education["education_eligibility"],
+        "education_evidence": education["education_evidence"],
+    }
 
 
 def _recency_signal(updated_at: str, *, now: Optional[datetime] = None) -> tuple[Optional[str], int]:

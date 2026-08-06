@@ -144,10 +144,13 @@ class SearchScopeExpansionV1Tests(unittest.TestCase):
                 )
         for title in (
             "MBA Intern", "PhD Research Intern", "Master's Intern", "Postdoctoral Intern",
-            "Experienced-Hire Program Intern",
         ):
             with self.subTest(title=title):
-                self.assertEqual(student_job_exclusion_reason(self.job(title)), "eligibility")
+                self.assertEqual(student_job_exclusion_reason(self.job(title)), "graduate_only")
+        self.assertEqual(
+            student_job_exclusion_reason(self.job("Experienced-Hire Program Intern")),
+            "eligibility",
+        )
         experienced_metadata = self.job(
             "Research Associate",
             metadata={"employment_type": "Intern", "category": ["Experienced Professionals"]},
@@ -243,7 +246,7 @@ class SearchScopeExpansionV1Tests(unittest.TestCase):
         ]
         diagnostics = build_student_search_diagnostics(fixtures)
         self.assertEqual(diagnostics["total_normalized_jobs"], 6)
-        self.assertEqual(diagnostics["before_retained_jobs"], 0)
+        self.assertEqual(diagnostics["before_retained_jobs"], 3)
         self.assertEqual(diagnostics["after_retained_jobs"], 3)
         self.assertEqual(diagnostics["exclusions_by_reason"], {"job_type": 1, "location": 1, "seniority": 1})
         self.assertEqual(sum(diagnostics["newly_accepted_jobs_by_matching_rule"].values()), 3)

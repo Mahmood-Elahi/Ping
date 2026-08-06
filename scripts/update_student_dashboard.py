@@ -303,6 +303,21 @@ def print_audit_summary(summary: dict[str, Any]) -> None:
     print(f"  Location distribution: {diagnostics.get('location_distribution', {})}")
     print(f"  Title-signal distribution: {diagnostics.get('title_signal_distribution', {})}")
     print(f"  Season distribution: {diagnostics.get('season_distribution', {})}")
+    removed = diagnostics.get("graduate_only_roles_removed", [])
+    ambiguous = diagnostics.get("ambiguous_roles_retained", [])
+    false_positive_samples = diagnostics.get("false_positive_review_samples", [])
+    print(f"  Graduate-only roles removed: {len(removed)}")
+    for item in removed:
+        print(f"    - {item['company']} | {item['title']} | evidence: {item['education_evidence']}")
+    print(f"  Ambiguous roles retained for review: {len(ambiguous)}")
+    for item in ambiguous:
+        print(f"    - {item['company']} | {item['title']} | evidence: {item['education_evidence']}")
+    print(f"  False-positive review samples: {len(false_positive_samples)}")
+    for item in false_positive_samples:
+        print(
+            f"    - {item['company']} | {item['title']} | "
+            f"{item['education_eligibility']} | evidence: {item['education_evidence']}"
+        )
     print(f"  Diagnostics path: {summary.get('diagnostics_path')}")
 
 
