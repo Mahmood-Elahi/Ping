@@ -1,0 +1,137 @@
+name: Hourly Job Radar
+
+on:
+  schedule:
+    # GitHub Actions cron schedules use UTC.
+    - cron: "17 */4 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: job-radar-hourly
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  update-student-dashboard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      GOOGLE_SHEET_ID: ${{ vars.GOOGLE_SHEET_ID }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Validate GitHub configuration and materialize Google credentials
+        shell: bash
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+
+          missing=()
+          [[ -n "${SUPABASE_URL:-}" ]] || missing+=("SUPABASE_URL secret")
+          [[ -n "${SUPABASE_SERVICE_ROLE_KEY:-}" ]] || missing+=("SUPABASE_SERVICE_ROLE_KEY secret")
+          [[ -n "${GOOGLE_SERVICE_ACCOUNT_JSON:-}" ]] || missing+=("GOOGLE_SERVICE_ACCOUNT_JSON secret")
+          [[ -n "${GOOGLE_SHEET_ID:-}" ]] || missing+=("GOOGLE_SHEET_ID variable")
+
+          if (( ${#missing[@]} )); then
+            printf '::error::Missing required GitHub configuration: %s\n' "$(IFS=', '; echo "${missing[*]}")" >&2
+            exit 1
+          fi
+
+          credentials_path="${RUNNER_TEMP}/google-service-account.json"
+          umask 077
+          printf '%s' "${GOOGLE_SERVICE_ACCOUNT_JSON}" > "${credentials_path}"
+          if [[ ! -s "${credentials_path}" ]]; then
+            printf '::error::Failed to create the Google credentials file under RUNNER_TEMP.\n' >&2
+            exit 1
+          fi
+          printf 'GOOGLE_CREDENTIALS_PATH=%s\n' "${credentials_path}" >> "${GITHUB_ENV}"
+
+      - name: Set up Python 3.11 with pip cache
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install Python dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Cache Playwright Chromium
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('requirements.txt') }}
+
+      - name: Install Playwright Chromium
+        run: python -m playwright install --with-deps chromium
+
+      - name: Preflight production configuration
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          from src.scraper.company_careers.parent_sources import load_parent_source_mappings
+          from src.scraper.company_careers.registry import load_target_companies
+
+          required = (
+              "SUPABASE_URL",
+              "SUPABASE_SERVICE_ROLE_KEY",
+              "GOOGLE_SHEET_ID",
+              "GOOGLE_CREDENTIALS_PATH",
+          )
+          missing = [name for name in required if not os.environ.get(name)]
+          if missing:
+              raise SystemExit(
+                  "Missing required environment variables: " + ", ".join(missing)
+              )
+
+          credentials_path = Path(os.environ["GOOGLE_CREDENTIALS_PATH"])
+          if not credentials_path.is_file() or credentials_path.stat().st_size == 0:
+              raise SystemExit(
+                  "Google credentials file was not created under RUNNER_TEMP"
+              )
+
+          companies = load_target_companies()
+          mappings = load_parent_source_mappings()
+          if len(companies) != 160:
+              raise SystemExit(
+                  f"Production registry count mismatch: expected 160, found {len(companies)}"
+              )
+          if len(mappings) != 4:
+              raise SystemExit(
+                  f"Parent mapping count mismatch: expected 4, found {len(mappings)}"
+              )
+
+          print("Production preflight passed: 160 canonical sources and 4 parent mappings.")
+          PY
+
+      - name: Update student dashboard
+        run: python scripts/update_student_dashboard.py --max-jobs 20
+
+      - name: Upload scan diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: job-radar-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            jobs/company_careers_coverage_*.json
+            jobs/company_careers_coverage_*.md
+            jobs/company_careers_failures_*.json
+            jobs/company_careers_ranked_*.json
+            jobs/student_search_diagnostics_*.json
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Remove temporary Google credentials
+        if: ${{ always() }}
+        shell: bash
+        run: rm -f "${RUNNER_TEMP}/google-service-account.json"
+
