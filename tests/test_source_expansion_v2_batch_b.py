@@ -133,7 +133,7 @@ class SourceExpansionV2BatchBArtifactTests(unittest.TestCase):
         self.assertEqual([entry["name"] for entry in validated_promotions], VALIDATED)
         self.assertEqual(production_promotions, validated_promotions)
         self.assertEqual(len(self.validated), self.historical_count + len(safe))
-        self.assertEqual(len(self.production), 180)
+        self.assertGreaterEqual(len(self.production), promotion_end)
         production_names = [entry["name"] for entry in self.production]
         for name in VALIDATED:
             self.assertEqual(production_names.count(name), 1)

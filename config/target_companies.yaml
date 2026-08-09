@@ -2319,3 +2319,86 @@ target_companies:
     slug: medium
     search_url: https://job-boards.greenhouse.io/medium
     identity_url: https://job-boards.greenhouse.io/medium
+  - name: Marvell Technology
+    platform: workday
+    careers_url: https://www.marvell.com/company/careers.html
+    source_identity_regex: marvell
+    allowed_apply_hosts:
+    - marvell.wd1.myworkdayjobs.com
+    original_workbook_rank: 35
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    tenant: marvell
+    wd_subdomain: wd1
+    site_id: MarvellCareers
+    search_url: https://marvell.wd1.myworkdayjobs.com/MarvellCareers
+    identity_url: https://marvell.wd1.myworkdayjobs.com/MarvellCareers
+  - name: Oracle
+    platform: oracle_recruiting
+    careers_url: https://careers.oracle.com/en/sites/jobsearch/jobs
+    source_identity_regex: Oracle
+    allowed_apply_hosts:
+    - careers.oracle.com
+    original_workbook_rank: 42
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    endpoint_url: https://eeho.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+    site_number: CX_45001
+    locale: en
+  - name: Block
+    platform: greenhouse
+    careers_url: https://block.xyz/careers
+    source_identity_regex: \bBlock\b
+    allowed_apply_hosts:
+    - block.xyz
+    original_workbook_rank: 55
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: block
+    search_url: https://block.xyz/careers/jobs
+  - name: Sony
+    platform: workday
+    careers_url: https://www.sony.com/en/SonyInfo/Careers/
+    source_identity_regex: sonyglobal
+    allowed_apply_hosts:
+    - sonyglobal.wd1.myworkdayjobs.com
+    original_workbook_rank: 137
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    tenant: sonyglobal
+    wd_subdomain: wd1
+    site_id: SonyGlobalCareers
+    search_url: https://sonyglobal.wd1.myworkdayjobs.com/SonyGlobalCareers
+    identity_url: https://sonyglobal.wd1.myworkdayjobs.com/SonyGlobalCareers
+  - name: Suncor Energy
+    platform: workday
+    careers_url: https://www.suncor.com/en-ca/careers
+    source_identity_regex: suncor
+    allowed_apply_hosts:
+    - suncor.wd1.myworkdayjobs.com
+    original_workbook_rank: 170
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    tenant: suncor
+    wd_subdomain: wd1
+    site_id: Suncor_External
+    search_url: https://suncor.wd1.myworkdayjobs.com/Suncor_External
+    identity_url: https://suncor.wd1.myworkdayjobs.com/Suncor_External
+  - name: Firefly Aerospace
+    platform: clearcompany
+    careers_url: https://fireflyspace.com/careers/
+    source_identity_regex: Firefly Aerospace
+    allowed_apply_hosts:
+    - firefly.clearcompany.com
+    original_workbook_rank: 190
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    site_id: 00ed92c3-5bfb-7bfb-456d-4d9d77fef9a5
+    search_url: https://fireflyspace.com/careers/#jobopenings
+    endpoint_url: https://careers-api.clearcompany.com/v1/00ed92c3-5bfb-7bfb-456d-4d9d77fef9a5
