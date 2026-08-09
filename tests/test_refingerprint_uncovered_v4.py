@@ -11,6 +11,25 @@ from src.scraper.company_careers.models import AdapterError, JobRecord
 
 
 ROOT = Path(__file__).resolve().parents[1]
+CALGARY_MILESTONE = (
+    ROOT / "config" / "target_companies.calgary_student_employers_v1_batch_a_validated.yaml"
+)
+CALGARY_PROMOTIONS = [
+    "Spartan Controls", "Garmin Canada", "ENMAX", "ATCO",
+    "AESO (Alberta Electric System Operator)", "TransAlta", "Cenovus Energy",
+    "Imperial Oil", "ARC Resources", "Nutrien", "Stantec",
+    "YYC Calgary Airport Authority",
+]
+HISTORICAL_PRODUCTION_ONLY = [
+    "Datadog", "Elastic", "GitLab", "Twilio", "Zscaler", "CrowdStrike",
+    "HashiCorp", "Confluent", "Teradyne",
+]
+
+
+def historical_prefix_bytes(path: Path) -> bytes:
+    content = path.read_bytes()
+    marker = f"  - name: {CALGARY_PROMOTIONS[0]}".encode()
+    return content[:content.index(marker)]
 
 
 class FakeRaw:
@@ -72,6 +91,13 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
         cls.targets = mod.load_target_companies(str(mod.PRODUCTION_REGISTRY))
         cls.mappings = mod.load_parent_source_mappings(mod.PARENT_MAPPINGS)
         cls.reconciliation = mod.reconcile_master(cls.master, cls.targets, cls.mappings)
+        with tempfile.TemporaryDirectory() as directory:
+            historical = Path(directory) / "historical.yaml"
+            historical.write_bytes(historical_prefix_bytes(CALGARY_MILESTONE))
+            historical_targets = mod.load_target_companies(str(historical))
+        cls.historical_reconciliation = mod.reconcile_master(
+            cls.master, historical_targets, cls.mappings,
+        )
 
     def test_01_exact_246_company_master_reconciliation(self):
         self.assertEqual(self.reconciliation.total, 246)
@@ -110,8 +136,23 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
 
     def test_07_production_only_companies_are_separated(self):
         self.assertEqual(
+            self.historical_reconciliation.production_only_names,
+            HISTORICAL_PRODUCTION_ONLY,
+        )
+        master_names = {
+            mod.normalize_company_name(row["company"]) for row in self.master
+        }
+        promoted_production_only = [
+            name for name in CALGARY_PROMOTIONS
+            if mod.normalize_company_name(name) not in master_names
+        ]
+        self.assertEqual(
             self.reconciliation.production_only_names,
-            ["Datadog", "Elastic", "GitLab", "Twilio", "Zscaler", "CrowdStrike", "HashiCorp", "Confluent", "Teradyne"],
+            HISTORICAL_PRODUCTION_ONLY + promoted_production_only,
+        )
+        self.assertEqual(
+            len(self.reconciliation.canonical_names) + len(self.reconciliation.mapped_names),
+            184,
         )
 
     def test_08_normalization_does_not_use_weak_substrings(self):

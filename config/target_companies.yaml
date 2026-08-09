@@ -2402,3 +2402,205 @@ target_companies:
     site_id: 00ed92c3-5bfb-7bfb-456d-4d9d77fef9a5
     search_url: https://fireflyspace.com/careers/#jobopenings
     endpoint_url: https://careers-api.clearcompany.com/v1/00ed92c3-5bfb-7bfb-456d-4d9d77fef9a5
+  - name: Spartan Controls
+    platform: sap_successfactors
+    careers_url: https://www.spartancontrols.com/careers/
+    source_identity_regex: Spartan Controls
+    allowed_apply_hosts:
+    - careers.spartancontrols.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://careers.spartancontrols.com/search/
+    search_url: https://careers.spartancontrols.com/search/
+    endpoint_variant: rmk_table
+  - name: Garmin Canada
+    platform: icims
+    careers_url: https://www.garmin.com/en-CA/careers/job-listings/
+    source_identity_regex: Garmin Canada
+    allowed_apply_hosts:
+    - canada-garmin.icims.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://careers.garmin.com/api/jobs?location=Cochrane%2C%20Alberta&stretch=25&stretchUnit=MILES&page=1
+    endpoint_url: https://careers.garmin.com/api/jobs?location=Cochrane%2C%20Alberta&stretch=25&stretchUnit=MILES&sortBy=relevance&descending=false&internal=false
+    endpoint_variant: icims_jibe_api
+    tenant: garmin
+    board_id: garmin-canada-cochrane
+    page_size: 20
+  - name: ENMAX
+    platform: workday
+    careers_url: https://www.enmax.com/careers
+    source_identity_regex: ENMAX
+    allowed_apply_hosts:
+    - enmax.wd3.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://enmax.wd3.myworkdayjobs.com/ENMAXCareers/jobs
+    tenant: enmax
+    wd_subdomain: wd3
+    site_id: ENMAXCareers
+    search_url: https://enmax.wd3.myworkdayjobs.com/ENMAXCareers/jobs
+  - name: ATCO
+    platform: phenom
+    careers_url: https://careers.atco.com/global/en
+    source_identity_regex: ATCO
+    allowed_apply_hosts:
+    - eezy.fa.ca2.oraclecloud.com
+    original_workbook_rank: null
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://careers.atco.com/global/en/search-results
+    search_url: https://careers.atco.com/global/en/search-results
+    endpoint_variant: embedded_refine_search
+    ref_num: AGZAGAGLOBAL
+    locale: en_global
+  - name: AESO (Alberta Electric System Operator)
+    platform: workday
+    careers_url: https://www.aeso.ca/aeso/work-with-us/
+    source_identity_regex: AESO|Alberta Electric System Operator
+    allowed_apply_hosts:
+    - aeso.wd3.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://aeso.wd3.myworkdayjobs.com/External
+    tenant: aeso
+    wd_subdomain: wd3
+    site_id: External
+    search_url: https://aeso.wd3.myworkdayjobs.com/External
+  - name: TransAlta
+    platform: sap_successfactors
+    careers_url: https://transalta.com/careers/
+    source_identity_regex: TransAlta
+    allowed_apply_hosts:
+    - jobs.transalta.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.transalta.com/search/
+    search_url: https://jobs.transalta.com/search/
+    endpoint_variant: rmk_table
+  - name: Cenovus Energy
+    platform: workday
+    careers_url: https://www.cenovus.com/Careers
+    source_identity_regex: Cenovus
+    allowed_apply_hosts:
+    - cenovus.wd3.myworkdayjobs.com
+    original_workbook_rank: 175
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://cenovus.wd3.myworkdayjobs.com/careers
+    tenant: cenovus
+    wd_subdomain: wd3
+    site_id: careers
+    search_url: https://cenovus.wd3.myworkdayjobs.com/careers
+  - name: Imperial Oil
+    platform: static_html
+    careers_url: https://www.imperialoil.ca/careers/careers
+    source_identity_regex: Jobs in Canada \(Imperial\)|Imperial
+    allowed_apply_hosts:
+    - jobs.exxonmobil.com
+    original_workbook_rank: 169
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.exxonmobil.com/Imperial/go/Jobs-in-Canada-%28Imperial%29/3271200/
+    listing_url: https://jobs.exxonmobil.com/Imperial/go/Jobs-in-Canada-%28Imperial%29/3271200/
+    endpoint_variant: server_rendered_cards
+    listing_selector: '#searchresults'
+    job_card_selector: tr.data-row
+    title_selector: a.jobTitle-link
+    location_selector: td.colLocation span.jobLocation
+    department_selector: span.jobDepartment
+    date_selector: td.colDate span.jobDate
+    detail_link_selector: a.jobTitle-link
+    external_id_regex: /([0-9]+)/?$
+  - name: ARC Resources
+    platform: sap_successfactors
+    careers_url: https://www.arcresources.com/join-our-team/
+    source_identity_regex: ARC Resources
+    allowed_apply_hosts:
+    - careers.arcresources.com
+    original_workbook_rank: 182
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://careers.arcresources.com/search/
+    search_url: https://careers.arcresources.com/search/
+    endpoint_variant: rmk_table
+  - name: Nutrien
+    platform: browser_rendered_html
+    careers_url: https://www.nutrien.com/careers
+    source_identity_regex: Nutrien Jobs
+    allowed_apply_hosts:
+    - jobs.nutrien.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    listing_url: https://jobs.nutrien.com/North-America/search/
+    endpoint_variant: browser_rendered_html_v1
+    browser_wait_selector: '[data-testid="headerTitle"]'
+    browser_scroll_steps: 0
+    browser_static_variant: server_rendered_links
+    browser_identity_selector: title
+    browser_identity_regex: Nutrien Jobs
+    listing_selector: '[data-testid="headerTitle"]'
+    job_card_selector: a[href*="/job/"]
+    title_selector: :self
+    location_selector: null
+    detail_link_selector: :self
+    external_id_regex: /([0-9]+)/?$
+    empty_selector: '[data-testid="headerTitle"]'
+  - name: Stantec
+    platform: browser_rendered_html
+    careers_url: https://www.stantec.com/en/careers
+    source_identity_regex: Stantec
+    allowed_apply_hosts:
+    - stantec.jobs
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    listing_url: https://stantec.jobs/jobs/?q=Calgary
+    endpoint_variant: browser_rendered_html_v1
+    browser_wait_selector: a[href*="/job/"]
+    browser_scroll_steps: 0
+    browser_static_variant: server_rendered_links
+    browser_identity_selector: title
+    browser_identity_regex: Stantec
+    listing_selector: main
+    job_card_selector: a[href*="/job/"]
+    title_selector: h2
+    location_selector: p:nth-child(3)
+    detail_link_selector: :self
+    external_id_regex: /([0-9A-F]{32})/job/
+    empty_selector: null
+  - name: YYC Calgary Airport Authority
+    platform: static_html
+    careers_url: https://www.yyc.com/careers
+    source_identity_regex: Calgary Airport Authority|YYC
+    allowed_apply_hosts:
+    - yyc.careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://yyc.careers/Opportunities
+    listing_url: https://yyc.careers/Opportunities
+    endpoint_variant: server_rendered_links
+    listing_selector: body
+    job_card_selector: a[data-job-id]
+    title_selector: :self
+    detail_link_selector: :self
+    external_id_regex: '[?&]JobId=([0-9]+)'

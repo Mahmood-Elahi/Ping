@@ -22,10 +22,18 @@ from src.scraper.company_careers.registry import load_target_companies
 VALIDATED = [item["name"] for item in batch.CANDIDATE_ENTRIES]
 EXCLUDED = {"Pason Systems", "AltaLink", "City of Calgary"}
 MASTER_MEMBERS = {"Imperial Oil", "Cenovus Energy", "ARC Resources"}
+HISTORICAL_COUNT = 186
 
 
 def entries(path: Path) -> list[dict]:
     return (yaml.safe_load(path.read_text(encoding="utf-8")) or {})["target_companies"]
+
+
+def historical_prefix_bytes(path: Path) -> bytes:
+    content = path.read_bytes()
+    marker = f"  - name: {VALIDATED[0]}".encode()
+    offset = content.index(marker)
+    return content[:offset]
 
 
 def fake_job(job_id: str = "2", url: str = "https://jobs.example.test/job/2") -> SimpleNamespace:
@@ -38,6 +46,9 @@ class CalgaryStudentEmployersBatchAArtifactTests(unittest.TestCase):
         cls.production_bytes = batch.PRODUCTION.read_bytes()
         cls.candidate_bytes = batch.CANDIDATE_REGISTRY.read_bytes()
         cls.validated_bytes = batch.VALIDATED_REGISTRY.read_bytes()
+        cls.candidate_prefix_bytes = historical_prefix_bytes(batch.CANDIDATE_REGISTRY)
+        cls.validated_prefix_bytes = historical_prefix_bytes(batch.VALIDATED_REGISTRY)
+        cls.historical = (yaml.safe_load(cls.validated_prefix_bytes) or {})["target_companies"]
         cls.production = entries(batch.PRODUCTION)
         cls.candidates = entries(batch.CANDIDATE_REGISTRY)
         cls.validated = entries(batch.VALIDATED_REGISTRY)
@@ -46,26 +57,35 @@ class CalgaryStudentEmployersBatchAArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_exact_production_prefix_and_counts(self):
-        self.assertEqual(len(self.production), 186)
+        self.assertEqual(len(self.production), 198)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
-        self.assertTrue(self.candidate_bytes.startswith(self.production_bytes))
-        self.assertTrue(self.validated_bytes.startswith(self.production_bytes))
+        self.assertEqual(len(self.historical), HISTORICAL_COUNT)
+        self.assertEqual(self.candidate_prefix_bytes, self.validated_prefix_bytes)
+        self.assertTrue(self.candidate_bytes.startswith(self.candidate_prefix_bytes))
+        self.assertTrue(self.validated_bytes.startswith(self.validated_prefix_bytes))
+        self.assertTrue(self.production_bytes.startswith(self.validated_prefix_bytes))
         self.assertTrue(self.report["candidate_registry_has_exact_186_entry_prefix"])
         self.assertTrue(self.report["validated_registry_has_exact_186_entry_prefix"])
-        self.assertEqual(self.candidates[:186], self.production)
-        self.assertEqual(self.validated[:186], self.production)
+        self.assertEqual(self.candidates[:HISTORICAL_COUNT], self.historical)
+        self.assertEqual(self.validated[:HISTORICAL_COUNT], self.historical)
+        self.assertEqual(self.production[:HISTORICAL_COUNT], self.historical)
+        self.assertEqual(self.production[HISTORICAL_COUNT:], self.validated[HISTORICAL_COUNT:])
 
-    def test_02_production_was_not_activated(self):
-        production_names = {item["name"] for item in self.production}
-        self.assertTrue(set(batch.REVIEWED_COMPANIES).isdisjoint(production_names))
+    def test_02_production_contains_exact_promotions_and_exclusions(self):
+        production_names = [item["name"] for item in self.production]
+        self.assertEqual(production_names[HISTORICAL_COUNT:], VALIDATED)
+        for name in VALIDATED:
+            self.assertEqual(production_names.count(name), 1)
+        self.assertTrue(EXCLUDED.isdisjoint(production_names))
+        # The validation report remains immutable milestone provenance.
         self.assertEqual(self.report["totals"]["production_sources"], 186)
         self.assertFalse(self.report["publication"]["production_activated"])
 
     def test_03_candidate_and_validated_artifacts_are_append_only(self):
-        self.assertEqual(len(self.candidates), 186 + len(VALIDATED))
-        self.assertEqual(len(self.validated), 186 + len(VALIDATED))
-        self.assertEqual([item["name"] for item in self.candidates[186:]], VALIDATED)
-        self.assertEqual([item["name"] for item in self.validated[186:]], VALIDATED)
+        self.assertEqual(len(self.candidates), HISTORICAL_COUNT + len(VALIDATED))
+        self.assertEqual(len(self.validated), HISTORICAL_COUNT + len(VALIDATED))
+        self.assertEqual([item["name"] for item in self.candidates[HISTORICAL_COUNT:]], VALIDATED)
+        self.assertEqual([item["name"] for item in self.validated[HISTORICAL_COUNT:]], VALIDATED)
 
     def test_04_exact_review_set_and_results(self):
         self.assertEqual([row["company"] for row in self.inventory], batch.REVIEWED_COMPANIES)
@@ -127,6 +147,8 @@ class CalgaryStudentEmployersBatchAArtifactTests(unittest.TestCase):
         )
         requested_master = {row["company"] for row in master.rows}.intersection(batch.REVIEWED_COMPANIES)
         self.assertEqual(requested_master, MASTER_MEMBERS)
+        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 184)
+        self.assertEqual(master.total, 246)
         totals = self.report["totals"]
         self.assertEqual(totals["additional_canonical_production_sources_projected"], 12)
         self.assertEqual(totals["projected_production_sources"], 198)
@@ -159,7 +181,7 @@ class CalgaryStudentEmployersBatchAArtifactTests(unittest.TestCase):
         self.assertEqual(len(present), len(set(present)))
 
     def test_12_exclusions_never_enter_candidate_registries(self):
-        present = {item["name"] for item in self.candidates + self.validated}
+        present = {item["name"] for item in self.candidates + self.validated + self.production}
         self.assertTrue(EXCLUDED.isdisjoint(present))
         reasons = {item["company"]: item["exclusion_reason"] for item in self.report["results"]}
         self.assertIn("Pason & IWS", reasons["Pason Systems"])
@@ -167,7 +189,7 @@ class CalgaryStudentEmployersBatchAArtifactTests(unittest.TestCase):
         self.assertIn("PeopleSoft", reasons["City of Calgary"])
 
     def test_13_production_and_mapping_hashes_match(self):
-        self.assertEqual(hashlib.sha256(self.production_bytes).hexdigest().upper(),
+        self.assertEqual(hashlib.sha256(self.validated_prefix_bytes).hexdigest().upper(),
                          self.report["production_registry_sha256"])
         self.assertEqual(hashlib.sha256(batch.PARENT_MAPPINGS.read_bytes()).hexdigest().upper(),
                          self.report["parent_mappings_sha256"])
