@@ -20,6 +20,10 @@ CALGARY_PROMOTIONS = [
     "Imperial Oil", "ARC Resources", "Nutrien", "Stantec",
     "YYC Calgary Airport Authority",
 ]
+REQUESTED_EXPANSION_PROMOTIONS = [
+    "Precision Drilling", "AltaGas", "Whitecap Resources", "Vermilion Energy",
+    "SECURE Energy Services", "ExxonMobil", "SLB", "BlackBerry/QNX", "CAE Inc.",
+]
 HISTORICAL_PRODUCTION_ONLY = [
     "Datadog", "Elastic", "GitLab", "Twilio", "Zscaler", "CrowdStrike",
     "HashiCorp", "Confluent", "Teradyne",
@@ -143,7 +147,7 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
             mod.normalize_company_name(row["company"]) for row in self.master
         }
         promoted_production_only = [
-            name for name in CALGARY_PROMOTIONS
+            name for name in CALGARY_PROMOTIONS + REQUESTED_EXPANSION_PROMOTIONS
             if mod.normalize_company_name(name) not in master_names
         ]
         self.assertEqual(
@@ -152,7 +156,7 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
         )
         self.assertEqual(
             len(self.reconciliation.canonical_names) + len(self.reconciliation.mapped_names),
-            184,
+            186,
         )
 
     def test_08_normalization_does_not_use_weak_substrings(self):

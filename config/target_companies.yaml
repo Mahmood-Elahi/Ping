@@ -2604,3 +2604,134 @@ target_companies:
     title_selector: :self
     detail_link_selector: :self
     external_id_regex: '[?&]JobId=([0-9]+)'
+  - name: Precision Drilling
+    platform: sap_successfactors
+    careers_url: https://www.precisiondrilling.com/careers/
+    source_identity_regex: Precision Drilling Career Site|Precision Drilling
+    allowed_apply_hosts:
+    - jobs.precisiondrilling.com
+    original_workbook_rank: 184
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.precisiondrilling.com/search/
+    search_url: https://jobs.precisiondrilling.com/search/
+    endpoint_variant: rmk_tile
+  - name: AltaGas
+    platform: workday
+    careers_url: https://www.altagas.ca/careers
+    source_identity_regex: AltaGas
+    allowed_apply_hosts:
+    - wgl.wd5.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://wgl.wd5.myworkdayjobs.com/AltaGas
+    tenant: wgl
+    wd_subdomain: wd5
+    site_id: AltaGas
+    search_url: https://wgl.wd5.myworkdayjobs.com/AltaGas
+  - name: Whitecap Resources
+    platform: workday
+    careers_url: https://www.wcap.ca/careers
+    source_identity_regex: Whitecap
+    allowed_apply_hosts:
+    - wcap.wd10.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://wcap.wd10.myworkdayjobs.com/Whitecap_Careers
+    tenant: wcap
+    wd_subdomain: wd10
+    site_id: Whitecap_Careers
+    search_url: https://wcap.wd10.myworkdayjobs.com/Whitecap_Careers
+  - name: Vermilion Energy
+    platform: workday
+    careers_url: https://www.vermilionenergy.com/careers/
+    source_identity_regex: Vermilion
+    allowed_apply_hosts:
+    - vermilionenergy.wd10.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://vermilionenergy.wd10.myworkdayjobs.com/VEI_EXTERNAL
+    tenant: vermilionenergy
+    wd_subdomain: wd10
+    site_id: VEI_EXTERNAL
+    search_url: https://vermilionenergy.wd10.myworkdayjobs.com/VEI_EXTERNAL
+  - name: SECURE Energy Services
+    platform: icims
+    careers_url: https://secure.ca/careers
+    source_identity_regex: SECURE Careers|SECURE
+    allowed_apply_hosts:
+    - careers-canada-secure.icims.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://careers-canada-secure.icims.com/jobs/search?hashed=-625882119
+    search_url: https://careers-canada-secure.icims.com/jobs/search?hashed=-625882119
+    endpoint_variant: icims_legacy_portal_html
+    tenant: secure
+    board_id: secure-canada
+    page_size: 20
+  - name: ExxonMobil
+    platform: sap_successfactors
+    careers_url: https://corporate.exxonmobil.com/careers
+    source_identity_regex: Careers at ExxonMobil|ExxonMobil
+    allowed_apply_hosts:
+    - jobs.exxonmobil.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.exxonmobil.com/search/
+    search_url: https://jobs.exxonmobil.com/search/
+    endpoint_variant: rmk_table
+  - name: SLB
+    platform: eightfold
+    careers_url: https://apply.slb.com/careers
+    source_identity_regex: \bSLB\b
+    allowed_apply_hosts:
+    - apply.slb.com
+    original_workbook_rank: 157
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://apply.slb.com/careers
+    endpoint_url: https://apply.slb.com/api/pcsx/search
+    endpoint_variant: pcsx
+    organization_id: slb.com
+  - name: BlackBerry/QNX
+    platform: workday
+    careers_url: https://www.blackberry.com/en/careers
+    source_identity_regex: QNX software, a subsidiary of BlackBerry|BlackBerry.{0,80}QNX
+    allowed_apply_hosts:
+    - bb.wd3.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://bb.wd3.myworkdayjobs.com/QNX
+    tenant: bb
+    wd_subdomain: wd3
+    site_id: QNX
+    search_url: https://bb.wd3.myworkdayjobs.com/QNX
+  - name: CAE Inc.
+    platform: workday
+    careers_url: https://www.cae.com/careers/
+    source_identity_regex: Welcome to CAE|One CAE
+    allowed_apply_hosts:
+    - cae.wd3.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://cae.wd3.myworkdayjobs.com/career
+    tenant: cae
+    wd_subdomain: wd3
+    site_id: career
+    search_url: https://cae.wd3.myworkdayjobs.com/career

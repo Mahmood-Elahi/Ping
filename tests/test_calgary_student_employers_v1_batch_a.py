@@ -57,10 +57,13 @@ class CalgaryStudentEmployersBatchAArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_exact_production_prefix_and_counts(self):
-        self.assertEqual(len(self.production), 198)
+        self.assertEqual(len(self.production), 207)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(self.historical), HISTORICAL_COUNT)
-        self.assertEqual(self.candidate_prefix_bytes, self.validated_prefix_bytes)
+        self.assertEqual(
+            (yaml.safe_load(self.candidate_prefix_bytes) or {})["target_companies"],
+            self.historical,
+        )
         self.assertTrue(self.candidate_bytes.startswith(self.candidate_prefix_bytes))
         self.assertTrue(self.validated_bytes.startswith(self.validated_prefix_bytes))
         self.assertTrue(self.production_bytes.startswith(self.validated_prefix_bytes))
@@ -69,11 +72,14 @@ class CalgaryStudentEmployersBatchAArtifactTests(unittest.TestCase):
         self.assertEqual(self.candidates[:HISTORICAL_COUNT], self.historical)
         self.assertEqual(self.validated[:HISTORICAL_COUNT], self.historical)
         self.assertEqual(self.production[:HISTORICAL_COUNT], self.historical)
-        self.assertEqual(self.production[HISTORICAL_COUNT:], self.validated[HISTORICAL_COUNT:])
+        self.assertEqual(
+            self.production[HISTORICAL_COUNT:len(self.validated)],
+            self.validated[HISTORICAL_COUNT:],
+        )
 
     def test_02_production_contains_exact_promotions_and_exclusions(self):
         production_names = [item["name"] for item in self.production]
-        self.assertEqual(production_names[HISTORICAL_COUNT:], VALIDATED)
+        self.assertEqual(production_names[HISTORICAL_COUNT:HISTORICAL_COUNT + len(VALIDATED)], VALIDATED)
         for name in VALIDATED:
             self.assertEqual(production_names.count(name), 1)
         self.assertTrue(EXCLUDED.isdisjoint(production_names))
@@ -147,7 +153,7 @@ class CalgaryStudentEmployersBatchAArtifactTests(unittest.TestCase):
         )
         requested_master = {row["company"] for row in master.rows}.intersection(batch.REVIEWED_COMPANIES)
         self.assertEqual(requested_master, MASTER_MEMBERS)
-        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 184)
+        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 186)
         self.assertEqual(master.total, 246)
         totals = self.report["totals"]
         self.assertEqual(totals["additional_canonical_production_sources_projected"], 12)
