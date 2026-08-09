@@ -2005,3 +2005,196 @@ target_companies:
     max_response_bytes: 3000000
     slug: patreon
     search_url: https://jobs.ashbyhq.com/patreon
+  - name: Infineon Technologies
+    platform: eightfold
+    careers_url: https://jobs.infineon.com/careers
+    source_identity_regex: Infineon
+    allowed_apply_hosts:
+    - jobs.infineon.com
+    original_workbook_rank: 33
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+    endpoint_url: https://jobs.infineon.com/api/pcsx/search
+    endpoint_variant: pcsx
+    organization_id: infineon.com
+    identity_url: https://www.infineon.com/careers
+  - name: MediaTek
+    platform: browser_rendered_html
+    careers_url: https://careers.mediatek.com/en/jobs
+    listing_url: https://careers.mediatek.com/en/jobs?query=&locations=
+    endpoint_variant: browser_rendered_html_v1
+    browser_wait_selector: a[href*='/en/jobs/']
+    browser_scroll_steps: 0
+    browser_static_variant: server_rendered_links
+    browser_identity_selector: head title
+    browser_identity_regex: MediaTek
+    listing_selector: a[href*=/en/jobs/]
+    job_card_selector: a[href*=/en/jobs/]
+    title_selector: h1.h3
+    location_selector: null
+    detail_link_selector: :self
+    external_id_regex: /jobs/(MTK[0-9A-Za-z]+)
+    external_id_attribute: null
+    department_selector: null
+    date_selector: null
+    allowed_apply_hosts:
+    - careers.mediatek.com
+    original_workbook_rank: 36
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+  - name: GlobalFoundries
+    platform: eightfold
+    careers_url: https://careers.gf.com/careers
+    source_identity_regex: GlobalFoundries
+    allowed_apply_hosts:
+    - careers.gf.com
+    original_workbook_rank: 37
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+    endpoint_url: https://careers.gf.com/api/pcsx/search
+    endpoint_variant: pcsx
+    organization_id: globalfoundries.com
+    identity_url: https://gf.com/careers/
+  - name: Beckhoff Automation
+    platform: browser_rendered_html
+    careers_url: https://www.beckhoff.com/en-us/company/job-opportunities/
+    listing_url: https://www.paycomonline.net/v4/ats/web.php/portal/D42904D53A8DFA8C80CE390CB7CAFCEF/career-page
+    endpoint_variant: browser_rendered_html_v1
+    browser_wait_selector: a[href*='/jobs/']
+    browser_scroll_steps: 0
+    browser_static_variant: server_rendered_links
+    browser_identity_selector: body
+    browser_identity_regex: Beckhoff Automation
+    listing_selector: a[href*=/jobs/]
+    job_card_selector: a[href*=/jobs/]
+    title_selector: h2[data-testid=typography]
+    location_selector: null
+    detail_link_selector: :self
+    external_id_regex: /jobs/([0-9]+)
+    external_id_attribute: null
+    department_selector: null
+    date_selector: null
+    allowed_apply_hosts:
+    - www.paycomonline.net
+    original_workbook_rank: 102
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+  - name: Lucid Motors
+    platform: greenhouse
+    careers_url: https://lucidmotors.com/careers
+    source_identity_regex: Lucid
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+    original_workbook_rank: 122
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: lucidmotors
+    search_url: https://job-boards.greenhouse.io/lucidmotors
+  - name: Sanctuary AI
+    platform: static_html
+    careers_url: https://sanctuary.ai/careers/
+    source_identity_regex: Sanctuary AI
+    allowed_apply_hosts:
+    - careers.kula.ai
+    original_workbook_rank: 155
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    listing_url: https://careers.kula.ai/sanctuary-ai
+    endpoint_variant: server_rendered_cards
+    listing_selector: div[role=region]
+    job_card_selector: div[role=region]
+    title_selector: p:first-child
+    detail_link_selector: a[href^=/sanctuary-ai/]
+    external_id_regex: /sanctuary-ai/([0-9]+)/?
+  - name: Instacart
+    platform: greenhouse
+    careers_url: https://www.instacart.careers/en-ca/current-openings
+    source_identity_regex: Instacart
+    allowed_apply_hosts:
+    - instacart.careers
+    original_workbook_rank: 206
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: instacart
+    search_url: https://job-boards.greenhouse.io/instacart
+  - name: Faire
+    platform: greenhouse
+    careers_url: https://www.faire.com/careers
+    source_identity_regex: Faire
+    allowed_apply_hosts:
+    - boards.greenhouse.io
+    original_workbook_rank: 217
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: faire
+    search_url: https://boards.greenhouse.io/faire
+  - name: Deliveroo
+    platform: browser_rendered_html
+    careers_url: https://careers.deliveroo.co.uk/
+    listing_url: https://careers.deliveroo.co.uk/join-the-team/
+    endpoint_variant: browser_rendered_html_v1
+    browser_wait_selector: a[href*='/role/']
+    browser_scroll_steps: 0
+    browser_static_variant: server_rendered_links
+    browser_identity_selector: head title
+    browser_identity_regex: Deliveroo
+    listing_selector: a[href*=/role/]
+    job_card_selector: a[href*=/role/]
+    title_selector: h4
+    location_selector: null
+    detail_link_selector: :self
+    external_id_regex: /role/[^/?#]+-([0-9a-f]{12})/?
+    external_id_attribute: null
+    department_selector: null
+    date_selector: null
+    allowed_apply_hosts:
+    - careers.deliveroo.co.uk
+    original_workbook_rank: 220
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+  - name: ByteDance
+    platform: browser_rendered_html
+    careers_url: https://jobs.bytedance.com/en/
+    listing_url: https://joinbytedance.com/search
+    endpoint_variant: browser_rendered_html_v1
+    browser_wait_selector: a[href*='/search/']
+    browser_scroll_steps: 0
+    browser_static_variant: server_rendered_links
+    browser_identity_selector: body
+    browser_identity_regex: ByteDance
+    listing_selector: a[href*=/search/]
+    job_card_selector: a[href*=/search/]
+    title_selector: span.bd-title
+    location_selector: null
+    detail_link_selector: :self
+    external_id_regex: /search/([0-9]+)
+    external_id_attribute: null
+    department_selector: null
+    date_selector: null
+    allowed_apply_hosts:
+    - joinbytedance.com
+    original_workbook_rank: 222
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+  - name: Substack
+    platform: ashby
+    careers_url: https://substack.com/jobs
+    source_identity_regex: Substack
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+    original_workbook_rank: 245
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: substack
+    search_url: https://jobs.ashbyhq.com/substack

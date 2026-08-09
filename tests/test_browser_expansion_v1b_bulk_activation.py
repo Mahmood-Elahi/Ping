@@ -144,8 +144,7 @@ class BrowserExpansionV1BArtifactTests(unittest.TestCase):
         expected_promotions = ["Tourmaline Oil", "MDA Space", "JD.com", "Patreon"]
         validated_promotions = self.validated[156:]
         self.assertEqual([entry["name"] for entry in validated_promotions], expected_promotions)
-        self.assertEqual(len(self.production), 160)
-        self.assertEqual(self.production[156:], validated_promotions)
+        self.assertEqual(self.production[156:160], validated_promotions)
         for validated_entry in validated_promotions:
             matches = [entry for entry in self.production if entry["name"] == validated_entry["name"]]
             self.assertEqual(matches, [validated_entry])
