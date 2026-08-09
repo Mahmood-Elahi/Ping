@@ -123,12 +123,13 @@ class SourceExpansionV2BatchAArtifactTests(unittest.TestCase):
     def test_04_validated_registry_is_append_only_success_only(self):
         safe = [result["company"] for result in self.report["results"] if result["safe_to_activate"]]
         validated_promotions = self.validated[self.historical_count:]
-        production_promotions = self.production[self.historical_count:]
+        promotion_end = self.historical_count + len(validated_promotions)
+        production_promotions = self.production[self.historical_count:promotion_end]
         self.assertEqual([entry["name"] for entry in validated_promotions], safe)
         self.assertEqual([entry["name"] for entry in validated_promotions], PROMOTED)
         self.assertEqual(production_promotions, validated_promotions)
         self.assertEqual(len(self.validated), self.historical_count + len(safe))
-        self.assertEqual(len(self.production), 171)
+        self.assertGreaterEqual(len(self.production), promotion_end)
         production_names = [entry["name"] for entry in self.production]
         for name in PROMOTED:
             self.assertEqual(production_names.count(name), 1)

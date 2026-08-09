@@ -2198,3 +2198,124 @@ target_companies:
     max_response_bytes: 3000000
     slug: substack
     search_url: https://jobs.ashbyhq.com/substack
+  - name: Analog Devices
+    platform: workday
+    careers_url: https://www.analog.com/en/careers.html
+    source_identity_regex: analogdevices
+    allowed_apply_hosts:
+    - analogdevices.wd1.myworkdayjobs.com
+    original_workbook_rank: 31
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    tenant: analogdevices
+    wd_subdomain: wd1
+    site_id: External
+    search_url: https://analogdevices.wd1.myworkdayjobs.com/External
+    identity_url: https://analogdevices.wd1.myworkdayjobs.com/External
+  - name: Microchip Technology
+    platform: workday
+    careers_url: https://www.microchip.com/en-us/about/careers
+    source_identity_regex: microchiphr
+    allowed_apply_hosts:
+    - microchiphr.wd5.myworkdayjobs.com
+    original_workbook_rank: 39
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    tenant: microchiphr
+    wd_subdomain: wd5
+    site_id: External
+    search_url: https://microchiphr.wd5.myworkdayjobs.com/External
+    identity_url: https://microchiphr.wd5.myworkdayjobs.com/External
+  - name: Omron
+    platform: sap_successfactors
+    careers_url: https://careers.omron.com/
+    source_identity_regex: OMRON
+    allowed_apply_hosts:
+    - careers.omron.com
+    original_workbook_rank: 101
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    search_url: https://careers.omron.com/search/
+    endpoint_variant: rmk_table
+  - name: Keyence
+    platform: sap_successfactors
+    careers_url: https://careers.keyence.com/
+    source_identity_regex: Keyence
+    allowed_apply_hosts:
+    - careers.keyence.com
+    original_workbook_rank: 103
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    search_url: https://careers.keyence.com/search/
+    endpoint_variant: rmk_table
+  - name: Magna International
+    platform: workday
+    careers_url: https://www.magna.com/careers
+    source_identity_regex: Magna
+    allowed_apply_hosts:
+    - magna.wd3.myworkdayjobs.com
+    original_workbook_rank: 127
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    tenant: magna
+    wd_subdomain: wd3
+    site_id: Magna
+    search_url: https://magna.wd3.myworkdayjobs.com/Magna
+  - name: Autodesk
+    platform: workday
+    careers_url: https://www.autodesk.com/careers
+    source_identity_regex: autodesk
+    allowed_apply_hosts:
+    - autodesk.wd1.myworkdayjobs.com
+    original_workbook_rank: 144
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    tenant: autodesk
+    wd_subdomain: wd1
+    site_id: Ext
+    search_url: https://autodesk.wd1.myworkdayjobs.com/Ext
+    identity_url: https://autodesk.wd1.myworkdayjobs.com/Ext
+  - name: Quora
+    platform: ashby
+    careers_url: https://careers.quora.com/
+    source_identity_regex: Quora
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+    original_workbook_rank: 238
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: quora
+    search_url: https://jobs.ashbyhq.com/quora
+  - name: Bumble
+    platform: lever
+    careers_url: https://team.bumble.com/en/life
+    source_identity_regex: Bumble
+    allowed_apply_hosts:
+    - jobs.lever.co
+    original_workbook_rank: 239
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: bumbleinc
+    search_url: https://jobs.lever.co/bumbleinc
+    endpoint_variant: postings_api_v0
+  - name: Medium
+    platform: greenhouse
+    careers_url: https://medium.com/jobs-at-medium/work-at-medium-959d1a85284e
+    source_identity_regex: Medium
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+    original_workbook_rank: 244
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: medium
+    search_url: https://job-boards.greenhouse.io/medium
+    identity_url: https://job-boards.greenhouse.io/medium
