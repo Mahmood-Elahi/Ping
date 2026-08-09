@@ -3,10 +3,19 @@
 from __future__ import annotations
 
 from typing import List
+from urllib.parse import urlparse, urlunparse
 
 import requests
 
 from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+
+
+def _secure_apply_url(value: object) -> str:
+    """Canonicalize legacy Greenhouse HTTP links to their HTTPS endpoint."""
+    parsed = urlparse(str(value or ""))
+    if parsed.scheme.casefold() == "http" and parsed.hostname:
+        return urlunparse(parsed._replace(scheme="https"))
+    return str(value or "")
 
 
 def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 20) -> List[JobRecord]:
@@ -27,7 +36,7 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                 title=item.get("title", ""),
                 company=target.name,
                 location=(item.get("location") or {}).get("name", "") or "",
-                url=item.get("absolute_url", ""),
+                url=_secure_apply_url(item.get("absolute_url")),
                 updated_at=item.get("updated_at", ""),
                 source=f"greenhouse:{target.slug}",
                 departments=[dept.get("name", "") for dept in item.get("departments", [])],

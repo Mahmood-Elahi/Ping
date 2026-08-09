@@ -26,6 +26,7 @@ if str(Path(__file__).resolve().parents[1]) not in sys.path:
 from src.scraper.company_careers.adapters import (
     ashby,
     avature,
+    clearcompany,
     eightfold,
     embedded_data,
     greenhouse,
@@ -106,6 +107,7 @@ ADAPTERS: dict[str, AdapterFn] = {
     "icims": icims.fetch_jobs,
     "static_html": static_html.fetch_jobs,
     "javascript_embedded_data": embedded_data.fetch_jobs,
+    "clearcompany": clearcompany.fetch_jobs,
 }
 
 
@@ -168,6 +170,9 @@ def source_key(entry: Mapping[str, Any]) -> Optional[str]:
     if platform in {"static_html", "javascript_embedded_data"}:
         host = (urlparse(str(entry.get("listing_url") or "")).hostname or "").casefold()
         return f"{platform}:{host}" if host else None
+    if platform == "clearcompany":
+        site_id = str(entry.get("site_id") or "").strip().casefold()
+        return f"clearcompany:{site_id}" if site_id else None
     return None
 
 
@@ -220,6 +225,8 @@ def configured_identifiers(entry: Mapping[str, Any]) -> dict[str, Any]:
             "board_id": entry.get("board_id"),
             "endpoint_variant": entry.get("endpoint_variant"),
         }
+    if platform == "clearcompany":
+        return {"site_id": entry.get("site_id")}
     if platform in {"static_html", "javascript_embedded_data"}:
         return {
             "listing_url": entry.get("listing_url"),
@@ -268,6 +275,9 @@ def endpoint_for(entry: Mapping[str, Any]) -> Optional[str]:
         return endpoint or None
     if platform in {"static_html", "javascript_embedded_data"}:
         endpoint = str(entry.get("listing_url") or "").strip()
+        return endpoint or None
+    if platform == "clearcompany":
+        endpoint = str(entry.get("endpoint_url") or "").strip()
         return endpoint or None
     return None
 
@@ -344,6 +354,11 @@ def configuration_error(entry: Mapping[str, Any]) -> Optional[str]:
     if platform == "javascript_embedded_data":
         try:
             embedded_data.validate_target(target)
+        except AdapterError as exc:
+            return str(exc)
+    if platform == "clearcompany":
+        try:
+            clearcompany.validate_target(target)
         except AdapterError as exc:
             return str(exc)
     return None
@@ -458,6 +473,12 @@ def _response_shape_error(platform: str, response: Any) -> Optional[str]:
         total = payload.get("totalCount")
         if isinstance(total, bool) or not isinstance(total, int) or total < 0:
             return "iCIMS Jibe totalCount must be a non-negative integer"
+        return None
+    if platform == "clearcompany":
+        if not isinstance(payload, Mapping):
+            return "ClearCompany response must be a JSON object"
+        if not isinstance(payload.get("results"), list):
+            return "ClearCompany response must contain a results list"
         return None
     expected_key = {
         "greenhouse": "jobs",

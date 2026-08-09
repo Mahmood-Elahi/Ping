@@ -411,6 +411,29 @@ class CompanyCareersTests(unittest.TestCase):
         self.assertEqual(jobs[0].source, "greenhouse:example")
         self.assertEqual(jobs[0].departments, ["Engineering"])
 
+    def test_greenhouse_upgrades_legacy_http_apply_url(self):
+        session = FakeSession(
+            [
+                FakeResponse(
+                    {
+                        "jobs": [
+                            {
+                                "id": 123,
+                                "title": "Engineer",
+                                "absolute_url": "http://company.example/jobs/123?gh_jid=123",
+                                "location": {"name": "Remote"},
+                            }
+                        ]
+                    }
+                )
+            ]
+        )
+        target = CompanyTarget(name="Example", platform="greenhouse", slug="example")
+
+        jobs = greenhouse.fetch_jobs(session, target)
+
+        self.assertEqual(jobs[0].url, "https://company.example/jobs/123?gh_jid=123")
+
     def test_lever_normalization(self):
         session = FakeSession(
             get_responses=[
