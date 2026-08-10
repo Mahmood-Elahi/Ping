@@ -15,7 +15,7 @@ import time
 from collections import Counter
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Optional
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import requests
 import yaml
@@ -33,9 +33,12 @@ from src.scraper.company_careers.adapters import (
     icims,
     lever,
     oracle_recruiting,
+    paycor,
+    peoplesoft,
     phenom,
     sap_successfactors,
     static_html,
+    ukg_pro,
     workday,
 )
 from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
@@ -108,6 +111,9 @@ ADAPTERS: dict[str, AdapterFn] = {
     "static_html": static_html.fetch_jobs,
     "javascript_embedded_data": embedded_data.fetch_jobs,
     "clearcompany": clearcompany.fetch_jobs,
+    "ukg_pro": ukg_pro.fetch_jobs,
+    "paycor": paycor.fetch_jobs,
+    "peoplesoft": peoplesoft.fetch_jobs,
 }
 
 
@@ -173,6 +179,20 @@ def source_key(entry: Mapping[str, Any]) -> Optional[str]:
     if platform == "clearcompany":
         site_id = str(entry.get("site_id") or "").strip().casefold()
         return f"clearcompany:{site_id}" if site_id else None
+    if platform == "ukg_pro":
+        parsed = urlparse(str(entry.get("careers_url") or ""))
+        parts = [part for part in parsed.path.split("/") if part]
+        if len(parts) == 3 and parts[1].casefold() == "jobboard":
+            return f"ukg_pro:{(parsed.hostname or '').casefold()}:{parts[0].casefold()}:{parts[2].casefold()}"
+        return None
+    if platform == "paycor":
+        parsed = urlparse(str(entry.get("endpoint_url") or ""))
+        client_id = str((parse_qs(parsed.query).get("clientId") or [""])[0]).casefold()
+        return f"paycor:{client_id}" if client_id else None
+    if platform == "peoplesoft":
+        hosts = sorted(str(host).strip().casefold() for host in entry.get("allowed_apply_hosts") or [] if str(host).strip())
+        site_id = str(entry.get("site_id") or "1").strip().casefold()
+        return f"peoplesoft:{hosts[0]}:{site_id}" if hosts else None
     return None
 
 
@@ -227,6 +247,14 @@ def configured_identifiers(entry: Mapping[str, Any]) -> dict[str, Any]:
         }
     if platform == "clearcompany":
         return {"site_id": entry.get("site_id")}
+    if platform in {"ukg_pro", "paycor", "peoplesoft"}:
+        return {
+            "careers_url": entry.get("careers_url"),
+            "endpoint_url": entry.get("endpoint_url"),
+            "listing_url": entry.get("listing_url"),
+            "site_id": entry.get("site_id"),
+            "identity_regex": entry.get("identity_regex"),
+        }
     if platform in {"static_html", "javascript_embedded_data"}:
         return {
             "listing_url": entry.get("listing_url"),
@@ -278,6 +306,15 @@ def endpoint_for(entry: Mapping[str, Any]) -> Optional[str]:
         return endpoint or None
     if platform == "clearcompany":
         endpoint = str(entry.get("endpoint_url") or "").strip()
+        return endpoint or None
+    if platform == "ukg_pro":
+        endpoint = str(entry.get("careers_url") or "").strip()
+        return endpoint or None
+    if platform == "paycor":
+        endpoint = str(entry.get("endpoint_url") or "").strip()
+        return endpoint or None
+    if platform == "peoplesoft":
+        endpoint = str(entry.get("listing_url") or "").strip()
         return endpoint or None
     return None
 
@@ -361,6 +398,21 @@ def configuration_error(entry: Mapping[str, Any]) -> Optional[str]:
             clearcompany.validate_target(target)
         except AdapterError as exc:
             return str(exc)
+    if platform == "ukg_pro":
+        try:
+            ukg_pro.validate_target(target)
+        except AdapterError as exc:
+            return str(exc)
+    if platform == "paycor":
+        try:
+            paycor.validate_target(target)
+        except AdapterError as exc:
+            return str(exc)
+    if platform == "peoplesoft":
+        try:
+            peoplesoft.validate_target(target)
+        except AdapterError as exc:
+            return str(exc)
     return None
 
 
@@ -420,7 +472,16 @@ class RecordingRetrySession:
 
 
 def _response_shape_error(platform: str, response: Any) -> Optional[str]:
-    if platform in {"sap_successfactors", "phenom", "avature", "static_html", "javascript_embedded_data"} or (
+    if platform in {
+        "sap_successfactors",
+        "phenom",
+        "avature",
+        "static_html",
+        "javascript_embedded_data",
+        "ukg_pro",
+        "paycor",
+        "peoplesoft",
+    } or (
         platform == "icims"
         and "html" in str(getattr(response, "headers", {}).get("content-type", "")).casefold()
     ):

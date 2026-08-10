@@ -119,6 +119,7 @@ class CompanyTarget:
     browser_static_variant: Optional[str] = None
     browser_identity_selector: Optional[str] = None
     browser_identity_regex: Optional[str] = None
+    identity_regex: Optional[str] = None
     embedded_script_selector: Optional[str] = None
     embedded_json_path: Optional[str] = None
     reference_url_attribute: Optional[str] = None
@@ -179,6 +180,7 @@ class CompanyTarget:
             browser_static_variant=data.get("browser_static_variant"),
             browser_identity_selector=data.get("browser_identity_selector"),
             browser_identity_regex=data.get("browser_identity_regex"),
+            identity_regex=data.get("identity_regex"),
             embedded_script_selector=data.get("embedded_script_selector"),
             embedded_json_path=data.get("embedded_json_path"),
             reference_url_attribute=data.get("reference_url_attribute"),

@@ -1,0 +1,73 @@
+batch: company_careers_adapter_expansion_v1_batch_a
+validated_at: 2026-08-10
+production_registry_activated: false
+baseline:
+  production_sources: 227
+  parent_mappings: 4
+  original_master_coverage: 186
+  original_master_total: 246
+recovery_targets:
+  - name: SMART Technologies
+    platform: dayforce
+    careers_url: https://jobs.dayforcehcm.com/en-US/smarttech/CANDIDATEPORTAL
+    endpoint_url: https://jobs.dayforcehcm.com/api/geo/smarttech/jobposting/search
+    contract: nextjs_jobposting_search
+    validation_status: session_or_waf_dependency
+    anonymous_http_result: HTTP 403
+    production_ready: false
+    activated: false
+  - name: CoolIT Systems
+    platform: ukg_pro
+    careers_url: https://recruiting.ultipro.ca/COO5001COLT/JobBoard/05857940-9028-4d4a-8544-26bd990d20d6/
+    identity_regex: ^Coolit Systems Inc\.?$
+    contract: load_search_results_v1
+    validation_status: repeatable_anonymous
+    validation_runs: 2
+    jobs_observed_each_run: 33
+    production_ready: true
+    activated: false
+    max_pages: 1
+    max_jobs: 50
+  - name: AltaLink
+    platform: workable
+    slug: altalink
+    careers_url: https://apply.workable.com/altalink/
+    endpoint_url: https://apply.workable.com/api/v1/widget/accounts/altalink
+    identity_regex: ^AltaLink$
+    contract: widget_accounts_v1
+    validation_status: captcha_dependency
+    captcha_signal: wjb_acp_turnstile_captcha_enabled=true
+    production_ready: false
+    activated: false
+    max_pages: 1
+    max_jobs: 20
+  - name: Ballard Power Systems
+    platform: paycor
+    careers_url: https://www.ballard.com/careers/
+    endpoint_url: https://recruitingbypaycor.com/career/CareerHome.action?clientId=8a7883d06937f5f7016978fec55861f7
+    identity_regex: \bBallard\b
+    contract: career_home_v1
+    validation_status: repeatable_anonymous
+    validation_runs: 2
+    jobs_observed_each_run: 9
+    production_ready: true
+    activated: false
+    max_pages: 1
+    max_jobs: 50
+  - name: City of Calgary
+    platform: peoplesoft
+    careers_url: https://www.calgary.ca/careers.html
+    listing_url: https://www.calgary.ca/careers.html
+    identity_regex: \bCity of Calgary\b
+    allowed_apply_hosts:
+      - recruiting.calgary.ca
+    site_id: "1"
+    contract: public_job_links_v1
+    validation_status: repeatable_anonymous
+    validation_runs: 2
+    jobs_observed_each_run: 20
+    result_limit_reached: true
+    production_ready: true
+    activated: false
+    max_pages: 1
+    max_jobs: 20
