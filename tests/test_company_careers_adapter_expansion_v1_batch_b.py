@@ -404,9 +404,10 @@ class BatchBRecoveryValidationTests(unittest.TestCase):
 
         production_data = yaml.safe_load(production_bytes)["target_companies"]
         baseline_count = self.data["baseline"]["production_sources"]
+        projection_count = self.data["projection"]["production_sources"]
         promoted = ["Bosch", "Aptiv"]
-        self.assertEqual(len(production_data), self.data["projection"]["production_sources"])
-        self.assertEqual([row["name"] for row in production_data[baseline_count:]], promoted)
+        self.assertEqual(len(production_data), 262)
+        self.assertEqual([row["name"] for row in production_data[baseline_count:projection_count]], promoted)
         self.assertEqual(
             len(load_parent_source_mappings()), self.data["baseline"]["parent_mappings"]
         )
@@ -424,7 +425,7 @@ class BatchBRecoveryValidationTests(unittest.TestCase):
                 "max_pages", "max_jobs",
             ),
         }
-        for production_row in production_data[baseline_count:]:
+        for production_row in production_data[baseline_count:projection_count]:
             validated_row = self.rows[production_row["name"]]
             fields = runtime_fields[production_row["platform"]]
             self.assertEqual(production_row, {field: validated_row[field] for field in fields})

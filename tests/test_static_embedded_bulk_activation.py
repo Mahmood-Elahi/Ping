@@ -21,6 +21,7 @@ PILOT_VALIDATED_REGISTRY = ROOT / "config" / "target_companies.browser_pilot_v1_
 BROWSER_EXPANSION_V1A_VALIDATED_REGISTRY = ROOT / "config" / "target_companies.browser_expansion_v1a_validated.yaml"
 BROWSER_EXPANSION_V1B_VALIDATED_REGISTRY = ROOT / "config" / "target_companies.browser_expansion_v1b_validated.yaml"
 ADAPTER_EXPANSION_V1_BATCH_B_VALIDATION = ROOT / "config" / "company_careers_adapter_expansion_v1_batch_b_validation.yaml"
+ORIGINAL_MASTER_BATCH_G_VALIDATED_REGISTRY = ROOT / "config" / "target_companies.original_master_recovery_batch_g_validated.yaml"
 LATER_PROMOTION_ARTIFACTS = {
     BATCH_B_VALIDATED_REGISTRY: {"IMC Trading", "Unitree Robotics"},
     PILOT_VALIDATED_REGISTRY: {"Figure AI", "LINE"},
@@ -32,6 +33,7 @@ LATER_PROMOTION_ARTIFACTS = {
     },
     BROWSER_EXPANSION_V1B_VALIDATED_REGISTRY: {"Tourmaline Oil", "Patreon"},
     ADAPTER_EXPANSION_V1_BATCH_B_VALIDATION: {"Aptiv"},
+    ORIGINAL_MASTER_BATCH_G_VALIDATED_REGISTRY: {"Yaskawa Electric"},
 }
 
 EXPECTED_REVIEWED_COMPANIES = [

@@ -191,7 +191,7 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
         )
         self.assertEqual(
             len(self.reconciliation.canonical_names) + len(self.reconciliation.mapped_names),
-            188,
+            193,
         )
 
     def test_08_normalization_does_not_use_weak_substrings(self):

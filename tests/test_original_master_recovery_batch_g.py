@@ -51,6 +51,8 @@ class OriginalMasterRecoveryBatchGArtifactTests(unittest.TestCase):
         cls.production_bytes = batch.PRODUCTION.read_bytes()
         cls.candidate_bytes = batch.CANDIDATE_REGISTRY.read_bytes()
         cls.validated_bytes = batch.VALIDATED_REGISTRY.read_bytes()
+        cls.historical_bytes = cls.validated_bytes[:cls.validated_bytes.index(b"  - name: PETRONAS")]
+        cls.historical = (yaml.safe_load(cls.historical_bytes) or {})["target_companies"]
         cls.production = entries(batch.PRODUCTION)
         cls.candidates = entries(batch.CANDIDATE_REGISTRY)
         cls.validated = entries(batch.VALIDATED_REGISTRY)
@@ -58,13 +60,14 @@ class OriginalMasterRecoveryBatchGArtifactTests(unittest.TestCase):
         with batch.CANDIDATE_CSV.open(newline="", encoding="utf-8") as handle:
             cls.inventory = list(csv.DictReader(handle))
 
-    def test_01_preserves_exact_257_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 257)
+    def test_01_activation_preserves_exact_257_entry_production_prefix(self):
+        self.assertEqual(len(self.production), 262)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
-        self.assertEqual(self.candidates[:257], self.production)
-        self.assertEqual(self.validated[:257], self.production)
-        self.assertTrue(self.candidate_bytes.startswith(self.production_bytes))
-        self.assertTrue(self.validated_bytes.startswith(self.production_bytes))
+        self.assertEqual(len(self.historical), 257)
+        self.assertEqual(self.production[:257], self.historical)
+        self.assertEqual(self.candidates[:257], self.historical)
+        self.assertEqual(self.validated[:257], self.historical)
+        self.assertEqual(self.production, self.validated)
         self.assertEqual(self.candidate_bytes, self.validated_bytes)
         self.assertTrue(self.report["candidate_registry_has_exact_257_entry_prefix"])
         self.assertTrue(self.report["validated_registry_has_exact_257_entry_prefix"])
@@ -73,10 +76,13 @@ class OriginalMasterRecoveryBatchGArtifactTests(unittest.TestCase):
         self.assertEqual((len(self.candidates), len(self.validated)), (262, 262))
         self.assertEqual([item["name"] for item in self.candidates[257:]], VALIDATED)
         self.assertEqual([item["name"] for item in self.validated[257:]], VALIDATED)
+        self.assertEqual([item["name"] for item in self.production[257:]], VALIDATED)
         self.assertEqual(len(VALIDATED), 5)
         self.assertTrue(EXCLUDED.isdisjoint({item["name"] for item in self.candidates}))
         production_names = [item["name"] for item in self.production]
-        self.assertTrue(set(batch.REVIEWED_COMPANIES).isdisjoint(production_names))
+        self.assertTrue(EXCLUDED.isdisjoint(production_names))
+        for name in VALIDATED:
+            self.assertEqual(production_names.count(name), 1)
 
     def test_03_report_and_csv_cover_every_requested_company(self):
         self.assertEqual([row["company"] for row in self.inventory], batch.REVIEWED_COMPANIES)
@@ -129,7 +135,7 @@ class OriginalMasterRecoveryBatchGArtifactTests(unittest.TestCase):
             load_target_companies(str(batch.PRODUCTION)),
             load_parent_source_mappings(batch.PARENT_MAPPINGS),
         )
-        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 188)
+        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 193)
         self.assertTrue(all(item["original_246_master"] for item in self.report["results"]))
         totals = self.report["totals"]
         self.assertEqual((totals["validated"], totals["excluded"]), (5, 10))
@@ -185,7 +191,7 @@ class OriginalMasterRecoveryBatchGArtifactTests(unittest.TestCase):
 
     def test_11_hash_ignore_and_publication_state(self):
         self.assertEqual(
-            hashlib.sha256(self.production_bytes).hexdigest().upper(),
+            hashlib.sha256(self.historical_bytes).hexdigest().upper(),
             self.report["production_registry_sha256"],
         )
         self.assertEqual(

@@ -58,7 +58,7 @@ class CalgaryStudentEmployersBatchAArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_exact_production_prefix_and_counts(self):
-        self.assertEqual(len(self.production), 257)
+        self.assertEqual(len(self.production), 262)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(self.historical), HISTORICAL_COUNT)
         self.assertEqual(
@@ -154,7 +154,7 @@ class CalgaryStudentEmployersBatchAArtifactTests(unittest.TestCase):
         )
         requested_master = {row["company"] for row in master.rows}.intersection(batch.REVIEWED_COMPANIES)
         self.assertEqual(requested_master, MASTER_MEMBERS)
-        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 188)
+        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 193)
         self.assertEqual(master.total, 246)
         totals = self.report["totals"]
         self.assertEqual(totals["additional_canonical_production_sources_projected"], 12)

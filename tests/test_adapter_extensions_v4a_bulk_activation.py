@@ -19,6 +19,7 @@ from src.scraper.company_careers.registry import load_target_companies
 
 
 ROOT = Path(__file__).resolve().parents[1]
+ORIGINAL_MASTER_BATCH_G_VALIDATED = ROOT / "config" / "target_companies.original_master_recovery_batch_g_validated.yaml"
 EXPECTED = [
     "onsemi", "Siemens", "Schneider Electric", "Yaskawa Electric", "Aptiv",
     "Chevron", "OHB SE", "Mercado Libre", "Bolt",
@@ -328,8 +329,17 @@ class AdapterExtensionsV4ABulkActivationTests(unittest.TestCase):
                 registry_validator.source_key(matches[0]),
                 registry_validator.source_key(expected),
             )
-        excluded = {"yaskawa electric", "ohb se"}
+        excluded = {"ohb se"}
         self.assertFalse(excluded & {registry_validator._name_key(item) for item in production})
+        _, batch_g = registry_validator.load_registry(ORIGINAL_MASTER_BATCH_G_VALIDATED)
+        expected_yaskawa = next(
+            item for item in batch_g
+            if registry_validator._name_key(item) == "yaskawa electric"
+        )
+        self.assertEqual(
+            [item for item in production if registry_validator._name_key(item) == "yaskawa electric"],
+            [expected_yaskawa],
+        )
         self.assertEqual(
             sum(registry_validator._name_key(item) == "aptiv" for item in production),
             1,
