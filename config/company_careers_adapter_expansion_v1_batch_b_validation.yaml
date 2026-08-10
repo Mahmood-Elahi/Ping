@@ -1,0 +1,168 @@
+batch: company_careers_adapter_expansion_v1_batch_b
+validated_at: 2026-08-10
+production_registry_activated: false
+publication:
+  production_run: false
+  published: false
+  staged: false
+  committed: false
+  pushed: false
+baseline:
+  production_sources: 255
+  parent_mappings: 4
+  original_master_coverage: 186
+  original_master_total: 246
+projection:
+  production_sources: 257
+  parent_mappings: 4
+  original_master_coverage: 188
+  original_master_total: 246
+  companies_recovered: 2
+  jobs_normalized: 40
+  current_student_intern_hits: 0
+adapters:
+  - platform: smartrecruiters
+    contract: companies_postings_v1
+    implementation_status: implemented
+    registered: true
+    reusable: true
+    contract_guarantees:
+      - anonymous HTTPS GET
+      - company identifier and company-name identity corroboration
+      - stable numeric posting ID
+      - stable API detail reference
+      - official job-specific apply URL containing the posting ID
+      - exact offset/limit response bounds
+  - platform: hawksearch_v2
+    contract: hawksearch_v2_search
+    implementation_status: implemented
+    registered: true
+    reusable: true
+    contract_guarantees:
+      - anonymous HTTPS POST using the public client GUID
+      - DocId and jobrequisitionid identity equality
+      - official detail and apply URLs containing the requisition ID
+      - exact PageNo, MaxPerPage, NofResults, and NofPages bounds
+  - platform: continental_rest
+    contract: continental_result_list_v1
+    implementation_status: rejected
+    registered: false
+    reusable: false
+    rejection_reason: >-
+      The current official listing, configuration endpoint, and result-list
+      endpoint each returned HTTP 403 on both anonymous validation runs. The
+      contract therefore does not meet the anonymous production guarantee, and
+      no WAF, cookie, browser-session, or alternate-host bypass was attempted.
+recovery_targets:
+  - name: Bosch
+    original_master: true
+    master_rank: 96
+    platform: smartrecruiters
+    slug: BoschGroup
+    careers_url: https://jobs.bosch.com/en/
+    endpoint_url: https://api.smartrecruiters.com/v1/companies/BoschGroup/postings
+    endpoint_variant: companies_postings_v1
+    identity_regex: ^Bosch Group$
+    allowed_apply_hosts:
+      - jobs.smartrecruiters.com
+    page_size: 20
+    max_pages: 1
+    max_jobs: 20
+    validation_status: repeatable_anonymous
+    validation_runs: 2
+    jobs_normalized_each_run: 20
+    total_available_each_run: 4738
+    current_student_intern_hits_each_run: 0
+    stable_id_result: valid
+    detail_url_result: valid
+    apply_url_result: valid
+    production_ready: true
+    activated: false
+  - name: Aptiv
+    original_master: true
+    master_rank: 126
+    platform: hawksearch_v2
+    careers_url: https://www.aptiv.com/en/jobs/search
+    endpoint_url: https://aptivcareers.searchapi-na.hawksearch.com/api/v2/search/
+    endpoint_variant: hawksearch_v2_search
+    client_guid: 28fad22cfe584b879917858203dd97ce
+    identity_regex: \bAptiv\b
+    locale: en
+    allowed_source_hosts:
+      - www.aptiv.com
+      - aptivcareers.searchapi-na.hawksearch.com
+    allowed_apply_hosts:
+      - aptiv.wd5.myworkdayjobs.com
+    page_size: 16
+    max_pages: 2
+    max_jobs: 20
+    validation_status: repeatable_anonymous
+    validation_runs: 2
+    jobs_normalized_each_run: 20
+    total_available_each_run: 571
+    current_student_intern_hits_each_run: 0
+    stable_id_result: valid
+    detail_url_result: valid
+    apply_url_result: valid
+    production_ready: true
+    activated: false
+  - name: Continental
+    original_master: true
+    master_rank: 124
+    platform: continental_rest
+    careers_url: https://jobs.continental.com/en/jobs/
+    configuration_url: https://jobs.continental.com/en/api/configuration/pagetype-jobs/
+    endpoint_url: https://jobs.continental.com/en/api/result-list/pagetype-jobs/
+    validation_status: blocked_anonymous_http_403
+    validation_runs: 2
+    http_status_each_run: 403
+    jobs_normalized_each_run: 0
+    current_student_intern_hits_each_run: 0
+    stable_id_result: not_validated
+    detail_url_result: not_validated
+    apply_url_result: not_validated
+    production_ready: false
+    activated: false
+additional_smartrecruiters_candidates:
+  - name: Renesas Electronics
+    candidate_source: existing production target and requested-expansion candidate
+    slug: RenesasElectronics
+    endpoint_url: https://api.smartrecruiters.com/v1/companies/RenesasElectronics/postings
+    identity_regex: ^Renesas Electronics$
+    validation_status: repeatable_anonymous
+    validation_runs: 2
+    jobs_normalized_each_run: 20
+    total_available_each_run: 896
+    current_student_intern_hits_each_run: 1
+    current_student_role_evidence:
+      - AI Research Engineer Intern — San Jose, CALIFORNIA, United States
+    production_ready: true
+    production_coverage_effect: already covered by the static_html adapter
+    activated: false
+  - name: Copperleaf
+    candidate_source: IFS1 mixed SmartRecruiters board
+    slug: IFS1
+    validation_status: rejected_mixed_parent_source
+    production_ready: false
+    reason: >-
+      The tenant identity is IFS and the board mixes IFS, Softeon, and IFS
+      Copperleaf roles. It cannot establish exact Copperleaf attribution for
+      every posting without a separate reviewed parent-source mapping.
+    activated: false
+additional_companies_unlocked:
+  smartrecruiters:
+    production_ready:
+      - Bosch
+      - Renesas Electronics
+    net_new_recoveries:
+      - Bosch
+    rejected:
+      - Copperleaf
+  hawksearch_v2:
+    production_ready:
+      - Aptiv
+    net_new_recoveries:
+      - Aptiv
+  continental_rest:
+    production_ready: []
+    net_new_recoveries: []

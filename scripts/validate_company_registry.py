@@ -31,6 +31,7 @@ from src.scraper.company_careers.adapters import (
     eightfold,
     embedded_data,
     greenhouse,
+    hawksearch_v2,
     icims,
     lever,
     oracle_recruiting,
@@ -40,6 +41,7 @@ from src.scraper.company_careers.adapters import (
     sap_successfactors,
     static_html,
     startdate,
+    smartrecruiters,
     ukg_pro,
     workday,
 )
@@ -115,6 +117,8 @@ ADAPTERS: dict[str, AdapterFn] = {
     "clearcompany": clearcompany.fetch_jobs,
     "bamboohr": bamboohr.fetch_jobs,
     "startdate": startdate.fetch_jobs,
+    "smartrecruiters": smartrecruiters.fetch_jobs,
+    "hawksearch_v2": hawksearch_v2.fetch_jobs,
     "ukg_pro": ukg_pro.fetch_jobs,
     "paycor": paycor.fetch_jobs,
     "peoplesoft": peoplesoft.fetch_jobs,
@@ -203,6 +207,13 @@ def source_key(entry: Mapping[str, Any]) -> Optional[str]:
         hosts = sorted(str(host).strip().casefold() for host in entry.get("allowed_apply_hosts") or [] if str(host).strip())
         site_id = str(entry.get("site_id") or "1").strip().casefold()
         return f"peoplesoft:{hosts[0]}:{site_id}" if hosts else None
+    if platform == "smartrecruiters":
+        slug = str(entry.get("slug") or "").strip().casefold()
+        return f"smartrecruiters:{slug}" if slug else None
+    if platform == "hawksearch_v2":
+        host = (urlparse(str(entry.get("endpoint_url") or "")).hostname or "").casefold()
+        client_guid = str(entry.get("client_guid") or "").strip().casefold()
+        return f"hawksearch_v2:{host}:{client_guid}" if host and client_guid else None
     return None
 
 
@@ -275,6 +286,18 @@ def configured_identifiers(entry: Mapping[str, Any]) -> dict[str, Any]:
             "listing_url": entry.get("listing_url"),
             "job_attribution_regex": entry.get("job_attribution_regex"),
         }
+    if platform == "smartrecruiters":
+        return {
+            "slug": entry.get("slug"),
+            "endpoint_variant": entry.get("endpoint_variant"),
+            "identity_regex": entry.get("identity_regex"),
+        }
+    if platform == "hawksearch_v2":
+        return {
+            "client_guid": entry.get("client_guid"),
+            "index_name": entry.get("index_name"),
+            "endpoint_variant": entry.get("endpoint_variant"),
+        }
     if platform in {"static_html", "javascript_embedded_data"}:
         return {
             "listing_url": entry.get("listing_url"),
@@ -341,6 +364,9 @@ def endpoint_for(entry: Mapping[str, Any]) -> Optional[str]:
         return endpoint or None
     if platform == "peoplesoft":
         endpoint = str(entry.get("listing_url") or "").strip()
+        return endpoint or None
+    if platform in {"smartrecruiters", "hawksearch_v2"}:
+        endpoint = str(entry.get("endpoint_url") or "").strip()
         return endpoint or None
     return None
 
@@ -449,6 +475,16 @@ def configuration_error(entry: Mapping[str, Any]) -> Optional[str]:
             peoplesoft.validate_target(target)
         except AdapterError as exc:
             return str(exc)
+    if platform == "smartrecruiters":
+        try:
+            smartrecruiters.validate_target(target)
+        except AdapterError as exc:
+            return str(exc)
+    if platform == "hawksearch_v2":
+        try:
+            hawksearch_v2.validate_target(target)
+        except AdapterError as exc:
+            return str(exc)
     return None
 
 
@@ -517,6 +553,8 @@ def _response_shape_error(platform: str, response: Any) -> Optional[str]:
         "ukg_pro",
         "paycor",
         "peoplesoft",
+        "smartrecruiters",
+        "hawksearch_v2",
     } or (
         platform == "icims"
         and "html" in str(getattr(response, "headers", {}).get("content-type", "")).casefold()
@@ -1032,6 +1070,12 @@ def validate_company(
                 if diagnostics:
                     messages.append(f"Skipped {len(diagnostics)} malformed or duplicate job entries")
                 result["warning"] = "; ".join(messages)
+    elif platform in {"smartrecruiters", "hawksearch_v2"}:
+        pagination = getattr(session, f"{platform}_pagination", None)
+        if isinstance(pagination, Mapping):
+            result["pagination_result"] = dict(pagination)
+            result["pages_requested"] = int(pagination.get("pages_fetched") or 0)
+            result["total_available_jobs"] = pagination.get("total_available")
     response = session.final_response
     if response is not None and result["total_available_jobs"] is None:
         result["total_available_jobs"] = _reported_total(platform, response)

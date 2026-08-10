@@ -139,8 +139,11 @@ class CompanyTarget:
     site_number: Optional[str] = None
     organization_id: Optional[str] = None
     board_id: Optional[str] = None
+    client_guid: Optional[str] = None
+    index_name: Optional[str] = None
     ref_num: Optional[str] = None
     locale: Optional[str] = None
+    allowed_source_hosts: List[str] = field(default_factory=list)
     allowed_apply_hosts: List[str] = field(default_factory=list)
     apply_url_template: Optional[str] = None
     apply_url_id_query_param: Optional[str] = None
@@ -202,8 +205,11 @@ class CompanyTarget:
             site_number=data.get("site_number"),
             organization_id=data.get("organization_id"),
             board_id=data.get("board_id"),
+            client_guid=data.get("client_guid"),
+            index_name=data.get("index_name"),
             ref_num=data.get("ref_num"),
             locale=data.get("locale"),
+            allowed_source_hosts=list(data.get("allowed_source_hosts") or []),
             allowed_apply_hosts=list(data.get("allowed_apply_hosts") or []),
             apply_url_template=data.get("apply_url_template"),
             apply_url_id_query_param=data.get("apply_url_id_query_param"),

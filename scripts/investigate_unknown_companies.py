@@ -68,7 +68,7 @@ DEFAULT_EVIDENCE = Path("output/company_unknown_request_evidence_v3.json")
 KNOWN_FUTURE_FAMILIES = {
     "avature", "icims", "static_html", "custom_rest_api", "custom_graphql",
     "javascript_embedded_data", "oracle_taleo", "parent_company_source",
-    "talentbrew_radancy", "smartrecruiters", "jobvite", "brassring", "dayforce",
+    "talentbrew_radancy", "jobvite", "brassring", "dayforce",
     "adp", "ukg", "workable", "recruitee", "teamtailor", "personio", "bamboohr",
 }
 EXISTING_ADAPTERS = set(EXISTING_ADAPTER_FAMILIES)

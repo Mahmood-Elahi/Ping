@@ -68,7 +68,8 @@ SUPPORTED_IMPORT_PLATFORMS = {
     "uber",
     "shopify",
 }
-DETECTED_BUT_UNSUPPORTED = {"smartrecruiters", "workable", "rippling"}
+DETECTED_BUT_UNSUPPORTED = {"workable", "rippling"}
+DETECTED_REQUIRES_REVIEW = {"smartrecruiters"}
 EXISTING_ONLY_PLATFORMS = {"ibm_search"}
 CUSTOM_PLATFORMS = {
     "amazon",
@@ -203,7 +204,11 @@ def detect_ats(url: Any) -> ATSDetection:
         )
 
     if host == "jobs.smartrecruiters.com" and parts:
-        return ATSDetection("smartrecruiters", slug=parts[0], note="Detected ATS; no scanner adapter")
+        return ATSDetection(
+            "smartrecruiters",
+            slug=parts[0],
+            note="Detected ATS; reviewed identity and bounds configuration required",
+        )
     if host == "apply.workable.com" and parts:
         return ATSDetection("workable", slug=parts[0], note="Detected ATS; no scanner adapter")
     if host == "ats.rippling.com" and parts and len(parts) >= 2 and parts[1].lower() == "jobs":
@@ -346,7 +351,7 @@ def validate_research_row(row: Mapping[str, Any]) -> tuple[bool, str]:
         if not allowed:
             return False, f"{label}: {note}"
     if status == "validated_custom_adapter_required":
-        allowed_custom = platform.startswith("custom_") or platform in DETECTED_BUT_UNSUPPORTED | {"custom"}
+        allowed_custom = platform.startswith("custom_") or platform in DETECTED_BUT_UNSUPPORTED | DETECTED_REQUIRES_REVIEW | {"custom"}
         if not allowed_custom:
             return False, "Custom-adapter-required research must identify a custom or unsupported platform"
         if reusable:
@@ -469,6 +474,11 @@ def validate_detection_fields(detection: ATSDetection) -> tuple[bool, str]:
         return False, detection.note or "ATS could not be detected"
     if detection.platform in DETECTED_BUT_UNSUPPORTED:
         return False, f"{detection.platform} is detected but has no current scanner adapter"
+    if detection.platform in DETECTED_REQUIRES_REVIEW:
+        return False, (
+            f"{detection.platform} requires reviewed endpoint, identity, apply-host, "
+            "and pagination configuration"
+        )
     if detection.platform in EXISTING_ONLY_PLATFORMS:
         return False, f"{detection.platform} requires reviewed search terms and is preserved only from existing configurations"
     if detection.platform not in SUPPORTED_IMPORT_PLATFORMS:
