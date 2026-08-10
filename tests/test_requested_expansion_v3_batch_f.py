@@ -65,13 +65,13 @@ class RequestedExpansionV3BatchFArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_exact_249_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 255)
+        self.assertEqual(len(self.production), 257)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(self.historical), 249)
         self.assertEqual(self.production[:249], self.historical)
         self.assertEqual(self.candidates[:249], self.historical)
         self.assertEqual(self.validated[:249], self.historical)
-        self.assertEqual(self.production, self.validated)
+        self.assertEqual(self.production[:255], self.validated)
         self.assertEqual(self.candidate_bytes, self.validated_bytes)
         self.assertTrue(self.report["candidate_registry_has_exact_249_entry_prefix"])
         self.assertTrue(self.report["validated_registry_has_exact_249_entry_prefix"])
@@ -80,11 +80,17 @@ class RequestedExpansionV3BatchFArtifactTests(unittest.TestCase):
         self.assertEqual((len(self.candidates), len(self.validated)), (255, 255))
         self.assertEqual([item["name"] for item in self.candidates[249:]], VALIDATED)
         self.assertEqual([item["name"] for item in self.validated[249:]], VALIDATED)
-        self.assertEqual([item["name"] for item in self.production[249:]], VALIDATED)
+        self.assertEqual([item["name"] for item in self.production[249:255]], VALIDATED)
         for name in VALIDATED:
             self.assertEqual([item["name"] for item in self.production].count(name), 1)
         self.assertTrue(EXCLUDED.isdisjoint({item["name"] for item in self.candidates}))
-        self.assertTrue(EXCLUDED.isdisjoint({item["name"] for item in self.production}))
+        self.assertTrue(
+            (EXCLUDED - {"Bosch", "Aptiv"}).isdisjoint(
+                {item["name"] for item in self.production}
+            )
+        )
+        for name in ("Bosch", "Aptiv"):
+            self.assertEqual([item["name"] for item in self.production].count(name), 1)
 
     def test_03_report_and_csv_cover_every_requested_company(self):
         self.assertEqual([row["company"] for row in self.inventory], batch.REVIEWED_COMPANIES)
@@ -136,7 +142,7 @@ class RequestedExpansionV3BatchFArtifactTests(unittest.TestCase):
             load_master_workbook(batch.MASTER_WORKBOOK), load_target_companies(str(batch.PRODUCTION)),
             load_parent_source_mappings(batch.PARENT_MAPPINGS),
         )
-        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 186)
+        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 188)
         self.assertEqual({item["company"] for item in self.report["results"] if item["original_246_master"]}, set(batch.MASTER_RANKS))
         self.assertTrue(all(not next(item for item in self.report["results"] if item["company"] == name)["original_246_master"] for name in VALIDATED))
         totals = self.report["totals"]

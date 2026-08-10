@@ -3416,3 +3416,31 @@ target_companies:
     date_selector: .job-date-posted
     detail_link_selector: a[data-job-id]
     external_id_regex: /47204/([0-9]+)$
+  - name: Bosch
+    platform: smartrecruiters
+    slug: BoschGroup
+    careers_url: https://jobs.bosch.com/en/
+    endpoint_url: https://api.smartrecruiters.com/v1/companies/BoschGroup/postings
+    endpoint_variant: companies_postings_v1
+    identity_regex: ^Bosch Group$
+    allowed_apply_hosts:
+    - jobs.smartrecruiters.com
+    page_size: 20
+    max_pages: 1
+    max_jobs: 20
+  - name: Aptiv
+    platform: hawksearch_v2
+    careers_url: https://www.aptiv.com/en/jobs/search
+    endpoint_url: https://aptivcareers.searchapi-na.hawksearch.com/api/v2/search/
+    endpoint_variant: hawksearch_v2_search
+    client_guid: 28fad22cfe584b879917858203dd97ce
+    identity_regex: \bAptiv\b
+    locale: en
+    allowed_source_hosts:
+    - www.aptiv.com
+    - aptivcareers.searchapi-na.hawksearch.com
+    allowed_apply_hosts:
+    - aptiv.wd5.myworkdayjobs.com
+    page_size: 16
+    max_pages: 2
+    max_jobs: 20

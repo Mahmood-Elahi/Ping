@@ -328,8 +328,12 @@ class AdapterExtensionsV4ABulkActivationTests(unittest.TestCase):
                 registry_validator.source_key(matches[0]),
                 registry_validator.source_key(expected),
             )
-        excluded = {"yaskawa electric", "aptiv", "ohb se"}
+        excluded = {"yaskawa electric", "ohb se"}
         self.assertFalse(excluded & {registry_validator._name_key(item) for item in production})
+        self.assertEqual(
+            sum(registry_validator._name_key(item) == "aptiv" for item in production),
+            1,
+        )
 
     def test_39_parent_mappings_remain_unchanged(self):
         expected = subprocess.check_output(["git", "show", "HEAD:config/company_parent_source_mappings.yaml"], cwd=ROOT)

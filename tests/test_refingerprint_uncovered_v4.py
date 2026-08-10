@@ -48,6 +48,7 @@ REQUESTED_EXPANSION_BATCH_E_PROMOTIONS = [
 REQUESTED_EXPANSION_BATCH_F_PROMOTIONS = [
     "Mistral AI", "Perplexity AI", "Espressif Systems", "iRobot", "Dyson", "SharkNinja",
 ]
+ADAPTER_EXPANSION_V1_BATCH_B_PROMOTIONS = ["Bosch", "Aptiv"]
 HISTORICAL_PRODUCTION_ONLY = [
     "Datadog", "Elastic", "GitLab", "Twilio", "Zscaler", "CrowdStrike",
     "HashiCorp", "Confluent", "Teradyne",
@@ -180,6 +181,7 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
                 + REQUESTED_EXPANSION_BATCH_D_PROMOTIONS
                 + REQUESTED_EXPANSION_BATCH_E_PROMOTIONS
                 + REQUESTED_EXPANSION_BATCH_F_PROMOTIONS
+                + ADAPTER_EXPANSION_V1_BATCH_B_PROMOTIONS
             )
             if mod.normalize_company_name(name) not in master_names
         ]
@@ -189,7 +191,7 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
         )
         self.assertEqual(
             len(self.reconciliation.canonical_names) + len(self.reconciliation.mapped_names),
-            186,
+            188,
         )
 
     def test_08_normalization_does_not_use_weak_substrings(self):

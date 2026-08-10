@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import inspect
 import json
 import unittest
@@ -22,6 +23,7 @@ from src.scraper.company_careers.registry import load_target_companies
 ROOT = Path(__file__).resolve().parents[1]
 VALIDATION = ROOT / "config" / "company_careers_adapter_expansion_v1_batch_b_validation.yaml"
 PRODUCTION = ROOT / "config" / "target_companies.yaml"
+BASELINE_PRODUCTION_SHA256 = "6A34E9F175583CD16166AA9CA11DA8504BE1F02FAA86628E06DAC70681467969"
 
 
 class Response:
@@ -387,16 +389,56 @@ class BatchBRecoveryValidationTests(unittest.TestCase):
                 self.assertIsNone(registry_validator.configuration_error(row))
                 self.assertEqual(registry_validator.source_key(row), source)
 
-    def test_production_registry_remains_unactivated_and_mappings_unchanged(self):
+    def test_only_ready_targets_are_appended_to_the_exact_255_entry_prefix(self):
+        # The validation artifact remains immutable milestone evidence.
         self.assertFalse(self.data["production_registry_activated"])
         self.assertTrue(all(value is False for value in self.data["publication"].values()))
-        targets = load_target_companies(str(PRODUCTION))
-        self.assertEqual(len(targets), self.data["baseline"]["production_sources"])
-        names = {target.name for target in targets}
-        self.assertTrue({"Bosch", "Aptiv", "Continental"}.isdisjoint(names))
+
+        production_bytes = PRODUCTION.read_bytes()
+        marker = b"  - name: Bosch"
+        baseline_bytes = production_bytes[:production_bytes.index(marker)]
+        self.assertEqual(
+            hashlib.sha256(baseline_bytes).hexdigest().upper(),
+            BASELINE_PRODUCTION_SHA256,
+        )
+
+        production_data = yaml.safe_load(production_bytes)["target_companies"]
+        baseline_count = self.data["baseline"]["production_sources"]
+        promoted = ["Bosch", "Aptiv"]
+        self.assertEqual(len(production_data), self.data["projection"]["production_sources"])
+        self.assertEqual([row["name"] for row in production_data[baseline_count:]], promoted)
         self.assertEqual(
             len(load_parent_source_mappings()), self.data["baseline"]["parent_mappings"]
         )
+
+        runtime_fields = {
+            "smartrecruiters": (
+                "name", "platform", "slug", "careers_url", "endpoint_url",
+                "endpoint_variant", "identity_regex", "allowed_apply_hosts",
+                "page_size", "max_pages", "max_jobs",
+            ),
+            "hawksearch_v2": (
+                "name", "platform", "careers_url", "endpoint_url",
+                "endpoint_variant", "client_guid", "identity_regex", "locale",
+                "allowed_source_hosts", "allowed_apply_hosts", "page_size",
+                "max_pages", "max_jobs",
+            ),
+        }
+        for production_row in production_data[baseline_count:]:
+            validated_row = self.rows[production_row["name"]]
+            fields = runtime_fields[production_row["platform"]]
+            self.assertEqual(production_row, {field: validated_row[field] for field in fields})
+
+        names = [row["name"] for row in production_data]
+        for name in promoted:
+            self.assertEqual(names.count(name), 1)
+        self.assertNotIn("Continental", names)
+        self.assertNotIn("Copperleaf", names)
+        self.assertNotIn("IFS1", {row.get("slug") for row in production_data})
+
+        renesas = next(row for row in production_data if row["name"] == "Renesas Electronics")
+        self.assertEqual(names.count("Renesas Electronics"), 1)
+        self.assertEqual(renesas["platform"], "static_html")
 
     def test_additional_smartrecruiters_candidates_are_safely_classified(self):
         rows = {

@@ -146,7 +146,8 @@ class BrowserExpansionV1AArtifactTests(unittest.TestCase):
             matches = [entry for entry in self.production if entry["name"] == validated_entry["name"]]
             self.assertEqual(matches, [validated_entry])
         production_names = {entry["name"] for entry in self.production}
-        self.assertTrue({"Bosch", "DJI"}.isdisjoint(production_names))
+        self.assertNotIn("DJI", production_names)
+        self.assertEqual(sum(entry["name"] == "Bosch" for entry in self.production), 1)
 
     def test_10_projection_uses_only_validated_sources(self):
         totals = self.report["totals"]

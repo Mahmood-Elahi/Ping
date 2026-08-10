@@ -45,7 +45,7 @@ class CanadianExpansionV3BatchCArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_exact_216_source_baseline(self):
-        self.assertEqual(len(self.production), 255)
+        self.assertEqual(len(self.production), 257)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(self.candidates[:216], self.production[:216])
         self.assertEqual(self.validated[:216], self.production[:216])
@@ -119,7 +119,7 @@ class CanadianExpansionV3BatchCArtifactTests(unittest.TestCase):
         master = reconcile_master(load_master_workbook(batch.MASTER_WORKBOOK),
                                   load_target_companies(str(batch.PRODUCTION)),
                                   load_parent_source_mappings(batch.PARENT_MAPPINGS))
-        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 186)
+        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 188)
         self.assertTrue(all(not item["original_246_master"] for item in self.report["results"]))
         totals = self.report["totals"]
         self.assertEqual(totals["candidate_sources"], 11)

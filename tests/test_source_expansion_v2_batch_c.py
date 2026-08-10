@@ -132,7 +132,8 @@ class SourceExpansionV2BatchCArtifactTests(unittest.TestCase):
         excluded = {result["company"] for result in self.report["results"] if not result["safe_to_activate"]}
         self.assertEqual(excluded, EXCLUDED)
         present = {entry["name"] for entry in self.validated + self.production}
-        self.assertTrue(EXCLUDED.isdisjoint(present))
+        self.assertTrue((EXCLUDED - {"Aptiv"}).isdisjoint(present))
+        self.assertEqual(sum(entry["name"] == "Aptiv" for entry in self.production), 1)
 
     def test_06_every_company_has_requested_report_fields(self):
         required = {

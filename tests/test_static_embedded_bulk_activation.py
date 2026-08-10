@@ -20,6 +20,7 @@ BATCH_B_VALIDATED_REGISTRY = ROOT / "config" / "target_companies.adapter_extensi
 PILOT_VALIDATED_REGISTRY = ROOT / "config" / "target_companies.browser_pilot_v1_validated.yaml"
 BROWSER_EXPANSION_V1A_VALIDATED_REGISTRY = ROOT / "config" / "target_companies.browser_expansion_v1a_validated.yaml"
 BROWSER_EXPANSION_V1B_VALIDATED_REGISTRY = ROOT / "config" / "target_companies.browser_expansion_v1b_validated.yaml"
+ADAPTER_EXPANSION_V1_BATCH_B_VALIDATION = ROOT / "config" / "company_careers_adapter_expansion_v1_batch_b_validation.yaml"
 LATER_PROMOTION_ARTIFACTS = {
     BATCH_B_VALIDATED_REGISTRY: {"IMC Trading", "Unitree Robotics"},
     PILOT_VALIDATED_REGISTRY: {"Figure AI", "LINE"},
@@ -30,6 +31,7 @@ LATER_PROMOTION_ARTIFACTS = {
         "Dassault Systèmes",
     },
     BROWSER_EXPANSION_V1B_VALIDATED_REGISTRY: {"Tourmaline Oil", "Patreon"},
+    ADAPTER_EXPANSION_V1_BATCH_B_VALIDATION: {"Aptiv"},
 }
 
 EXPECTED_REVIEWED_COMPANIES = [
@@ -134,7 +136,10 @@ class StaticEmbeddedBulkActivationTests(unittest.TestCase):
         production_by_name = {validator._name_key(item): item for item in production}
         allowed_by_name = {}
         for artifact, companies in LATER_PROMOTION_ARTIFACTS.items():
-            artifact_entries = entries(artifact)
+            artifact_data = yaml.safe_load(artifact.read_text(encoding="utf-8")) or {}
+            artifact_entries = artifact_data.get(
+                "target_companies", artifact_data.get("recovery_targets", [])
+            )
             for company in companies:
                 name_key = validator._name_key({"name": company})
                 matches = [item for item in artifact_entries if validator._name_key(item) == name_key]
@@ -150,9 +155,13 @@ class StaticEmbeddedBulkActivationTests(unittest.TestCase):
                 sum(validator._name_key(item) == name_key for item in production),
                 1,
             )
-            self.assertEqual(production_by_name[name_key], proven_entry)
+            production_entry = production_by_name[name_key]
             self.assertEqual(
-                validator.source_key(production_by_name[name_key]),
+                production_entry,
+                {field: proven_entry[field] for field in production_entry},
+            )
+            self.assertEqual(
+                validator.source_key(production_entry),
                 validator.source_key(proven_entry),
             )
         self.assertNotIn("niantic", production_by_name)
