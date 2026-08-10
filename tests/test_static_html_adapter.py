@@ -147,7 +147,7 @@ class StaticHTMLAdapterTests(unittest.TestCase):
 
     def test_20_unsupported_selector_and_regex_contracts(self):
         with self.assertRaisesRegex(AdapterError, "unsupported construct"):
-            static_html.validate_target(target(job_card_selector="article.job, div.job"))
+            static_html.validate_target(target(job_card_selector="article.job > div.job"))
         with self.assertRaisesRegex(AdapterError, "unsafe construct"):
             static_html.validate_target(target(external_id_attribute=None, external_id_regex="(?=x)"))
 

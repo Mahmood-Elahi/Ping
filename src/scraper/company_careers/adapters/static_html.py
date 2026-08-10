@@ -181,12 +181,20 @@ def selector_to_xpath(selector: str) -> str:
     text = " ".join(str(selector).split())
     if text == ":self":
         return "."
-    without_supported_pseudo = re.sub(r":nth-child\([1-9][0-9]*\)$", "", text)
-    if not text or any(token in without_supported_pseudo for token in (",", ">", "(", ")", "|", "\\")):
+    selector_groups = [item.strip() for item in text.split(",")]
+    if not text or len(selector_groups) > 8 or any(not item for item in selector_groups):
         raise AdapterError("Static HTML selector uses an unsupported construct")
-    parts = text.split(" ")
-    compiled = [_simple_selector(part) for part in parts]
-    return ".//" + "//".join(compiled)
+    compiled_groups = []
+    for group in selector_groups:
+        parts = group.split(" ")
+        without_supported_pseudo = " ".join(
+            re.sub(r":(?:first-child|last-child|nth-child\([1-9][0-9]*\))$", "", part)
+            for part in parts
+        )
+        if any(token in without_supported_pseudo for token in (">", "(", ")", "|", "\\")):
+            raise AdapterError("Static HTML selector uses an unsupported construct")
+        compiled_groups.append(".//" + "//".join(_simple_selector(part) for part in parts))
+    return " | ".join(compiled_groups)
 
 
 def _simple_selector(part: str) -> str:

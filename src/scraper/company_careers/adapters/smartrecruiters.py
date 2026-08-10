@@ -24,7 +24,10 @@ MAX_TIMEOUT_SECONDS = 30
 MAX_RESPONSE_BYTES = 5_000_000
 PAGE_DELAY_SECONDS = 0.2
 IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{1,99}$")
-POSTING_ID_RE = re.compile(r"^[0-9]{12,18}$")
+# SmartRecruiters' public v1 API currently returns both legacy shorter numeric
+# IDs and newer longer numeric IDs.  The ID must still be an all-numeric,
+# job-specific path component corroborated by the listing and detail records.
+POSTING_ID_RE = re.compile(r"^[0-9]{6,18}$")
 BLOCKED_MARKERS = (
     "captcha",
     "access denied",
