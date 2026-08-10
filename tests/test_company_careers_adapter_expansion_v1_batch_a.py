@@ -454,9 +454,12 @@ class RecoveryTargetValidationTests(unittest.TestCase):
         baseline_count = self.data["baseline"]["production_sources"]
         promoted = ["CoolIT Systems", "Ballard Power Systems", "City of Calgary"]
 
-        self.assertEqual(len(production_data), baseline_count + len(promoted))
+        self.assertGreaterEqual(len(production_data), baseline_count + len(promoted))
         self.assertEqual(production_data[:baseline_count], historical_data)
-        self.assertEqual([row["name"] for row in production_data[baseline_count:]], promoted)
+        self.assertEqual(
+            [row["name"] for row in production_data[baseline_count:baseline_count + len(promoted)]],
+            promoted,
+        )
         self.assertEqual(len(load_parent_source_mappings()), self.data["baseline"]["parent_mappings"])
         self.assertEqual(
             (
@@ -481,7 +484,7 @@ class RecoveryTargetValidationTests(unittest.TestCase):
                 "allowed_apply_hosts", "site_id", "max_pages", "max_jobs",
             ),
         }
-        for production_row in production_data[baseline_count:]:
+        for production_row in production_data[baseline_count:baseline_count + len(promoted)]:
             validated_row = self.rows[production_row["name"]]
             fields = runtime_fields[production_row["platform"]]
             self.assertEqual(production_row, {field: validated_row[field] for field in fields})

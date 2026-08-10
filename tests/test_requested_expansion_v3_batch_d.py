@@ -35,6 +35,10 @@ class RequestedExpansionV3BatchDArtifactTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.production_bytes = batch.PRODUCTION.read_bytes()
+        cls.candidate_bytes = batch.CANDIDATE_REGISTRY.read_bytes()
+        cls.validated_bytes = batch.VALIDATED_REGISTRY.read_bytes()
+        cls.historical_bytes = cls.validated_bytes[:cls.validated_bytes.index(b"  - name: IBM")]
+        cls.historical = (yaml.safe_load(cls.historical_bytes) or {})["target_companies"]
         cls.production = entries(batch.PRODUCTION)
         cls.candidates = entries(batch.CANDIDATE_REGISTRY)
         cls.validated = entries(batch.VALIDATED_REGISTRY)
@@ -42,13 +46,16 @@ class RequestedExpansionV3BatchDArtifactTests(unittest.TestCase):
         with batch.CANDIDATE_CSV.open(newline="", encoding="utf-8") as handle:
             cls.inventory = list(csv.DictReader(handle))
 
-    def test_01_exact_230_source_baseline_is_preserved(self):
-        self.assertEqual(len(self.production), 230)
+    def test_01_activation_preserves_exact_230_source_baseline(self):
+        self.assertEqual(len(self.production), 243)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
-        self.assertEqual(self.candidates[:230], self.production)
-        self.assertEqual(self.validated[:230], self.production)
-        self.assertTrue(batch.CANDIDATE_REGISTRY.read_bytes().startswith(self.production_bytes))
-        self.assertTrue(batch.VALIDATED_REGISTRY.read_bytes().startswith(self.production_bytes))
+        self.assertEqual(len(self.historical), 230)
+        self.assertEqual(self.production[:230], self.historical)
+        self.assertEqual(self.candidates[:230], self.historical)
+        self.assertEqual(self.validated[:230], self.historical)
+        self.assertTrue(self.production_bytes.startswith(self.historical_bytes))
+        self.assertEqual(self.production_bytes, self.validated_bytes)
+        self.assertEqual(self.candidate_bytes, self.validated_bytes)
         self.assertTrue(self.report["candidate_registry_has_exact_230_entry_prefix"])
         self.assertTrue(self.report["validated_registry_has_exact_230_entry_prefix"])
 
@@ -57,7 +64,9 @@ class RequestedExpansionV3BatchDArtifactTests(unittest.TestCase):
         self.assertEqual(len(self.validated), 243)
         self.assertEqual([item["name"] for item in self.candidates[230:]], VALIDATED)
         self.assertEqual([item["name"] for item in self.validated[230:]], VALIDATED)
+        self.assertEqual([item["name"] for item in self.production[230:]], VALIDATED)
         self.assertTrue(EXCLUDED.isdisjoint({item["name"] for item in self.candidates}))
+        self.assertTrue(EXCLUDED.isdisjoint({item["name"] for item in self.production}))
         self.assertEqual(len({item["name"].casefold() for item in self.candidates}), 243)
 
     def test_03_review_results_and_required_report_fields(self):
@@ -210,7 +219,7 @@ class RequestedExpansionV3BatchDArtifactTests(unittest.TestCase):
         self.assertNotIn("workable", batch.scanner.ADAPTERS)
 
     def test_14_hashes_ignore_and_publication_state(self):
-        self.assertEqual(hashlib.sha256(self.production_bytes).hexdigest().upper(), self.report["production_registry_sha256"])
+        self.assertEqual(hashlib.sha256(self.historical_bytes).hexdigest().upper(), self.report["production_registry_sha256"])
         self.assertEqual(
             hashlib.sha256(batch.PARENT_MAPPINGS.read_bytes()).hexdigest().upper(),
             self.report["parent_mappings_sha256"],

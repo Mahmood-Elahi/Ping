@@ -3038,3 +3038,180 @@ target_companies:
     site_id: "1"
     max_pages: 1
     max_jobs: 20
+  - name: IBM
+    platform: ibm_search
+    careers_url: https://www.ibm.com/careers/search
+    source_identity_regex: IBM Careers|IBM
+    allowed_apply_hosts:
+    - careers.ibm.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://www.ibm.com/careers/search
+    search_terms:
+    - intern
+  - name: Applied Intuition
+    platform: ashby
+    careers_url: https://www.appliedintuition.com/careers
+    source_identity_regex: Applied Intuition
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.ashbyhq.com/applied
+    slug: applied
+  - name: Apptronik
+    platform: greenhouse
+    careers_url: https://apptronik.com/careers/job-listings
+    source_identity_regex: Apptronik
+    allowed_apply_hosts:
+    - boards.greenhouse.io
+    - job-boards.greenhouse.io
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://apptronik.com/careers/job-listings
+    slug: apptronik
+  - name: 1X Technologies
+    platform: ashby
+    careers_url: https://www.1x.tech/careers
+    source_identity_regex: 1X Jobs|\b1X\b
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.ashbyhq.com/1x
+    slug: 1x
+  - name: Nuro
+    platform: greenhouse
+    careers_url: https://www.nuro.ai/careers
+    source_identity_regex: \bNuro\b
+    allowed_apply_hosts:
+    - nuro.ai
+    - www.nuro.ai
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://www.nuro.ai/careers
+    slug: nuro
+  - name: Kodiak Robotics
+    platform: greenhouse
+    careers_url: https://kodiak.ai/careers
+    source_identity_regex: Kodiak
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://job-boards.greenhouse.io/kodiak
+    slug: kodiak
+  - name: Gatik
+    platform: greenhouse
+    careers_url: https://archive.gatik.ai/careers/
+    source_identity_regex: \bGatik\b
+    allowed_apply_hosts:
+    - boards.greenhouse.io
+    - job-boards.greenhouse.io
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://archive.gatik.ai/careers/
+    slug: gatikaiinc
+  - name: Physical Intelligence
+    platform: ashby
+    careers_url: https://www.pi.website/join-us
+    source_identity_regex: Physical Intelligence
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://www.pi.website/join-us
+    slug: physicalintelligence
+  - name: Serve Robotics
+    platform: ashby
+    careers_url: https://www.serverobotics.com/careers/index.html
+    source_identity_regex: Serve Robotics|Serve is delivering
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://www.serverobotics.com/careers/index.html
+    slug: serverobotics
+  - name: Scale AI
+    platform: greenhouse
+    careers_url: https://scale.com/careers
+    source_identity_regex: Scale AI|Scale is growing
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://job-boards.greenhouse.io/scaleai
+    slug: scaleai
+  - name: Renesas Electronics
+    platform: static_html
+    careers_url: https://jobs.renesas.com
+    source_identity_regex: Careers at Renesas Electronics|Renesas Electronics
+    allowed_apply_hosts:
+    - jobs.smartrecruiters.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://careers.smartrecruiters.com/renesaselectronics
+    listing_url: https://careers.smartrecruiters.com/renesaselectronics
+    endpoint_variant: server_rendered_cards
+    listing_selector: div.js-openings-load
+    job_card_selector: section.openings-section
+    title_selector: h4.job-title
+    detail_link_selector: a.js-job-ad-link
+    external_id_regex: /renesaselectronics/([0-9]+)-
+    location_selector: h3.opening-title
+  - name: Silicon Labs
+    platform: workday
+    careers_url: https://www.silabs.com/about-us/careers
+    source_identity_regex: Silicon Labs|SiliconlabsCareers
+    allowed_apply_hosts:
+    - silabs.wd1.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://silabs.wd1.myworkdayjobs.com/SiliconlabsCareers
+    tenant: silabs
+    wd_subdomain: wd1
+    site_id: SiliconlabsCareers
+    search_url: https://silabs.wd1.myworkdayjobs.com/SiliconlabsCareers
+  - name: TEKTELIC Communications
+    platform: static_html
+    careers_url: https://tektelic.com/career/
+    source_identity_regex: TEKTELIC
+    allowed_apply_hosts:
+    - tektelic.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://tektelic.com/career/vacancies/
+    listing_url: https://tektelic.com/career/vacancies/
+    endpoint_variant: server_rendered_cards
+    listing_selector: div.vacancies-list
+    job_card_selector: div.vacancies-list div.col-lg-12
+    title_selector: p.vacancy-title
+    detail_link_selector: a[href*="/career/vacancies/"]
+    external_id_regex: /career/vacancies/([^/]+)/
+    location_selector: div.loc span
