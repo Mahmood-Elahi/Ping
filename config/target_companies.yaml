@@ -3215,3 +3215,92 @@ target_companies:
     detail_link_selector: a[href*="/career/vacancies/"]
     external_id_regex: /career/vacancies/([^/]+)/
     location_selector: div.loc span
+  - name: Gibson Energy
+    platform: sap_successfactors
+    careers_url: https://www.gibsonenergy.com/careers/
+    source_identity_regex: Gibson Energy Jobs|Gibson Energy
+    identity_regex: Gibson Energy Jobs|Gibson Energy
+    allowed_apply_hosts:
+    - careers.gibsonenergy.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://careers.gibsonenergy.com/search/
+    search_url: https://careers.gibsonenergy.com/search/
+    endpoint_variant: rmk_table
+  - name: Strathcona Resources
+    platform: workday
+    careers_url: https://www.strathconaresources.com/careers/
+    source_identity_regex: Strathcona Resources
+    identity_regex: Strathcona Resources
+    allowed_apply_hosts:
+    - strathconaresources.wd10.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://strathconaresources.wd10.myworkdayjobs.com/Careers
+    search_url: https://strathconaresources.wd10.myworkdayjobs.com/Careers
+    tenant: strathconaresources
+    wd_subdomain: wd10
+    site_id: Careers
+  - name: SensorUp
+    platform: bamboohr
+    careers_url: https://www.sensorup.com/careers
+    source_identity_regex: SensorUp
+    identity_regex: SensorUp
+    allowed_apply_hosts:
+    - sensorup.bamboohr.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://www.sensorup.com/terms-of-use
+    listing_url: https://sensorup.bamboohr.com/careers/list
+    slug: sensorup
+  - name: Semtech
+    platform: workday
+    careers_url: https://www.semtech.com/careers
+    source_identity_regex: Semtech
+    identity_regex: Semtech
+    allowed_apply_hosts:
+    - semtech.wd1.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://semtech.wd1.myworkdayjobs.com/SemtechCareers
+    search_url: https://semtech.wd1.myworkdayjobs.com/SemtechCareers
+    tenant: semtech
+    wd_subdomain: wd1
+    site_id: SemtechCareers
+  - name: Pason Systems
+    platform: ukg_pro
+    careers_url: https://recruiting.ultipro.ca/PAS5000PASON/JobBoard/736c1025-c469-4ece-a487-4884545272a7
+    source_identity_regex: Pason
+    identity_regex: Pason
+    allowed_apply_hosts:
+    - recruiting.ultipro.ca
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://recruiting.ultipro.ca/PAS5000PASON/JobBoard/736c1025-c469-4ece-a487-4884545272a7
+    job_attribution_regex: '\bPason(?: Systems)?\b'
+    job_attribution_exclude_regex: \b(?:Intelligent Wellhead Systems|IWS)\b
+  - name: Trican Well Service
+    platform: startdate
+    careers_url: https://tricanwellservice.startdate.ca/
+    source_identity_regex: \bTrican\b
+    identity_regex: \bTrican\b
+    allowed_apply_hosts:
+    - tricanwellservice.startdate.ca
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://tricanwellservice.com/
+    endpoint_url: https://api.startdate.ca/jobs/active?page=candidate_dashboard
+    locale: en
+    job_attribution_regex: '\bTrican(?: Well Service)?\b'

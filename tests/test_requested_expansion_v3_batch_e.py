@@ -60,6 +60,8 @@ class RequestedExpansionV3BatchEArtifactTests(unittest.TestCase):
         cls.production_bytes = batch.PRODUCTION.read_bytes()
         cls.candidate_bytes = batch.CANDIDATE_REGISTRY.read_bytes()
         cls.validated_bytes = batch.VALIDATED_REGISTRY.read_bytes()
+        cls.historical_bytes = cls.validated_bytes[:cls.validated_bytes.index(b"  - name: Gibson Energy")]
+        cls.historical = (yaml.safe_load(cls.historical_bytes) or {})["target_companies"]
         cls.production = entries(batch.PRODUCTION)
         cls.candidates = entries(batch.CANDIDATE_REGISTRY)
         cls.validated = entries(batch.VALIDATED_REGISTRY)
@@ -67,13 +69,15 @@ class RequestedExpansionV3BatchEArtifactTests(unittest.TestCase):
         with batch.CANDIDATE_CSV.open(newline="", encoding="utf-8") as handle:
             cls.inventory = list(csv.DictReader(handle))
 
-    def test_01_exact_baseline_is_preserved_without_activation(self):
-        self.assertEqual(len(self.production), 243)
+    def test_01_activation_preserves_exact_243_entry_production_prefix(self):
+        self.assertEqual(len(self.production), 249)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
-        self.assertEqual(self.candidates[:243], self.production)
-        self.assertEqual(self.validated[:243], self.production)
-        self.assertTrue(self.candidate_bytes.startswith(self.production_bytes))
-        self.assertTrue(self.validated_bytes.startswith(self.production_bytes))
+        self.assertEqual(len(self.historical), 243)
+        self.assertEqual(self.production[:243], self.historical)
+        self.assertEqual(self.candidates[:243], self.historical)
+        self.assertEqual(self.validated[:243], self.historical)
+        self.assertEqual(self.production_bytes, self.validated_bytes)
+        self.assertEqual(self.candidate_bytes, self.validated_bytes)
         self.assertTrue(self.report["candidate_registry_has_exact_243_entry_prefix"])
         self.assertTrue(self.report["validated_registry_has_exact_243_entry_prefix"])
 
@@ -82,8 +86,11 @@ class RequestedExpansionV3BatchEArtifactTests(unittest.TestCase):
         self.assertEqual(len(self.validated), 249)
         self.assertEqual([item["name"] for item in self.candidates[243:]], VALIDATED)
         self.assertEqual([item["name"] for item in self.validated[243:]], VALIDATED)
+        self.assertEqual([item["name"] for item in self.production[243:]], VALIDATED)
         self.assertTrue(EXCLUDED.isdisjoint({item["name"] for item in self.candidates}))
-        self.assertTrue(set(batch.REVIEWED_COMPANIES).isdisjoint({item["name"] for item in self.production}))
+        self.assertTrue(EXCLUDED.isdisjoint({item["name"] for item in self.production}))
+        for name in VALIDATED:
+            self.assertEqual([item["name"] for item in self.production].count(name), 1)
 
     def test_03_report_and_inventory_cover_every_requested_company(self):
         self.assertEqual([row["company"] for row in self.inventory], batch.REVIEWED_COMPANIES)
@@ -177,7 +184,7 @@ class RequestedExpansionV3BatchEArtifactTests(unittest.TestCase):
             self.assertNotIn(name, mappings)
 
     def test_10_hash_ignore_and_publication_state(self):
-        self.assertEqual(hashlib.sha256(self.production_bytes).hexdigest().upper(), self.report["production_registry_sha256"])
+        self.assertEqual(hashlib.sha256(self.historical_bytes).hexdigest().upper(), self.report["production_registry_sha256"])
         self.assertEqual(hashlib.sha256(batch.PARENT_MAPPINGS.read_bytes()).hexdigest().upper(), self.report["parent_mappings_sha256"])
         ignored = subprocess.run(
             ["git", "check-ignore", str(batch.REPORT.relative_to(batch.ROOT))],

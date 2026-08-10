@@ -21,7 +21,7 @@ from src.scraper.company_careers.registry import load_target_companies
 
 VALIDATED = [item["name"] for item in batch.CANDIDATE_ENTRIES]
 EXCLUDED = {"Pason Systems", "AltaLink", "City of Calgary"}
-STILL_EXCLUDED = {"Pason Systems", "AltaLink"}
+STILL_EXCLUDED = {"AltaLink"}
 MASTER_MEMBERS = {"Imperial Oil", "Cenovus Energy", "ARC Resources"}
 HISTORICAL_COUNT = 186
 
@@ -58,7 +58,7 @@ class CalgaryStudentEmployersBatchAArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_exact_production_prefix_and_counts(self):
-        self.assertEqual(len(self.production), 243)
+        self.assertEqual(len(self.production), 249)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(self.historical), HISTORICAL_COUNT)
         self.assertEqual(

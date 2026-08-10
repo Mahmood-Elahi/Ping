@@ -41,6 +41,10 @@ REQUESTED_EXPANSION_BATCH_D_PROMOTIONS = [
     "Kodiak Robotics", "Gatik", "Physical Intelligence", "Serve Robotics",
     "Scale AI", "Renesas Electronics", "Silicon Labs", "TEKTELIC Communications",
 ]
+REQUESTED_EXPANSION_BATCH_E_PROMOTIONS = [
+    "Gibson Energy", "Strathcona Resources", "SensorUp", "Semtech",
+    "Pason Systems", "Trican Well Service",
+]
 HISTORICAL_PRODUCTION_ONLY = [
     "Datadog", "Elastic", "GitLab", "Twilio", "Zscaler", "CrowdStrike",
     "HashiCorp", "Confluent", "Teradyne",
@@ -171,6 +175,7 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
                 + CANADIAN_EXPANSION_BATCH_C_PROMOTIONS
                 + ADAPTER_EXPANSION_V1_BATCH_A_PROMOTIONS
                 + REQUESTED_EXPANSION_BATCH_D_PROMOTIONS
+                + REQUESTED_EXPANSION_BATCH_E_PROMOTIONS
             )
             if mod.normalize_company_name(name) not in master_names
         ]
