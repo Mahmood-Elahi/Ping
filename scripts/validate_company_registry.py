@@ -26,6 +26,7 @@ if str(Path(__file__).resolve().parents[1]) not in sys.path:
 from src.scraper.company_careers.adapters import (
     ashby,
     avature,
+    bamboohr,
     clearcompany,
     eightfold,
     embedded_data,
@@ -38,6 +39,7 @@ from src.scraper.company_careers.adapters import (
     phenom,
     sap_successfactors,
     static_html,
+    startdate,
     ukg_pro,
     workday,
 )
@@ -111,6 +113,8 @@ ADAPTERS: dict[str, AdapterFn] = {
     "static_html": static_html.fetch_jobs,
     "javascript_embedded_data": embedded_data.fetch_jobs,
     "clearcompany": clearcompany.fetch_jobs,
+    "bamboohr": bamboohr.fetch_jobs,
+    "startdate": startdate.fetch_jobs,
     "ukg_pro": ukg_pro.fetch_jobs,
     "paycor": paycor.fetch_jobs,
     "peoplesoft": peoplesoft.fetch_jobs,
@@ -179,6 +183,12 @@ def source_key(entry: Mapping[str, Any]) -> Optional[str]:
     if platform == "clearcompany":
         site_id = str(entry.get("site_id") or "").strip().casefold()
         return f"clearcompany:{site_id}" if site_id else None
+    if platform == "bamboohr":
+        slug = str(entry.get("slug") or "").strip().casefold()
+        return f"bamboohr:{slug}" if slug else None
+    if platform == "startdate":
+        host = (urlparse(str(entry.get("careers_url") or "")).hostname or "").casefold()
+        return f"startdate:{host}" if host else None
     if platform == "ukg_pro":
         parsed = urlparse(str(entry.get("careers_url") or ""))
         parts = [part for part in parsed.path.split("/") if part]
@@ -254,6 +264,16 @@ def configured_identifiers(entry: Mapping[str, Any]) -> dict[str, Any]:
             "listing_url": entry.get("listing_url"),
             "site_id": entry.get("site_id"),
             "identity_regex": entry.get("identity_regex"),
+            "job_attribution_regex": entry.get("job_attribution_regex"),
+            "job_attribution_exclude_regex": entry.get("job_attribution_exclude_regex"),
+        }
+    if platform in {"bamboohr", "startdate"}:
+        return {
+            "slug": entry.get("slug"),
+            "careers_url": entry.get("careers_url"),
+            "endpoint_url": entry.get("endpoint_url"),
+            "listing_url": entry.get("listing_url"),
+            "job_attribution_regex": entry.get("job_attribution_regex"),
         }
     if platform in {"static_html", "javascript_embedded_data"}:
         return {
@@ -305,6 +325,12 @@ def endpoint_for(entry: Mapping[str, Any]) -> Optional[str]:
         endpoint = str(entry.get("listing_url") or "").strip()
         return endpoint or None
     if platform == "clearcompany":
+        endpoint = str(entry.get("endpoint_url") or "").strip()
+        return endpoint or None
+    if platform == "bamboohr":
+        endpoint = str(entry.get("listing_url") or "").strip()
+        return endpoint or None
+    if platform == "startdate":
         endpoint = str(entry.get("endpoint_url") or "").strip()
         return endpoint or None
     if platform == "ukg_pro":
@@ -396,6 +422,16 @@ def configuration_error(entry: Mapping[str, Any]) -> Optional[str]:
     if platform == "clearcompany":
         try:
             clearcompany.validate_target(target)
+        except AdapterError as exc:
+            return str(exc)
+    if platform == "bamboohr":
+        try:
+            bamboohr.validate_target(target)
+        except AdapterError as exc:
+            return str(exc)
+    if platform == "startdate":
+        try:
+            startdate.validate_target(target)
         except AdapterError as exc:
             return str(exc)
     if platform == "ukg_pro":

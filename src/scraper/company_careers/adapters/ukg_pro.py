@@ -60,13 +60,14 @@ def fetch_jobs(
     jobs: list[JobRecord] = []
     seen_ids: set[str] = set()
     expected_total: int | None = None
+    raw_offset = 0
     endpoint = f"{board['board_url']}/JobBoardView/LoadSearchResults"
     for page_index in range(maximum_pages):
         remaining = maximum_jobs - len(jobs)
         if remaining <= 0:
             break
         top = min(PAGE_SIZE, remaining)
-        skip = len(jobs)
+        skip = raw_offset
         response = _request(
             session,
             "post",
@@ -97,12 +98,15 @@ def fetch_jobs(
 
         opportunities = payload["opportunities"]
         for item in opportunities:
+            if not _has_exact_job_attribution(item, target):
+                continue
             job = _normalize(item, target, board, str(board_config["Name"]))
             if job.job_id in seen_ids:
                 raise AdapterError("UKG Pro returned a duplicate stable opportunity ID")
             seen_ids.add(job.job_id)
             jobs.append(job)
 
+        raw_offset += len(opportunities)
         if skip + len(opportunities) >= total or len(opportunities) < top:
             break
         if page_index + 1 < maximum_pages:
@@ -130,6 +134,15 @@ def validate_target(target: CompanyTarget) -> dict[str, str]:
         re.compile(str(target.identity_regex), re.IGNORECASE)
     except re.error as exc:
         raise AdapterError(f"UKG Pro identity_regex is invalid: {exc}") from exc
+    for field, value in (
+        ("job_attribution_regex", target.job_attribution_regex),
+        ("job_attribution_exclude_regex", target.job_attribution_exclude_regex),
+    ):
+        if value:
+            try:
+                re.compile(str(value), re.IGNORECASE)
+            except re.error as exc:
+                raise AdapterError(f"UKG Pro {field} is invalid: {exc}") from exc
     if not 1 <= int(target.max_pages) <= MAX_PAGES:
         raise AdapterError(f"UKG Pro max_pages cannot exceed {MAX_PAGES}")
     if not 1 <= int(target.max_jobs) <= MAX_RESULTS:
@@ -141,6 +154,21 @@ def validate_target(target: CompanyTarget) -> dict[str, str]:
         "tenant": match.group("tenant"),
         "board_id": match.group("board").casefold(),
     }
+
+
+def _has_exact_job_attribution(item: Mapping[str, Any], target: CompanyTarget) -> bool:
+    """Keep only postings whose own fields establish the configured employer."""
+    required = str(target.job_attribution_regex or "").strip()
+    excluded = str(target.job_attribution_exclude_regex or "").strip()
+    if not required and not excluded:
+        return True
+    text = " ".join(
+        str(item.get(field) or "")
+        for field in ("Title", "BriefDescription", "JobCategoryName", "RequisitionNumber")
+    )
+    if required and not re.search(required, text, re.IGNORECASE):
+        return False
+    return not (excluded and re.search(excluded, text, re.IGNORECASE))
 
 
 def _request(
