@@ -157,6 +157,8 @@ def validate_target(target: CompanyTarget) -> None:
             selector_to_xpath(str(value))
     if target.external_id_attribute and not _ATTR_RE.fullmatch(str(target.external_id_attribute)):
         raise AdapterError("Static HTML external_id_attribute is invalid")
+    if target.reference_url_attribute and not _ATTR_RE.fullmatch(str(target.reference_url_attribute)):
+        raise AdapterError("Static HTML reference_url_attribute is invalid")
     if target.external_id_regex:
         _safe_regex(str(target.external_id_regex))
     if not target.external_id_attribute and not target.external_id_regex and not target.allow_url_id_fallback:
@@ -310,7 +312,7 @@ def _normalize(card: Any, target: CompanyTarget, page_url: str) -> JobRecord:
     title_nodes = select(card, str(target.title_selector))
     link_nodes = select(card, str(target.detail_link_selector))
     title = _text(title_nodes[0]) if title_nodes else ""
-    href = link_nodes[0].get("href") if link_nodes else ""
+    href = _link_reference(link_nodes[0], target) if link_nodes else ""
     url = _official_url(urljoin(page_url, str(href or "")), target)
     external_id = ""
     if target.external_id_attribute:
@@ -349,8 +351,9 @@ def _text(node: Any) -> str:
 
 def _card_identity(card: Any, target: CompanyTarget) -> str:
     links = select(card, str(target.detail_link_selector))
-    if links and links[0].get("href"):
-        return str(links[0].get("href"))
+    reference = _link_reference(links[0], target) if links else ""
+    if reference:
+        return reference
     if target.external_id_attribute and card.get(str(target.external_id_attribute)):
         return str(card.get(str(target.external_id_attribute)))
     return _text(card)[:200]
@@ -359,9 +362,17 @@ def _card_identity(card: Any, target: CompanyTarget) -> str:
 def _official_url(url: str, target: CompanyTarget) -> str:
     parsed = urlparse(url)
     host = (parsed.hostname or "").casefold()
+    listing_host = (urlparse(str(target.listing_url)).hostname or "").casefold()
+    if parsed.scheme == "http" and host == listing_host and _allowed_host(host, target.allowed_apply_hosts):
+        parsed = parsed._replace(scheme="https")
     if parsed.scheme != "https" or not _allowed_host(host, target.allowed_apply_hosts):
         raise AdapterError("Static HTML job has no official allowed-host apply URL")
     return urlunparse(parsed._replace(fragment=""))
+
+
+def _link_reference(node: Any, target: CompanyTarget) -> str:
+    attribute = str(target.reference_url_attribute or "href")
+    return str(node.get(attribute) or "").strip()
 
 
 def _require_listing_host(url: str, target: CompanyTarget) -> None:
