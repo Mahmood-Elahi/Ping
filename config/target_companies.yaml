@@ -3304,3 +3304,115 @@ target_companies:
     endpoint_url: https://api.startdate.ca/jobs/active?page=candidate_dashboard
     locale: en
     job_attribution_regex: '\bTrican(?: Well Service)?\b'
+  - name: Mistral AI
+    platform: ashby
+    careers_url: https://mistral.ai/careers/
+    source_identity_regex: Mistral
+    identity_regex: Mistral
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://mistral.ai/careers/
+    slug: mistral.ai
+  - name: Perplexity AI
+    platform: ashby
+    careers_url: https://www.perplexity.ai/careers
+    source_identity_regex: Perplexity
+    identity_regex: Perplexity
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.ashbyhq.com/perplexity
+    slug: perplexity
+  - name: Espressif Systems
+    platform: static_html
+    careers_url: https://www.espressif.com/en/careers
+    source_identity_regex: Espressif Systems|Job Search
+    identity_regex: Espressif Systems|Job Search
+    allowed_apply_hosts:
+    - www.espressif.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://www.espressif.com/en/join-us/job-search
+    listing_url: https://www.espressif.com/en/join-us/job-search
+    endpoint_variant: server_rendered_cards
+    listing_selector: .view-job-search
+    job_card_selector: .item-wrap
+    title_selector: .item-title
+    location_selector: .item-location
+    department_selector: .item-function
+    detail_link_selector: .item-share
+    reference_url_attribute: data-share
+    external_id_regex: /job-detail/([^/?#]+)$
+  - name: iRobot
+    platform: static_html
+    careers_url: https://careers.irobot.com/
+    source_identity_regex: iRobot
+    identity_regex: iRobot
+    allowed_apply_hosts:
+    - careers.irobot.com
+    original_workbook_rank: null
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://careers.irobot.com/search-jobs
+    listing_url: https://careers.irobot.com/search-jobs
+    pagination_url_template: https://careers.irobot.com/search-jobs?p={page}
+    endpoint_variant: server_rendered_cards
+    listing_selector: '#search-results-list'
+    job_card_selector: '#search-results-list li'
+    title_selector: h2
+    location_selector: .job-location
+    detail_link_selector: a[data-job-id]
+    external_id_regex: /42682/([0-9]+)$
+  - name: Dyson
+    platform: static_html
+    careers_url: https://careers.dyson.com/en-gb/
+    source_identity_regex: Dyson Careers|Dyson
+    identity_regex: Dyson Careers|Dyson
+    allowed_apply_hosts:
+    - careers.dyson.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://careers.dyson.com/en-gb/search-results/
+    listing_url: https://careers.dyson.com/en-gb/search-results/
+    endpoint_variant: server_rendered_cards
+    listing_selector: body
+    job_card_selector: article.m-job-preview
+    title_selector: .t-job-preview-title
+    location_selector: .t-job-preview-market
+    department_selector: .m-job-preview__team
+    detail_link_selector: .t-job-preview-faux-link
+    external_id_regex: /(JR[0-9]+)/?$
+  - name: SharkNinja
+    platform: static_html
+    careers_url: https://careers.sharkninja.com/
+    source_identity_regex: SharkNinja
+    identity_regex: SharkNinja
+    allowed_apply_hosts:
+    - careers.sharkninja.com
+    original_workbook_rank: null
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://careers.sharkninja.com/search-jobs
+    listing_url: https://careers.sharkninja.com/search-jobs
+    pagination_url_template: https://careers.sharkninja.com/search-jobs?p={page}
+    endpoint_variant: server_rendered_cards
+    listing_selector: '#search-results-list'
+    job_card_selector: '#search-results-list li'
+    title_selector: h2
+    location_selector: .job-location
+    date_selector: .job-date-posted
+    detail_link_selector: a[data-job-id]
+    external_id_regex: /47204/([0-9]+)$

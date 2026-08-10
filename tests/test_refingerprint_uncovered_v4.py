@@ -45,6 +45,9 @@ REQUESTED_EXPANSION_BATCH_E_PROMOTIONS = [
     "Gibson Energy", "Strathcona Resources", "SensorUp", "Semtech",
     "Pason Systems", "Trican Well Service",
 ]
+REQUESTED_EXPANSION_BATCH_F_PROMOTIONS = [
+    "Mistral AI", "Perplexity AI", "Espressif Systems", "iRobot", "Dyson", "SharkNinja",
+]
 HISTORICAL_PRODUCTION_ONLY = [
     "Datadog", "Elastic", "GitLab", "Twilio", "Zscaler", "CrowdStrike",
     "HashiCorp", "Confluent", "Teradyne",
@@ -176,6 +179,7 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
                 + ADAPTER_EXPANSION_V1_BATCH_A_PROMOTIONS
                 + REQUESTED_EXPANSION_BATCH_D_PROMOTIONS
                 + REQUESTED_EXPANSION_BATCH_E_PROMOTIONS
+                + REQUESTED_EXPANSION_BATCH_F_PROMOTIONS
             )
             if mod.normalize_company_name(name) not in master_names
         ]
