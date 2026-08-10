@@ -13,12 +13,12 @@ from src.scraper.company_careers import scanner
 from src.scraper.company_careers.adapters import paycor, peoplesoft, ukg_pro, workable
 from src.scraper.company_careers.models import AdapterError, CompanyTarget
 from src.scraper.company_careers.parent_sources import load_parent_source_mappings
-from src.scraper.company_careers.registry import load_target_companies
 
 
 ROOT = Path(__file__).resolve().parents[1]
 VALIDATION = ROOT / "config" / "company_careers_adapter_expansion_v1_batch_a_validation.yaml"
 PRODUCTION = ROOT / "config" / "target_companies.yaml"
+HISTORICAL_PRODUCTION = ROOT / "config" / "target_companies.canadian_expansion_v3_batch_c_validated.yaml"
 
 UKG_BOARD = (
     "https://recruiting.ultipro.ca/COO5001COLT/JobBoard/"
@@ -444,11 +444,19 @@ class RecoveryTargetValidationTests(unittest.TestCase):
                 self.assertIsNone(registry_validator.configuration_error(self.rows[name]))
                 self.assertEqual(registry_validator.source_key(self.rows[name]), source)
 
-    def test_no_target_was_activated_and_baselines_are_unchanged(self):
+    def test_only_ready_targets_are_appended_to_the_unchanged_baseline(self):
+        # The validation artifact remains immutable milestone evidence.
         self.assertFalse(self.data["production_registry_activated"])
         self.assertTrue(all(not row["activated"] for row in self.rows.values()))
-        production = load_target_companies(str(PRODUCTION))
-        self.assertEqual(len(production), self.data["baseline"]["production_sources"])
+
+        production_data = yaml.safe_load(PRODUCTION.read_text(encoding="utf-8"))["target_companies"]
+        historical_data = yaml.safe_load(HISTORICAL_PRODUCTION.read_text(encoding="utf-8"))["target_companies"]
+        baseline_count = self.data["baseline"]["production_sources"]
+        promoted = ["CoolIT Systems", "Ballard Power Systems", "City of Calgary"]
+
+        self.assertEqual(len(production_data), baseline_count + len(promoted))
+        self.assertEqual(production_data[:baseline_count], historical_data)
+        self.assertEqual([row["name"] for row in production_data[baseline_count:]], promoted)
         self.assertEqual(len(load_parent_source_mappings()), self.data["baseline"]["parent_mappings"])
         self.assertEqual(
             (
@@ -457,8 +465,26 @@ class RecoveryTargetValidationTests(unittest.TestCase):
             ),
             (186, 246),
         )
-        production_names = {target.name.casefold() for target in production}
-        self.assertTrue(all(name.casefold() not in production_names for name in self.rows))
+        production_names = [row["name"] for row in production_data]
+        for name in promoted:
+            self.assertEqual(production_names.count(name), 1)
+        self.assertNotIn("SMART Technologies", production_names)
+        self.assertNotIn("AltaLink", production_names)
+
+        runtime_fields = {
+            "ukg_pro": ("name", "platform", "careers_url", "identity_regex", "max_pages", "max_jobs"),
+            "paycor": (
+                "name", "platform", "careers_url", "endpoint_url", "identity_regex", "max_pages", "max_jobs",
+            ),
+            "peoplesoft": (
+                "name", "platform", "careers_url", "listing_url", "identity_regex",
+                "allowed_apply_hosts", "site_id", "max_pages", "max_jobs",
+            ),
+        }
+        for production_row in production_data[baseline_count:]:
+            validated_row = self.rows[production_row["name"]]
+            fields = runtime_fields[production_row["platform"]]
+            self.assertEqual(production_row, {field: validated_row[field] for field in fields})
 
     def test_generic_adapters_have_no_company_specific_branches(self):
         source = "\n".join(inspect.getsource(module).casefold() for module in (ukg_pro, paycor, peoplesoft, workable))

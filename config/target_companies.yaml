@@ -3015,3 +3015,26 @@ target_companies:
     detail_link_selector: a.posting-title[href*="/pointclickcare/"]
     external_id_regex: /pointclickcare/([A-Za-z0-9-]+)
     location_selector: span.location
+  - name: CoolIT Systems
+    platform: ukg_pro
+    careers_url: https://recruiting.ultipro.ca/COO5001COLT/JobBoard/05857940-9028-4d4a-8544-26bd990d20d6/
+    identity_regex: ^Coolit Systems Inc\.?$
+    max_pages: 1
+    max_jobs: 50
+  - name: Ballard Power Systems
+    platform: paycor
+    careers_url: https://www.ballard.com/careers/
+    endpoint_url: https://recruitingbypaycor.com/career/CareerHome.action?clientId=8a7883d06937f5f7016978fec55861f7
+    identity_regex: \bBallard\b
+    max_pages: 1
+    max_jobs: 50
+  - name: City of Calgary
+    platform: peoplesoft
+    careers_url: https://www.calgary.ca/careers.html
+    listing_url: https://www.calgary.ca/careers.html
+    identity_regex: \bCity of Calgary\b
+    allowed_apply_hosts:
+    - recruiting.calgary.ca
+    site_id: "1"
+    max_pages: 1
+    max_jobs: 20

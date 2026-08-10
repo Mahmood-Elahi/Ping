@@ -21,6 +21,7 @@ from src.scraper.company_careers.registry import load_target_companies
 
 VALIDATED = [item["name"] for item in batch.CANDIDATE_ENTRIES]
 EXCLUDED = {"Pason Systems", "AltaLink", "City of Calgary"}
+STILL_EXCLUDED = {"Pason Systems", "AltaLink"}
 MASTER_MEMBERS = {"Imperial Oil", "Cenovus Energy", "ARC Resources"}
 HISTORICAL_COUNT = 186
 
@@ -57,7 +58,7 @@ class CalgaryStudentEmployersBatchAArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_exact_production_prefix_and_counts(self):
-        self.assertEqual(len(self.production), 227)
+        self.assertEqual(len(self.production), 230)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(self.historical), HISTORICAL_COUNT)
         self.assertEqual(
@@ -82,7 +83,7 @@ class CalgaryStudentEmployersBatchAArtifactTests(unittest.TestCase):
         self.assertEqual(production_names[HISTORICAL_COUNT:HISTORICAL_COUNT + len(VALIDATED)], VALIDATED)
         for name in VALIDATED:
             self.assertEqual(production_names.count(name), 1)
-        self.assertTrue(EXCLUDED.isdisjoint(production_names))
+        self.assertTrue(STILL_EXCLUDED.isdisjoint(production_names))
         # The validation report remains immutable milestone provenance.
         self.assertEqual(self.report["totals"]["production_sources"], 186)
         self.assertFalse(self.report["publication"]["production_activated"])
@@ -187,8 +188,10 @@ class CalgaryStudentEmployersBatchAArtifactTests(unittest.TestCase):
         self.assertEqual(len(present), len(set(present)))
 
     def test_12_exclusions_never_enter_candidate_registries(self):
-        present = {item["name"] for item in self.candidates + self.validated + self.production}
-        self.assertTrue(EXCLUDED.isdisjoint(present))
+        milestone_present = {item["name"] for item in self.candidates + self.validated}
+        production_names = {item["name"] for item in self.production}
+        self.assertTrue(EXCLUDED.isdisjoint(milestone_present))
+        self.assertTrue(STILL_EXCLUDED.isdisjoint(production_names))
         reasons = {item["company"]: item["exclusion_reason"] for item in self.report["results"]}
         self.assertIn("Pason & IWS", reasons["Pason Systems"])
         self.assertIn("Turnstile", reasons["AltaLink"])

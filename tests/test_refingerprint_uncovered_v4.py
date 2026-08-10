@@ -33,6 +33,9 @@ CANADIAN_EXPANSION_BATCH_C_PROMOTIONS = [
     "Miovision", "ATS Corporation", "Linamar", "1Password", "D2L", "Hootsuite",
     "PointClickCare",
 ]
+ADAPTER_EXPANSION_V1_BATCH_A_PROMOTIONS = [
+    "CoolIT Systems", "Ballard Power Systems", "City of Calgary",
+]
 HISTORICAL_PRODUCTION_ONLY = [
     "Datadog", "Elastic", "GitLab", "Twilio", "Zscaler", "CrowdStrike",
     "HashiCorp", "Confluent", "Teradyne",
@@ -161,6 +164,7 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
                 + REQUESTED_EXPANSION_PROMOTIONS
                 + REQUESTED_EXPANSION_BATCH_B_PROMOTIONS
                 + CANADIAN_EXPANSION_BATCH_C_PROMOTIONS
+                + ADAPTER_EXPANSION_V1_BATCH_A_PROMOTIONS
             )
             if mod.normalize_company_name(name) not in master_names
         ]
