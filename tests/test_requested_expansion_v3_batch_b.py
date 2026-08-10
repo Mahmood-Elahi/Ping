@@ -46,24 +46,26 @@ class RequestedExpansionV3BatchBArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_exact_207_entry_production_prefix_is_preserved(self):
-        self.assertEqual(len(self.production), 207)
+        self.assertEqual(len(self.production), 216)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
-        self.assertEqual(self.production_bytes, self.historical_bytes)
-        self.assertTrue(self.candidate_bytes.startswith(self.production_bytes))
-        self.assertTrue(self.validated_bytes.startswith(self.production_bytes))
+        self.assertTrue(self.production_bytes.startswith(self.historical_bytes))
+        self.assertEqual(self.production, self.validated)
+        self.assertEqual(self.candidates, self.production)
         self.assertTrue(self.report["candidate_registry_has_exact_207_entry_prefix"])
         self.assertTrue(self.report["validated_registry_has_exact_207_entry_prefix"])
-        self.assertEqual(self.candidates[:207], self.production)
-        self.assertEqual(self.validated[:207], self.production)
+        self.assertEqual(self.production[:207], self.validated[:207])
 
     def test_02_candidate_and_validated_counts(self):
         self.assertEqual(len(self.candidates), 216)
         self.assertEqual(len(self.validated), 216)
         self.assertEqual([item["name"] for item in self.candidates[207:]], VALIDATED)
         self.assertEqual([item["name"] for item in self.validated[207:]], VALIDATED)
+        self.assertEqual([item["name"] for item in self.production[207:]], VALIDATED)
         production_names = {item["name"] for item in self.production}
-        self.assertTrue(set(VALIDATED).isdisjoint(production_names))
+        for name in VALIDATED:
+            self.assertEqual([item["name"] for item in self.production].count(name), 1)
         self.assertTrue(EXCLUDED.isdisjoint({item["name"] for item in self.candidates}))
+        self.assertTrue(EXCLUDED.isdisjoint(production_names))
 
     def test_03_review_results_and_report_fields(self):
         self.assertEqual([row["company"] for row in self.inventory], batch.REVIEWED_COMPANIES)
@@ -202,7 +204,7 @@ class RequestedExpansionV3BatchBArtifactTests(unittest.TestCase):
 
     def test_12_hashes_report_ignore_and_publication_state(self):
         self.assertEqual(
-            hashlib.sha256(self.production_bytes).hexdigest().upper(),
+            hashlib.sha256(self.historical_bytes).hexdigest().upper(),
             self.report["production_registry_sha256"],
         )
         self.assertEqual(

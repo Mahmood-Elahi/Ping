@@ -24,6 +24,10 @@ REQUESTED_EXPANSION_PROMOTIONS = [
     "Precision Drilling", "AltaGas", "Whitecap Resources", "Vermilion Energy",
     "SECURE Energy Services", "ExxonMobil", "SLB", "BlackBerry/QNX", "CAE Inc.",
 ]
+REQUESTED_EXPANSION_BATCH_B_PROMOTIONS = [
+    "Cohere", "Waabi", "OpenText", "Celestica", "Kinaxis",
+    "Descartes Systems Group", "TELUS", "BCE / Bell", "Absolute Software",
+]
 HISTORICAL_PRODUCTION_ONLY = [
     "Datadog", "Elastic", "GitLab", "Twilio", "Zscaler", "CrowdStrike",
     "HashiCorp", "Confluent", "Teradyne",
@@ -147,7 +151,11 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
             mod.normalize_company_name(row["company"]) for row in self.master
         }
         promoted_production_only = [
-            name for name in CALGARY_PROMOTIONS + REQUESTED_EXPANSION_PROMOTIONS
+            name for name in (
+                CALGARY_PROMOTIONS
+                + REQUESTED_EXPANSION_PROMOTIONS
+                + REQUESTED_EXPANSION_BATCH_B_PROMOTIONS
+            )
             if mod.normalize_company_name(name) not in master_names
         ]
         self.assertEqual(

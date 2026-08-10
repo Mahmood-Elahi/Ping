@@ -2735,3 +2735,133 @@ target_companies:
     wd_subdomain: wd3
     site_id: career
     search_url: https://cae.wd3.myworkdayjobs.com/career
+  - name: Cohere
+    platform: ashby
+    careers_url: https://cohere.com/careers
+    source_identity_regex: Join the mission to scale intelligence|Cohere
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://cohere.com/careers
+    slug: cohere
+  - name: Waabi
+    platform: lever
+    careers_url: https://waabi.ai/careers
+    source_identity_regex: \bWaabi\b
+    allowed_apply_hosts:
+    - jobs.lever.co
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.lever.co/waabi
+    slug: waabi
+  - name: OpenText
+    platform: phenom
+    careers_url: https://careers.opentext.com/us/en/home
+    source_identity_regex: OpenText
+    allowed_apply_hosts:
+    - careers.opentext.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://careers.opentext.com/us/en/search-results
+    search_url: https://careers.opentext.com/us/en/search-results
+    endpoint_variant: embedded_refine_search
+    ref_num: OPJOPEUS
+    locale: en_us
+    apply_url_template: https://careers.opentext.com/us/en/job/{job_seq_no}
+  - name: Celestica
+    platform: sap_successfactors
+    careers_url: https://www.celestica.com/careers/working-at-celestica
+    source_identity_regex: Careers at Celestica|Celestica International
+    allowed_apply_hosts:
+    - careers.celestica.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://careers.celestica.com/search/
+    search_url: https://careers.celestica.com/search/
+    endpoint_variant: rmk_table
+  - name: Kinaxis
+    platform: icims
+    careers_url: https://www.kinaxis.com/en/careers
+    source_identity_regex: Kinaxis Inc|Kinaxis
+    allowed_apply_hosts:
+    - careers-kinaxis.icims.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://careers-kinaxis.icims.com/jobs/search
+    search_url: https://careers-kinaxis.icims.com/jobs/search
+    endpoint_variant: icims_legacy_portal_html
+    tenant: kinaxis
+    board_id: kinaxis-public
+    page_size: 50
+  - name: Descartes Systems Group
+    platform: sap_successfactors
+    careers_url: https://careers.descartes.com/
+    source_identity_regex: Descartes Systems Group|Careers at Descartes
+    allowed_apply_hosts:
+    - jobs.descartes.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.descartes.com/search/
+    search_url: https://jobs.descartes.com/search/
+    endpoint_variant: rmk_tile
+  - name: TELUS
+    platform: sap_successfactors
+    careers_url: https://www.telus.com/en/about/careers
+    source_identity_regex: \bTELUS\b
+    allowed_apply_hosts:
+    - careers.telus.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://careers.telus.com/search/
+    search_url: https://careers.telus.com/search/
+    endpoint_variant: rmk_table
+  - name: BCE / Bell
+    platform: phenom
+    careers_url: https://jobs.bell.ca/ca/en/
+    source_identity_regex: Careers at Bell|Bell Canada
+    allowed_apply_hosts:
+    - jobs.bell.ca
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.bell.ca/ca/en/search-results
+    search_url: https://jobs.bell.ca/ca/en/search-results
+    endpoint_variant: embedded_refine_search
+    ref_num: BECACA
+    locale: en_ca
+    apply_url_template: https://jobs.bell.ca/ca/en/job/{job_seq_no}
+  - name: Absolute Software
+    platform: static_html
+    careers_url: https://www.absolute.com/company/careers
+    source_identity_regex: 'Absolute(?: Security| Logo| provides)'
+    allowed_apply_hosts:
+    - jobs.jobvite.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.jobvite.com/absolute/jobs
+    listing_url: https://jobs.jobvite.com/absolute/jobs
+    endpoint_variant: server_rendered_cards
+    listing_selector: table.jv-job-list
+    job_card_selector: table.jv-job-list tr
+    title_selector: td.jv-job-list-name a
+    detail_link_selector: td.jv-job-list-name a[href*='/absolute/job/']
+    external_id_regex: /job/([^/?#]+)
+    location_selector: td.jv-job-list-location

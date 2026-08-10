@@ -50,7 +50,7 @@ class RequestedExpansionV3BatchAArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_exact_198_entry_production_prefix_is_preserved(self):
-        self.assertEqual(len(self.production), 207)
+        self.assertEqual(len(self.production), 216)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(self.production_bytes[:len(self.historical_bytes)], self.historical_bytes)
         self.assertEqual(self.candidate_bytes[:len(self.historical_bytes)], self.historical_bytes)
@@ -64,7 +64,7 @@ class RequestedExpansionV3BatchAArtifactTests(unittest.TestCase):
         self.assertEqual(len(self.validated), 207)
         self.assertEqual([item["name"] for item in self.candidates[198:]], VALIDATED)
         self.assertEqual([item["name"] for item in self.validated[198:]], VALIDATED)
-        self.assertEqual(self.production[198:], self.validated[198:])
+        self.assertEqual(self.production[198:len(self.validated)], self.validated[198:])
         production_names = {item["name"] for item in self.production}
         for name in VALIDATED:
             self.assertEqual([item["name"] for item in self.production].count(name), 1)
