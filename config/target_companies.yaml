@@ -2865,3 +2865,153 @@ target_companies:
     detail_link_selector: td.jv-job-list-name a[href*='/absolute/job/']
     external_id_regex: /job/([^/?#]+)
     location_selector: td.jv-job-list-location
+  - name: Clio
+    platform: workday
+    careers_url: https://www.clio.com/about/careers/
+    source_identity_regex: ClioCareerSite|Clio
+    allowed_apply_hosts:
+    - clio.wd3.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://clio.wd3.myworkdayjobs.com/ClioCareerSite
+    tenant: clio
+    wd_subdomain: wd3
+    site_id: ClioCareerSite
+    search_url: https://clio.wd3.myworkdayjobs.com/ClioCareerSite
+  - name: Benevity
+    platform: ashby
+    careers_url: https://benevity.com/join-the-team
+    source_identity_regex: Benevity
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.ashbyhq.com/benevity
+    slug: benevity
+  - name: Hexagon Autonomy & Positioning / NovAtel
+    platform: icims
+    careers_url: https://www2.novatel.com/join-us
+    source_identity_regex: Autonomy\s*&amp;\s*Positioning|Autonomy\s*&\s*Positioning
+    allowed_apply_hosts:
+    - careers-hexagonpositioning.icims.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://www2.novatel.com/join-us
+    search_url: https://careers-hexagonpositioning.icims.com/jobs/search
+    endpoint_variant: icims_legacy_portal_html
+    tenant: hexagonpositioning
+    board_id: hexagonpositioning-public
+    page_size: 50
+  - name: Geotab
+    platform: greenhouse
+    careers_url: https://careers.geotab.com/
+    source_identity_regex: Geotab
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+    - boards.greenhouse.io
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://job-boards.greenhouse.io/geotab
+    slug: geotab
+  - name: Miovision
+    platform: ashby
+    careers_url: https://miovision.com/company/careers/
+    source_identity_regex: Miovision
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.ashbyhq.com/miovision
+    slug: miovision
+  - name: ATS Corporation
+    platform: sap_successfactors
+    careers_url: https://atsautomation.com/working-at-ats/
+    source_identity_regex: ATS Corporation|Jobs at ATS
+    allowed_apply_hosts:
+    - jobs.atsautomation.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.atsautomation.com/
+    search_url: https://jobs.atsautomation.com/search/
+    endpoint_variant: rmk_tile
+  - name: Linamar
+    platform: oracle_recruiting
+    careers_url: https://fa-epmd-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_3001/jobs
+    source_identity_regex: Linamar Career Site|Linamar
+    allowed_apply_hosts:
+    - fa-epmd-saasfaprod1.fa.ocs.oraclecloud.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://fa-epmd-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_3001/jobs
+    endpoint_url: https://fa-epmd-saasfaprod1.fa.ocs.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+    site_number: CX_3001
+    locale: en
+  - name: 1Password
+    platform: ashby
+    careers_url: https://1password.com/careers
+    source_identity_regex: 1Password
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.ashbyhq.com/1password
+    slug: 1password
+  - name: D2L
+    platform: greenhouse
+    careers_url: https://www.d2l.com/careers/jobs/
+    source_identity_regex: D2L
+    allowed_apply_hosts:
+    - www.d2l.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://www.d2l.com/careers/jobs/
+    slug: d2l
+  - name: Hootsuite
+    platform: greenhouse
+    careers_url: https://careers.hootsuite.com/jobs/search
+    source_identity_regex: Hootsuite
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://job-boards.greenhouse.io/hootsuite
+    slug: hootsuite
+  - name: PointClickCare
+    platform: static_html
+    careers_url: https://pointclickcare.com/life-at-pointclickcare/
+    source_identity_regex: PointClickCare
+    allowed_apply_hosts:
+    - jobs.lever.co
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.lever.co/pointclickcare
+    listing_url: https://jobs.lever.co/pointclickcare
+    endpoint_variant: server_rendered_cards
+    listing_selector: div.postings-wrapper
+    job_card_selector: div.posting
+    title_selector: h5
+    detail_link_selector: a.posting-title[href*="/pointclickcare/"]
+    external_id_regex: /pointclickcare/([A-Za-z0-9-]+)
+    location_selector: span.location

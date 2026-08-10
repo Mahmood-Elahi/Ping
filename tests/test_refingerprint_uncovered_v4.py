@@ -28,6 +28,11 @@ REQUESTED_EXPANSION_BATCH_B_PROMOTIONS = [
     "Cohere", "Waabi", "OpenText", "Celestica", "Kinaxis",
     "Descartes Systems Group", "TELUS", "BCE / Bell", "Absolute Software",
 ]
+CANADIAN_EXPANSION_BATCH_C_PROMOTIONS = [
+    "Clio", "Benevity", "Hexagon Autonomy & Positioning / NovAtel", "Geotab",
+    "Miovision", "ATS Corporation", "Linamar", "1Password", "D2L", "Hootsuite",
+    "PointClickCare",
+]
 HISTORICAL_PRODUCTION_ONLY = [
     "Datadog", "Elastic", "GitLab", "Twilio", "Zscaler", "CrowdStrike",
     "HashiCorp", "Confluent", "Teradyne",
@@ -155,6 +160,7 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
                 CALGARY_PROMOTIONS
                 + REQUESTED_EXPANSION_PROMOTIONS
                 + REQUESTED_EXPANSION_BATCH_B_PROMOTIONS
+                + CANADIAN_EXPANSION_BATCH_C_PROMOTIONS
             )
             if mod.normalize_company_name(name) not in master_names
         ]

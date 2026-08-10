@@ -35,6 +35,8 @@ class CanadianExpansionV3BatchCArtifactTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.production_bytes = batch.PRODUCTION.read_bytes()
+        candidate_bytes = batch.CANDIDATE_REGISTRY.read_bytes()
+        cls.historical_prefix_bytes = candidate_bytes.partition(b"  - name: Clio\r\n")[0]
         cls.production = entries(batch.PRODUCTION)
         cls.candidates = entries(batch.CANDIDATE_REGISTRY)
         cls.validated = entries(batch.VALIDATED_REGISTRY)
@@ -42,14 +44,16 @@ class CanadianExpansionV3BatchCArtifactTests(unittest.TestCase):
         with batch.CANDIDATE_CSV.open(newline="", encoding="utf-8") as handle:
             cls.inventory = list(csv.DictReader(handle))
 
-    def test_01_exact_216_source_baseline_is_preserved(self):
-        self.assertEqual(len(self.production), 216)
+    def test_01_activation_preserves_exact_216_source_baseline(self):
+        self.assertEqual(len(self.production), 227)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
-        self.assertEqual(self.candidates[:216], self.production)
-        self.assertEqual(self.validated[:216], self.production)
+        self.assertEqual(self.candidates[:216], self.production[:216])
+        self.assertEqual(self.validated[:216], self.production[:216])
+        self.assertEqual(self.production[216:], self.validated[216:])
         self.assertEqual(batch.PRODUCTION.read_bytes(), self.production_bytes)
-        self.assertTrue(batch.CANDIDATE_REGISTRY.read_bytes().startswith(self.production_bytes))
-        self.assertTrue(batch.VALIDATED_REGISTRY.read_bytes().startswith(self.production_bytes))
+        self.assertTrue(self.production_bytes.startswith(self.historical_prefix_bytes))
+        self.assertTrue(batch.CANDIDATE_REGISTRY.read_bytes().startswith(self.historical_prefix_bytes))
+        self.assertTrue(batch.VALIDATED_REGISTRY.read_bytes().startswith(self.historical_prefix_bytes))
         self.assertTrue(self.report["candidate_registry_has_exact_216_entry_prefix"])
         self.assertTrue(self.report["validated_registry_has_exact_216_entry_prefix"])
 
@@ -174,7 +178,7 @@ class CanadianExpansionV3BatchCArtifactTests(unittest.TestCase):
         self.assertTrue(all(url.startswith("https://jobs.lever.co/pointclickcare/") for url in pcc_result["runs"][0]["apply_urls"]))
 
     def test_13_hashes_ignore_and_publication_state(self):
-        self.assertEqual(hashlib.sha256(self.production_bytes).hexdigest().upper(), self.report["production_registry_sha256"])
+        self.assertEqual(hashlib.sha256(self.historical_prefix_bytes).hexdigest().upper(), self.report["production_registry_sha256"])
         self.assertEqual(hashlib.sha256(batch.PARENT_MAPPINGS.read_bytes()).hexdigest().upper(), self.report["parent_mappings_sha256"])
         ignored = subprocess.run(["git", "check-ignore", str(batch.REPORT.relative_to(batch.ROOT))], cwd=batch.ROOT,
                                  capture_output=True, text=True, check=False)

@@ -46,11 +46,11 @@ class RequestedExpansionV3BatchBArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_exact_207_entry_production_prefix_is_preserved(self):
-        self.assertEqual(len(self.production), 216)
+        self.assertEqual(len(self.production), 227)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertTrue(self.production_bytes.startswith(self.historical_bytes))
-        self.assertEqual(self.production, self.validated)
-        self.assertEqual(self.candidates, self.production)
+        self.assertEqual(self.production[:216], self.validated)
+        self.assertEqual(self.candidates, self.production[:216])
         self.assertTrue(self.report["candidate_registry_has_exact_207_entry_prefix"])
         self.assertTrue(self.report["validated_registry_has_exact_207_entry_prefix"])
         self.assertEqual(self.production[:207], self.validated[:207])
@@ -60,7 +60,7 @@ class RequestedExpansionV3BatchBArtifactTests(unittest.TestCase):
         self.assertEqual(len(self.validated), 216)
         self.assertEqual([item["name"] for item in self.candidates[207:]], VALIDATED)
         self.assertEqual([item["name"] for item in self.validated[207:]], VALIDATED)
-        self.assertEqual([item["name"] for item in self.production[207:]], VALIDATED)
+        self.assertEqual([item["name"] for item in self.production[207:216]], VALIDATED)
         production_names = {item["name"] for item in self.production}
         for name in VALIDATED:
             self.assertEqual([item["name"] for item in self.production].count(name), 1)
