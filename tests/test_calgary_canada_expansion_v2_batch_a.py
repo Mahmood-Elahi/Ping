@@ -39,6 +39,8 @@ class CalgaryCanadaExpansionV2BatchAArtifactTests(unittest.TestCase):
         cls.production_bytes = batch.PRODUCTION.read_bytes()
         cls.candidate_bytes = batch.CANDIDATE_REGISTRY.read_bytes()
         cls.validated_bytes = batch.VALIDATED_REGISTRY.read_bytes()
+        cls.historical_bytes = cls.validated_bytes[:cls.validated_bytes.index(b"  - name: NOVA Chemicals")]
+        cls.historical = (yaml.safe_load(cls.historical_bytes) or {})["target_companies"]
         cls.production = entries(batch.PRODUCTION)
         cls.candidates = entries(batch.CANDIDATE_REGISTRY)
         cls.validated = entries(batch.VALIDATED_REGISTRY)
@@ -46,22 +48,26 @@ class CalgaryCanadaExpansionV2BatchAArtifactTests(unittest.TestCase):
         with batch.CANDIDATE_CSV.open(newline="", encoding="utf-8") as handle:
             cls.inventory = list(csv.DictReader(handle))
 
-    def test_01_artifacts_preserve_exact_262_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 262)
+    def test_01_activation_preserves_exact_262_entry_production_prefix(self):
+        self.assertEqual(len(self.production), 269)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
-        self.assertEqual(self.candidate_bytes[:len(self.production_bytes)], self.production_bytes)
-        self.assertEqual(self.validated_bytes[:len(self.production_bytes)], self.production_bytes)
-        self.assertEqual(self.candidates[:262], self.production)
-        self.assertEqual(self.validated[:262], self.production)
+        self.assertEqual(len(self.historical), 262)
+        self.assertEqual(self.production[:262], self.historical)
+        self.assertEqual(self.candidates[:262], self.historical)
+        self.assertEqual(self.validated[:262], self.historical)
+        self.assertEqual(self.production, self.validated)
         self.assertTrue(self.report["candidate_registry_has_exact_262_entry_prefix"])
         self.assertTrue(self.report["validated_registry_has_exact_262_entry_prefix"])
 
-    def test_02_candidate_has_eight_and_validated_has_seven_inactive_additions(self):
+    def test_02_candidate_has_eight_and_production_activates_seven_once(self):
         self.assertEqual((len(self.candidates), len(self.validated)), (270, 269))
         self.assertEqual([item["name"] for item in self.candidates[262:]], CANDIDATES)
         self.assertEqual([item["name"] for item in self.validated[262:]], VALIDATED)
-        production_names = {item["name"] for item in self.production}
-        self.assertTrue(set(CANDIDATES).isdisjoint(production_names))
+        self.assertEqual([item["name"] for item in self.production[262:]], VALIDATED)
+        production_names = [item["name"] for item in self.production]
+        self.assertTrue(EXCLUDED.isdisjoint(production_names))
+        for name in VALIDATED:
+            self.assertEqual(production_names.count(name), 1)
         self.assertTrue(STATIC_EXCLUDED.isdisjoint({item["name"] for item in self.candidates}))
 
     def test_03_report_and_csv_cover_the_exact_requested_order(self):
@@ -188,7 +194,7 @@ class CalgaryCanadaExpansionV2BatchAArtifactTests(unittest.TestCase):
                 self.assertEqual(result["apply_url_result"], "stable_official_and_job_specific_across_two_runs")
 
     def test_12_hash_ignore_and_no_publication_state(self):
-        self.assertEqual(hashlib.sha256(self.production_bytes).hexdigest().upper(), self.report["production_registry_sha256"])
+        self.assertEqual(hashlib.sha256(self.historical_bytes).hexdigest().upper(), self.report["production_registry_sha256"])
         self.assertEqual(hashlib.sha256(batch.PARENT_MAPPINGS.read_bytes()).hexdigest().upper(), self.report["parent_mappings_sha256"])
         ignored = subprocess.run(
             ["git", "check-ignore", str(batch.REPORT.relative_to(batch.ROOT))], cwd=batch.ROOT,

@@ -3532,3 +3532,103 @@ target_companies:
     department_selector: td:nth-child(5)
     detail_link_selector: td:nth-child(2) a[href*=opportunityId=]
     external_id_regex: opportunityId=([0-9a-f-]{36})
+  - name: NOVA Chemicals
+    platform: sap_successfactors
+    careers_url: https://jobs.novachem.com
+    source_identity_regex: NOVA Chemicals
+    identity_regex: NOVA Chemicals
+    allowed_apply_hosts:
+    - jobs.novachem.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.novachem.com
+    search_url: https://jobs.novachem.com/search/
+    endpoint_variant: rmk_table
+  - name: Trans Mountain
+    platform: sap_successfactors
+    careers_url: https://careers.transmountain.com/?locale=en_US
+    source_identity_regex: Trans Mountain
+    identity_regex: Trans Mountain
+    allowed_apply_hosts:
+    - careers.transmountain.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://careers.transmountain.com/?locale=en_US
+    search_url: https://careers.transmountain.com/search/
+    endpoint_variant: rmk_tile
+  - name: Computer Modelling Group (CMG)
+    platform: static_html
+    careers_url: https://www.cmgl.ca/careers/
+    source_identity_regex: Computer Modelling Group|Careers at CMG
+    identity_regex: Computer Modelling Group|Careers at CMG
+    allowed_apply_hosts:
+    - www.cmgl.ca
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://www.cmgl.ca/careers/
+    listing_url: https://www.cmgl.ca/careers/
+    endpoint_variant: server_rendered_cards
+    listing_selector: .jet-listing-grid--539
+    job_card_selector: .jet-listing-grid__item
+    title_selector: h3.elementor-heading-title
+    location_selector: .elementor-element-ae0a93e .elementor-heading-title
+    detail_link_selector: .jet-engine-listing-overlay-wrap
+    reference_url_attribute: data-url
+    external_id_attribute: data-post-id
+  - name: Neo Financial
+    platform: ashby
+    careers_url: https://www.neofinancial.com/company/careers?lang=en-CA
+    source_identity_regex: Neo Financial Jobs
+    identity_regex: Neo Financial Jobs
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.ashbyhq.com/neofinancial
+    slug: neofinancial
+  - name: MNP
+    platform: ukg_pro
+    careers_url: https://recruiting.ultipro.ca/MNP5000MNPL/JobBoard/d1e870eb-9c8c-4ce5-88ee-9f042cf2a12f
+    source_identity_regex: MNP
+    identity_regex: ^Campus Career Opportunities$
+    allowed_apply_hosts:
+    - recruiting.ultipro.ca
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://www.mnp.ca/en/careers
+  - name: Absorb Software
+    platform: ashby
+    careers_url: https://www.absorbai.com/company/careers
+    source_identity_regex: Absorb Jobs
+    identity_regex: Absorb Jobs
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.ashbyhq.com/absorblms
+    slug: absorblms
+  - name: PurposeMed
+    platform: greenhouse
+    careers_url: https://www.purposemed.com/careers
+    source_identity_regex: PurposeMed
+    identity_regex: PurposeMed
+    allowed_apply_hosts:
+    - www.purposemed.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://www.purposemed.com/careers/open
+    slug: purposemed

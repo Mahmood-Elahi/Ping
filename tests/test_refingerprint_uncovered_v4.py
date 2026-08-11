@@ -49,6 +49,10 @@ REQUESTED_EXPANSION_BATCH_F_PROMOTIONS = [
     "Mistral AI", "Perplexity AI", "Espressif Systems", "iRobot", "Dyson", "SharkNinja",
 ]
 ADAPTER_EXPANSION_V1_BATCH_B_PROMOTIONS = ["Bosch", "Aptiv"]
+CALGARY_CANADA_EXPANSION_V2_BATCH_A_PROMOTIONS = [
+    "NOVA Chemicals", "Trans Mountain", "Computer Modelling Group (CMG)",
+    "Neo Financial", "MNP", "Absorb Software", "PurposeMed",
+]
 HISTORICAL_PRODUCTION_ONLY = [
     "Datadog", "Elastic", "GitLab", "Twilio", "Zscaler", "CrowdStrike",
     "HashiCorp", "Confluent", "Teradyne",
@@ -182,6 +186,7 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
                 + REQUESTED_EXPANSION_BATCH_E_PROMOTIONS
                 + REQUESTED_EXPANSION_BATCH_F_PROMOTIONS
                 + ADAPTER_EXPANSION_V1_BATCH_B_PROMOTIONS
+                + CALGARY_CANADA_EXPANSION_V2_BATCH_A_PROMOTIONS
             )
             if mod.normalize_company_name(name) not in master_names
         ]

@@ -61,13 +61,13 @@ class OriginalMasterRecoveryBatchGArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_exact_257_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 262)
+        self.assertEqual(len(self.production), 269)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(self.historical), 257)
         self.assertEqual(self.production[:257], self.historical)
         self.assertEqual(self.candidates[:257], self.historical)
         self.assertEqual(self.validated[:257], self.historical)
-        self.assertEqual(self.production, self.validated)
+        self.assertEqual(self.production[:262], self.validated)
         self.assertEqual(self.candidate_bytes, self.validated_bytes)
         self.assertTrue(self.report["candidate_registry_has_exact_257_entry_prefix"])
         self.assertTrue(self.report["validated_registry_has_exact_257_entry_prefix"])
@@ -76,7 +76,7 @@ class OriginalMasterRecoveryBatchGArtifactTests(unittest.TestCase):
         self.assertEqual((len(self.candidates), len(self.validated)), (262, 262))
         self.assertEqual([item["name"] for item in self.candidates[257:]], VALIDATED)
         self.assertEqual([item["name"] for item in self.validated[257:]], VALIDATED)
-        self.assertEqual([item["name"] for item in self.production[257:]], VALIDATED)
+        self.assertEqual([item["name"] for item in self.production[257:262]], VALIDATED)
         self.assertEqual(len(VALIDATED), 5)
         self.assertTrue(EXCLUDED.isdisjoint({item["name"] for item in self.candidates}))
         production_names = [item["name"] for item in self.production]
