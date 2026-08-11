@@ -145,14 +145,14 @@ def tile_markup(item, row_index=1):
     </li>'''
 
 
-def tile_html(jobs, *, total=None):
+def tile_html(jobs, *, total=None, page_size=25):
     jobs = list(jobs)
     total = len(jobs) if total is None else total
     tiles = "".join(tile_markup(item, index) for index, item in enumerate(jobs, start=1))
     return f'''<!doctype html><html><body>
       <span id="tile-search-results-label">Showing 1 to {len(jobs)} of {total} Jobs</span>
-      <ul id="job-tile-list" data-per-page="25" data-record-returned="{len(jobs)}">{tiles}</ul>
-      <script>j2w.SearchResults.init({{apiEndpoint: "tile-search-results", searchQuery: "?q=&sortColumn=referencedate&sortDirection=desc", jobRecordsPerPage: parseInt("25"), jobRecordsFound: parseInt("{total}")}});</script>
+      <ul id="job-tile-list" data-per-page="{page_size}" data-record-returned="{len(jobs)}">{tiles}</ul>
+      <script>j2w.SearchResults.init({{apiEndpoint: "tile-search-results", searchQuery: "?q=&sortColumn=referencedate&sortDirection=desc", jobRecordsPerPage: parseInt("{page_size}"), jobRecordsFound: parseInt("{total}")}});</script>
     </body></html>'''
 
 
@@ -227,6 +227,20 @@ class SapSuccessFactorsTests(unittest.TestCase):
         self.assertEqual(session.calls[1][0], "https://jobs.example.com/tile-search-results/")
         self.assertEqual(session.calls[1][1]["params"]["startrow"], "25")
         self.assertNotIn("X-CSRF-Token", session.calls[1][1]["headers"])
+
+    def test_tile_accepts_bounded_source_declared_page_sizes(self):
+        jobs = [tile_job(index) for index in range(1, 51)]
+        session = FakeSession([FakeResponse(tile_html(jobs, total=75, page_size=50))])
+        normalized = sf.fetch_jobs(session, target(sf.TILE_VARIANT))
+        self.assertEqual(len(normalized), 50)
+        self.assertEqual(session.sap_successfactors_pagination["page_size"], 50)
+
+    def test_tile_rejects_source_page_size_above_hard_limit(self):
+        with self.assertRaisesRegex(AdapterError, "unsupported page size"):
+            sf.fetch_jobs(
+                FakeSession([FakeResponse(tile_html([], total=0, page_size=101))]),
+                target(sf.TILE_VARIANT),
+            )
 
     @patch.object(sf.time, "sleep", return_value=None)
     def test_maximum_page_and_result_limits_are_enforced(self, _sleep):

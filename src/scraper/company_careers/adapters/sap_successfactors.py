@@ -22,6 +22,7 @@ from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobR
 
 
 PAGE_SIZE = 25
+MAX_TILE_PAGE_SIZE = 100
 MAX_PAGES = 5
 MAX_RESULTS = PAGE_SIZE * MAX_PAGES
 MAX_TIMEOUT_SECONDS = 30
@@ -308,7 +309,13 @@ def _parse_page(
 
     if target.endpoint_variant == TABLE_VARIANT:
         return _parse_table_page(parser.root, str(target.search_url), offset, expected_page_size)
-    return _parse_tile_page(parser.root, text, str(target.search_url), offset)
+    return _parse_tile_page(
+        parser.root,
+        text,
+        str(target.search_url),
+        offset,
+        expected_page_size,
+    )
 
 
 def _parse_table_page(
@@ -361,23 +368,32 @@ def _parse_table_page(
     return _ParsedPage(items, total, page_size, next_request)
 
 
-def _parse_tile_page(root: _Node, raw_html: str, search_url: str, offset: int) -> _ParsedPage:
+def _parse_tile_page(
+    root: _Node,
+    raw_html: str,
+    search_url: str,
+    offset: int,
+    expected_page_size: Optional[int],
+) -> _ParsedPage:
     tiles = [node for node in _walk(root) if node.tag == "li" and "job-tile" in node.classes]
     items = [_tile_item(tile) for tile in tiles]
     items = [item for item in items if item]
-    if len(items) > PAGE_SIZE:
-        raise AdapterError("SAP SuccessFactors tile page exceeded the observed page size")
 
     if offset:
-        return _ParsedPage(items, None, PAGE_SIZE, None)
+        if expected_page_size is None or len(items) > expected_page_size:
+            raise AdapterError("SAP SuccessFactors tile fragment exceeded the observed page size")
+        return _ParsedPage(items, None, expected_page_size, None)
 
     lists = [node for node in _walk(root) if node.attrs.get("id", "").casefold() == "job-tile-list"]
     total_match = re.search(r'jobRecordsFound\s*:\s*parseInt\("(\d+)"\)', raw_html)
     size_match = re.search(r'jobRecordsPerPage\s*:\s*parseInt\("(\d+)"\)', raw_html)
     if not lists or not total_match or not size_match:
         raise AdapterError("SAP SuccessFactors tile response is missing result metadata")
-    if int(size_match.group(1)) != PAGE_SIZE:
+    page_size = int(size_match.group(1))
+    if not 1 <= page_size <= MAX_TILE_PAGE_SIZE:
         raise AdapterError("SAP SuccessFactors tile response has an unsupported page size")
+    if len(items) > page_size:
+        raise AdapterError("SAP SuccessFactors tile page exceeded the observed page size")
     total = int(total_match.group(1))
     if total == 0 and items:
         raise AdapterError("SAP SuccessFactors zero-job response unexpectedly contained jobs")
@@ -393,11 +409,11 @@ def _parse_tile_page(root: _Node, raw_html: str, search_url: str, offset: int) -
         query = unescape(query_match.group(1))
         parsed_query = urlparse(query)
         params = dict(parse_qsl(parsed_query.query, keep_blank_values=True))
-        params["startrow"] = str(PAGE_SIZE)
+        params["startrow"] = str(page_size)
         base = urlparse(search_url)
         endpoint_url = urlunparse(base._replace(path=f"/{TILE_ENDPOINT}/", query="", fragment=""))
         next_request = (endpoint_url, params)
-    return _ParsedPage(items, total, PAGE_SIZE, next_request)
+    return _ParsedPage(items, total, page_size, next_request)
 
 
 def _table_item(row: _Node, headers: Mapping[str, str]) -> Optional[dict[str, Any]]:
