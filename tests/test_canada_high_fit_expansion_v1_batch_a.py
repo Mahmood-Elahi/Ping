@@ -26,6 +26,10 @@ def entries(path: Path) -> list[dict]:
     return (yaml.safe_load(path.read_text(encoding="utf-8")) or {})["target_companies"]
 
 
+def entries_from_bytes(content: bytes) -> list[dict]:
+    return (yaml.safe_load(content.decode("utf-8")) or {})["target_companies"]
+
+
 def fake_job(
     job_id: str = "jr1",
     title: str = "Software Engineering Intern",
@@ -48,6 +52,9 @@ class CanadaHighFitExpansionV1BatchAArtifactTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.production_bytes = batch.PRODUCTION.read_bytes()
+        cls.validated_bytes = batch.VALIDATED_REGISTRY.read_bytes()
+        cls.historical_bytes = cls.validated_bytes[:cls.validated_bytes.index(b"  - name: ecobee")]
+        cls.historical = entries_from_bytes(cls.historical_bytes)
         cls.production = entries(batch.PRODUCTION)
         cls.candidates = entries(batch.CANDIDATE_REGISTRY)
         cls.validated = entries(batch.VALIDATED_REGISTRY)
@@ -55,25 +62,29 @@ class CanadaHighFitExpansionV1BatchAArtifactTests(unittest.TestCase):
         with batch.CANDIDATE_CSV.open(newline="", encoding="utf-8") as handle:
             cls.inventory = list(csv.DictReader(handle))
 
-    def test_01_artifacts_preserve_exact_302_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 302)
+    def test_01_activation_preserves_exact_302_entry_production_prefix(self):
+        self.assertEqual(len(self.production), 315)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
-        self.assertEqual(self.candidates[:302], self.production)
-        self.assertEqual(self.validated[:302], self.production)
-        self.assertTrue(batch.CANDIDATE_REGISTRY.read_bytes().startswith(self.production_bytes))
-        self.assertTrue(batch.VALIDATED_REGISTRY.read_bytes().startswith(self.production_bytes))
+        self.assertEqual(len(self.historical), 302)
+        self.assertEqual(self.production[:302], self.historical)
+        self.assertEqual(self.candidates[:302], self.historical)
+        self.assertEqual(self.validated[:302], self.historical)
+        self.assertTrue(self.production_bytes.startswith(self.historical_bytes))
+        self.assertEqual(self.production, self.validated)
         self.assertTrue(self.report["candidate_registry_has_exact_302_entry_prefix"])
         self.assertTrue(self.report["validated_registry_has_exact_302_entry_prefix"])
 
-    def test_02_candidate_and_validated_artifacts_add_safe_sources_only(self):
+    def test_02_candidate_validated_and_production_add_safe_sources_once(self):
         self.assertEqual(len(self.candidates), 315)
         self.assertEqual(len(self.validated), 315)
         self.assertEqual([item["name"] for item in self.candidates[302:]], VALIDATED)
         self.assertEqual([item["name"] for item in self.validated[302:]], VALIDATED)
-        self.assertEqual(len({item["name"].casefold() for item in self.candidates}), 315)
-        production_names = {item["name"] for item in self.production}
-        self.assertTrue(set(VALIDATED).isdisjoint(production_names))
+        self.assertEqual([item["name"] for item in self.production[302:]], VALIDATED)
+        production_names = [item["name"] for item in self.production]
         self.assertTrue(EXCLUDED.isdisjoint(production_names))
+        for name in VALIDATED:
+            self.assertEqual(production_names.count(name), 1)
+        self.assertEqual(len({name.casefold() for name in production_names}), 315)
 
     def test_03_all_requested_companies_and_outcomes_are_reported(self):
         self.assertEqual([row["company"] for row in self.inventory], batch.REVIEWED_COMPANIES)
@@ -157,7 +168,7 @@ class CanadaHighFitExpansionV1BatchAArtifactTests(unittest.TestCase):
         self.assertEqual(by_name["Nordic Semiconductor"]["canadian_locations_represented"], [])
 
     def test_07_projections_and_original_master_coverage(self):
-        self.assertEqual(len(load_target_companies(str(batch.PRODUCTION))), 302)
+        self.assertEqual(len(load_target_companies(str(batch.PRODUCTION))), 315)
         self.assertTrue(all(not item["original_246_master"] for item in self.report["results"]))
         totals = self.report["totals"]
         self.assertEqual(totals["candidate_sources"], 13)
@@ -208,7 +219,7 @@ class CanadaHighFitExpansionV1BatchAArtifactTests(unittest.TestCase):
 
     def test_11_hashes_ignore_and_publication_state(self):
         self.assertEqual(
-            hashlib.sha256(self.production_bytes).hexdigest().upper(),
+            hashlib.sha256(self.historical_bytes).hexdigest().upper(),
             self.report["production_registry_sha256"],
         )
         self.assertEqual(

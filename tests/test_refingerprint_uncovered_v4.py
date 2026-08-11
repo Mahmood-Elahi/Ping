@@ -68,6 +68,11 @@ ONTARIO_CANADA_EXPANSION_V1_BATCH_B_PROMOTIONS = [
 CALGARY_ALBERTA_EXPANSION_V2_BATCH_B_PROMOTIONS = [
     "Enerflex", "Symend", "Circle Cardiovascular Imaging", "ATB Financial",
 ]
+CANADA_HIGH_FIT_EXPANSION_V1_BATCH_A_PROMOTIONS = [
+    "ecobee", "Jobber", "Cerebras Systems", "Cisco", "GE Aerospace",
+    "Bombardier", "Fortinet", "Zebra Technologies", "SAP", "ServiceNow",
+    "Affirm", "Palo Alto Networks", "Nordic Semiconductor",
+]
 HISTORICAL_PRODUCTION_ONLY = [
     "Datadog", "Elastic", "GitLab", "Twilio", "Zscaler", "CrowdStrike",
     "HashiCorp", "Confluent", "Teradyne",
@@ -206,6 +211,7 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
                 + ONTARIO_CANADA_EXPANSION_V1_BATCH_A_PROMOTIONS
                 + ONTARIO_CANADA_EXPANSION_V1_BATCH_B_PROMOTIONS
                 + CALGARY_ALBERTA_EXPANSION_V2_BATCH_B_PROMOTIONS
+                + CANADA_HIGH_FIT_EXPANSION_V1_BATCH_A_PROMOTIONS
             )
             if mod.normalize_company_name(name) not in master_names
         ]

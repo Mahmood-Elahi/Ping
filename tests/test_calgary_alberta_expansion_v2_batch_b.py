@@ -62,7 +62,7 @@ class CalgaryAlbertaExpansionV2BatchBArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_exact_298_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 302)
+        self.assertEqual(len(self.production), 315)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(self.historical), 298)
         self.assertEqual(len(self.candidates), 302)
@@ -71,14 +71,14 @@ class CalgaryAlbertaExpansionV2BatchBArtifactTests(unittest.TestCase):
         self.assertEqual(self.candidates[:298], self.historical)
         self.assertEqual(self.validated[:298], self.historical)
         self.assertTrue(self.production_bytes.startswith(self.historical_bytes))
-        self.assertEqual(self.production, self.validated)
+        self.assertEqual(self.production[:302], self.validated)
         self.assertTrue(self.report["candidate_registry_has_exact_298_entry_prefix"])
         self.assertTrue(self.report["validated_registry_has_exact_298_entry_prefix"])
 
     def test_02_candidate_validated_and_production_add_only_the_safe_four_once(self):
         self.assertEqual([item["name"] for item in self.candidates[298:]], VALIDATED)
         self.assertEqual([item["name"] for item in self.validated[298:]], VALIDATED)
-        self.assertEqual([item["name"] for item in self.production[298:]], VALIDATED)
+        self.assertEqual([item["name"] for item in self.production[298:302]], VALIDATED)
         self.assertEqual(
             VALIDATED,
             ["Enerflex", "Symend", "Circle Cardiovascular Imaging", "ATB Financial"],
@@ -87,7 +87,7 @@ class CalgaryAlbertaExpansionV2BatchBArtifactTests(unittest.TestCase):
         self.assertTrue(EXCLUDED.isdisjoint(production_names))
         for name in VALIDATED:
             self.assertEqual(production_names.count(name), 1)
-        self.assertEqual(len({name.casefold() for name in production_names}), 302)
+        self.assertEqual(len({name.casefold() for name in production_names}), 315)
 
     def test_03_report_and_inventory_cover_the_exact_requested_order(self):
         self.assertEqual([row["company"] for row in self.inventory], batch.REVIEWED_COMPANIES)

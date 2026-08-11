@@ -58,7 +58,7 @@ class OntarioCanadaExpansionV1BatchBArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_the_exact_288_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 302)
+        self.assertEqual(len(self.production), 315)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(self.historical), 288)
         self.assertEqual(self.production[:288], self.historical)
@@ -160,7 +160,7 @@ class OntarioCanadaExpansionV1BatchBArtifactTests(unittest.TestCase):
         self.assertNotIn("London, London", by_name["OMERS"]["ontario_locations_represented"])
 
     def test_07_projections_and_original_master_coverage(self):
-        self.assertEqual(len(load_target_companies(str(batch.PRODUCTION))), 302)
+        self.assertEqual(len(load_target_companies(str(batch.PRODUCTION))), 315)
         self.assertTrue(all(not item["original_246_master"] for item in self.report["results"]))
         totals = self.report["totals"]
         self.assertEqual(totals["candidate_sources"], 10)

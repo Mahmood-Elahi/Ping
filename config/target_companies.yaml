@@ -4114,3 +4114,226 @@ target_companies:
     endpoint_url: https://careers.atb.com/api/pcsx/search
     endpoint_variant: pcsx
     organization_id: atb.com
+  - name: ecobee
+    platform: static_html
+    careers_url: https://careers.generac.com/en/brands/ecobee/
+    source_identity_regex: \becobee\b
+    identity_regex: \becobee\b
+    allowed_apply_hosts:
+    - careers.generac.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://careers.generac.com/en/brands/ecobee/
+    listing_url: https://careers.generac.com/en/brands/ecobee/
+    endpoint_variant: server_rendered_cards
+    listing_selector: div.job-listing
+    job_card_selector: div.card-job
+    title_selector: h2.card-title a
+    location_selector: ul.job-meta li:first-child
+    department_selector: ul.job-meta li:nth-child(2), ul.job-meta li:nth-child(3)
+    detail_link_selector: h2.card-title a
+    external_id_regex: null
+    external_id_attribute: data-id
+  - name: Jobber
+    platform: ashby
+    careers_url: https://www.getjobber.com/about/careers/
+    source_identity_regex: \bJobber\b
+    identity_regex: \bJobber\b
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://www.getjobber.com/careers/
+    slug: jobber
+  - name: Cerebras Systems
+    platform: ashby
+    careers_url: https://www.cerebras.ai/join-us
+    source_identity_regex: Cerebras
+    identity_regex: Cerebras
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://www.cerebras.ai/open-positions
+    slug: cerebras
+  - name: Cisco
+    platform: phenom
+    careers_url: https://careers.cisco.com/global/en
+    source_identity_regex: \bCisco\b
+    identity_regex: \bCisco\b
+    allowed_apply_hosts:
+    - cisco.wd5.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://careers.cisco.com/global/en/search-results
+    search_url: https://careers.cisco.com/global/en/search-results
+    endpoint_variant: embedded_refine_search
+    ref_num: CISCISGLOBAL
+    locale: en_global
+  - name: GE Aerospace
+    platform: phenom
+    careers_url: https://careers.geaerospace.com/global/en
+    source_identity_regex: GE Aerospace|GE Aviation
+    identity_regex: GE Aerospace|GE Aviation
+    allowed_apply_hosts:
+    - geaerospace.wd5.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://careers.geaerospace.com/global/en/search-results
+    search_url: https://careers.geaerospace.com/global/en/search-results
+    endpoint_variant: embedded_refine_search
+    ref_num: GAOGAYGLOBAL
+    locale: en_global
+  - name: Bombardier
+    platform: sap_successfactors
+    careers_url: https://bombardier.com/en/careers
+    source_identity_regex: \bBombardier\b
+    identity_regex: \bBombardier\b
+    allowed_apply_hosts:
+    - jobs.bombardier.com
+    original_workbook_rank: null
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.bombardier.com/search/
+    search_url: https://jobs.bombardier.com/search/
+    endpoint_url: https://jobs.bombardier.com/services/recruiting/v1/jobs
+    endpoint_variant: rmk_columnized
+    locale: en_US
+    page_size: 10
+  - name: Fortinet
+    platform: oracle_recruiting
+    careers_url: https://edel.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_2001/jobs
+    source_identity_regex: \bFortinet\b
+    identity_regex: \bFortinet\b
+    allowed_apply_hosts:
+    - edel.fa.us2.oraclecloud.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://edel.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_2001/jobs
+    endpoint_url: https://edel.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+    site_number: CX_2001
+    locale: en
+    endpoint_variant: recruiting_ce_v1
+  - name: Zebra Technologies
+    platform: workday
+    careers_url: https://www.zebra.com/us/en/about-zebra/careers.html
+    source_identity_regex: Zebra_careers|Zebra
+    identity_regex: Zebra_careers|Zebra
+    allowed_apply_hosts:
+    - zebra.wd501.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://zebra.wd501.myworkdayjobs.com/Zebra_careers
+    search_url: https://zebra.wd501.myworkdayjobs.com/Zebra_careers
+    tenant: zebra
+    wd_subdomain: wd501
+    site_id: Zebra_careers
+  - name: SAP
+    platform: sap_successfactors
+    careers_url: https://jobs.sap.com/
+    source_identity_regex: \bSAP\b
+    identity_regex: \bSAP\b
+    allowed_apply_hosts:
+    - jobs.sap.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.sap.com/search/
+    search_url: https://jobs.sap.com/search/
+    endpoint_variant: rmk_table
+  - name: ServiceNow
+    platform: static_html
+    careers_url: https://careers.servicenow.com/
+    source_identity_regex: ServiceNow
+    identity_regex: ServiceNow
+    allowed_apply_hosts:
+    - careers.servicenow.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://careers.servicenow.com/locations/ams/ontario-canada/
+    listing_url: https://careers.servicenow.com/locations/ams/ontario-canada/
+    endpoint_variant: server_rendered_cards
+    listing_selector: div.job-listing
+    job_card_selector: div.card-job
+    title_selector: h2.card-title a
+    location_selector: ul.job-meta li:first-child
+    department_selector: null
+    detail_link_selector: h2.card-title a
+    external_id_regex: /jobs/([0-9]+)/
+    external_id_attribute: null
+  - name: Affirm
+    platform: greenhouse
+    careers_url: https://www.affirm.com/careers
+    source_identity_regex: \bAffirm\b
+    identity_regex: \bAffirm\b
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+    - boards.greenhouse.io
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://job-boards.greenhouse.io/affirm
+    slug: affirm
+  - name: Palo Alto Networks
+    platform: static_html
+    careers_url: https://jobs.paloaltonetworks.com/en
+    source_identity_regex: Palo Alto Networks
+    identity_regex: Palo Alto Networks
+    allowed_apply_hosts:
+    - jobs.paloaltonetworks.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.paloaltonetworks.com/en/location/canada-jobs/47263/6251999/2
+    listing_url: https://jobs.paloaltonetworks.com/en/location/canada-jobs/47263/6251999/2
+    endpoint_variant: server_rendered_cards
+    listing_selector: ul.section29__search-results-ul
+    job_card_selector: li.section29__search-results-li
+    title_selector: h2.section29__search-results-job-title
+    location_selector: span.section29__result-location
+    department_selector: span.section29__result-category
+    detail_link_selector: a.section29__search-results-link
+    external_id_regex: /([0-9]+)$
+    external_id_attribute: null
+  - name: Nordic Semiconductor
+    platform: static_html
+    careers_url: https://www.nordicsemi.com/About-us/Careers
+    source_identity_regex: Nordic Semiconductor|Nordic
+    identity_regex: Nordic Semiconductor|Nordic
+    allowed_apply_hosts:
+    - careers.nordicsemi.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://careers.nordicsemi.com/jobs
+    listing_url: https://careers.nordicsemi.com/jobs
+    endpoint_variant: server_rendered_cards
+    listing_selector: ul#jobs_list_container
+    job_card_selector: li.group
+    title_selector: a[href*=/jobs/]
+    location_selector: span.text-base span:nth-child(3)
+    department_selector: span.text-base span:first-child
+    detail_link_selector: a[href*=/jobs/]
+    external_id_regex: /jobs/([0-9]+)-
+    external_id_attribute: null

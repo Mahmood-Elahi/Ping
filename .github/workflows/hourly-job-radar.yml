@@ -101,16 +101,16 @@ jobs:
 
           companies = load_target_companies()
           mappings = load_parent_source_mappings()
-          if len(companies) != 302:
+          if len(companies) != 315:
               raise SystemExit(
-                  f"Production registry count mismatch: expected 302, found {len(companies)}"
+                  f"Production registry count mismatch: expected 315, found {len(companies)}"
               )
           if len(mappings) != 4:
               raise SystemExit(
                   f"Parent mapping count mismatch: expected 4, found {len(mappings)}"
               )
 
-          print("Production preflight passed: 302 canonical sources and 4 parent mappings.")
+          print("Production preflight passed: 315 canonical sources and 4 parent mappings.")
           PY
 
       - name: Update student dashboard
