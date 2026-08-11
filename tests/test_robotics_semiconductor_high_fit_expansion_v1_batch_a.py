@@ -48,26 +48,29 @@ class RoboticsSemiconductorHighFitExpansionV1BatchAArtifactTests(unittest.TestCa
         with batch.CANDIDATE_CSV.open(newline="", encoding="utf-8") as handle:
             cls.inventory = list(csv.DictReader(handle))
 
-    def test_01_candidate_artifacts_preserve_exact_315_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 315)
+    def test_01_activation_preserves_exact_315_entry_production_prefix(self):
+        self.assertEqual(len(self.production), 325)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(self.historical), 315)
-        self.assertEqual(self.production, self.historical)
+        self.assertEqual(self.production[:315], self.historical)
         self.assertEqual(self.candidates[:315], self.historical)
         self.assertEqual(self.validated[:315], self.historical)
-        self.assertEqual(self.production_bytes, self.historical_bytes)
+        self.assertTrue(self.production_bytes.startswith(self.historical_bytes))
+        self.assertEqual(self.production, self.validated)
         self.assertTrue(self.report["candidate_registry_has_exact_315_entry_prefix"])
         self.assertTrue(self.report["validated_registry_has_exact_315_entry_prefix"])
 
-    def test_02_candidate_and_validated_add_safe_sources_without_activation(self):
+    def test_02_candidate_validated_and_production_add_safe_sources_once(self):
         self.assertEqual(len(self.candidates), 325)
         self.assertEqual(len(self.validated), 325)
         self.assertEqual([item["name"] for item in self.candidates[315:]], VALIDATED)
         self.assertEqual([item["name"] for item in self.validated[315:]], VALIDATED)
+        self.assertEqual([item["name"] for item in self.production[315:]], VALIDATED)
         production_names = [item["name"] for item in self.production]
-        self.assertTrue(set(VALIDATED).isdisjoint(production_names))
         self.assertTrue(EXCLUDED.isdisjoint(production_names))
-        self.assertEqual(len({name.casefold() for name in production_names}), 315)
+        for name in VALIDATED:
+            self.assertEqual(production_names.count(name), 1)
+        self.assertEqual(len({name.casefold() for name in production_names}), 325)
 
     def test_03_all_requested_companies_and_outcomes_are_reported(self):
         self.assertEqual([row["company"] for row in self.inventory], batch.REVIEWED_COMPANIES)
@@ -144,7 +147,7 @@ class RoboticsSemiconductorHighFitExpansionV1BatchAArtifactTests(unittest.TestCa
         self.assertEqual(by_name["Gecko Robotics"]["canada_us_remote_locations_represented"], [])
 
     def test_07_projections_and_original_master_coverage(self):
-        self.assertEqual(len(load_target_companies(str(batch.PRODUCTION))), 315)
+        self.assertEqual(len(load_target_companies(str(batch.PRODUCTION))), 325)
         self.assertTrue(all(not item["original_246_master"] for item in self.report["results"]))
         totals = self.report["totals"]
         self.assertEqual(totals["candidate_sources"], 10)
@@ -195,7 +198,7 @@ class RoboticsSemiconductorHighFitExpansionV1BatchAArtifactTests(unittest.TestCa
 
     def test_11_hashes_ignore_and_publication_state(self):
         self.assertEqual(
-            hashlib.sha256(self.production_bytes).hexdigest().upper(),
+            hashlib.sha256(self.historical_bytes).hexdigest().upper(),
             self.report["production_registry_sha256"],
         )
         self.assertEqual(

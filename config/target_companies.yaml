@@ -4337,3 +4337,149 @@ target_companies:
     detail_link_selector: a[href*=/jobs/]
     external_id_regex: /jobs/([0-9]+)-
     external_id_attribute: null
+  - name: Motional
+    platform: greenhouse
+    careers_url: https://motional.com/careers
+    source_identity_regex: \bMotional\b
+    identity_regex: \bMotional\b
+    allowed_apply_hosts:
+    - motional.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://motional.com/open-positions
+    slug: motional
+  - name: Ouster
+    platform: static_html
+    careers_url: https://ouster.com/company/careers
+    source_identity_regex: \bOuster\b
+    identity_regex: \bOuster\b
+    allowed_apply_hosts:
+    - ouster.applytojob.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://ouster.applytojob.com/apply
+    listing_url: https://ouster.applytojob.com/apply
+    endpoint_variant: server_rendered_cards
+    listing_selector: ul.list-group
+    job_card_selector: li.list-group-item
+    title_selector: h3.list-group-item-heading a
+    location_selector: ul.list-group-item-text li:first-child
+    department_selector: ul.list-group-item-text li:nth-child(2)
+    detail_link_selector: h3.list-group-item-heading a
+    external_id_regex: /apply/([^/]+)/
+  - name: Aeva Technologies
+    platform: lever
+    careers_url: https://www.aeva.com/careers/
+    source_identity_regex: Aeva(?:, Inc\.)?
+    identity_regex: Aeva(?:, Inc\.)?
+    allowed_apply_hosts:
+    - jobs.lever.co
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.lever.co/aeva
+    slug: aeva
+    endpoint_variant: postings_api_v0
+  - name: Plus AI
+    platform: lever
+    careers_url: https://www.plus.ai/careers
+    source_identity_regex: PlusAI|Plus AI
+    identity_regex: PlusAI|Plus AI
+    allowed_apply_hosts:
+    - jobs.lever.co
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://www.plus.ai/careers
+    slug: plus-2
+    endpoint_variant: postings_api_v0
+  - name: Gecko Robotics
+    platform: ashby
+    careers_url: https://www.geckorobotics.com/careers
+    source_identity_regex: Gecko Robotics
+    identity_regex: Gecko Robotics
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.ashbyhq.com/gecko-robotics
+    slug: gecko-robotics
+  - name: Locus Robotics
+    platform: greenhouse
+    careers_url: https://locusrobotics.com/company/careers
+    source_identity_regex: Locus Robotics
+    identity_regex: Locus Robotics
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://job-boards.greenhouse.io/locusrobotics
+    slug: locusrobotics
+  - name: Qorvo
+    platform: sap_successfactors
+    careers_url: https://www.qorvo.com/careers
+    source_identity_regex: \bQorvo\b
+    identity_regex: \bQorvo\b
+    allowed_apply_hosts:
+    - careers.qorvo.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://careers.qorvo.com/search/
+    search_url: https://careers.qorvo.com/search/
+    endpoint_variant: rmk_table
+  - name: Diodes Incorporated
+    platform: adp
+    careers_url: https://workforcenow.adp.com/mascsr/default/mdf/recruitment/recruitment.html?ccId=19000101_000001&cid=d72519df-1ce1-4f1d-b01b-50a082de06d5&lang=en_US
+    source_identity_regex: 'Diodes(?: Incorporated|, Inc\.)?'
+    identity_regex: 'Diodes(?: Incorporated|, Inc\.)?'
+    allowed_apply_hosts:
+    - workforcenow.adp.com
+    original_workbook_rank: null
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://careers.diodes.com/
+    endpoint_url: https://workforcenow.adp.com/mascsr/default/careercenter/public/events/staffing/v1/job-requisitions
+    endpoint_variant: workforce_now_requisitions_v1
+    page_size: 10
+  - name: Allegro MicroSystems
+    platform: workday
+    careers_url: https://www.allegromicro.com/en/About-Allegro/Careers
+    source_identity_regex: AllegroCareers|Allegro MicroSystems
+    identity_regex: AllegroCareers|Allegro MicroSystems
+    allowed_apply_hosts:
+    - allegromicro.wd5.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://allegromicro.wd5.myworkdayjobs.com/AllegroCareers
+    search_url: https://allegromicro.wd5.myworkdayjobs.com/AllegroCareers
+    tenant: allegromicro
+    wd_subdomain: wd5
+    site_id: AllegroCareers
+  - name: indie Semiconductor
+    platform: greenhouse
+    careers_url: https://www.indie.inc/careers/
+    source_identity_regex: indie Semiconductor|\bindie\b
+    identity_regex: indie Semiconductor|\bindie\b
+    allowed_apply_hosts:
+    - www.indie.inc
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://www.indie.inc/careers/job-opportunities/
+    slug: indiesemiconductor

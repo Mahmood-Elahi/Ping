@@ -47,7 +47,7 @@ class RequestedExpansionV3BatchDArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_exact_230_source_baseline(self):
-        self.assertEqual(len(self.production), 315)
+        self.assertEqual(len(self.production), 325)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(self.historical), 230)
         self.assertEqual(self.production[:230], self.historical)

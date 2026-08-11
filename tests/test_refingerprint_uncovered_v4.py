@@ -73,6 +73,11 @@ CANADA_HIGH_FIT_EXPANSION_V1_BATCH_A_PROMOTIONS = [
     "Bombardier", "Fortinet", "Zebra Technologies", "SAP", "ServiceNow",
     "Affirm", "Palo Alto Networks", "Nordic Semiconductor",
 ]
+ROBOTICS_SEMICONDUCTOR_HIGH_FIT_EXPANSION_V1_BATCH_A_PROMOTIONS = [
+    "Motional", "Ouster", "Aeva Technologies", "Plus AI", "Gecko Robotics",
+    "Locus Robotics", "Qorvo", "Diodes Incorporated", "Allegro MicroSystems",
+    "indie Semiconductor",
+]
 HISTORICAL_PRODUCTION_ONLY = [
     "Datadog", "Elastic", "GitLab", "Twilio", "Zscaler", "CrowdStrike",
     "HashiCorp", "Confluent", "Teradyne",
@@ -212,6 +217,7 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
                 + ONTARIO_CANADA_EXPANSION_V1_BATCH_B_PROMOTIONS
                 + CALGARY_ALBERTA_EXPANSION_V2_BATCH_B_PROMOTIONS
                 + CANADA_HIGH_FIT_EXPANSION_V1_BATCH_A_PROMOTIONS
+                + ROBOTICS_SEMICONDUCTOR_HIGH_FIT_EXPANSION_V1_BATCH_A_PROMOTIONS
             )
             if mod.normalize_company_name(name) not in master_names
         ]
