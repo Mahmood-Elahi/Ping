@@ -61,7 +61,7 @@ class OriginalMasterRecoveryBatchGArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_exact_257_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 269)
+        self.assertEqual(len(self.production), 274)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(self.historical), 257)
         self.assertEqual(self.production[:257], self.historical)
@@ -80,7 +80,10 @@ class OriginalMasterRecoveryBatchGArtifactTests(unittest.TestCase):
         self.assertEqual(len(VALIDATED), 5)
         self.assertTrue(EXCLUDED.isdisjoint({item["name"] for item in self.candidates}))
         production_names = [item["name"] for item in self.production]
-        self.assertTrue(EXCLUDED.isdisjoint(production_names))
+        later_promotions = {"Astrobotic", "Intuitive Machines", "FANUC"}
+        self.assertTrue((EXCLUDED - later_promotions).isdisjoint(production_names))
+        for name in later_promotions:
+            self.assertEqual(production_names.count(name), 1)
         for name in VALIDATED:
             self.assertEqual(production_names.count(name), 1)
 
@@ -135,7 +138,7 @@ class OriginalMasterRecoveryBatchGArtifactTests(unittest.TestCase):
             load_target_companies(str(batch.PRODUCTION)),
             load_parent_source_mappings(batch.PARENT_MAPPINGS),
         )
-        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 193)
+        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 196)
         self.assertTrue(all(item["original_246_master"] for item in self.report["results"]))
         totals = self.report["totals"]
         self.assertEqual((totals["validated"], totals["excluded"]), (5, 10))

@@ -61,6 +61,7 @@ from src.scraper.company_careers.parent_sources import (
 AdapterFn = Callable[[requests.Session, CompanyTarget, int], List[JobRecord]]
 JobFilterFn = Callable[[JobRecord], Optional[str]]
 LocationFilterFn = Callable[[JobRecord], Optional[str]]
+SessionFactory = Callable[[], requests.Session]
 
 
 ADAPTERS: dict[str, AdapterFn] = {
@@ -110,6 +111,7 @@ class CompanyCareersScanner:
         targets: Optional[List[CompanyTarget]] = None,
         config_path: str = DEFAULT_REGISTRY_PATH,
         session: Optional[requests.Session] = None,
+        session_factory: SessionFactory = requests.Session,
         timeout: int = 60,
         parent_source_mappings: Optional[Sequence[ParentSourceMapping]] = None,
         parent_mapping_path: str = DEFAULT_PARENT_MAPPING_PATH,
@@ -117,6 +119,8 @@ class CompanyCareersScanner:
     ):
         self.targets = targets if targets is not None else load_target_companies(config_path)
         self.session = session or requests.Session()
+        self._isolate_adp_sessions = session is None
+        self._session_factory = session_factory
         self.timeout = timeout
         self.original_company_inventory_path = original_company_inventory_path
         self.parent_source_mappings = list(
@@ -184,8 +188,17 @@ class CompanyCareersScanner:
                 )
                 continue
 
+            adapter_session = self.session
+            close_adapter_session = False
+            if target.platform == "adp" and self._isolate_adp_sessions:
+                # Workforce Now can set tenant cookies for the parent .adp.com
+                # domain. Keep anonymous tenants isolated so one source cannot
+                # change the request contract observed by the next source.
+                adapter_session = self._session_factory()
+                close_adapter_session = True
+
             try:
-                fetched_jobs = self._dedupe(adapter(self.session, target, self.timeout))
+                fetched_jobs = self._dedupe(adapter(adapter_session, target, self.timeout))
                 fetched_jobs = [
                     annotate_child_brand_metadata(job, self.parent_source_mappings)
                     for job in fetched_jobs
@@ -250,6 +263,11 @@ class CompanyCareersScanner:
                         remediation="Inspect the adapter stack locally; the scanner contained the failure to this company.",
                     )
                 )
+            finally:
+                if close_adapter_session:
+                    close = getattr(adapter_session, "close", None)
+                    if callable(close):
+                        close()
 
         return CompanyCareersReport(
             results=results,

@@ -9,10 +9,12 @@ from pathlib import Path
 import yaml
 
 from scripts import company_watchlist_common, investigate_remaining_companies, investigate_unknown_companies
+from scripts.refingerprint_uncovered_companies import load_master_workbook, reconcile_master
 from scripts import validate_company_registry as registry_validator
 from src.scraper.company_careers import scanner
 from src.scraper.company_careers.adapters import adp, hibob, sap_successfactors
 from src.scraper.company_careers.models import AdapterError, CompanyTarget
+from src.scraper.company_careers.parent_sources import load_parent_source_mappings
 from src.scraper.company_careers.registry import load_target_companies
 
 
@@ -229,6 +231,57 @@ def columnized_page(**response_overrides):
 
 
 class AdpAdapterTests(unittest.TestCase):
+    def test_scanner_isolates_anonymous_adp_sessions_between_targets(self):
+        sessions = []
+
+        class ClosingSession(Session):
+            def __init__(self):
+                item = wfn_item()
+                super().__init__(gets=[
+                    Response({"contentLinks": [{"contentBody": {"contentTitle": "Example Space"}}]}),
+                    Response({
+                        "jobRequisitions": [item],
+                        "meta": {"startSequence": 0, "totalNumber": 1},
+                    }),
+                    Response({**item, "requisitionDescription": "Example role."}),
+                ])
+                self.closed = False
+
+            def close(self):
+                self.closed = True
+
+        def session_factory():
+            session = ClosingSession()
+            sessions.append(session)
+            return session
+
+        second = wfn_target(
+            name="Example Space Two",
+            careers_url=(
+                "https://workforcenow.cloud.adp.com/mascsr/default/mdf/recruitment/"
+                "recruitment.html?cid=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+                "&ccId=654321_2&lang=en_US"
+            ),
+            endpoint_url=(
+                "https://workforcenow.cloud.adp.com/mascsr/default/careercenter/public/"
+                "events/staffing/v1/job-requisitions"
+            ),
+            allowed_apply_hosts=["workforcenow.cloud.adp.com"],
+        )
+        report = scanner.CompanyCareersScanner(
+            targets=[wfn_target(), second],
+            session_factory=session_factory,
+            parent_source_mappings=[],
+        ).scan()
+
+        self.assertEqual(
+            [result.status for result in report.results],
+            ["fetched", "fetched"],
+        )
+        self.assertEqual(len(sessions), 2)
+        self.assertIsNot(sessions[0], sessions[1])
+        self.assertTrue(all(session.closed for session in sessions))
+
     def test_workforce_now_correlates_identity_listing_detail_and_apply_url(self):
         item = wfn_item()
         detail = {**item, "requisitionDescription": "<p>Example Space role.</p>"}
@@ -372,15 +425,41 @@ class BatchCValidationTests(unittest.TestCase):
             "Helcim": 10, "CPKC": 20,
         })
 
-    def test_adapters_are_registered_but_production_is_unchanged(self):
+    def test_validated_targets_are_appended_once_to_exact_269_entry_prefix(self):
         self.assertIs(scanner.ADAPTERS["adp"], adp.fetch_jobs)
         self.assertIs(scanner.ADAPTERS["hibob"], hibob.fetch_jobs)
         self.assertIs(scanner.ADAPTERS["sap_successfactors"], sap_successfactors.fetch_jobs)
-        self.assertEqual(hashlib.sha256(PRODUCTION.read_bytes()).hexdigest().upper(), PRODUCTION_SHA256)
-        production = yaml.safe_load(PRODUCTION.read_text(encoding="utf-8"))["target_companies"]
-        self.assertEqual(len(production), 269)
-        names = {row["name"] for row in production}
-        self.assertTrue({target.name for target in self.targets}.isdisjoint(names))
+
+        production_bytes = PRODUCTION.read_bytes()
+        marker = b"  - name: Astrobotic"
+        baseline_bytes = production_bytes[:production_bytes.index(marker)]
+        self.assertEqual(hashlib.sha256(baseline_bytes).hexdigest().upper(), PRODUCTION_SHA256)
+
+        production = yaml.safe_load(production_bytes)["target_companies"]
+        validated = yaml.safe_load(VALIDATED.read_text(encoding="utf-8"))["target_companies"]
+        promoted = ["Astrobotic", "Intuitive Machines", "FANUC", "Helcim", "CPKC"]
+        self.assertEqual(len(production), 274)
+        self.assertEqual(production[269:], validated)
+        self.assertEqual([row["name"] for row in production[269:]], promoted)
+        names = [row["name"] for row in production]
+        for name in promoted:
+            self.assertEqual(names.count(name), 1)
+        self.assertEqual(len(load_parent_source_mappings()), 4)
+
+        fanuc = production[271]
+        self.assertEqual(fanuc["name"], "FANUC")
+        self.assertEqual(fanuc["identity_regex"], "^FANUC America$")
+        self.assertEqual(fanuc["organization_id"], "G36B3N8NPGHCGC17")
+
+        master = reconcile_master(
+            load_master_workbook(ROOT / "config" / "company_watchlist.xlsx"),
+            load_target_companies(str(PRODUCTION)),
+            load_parent_source_mappings(),
+        )
+        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 196)
+        self.assertEqual(master.total, 246)
+
+        # The validation artifact remains immutable milestone evidence.
         self.assertFalse(self.data["production_registry_activated"])
         self.assertTrue(all(value is False for value in self.data["publication"].values()))
 

@@ -132,7 +132,7 @@ class SourceExpansionV2BatchCArtifactTests(unittest.TestCase):
         excluded = {result["company"] for result in self.report["results"] if not result["safe_to_activate"]}
         self.assertEqual(excluded, EXCLUDED)
         present = {entry["name"] for entry in self.validated + self.production}
-        later_promotions = {"Aptiv", "Mitsubishi Electric", "Yaskawa Electric"}
+        later_promotions = {"Aptiv", "Mitsubishi Electric", "Yaskawa Electric", "FANUC"}
         self.assertTrue((EXCLUDED - later_promotions).isdisjoint(present))
         for name in later_promotions:
             self.assertEqual(sum(entry["name"] == name for entry in self.production), 1)

@@ -3632,3 +3632,64 @@ target_companies:
     max_response_bytes: 3000000
     identity_url: https://www.purposemed.com/careers/open
     slug: purposemed
+  - name: Astrobotic
+    platform: adp
+    careers_url: https://workforcenow.cloud.adp.com/mascsr/default/mdf/recruitment/recruitment.html?cid=dde86c74-1cf6-4830-b396-33b9bd085ff9&ccId=48397579_2&lang=en_US
+    endpoint_url: https://workforcenow.cloud.adp.com/mascsr/default/careercenter/public/events/staffing/v1/job-requisitions
+    endpoint_variant: workforce_now_requisitions_v1
+    identity_regex: Astrobotic
+    allowed_apply_hosts:
+      - workforcenow.cloud.adp.com
+    page_size: 10
+    max_pages: 3
+    max_jobs: 20
+  - name: Intuitive Machines
+    platform: adp
+    careers_url: https://workforcenow.adp.com/mascsr/default/mdf/recruitment/recruitment.html?cid=b0e24f83-6e4d-492d-9d6a-bc0fea197d6a&ccId=19000101_000001&lang=en_US
+    endpoint_url: https://workforcenow.adp.com/mascsr/default/careercenter/public/events/staffing/v1/job-requisitions
+    endpoint_variant: workforce_now_requisitions_v1
+    identity_regex: Intuitive Machines
+    allowed_apply_hosts:
+      - workforcenow.adp.com
+    page_size: 10
+    max_pages: 3
+    max_jobs: 20
+  - name: FANUC
+    platform: adp
+    slug: fanuc
+    careers_url: https://myjobs.adp.com/fanuc/cx
+    endpoint_url: https://my.adp.com/myadp_prefix/mycareer/public/staffing/v1/job-requisitions/apply-custom-filters
+    endpoint_variant: myjobs_requisitions_v1
+    organization_id: G36B3N8NPGHCGC17
+    identity_regex: ^FANUC America$
+    allowed_apply_hosts:
+      - myjobs.adp.com
+    page_size: 20
+    max_pages: 1
+    max_jobs: 20
+  - name: Helcim
+    platform: hibob
+    slug: helcim
+    careers_url: https://helcim.careers.hibob.com/
+    endpoint_url: https://helcim.careers.hibob.com/api/job-ad
+    endpoint_variant: career_site_job_ads_v1
+    identity_regex: ^Helcim Inc$
+    allowed_apply_hosts:
+      - helcim.careers.hibob.com
+    max_response_bytes: 3000000
+    max_pages: 1
+    max_jobs: 20
+  - name: CPKC
+    platform: sap_successfactors
+    careers_url: https://www.cpkcr.com/en/careers
+    search_url: https://careers.cpr.ca/search/
+    endpoint_url: https://careers.cpr.ca/services/recruiting/v1/jobs
+    endpoint_variant: rmk_columnized
+    identity_regex: \bCPKC\b
+    locale: en_US
+    allowed_apply_hosts:
+      - careers.cpr.ca
+    page_size: 10
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000

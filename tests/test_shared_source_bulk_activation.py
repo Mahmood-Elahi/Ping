@@ -329,8 +329,9 @@ class SharedSourceBulkActivationTests(unittest.TestCase):
             ]
             self.assertEqual(matches, [expected])
             self.assertEqual(validator.source_key(matches[0]), validator.source_key(expected))
-        rejected = {"Netflix", "Continental", "Astrobotic"}
+        rejected = {"Netflix", "Continental"}
         self.assertFalse(rejected & {item["name"] for item in production})
+        self.assertEqual(sum(item["name"] == "Astrobotic" for item in production), 1)
 
         batch_a = target_entries(
             ROOT / "config" / "target_companies.adapter_extensions_v4a_validated.yaml"

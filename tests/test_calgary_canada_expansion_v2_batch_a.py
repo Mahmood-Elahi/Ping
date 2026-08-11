@@ -49,13 +49,13 @@ class CalgaryCanadaExpansionV2BatchAArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_exact_262_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 269)
+        self.assertEqual(len(self.production), 274)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(self.historical), 262)
         self.assertEqual(self.production[:262], self.historical)
         self.assertEqual(self.candidates[:262], self.historical)
         self.assertEqual(self.validated[:262], self.historical)
-        self.assertEqual(self.production, self.validated)
+        self.assertEqual(self.production[:269], self.validated)
         self.assertTrue(self.report["candidate_registry_has_exact_262_entry_prefix"])
         self.assertTrue(self.report["validated_registry_has_exact_262_entry_prefix"])
 
@@ -63,9 +63,12 @@ class CalgaryCanadaExpansionV2BatchAArtifactTests(unittest.TestCase):
         self.assertEqual((len(self.candidates), len(self.validated)), (270, 269))
         self.assertEqual([item["name"] for item in self.candidates[262:]], CANDIDATES)
         self.assertEqual([item["name"] for item in self.validated[262:]], VALIDATED)
-        self.assertEqual([item["name"] for item in self.production[262:]], VALIDATED)
+        self.assertEqual([item["name"] for item in self.production[262:269]], VALIDATED)
         production_names = [item["name"] for item in self.production]
-        self.assertTrue(EXCLUDED.isdisjoint(production_names))
+        later_promotions = {"CPKC", "Helcim"}
+        self.assertTrue((EXCLUDED - later_promotions).isdisjoint(production_names))
+        for name in later_promotions:
+            self.assertEqual(production_names.count(name), 1)
         for name in VALIDATED:
             self.assertEqual(production_names.count(name), 1)
         self.assertTrue(STATIC_EXCLUDED.isdisjoint({item["name"] for item in self.candidates}))
@@ -176,7 +179,7 @@ class CalgaryCanadaExpansionV2BatchAArtifactTests(unittest.TestCase):
             load_target_companies(str(batch.PRODUCTION)),
             load_parent_source_mappings(batch.PARENT_MAPPINGS),
         )
-        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 193)
+        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 196)
         self.assertTrue(all(not item["original_246_master"] for item in self.report["results"]))
         totals = self.report["totals"]
         self.assertEqual((totals["validated"], totals["excluded"]), (7, 8))

@@ -47,7 +47,7 @@ class RequestedExpansionV3BatchDArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_exact_230_source_baseline(self):
-        self.assertEqual(len(self.production), 269)
+        self.assertEqual(len(self.production), 274)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(self.historical), 230)
         self.assertEqual(self.production[:230], self.historical)
@@ -142,7 +142,7 @@ class RequestedExpansionV3BatchDArtifactTests(unittest.TestCase):
             load_target_companies(str(batch.PRODUCTION)),
             load_parent_source_mappings(batch.PARENT_MAPPINGS),
         )
-        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 193)
+        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 196)
         self.assertTrue(all(not item["original_246_master"] for item in self.report["results"]))
         totals = self.report["totals"]
         self.assertEqual(totals["candidate_sources"], 13)
