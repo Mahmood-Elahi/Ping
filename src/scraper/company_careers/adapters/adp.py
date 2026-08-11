@@ -23,6 +23,7 @@ MAX_RESULTS = 100
 MAX_TIMEOUT_SECONDS = 30
 MAX_RESPONSE_BYTES = 5_000_000
 WFN_PAGE_SIZE = 10
+WFN_LOCALES = {"en_CA", "en_US"}
 WFN_PATH = "/mascsr/default/mdf/recruitment/recruitment.html"
 WFN_API_PATH = "/mascsr/default/careercenter/public/events/staffing/v1/job-requisitions"
 WFN_IDENTITY_PATH = "/mascsr/default/careercenter/public/events/staffing/v1/content-links/career-center"
@@ -82,7 +83,7 @@ def _validate_wfn_target(target: CompanyTarget, careers: Any, endpoint: Any, all
         raise AdapterError("ADP Workforce Now careers_url must contain only one cid, ccId, and lang")
     if not re.fullmatch(r"[0-9a-fA-F-]{36}", query["cid"][0]):
         raise AdapterError("ADP Workforce Now cid must be a UUID")
-    if not SAFE_ID.fullmatch(query["ccId"][0]) or query["lang"][0] != "en_US":
+    if not SAFE_ID.fullmatch(query["ccId"][0]) or query["lang"][0] not in WFN_LOCALES:
         raise AdapterError("ADP Workforce Now ccId or language is invalid")
     if (
         endpoint.scheme != "https"
@@ -126,14 +127,15 @@ def _fetch_workforce_now(
     careers = urlparse(str(target.careers_url))
     query = {key: values[0] for key, values in parse_qs(careers.query).items()}
     base = urlunparse(careers._replace(path="", query="", fragment="")).rstrip("/")
-    common = {"cid": query["cid"], "ccId": query["ccId"], "lang": "en_US", "locale": "en_US"}
+    locale = query["lang"]
+    common = {"cid": query["cid"], "ccId": query["ccId"], "lang": locale, "locale": locale}
     headers = {
         "Accept": "application/json",
-        "Accept-Language": "en_US",
+        "Accept-Language": locale,
         "Content-Type": "application/json",
         "User-Agent": "job-radar/1.0 (read-only public careers scan)",
         "X-Requested-With": "XMLHttpRequest",
-        "locale": "en_US",
+        "locale": locale,
         "x-forwarded-host": careers.hostname or "",
     }
     identity = _get_json(
@@ -303,7 +305,9 @@ def _normalize_wfn(
     location = _locations(listing.get("requisitionLocations"))
     if _locations(detail.get("requisitionLocations")) != location:
         raise AdapterError("ADP Workforce Now detail locations did not match the listing")
-    apply_query = urlencode({"cid": query["cid"], "ccId": query["ccId"], "jobId": external_id, "lang": "en_US"})
+    apply_query = urlencode(
+        {"cid": query["cid"], "ccId": query["ccId"], "jobId": external_id, "lang": query["lang"]}
+    )
     careers = urlparse(str(target.careers_url))
     apply_url = urlunparse(careers._replace(query=apply_query, fragment=""))
     return JobRecord(
