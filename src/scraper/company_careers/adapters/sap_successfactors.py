@@ -14,7 +14,7 @@ from datetime import date, datetime
 from html import unescape
 from html.parser import HTMLParser
 from typing import Any, Iterable, List, Mapping, Optional
-from urllib.parse import parse_qsl, urljoin, urlparse, urlunparse
+from urllib.parse import parse_qsl, quote, urljoin, urlparse, urlunparse
 
 import requests
 
@@ -32,9 +32,12 @@ PAGE_DELAY_SECONDS = 0.2
 TRANSIENT_STATUSES = {408, 425, 429, 500, 502, 503, 504}
 TABLE_VARIANT = "rmk_table"
 TILE_VARIANT = "rmk_tile"
-SUPPORTED_VARIANTS = {TABLE_VARIANT, TILE_VARIANT}
+COLUMNIZED_VARIANT = "rmk_columnized"
+SUPPORTED_VARIANTS = {TABLE_VARIANT, TILE_VARIANT, COLUMNIZED_VARIANT}
 SEARCH_PATH_SUFFIX = "/search/"
 TILE_ENDPOINT = "tile-search-results"
+COLUMNIZED_ENDPOINT = "/services/recruiting/v1/jobs"
+COLUMNIZED_PAGE_SIZE = 10
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0",
@@ -98,6 +101,8 @@ def fetch_jobs(
     """Fetch a bounded, deterministically ordered public RMK job collection."""
     validate_target(target)
     timeout = max(1, min(int(timeout), MAX_TIMEOUT_SECONDS))
+    if target.endpoint_variant == COLUMNIZED_VARIANT:
+        return _fetch_columnized_jobs(session, target, timeout)
     max_pages = max(1, int(target.max_pages))
     if max_pages > MAX_PAGES:
         raise AdapterError(f"SAP SuccessFactors max_pages cannot exceed {MAX_PAGES}")
@@ -251,6 +256,280 @@ def validate_target(target: CompanyTarget) -> None:
     careers = urlparse(str(target.careers_url))
     if careers.scheme != "https" or not careers.hostname:
         raise AdapterError("SAP SuccessFactors careers_url must be an official HTTPS URL")
+    if target.endpoint_variant == COLUMNIZED_VARIANT:
+        endpoint = urlparse(str(target.endpoint_url or ""))
+        if (
+            endpoint.scheme != "https"
+            or (endpoint.hostname or "").casefold() != (search.hostname or "").casefold()
+            or endpoint.path != COLUMNIZED_ENDPOINT
+            or endpoint.query
+            or endpoint.fragment
+        ):
+            raise AdapterError("SAP SuccessFactors columnized endpoint_url must be the matching public jobs service")
+        if not str(target.identity_regex or "").strip():
+            raise AdapterError("SAP SuccessFactors columnized target requires identity_regex")
+        try:
+            re.compile(str(target.identity_regex), re.I)
+        except re.error as exc:
+            raise AdapterError(f"SAP SuccessFactors identity_regex is invalid: {exc}") from exc
+        locale = str(target.locale or "")
+        if not re.fullmatch(r"[a-z]{2}_[A-Z]{2}", locale):
+            raise AdapterError("SAP SuccessFactors columnized target requires an ll_CC locale")
+        if int(target.page_size) != COLUMNIZED_PAGE_SIZE:
+            raise AdapterError(f"SAP SuccessFactors columnized page_size must be {COLUMNIZED_PAGE_SIZE}")
+        if not 1 <= int(target.max_jobs) <= MAX_RESULTS:
+            raise AdapterError(f"SAP SuccessFactors max_jobs must be between 1 and {MAX_RESULTS}")
+        allowed = {str(value).strip().casefold().rstrip(".") for value in target.allowed_apply_hosts}
+        if allowed != {(search.hostname or "").casefold()}:
+            raise AdapterError("SAP SuccessFactors columnized allowed_apply_hosts must contain only the search host")
+
+
+def _fetch_columnized_jobs(
+    session: requests.Session,
+    target: CompanyTarget,
+    timeout: int,
+) -> List[JobRecord]:
+    """Use the public JSON service defined by the standard columnized RMK client."""
+    identity_response = _get_page(
+        session, target, str(target.search_url), None, 0, timeout
+    )
+    identity_html = str(getattr(identity_response, "text", "") or "")
+    if not re.search(str(target.identity_regex), identity_html, re.I):
+        raise AdapterError("SAP SuccessFactors columnized tenant identity did not match identity_regex")
+    if "BS3ColumnizedSearch" not in identity_html or "j2w.searchManager" not in identity_html:
+        raise AdapterError("SAP SuccessFactors response is not the standard columnized RMK contract")
+    tokens = set(re.findall(r'var\s+CSRFToken\s*=\s*"([^"]+)"', identity_html))
+    if len(tokens) != 1 or not re.fullmatch(r"[0-9a-fA-F-]{36}", next(iter(tokens), "")):
+        raise AdapterError("SAP SuccessFactors columnized page has no unambiguous CSRF token")
+    token = next(iter(tokens))
+    search = urlparse(str(target.search_url))
+    origin = f"{search.scheme}://{search.netloc}"
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "Origin": origin,
+        "Referer": str(target.search_url),
+        "User-Agent": HEADERS["User-Agent"],
+        "X-CSRF-Token": token,
+    }
+    limit = int(target.max_jobs)
+    max_pages = int(target.max_pages)
+    jobs: list[JobRecord] = []
+    seen: set[str] = set()
+    observed_total: Optional[int] = None
+    metadata: dict[str, Any] = {
+        "endpoint_variant": COLUMNIZED_VARIANT,
+        "request_method": "POST",
+        "page_size": COLUMNIZED_PAGE_SIZE,
+        "maximum_pages": max_pages,
+        "maximum_results": limit,
+        "pages": [],
+        "jobs_normalized": 0,
+        "stop_reason": "not_started",
+    }
+    setattr(session, "sap_successfactors_pagination", metadata)
+
+    for page_number in range(max_pages):
+        if len(jobs) >= limit:
+            metadata["stop_reason"] = "maximum_results_reached"
+            break
+        response = session.post(
+            str(target.endpoint_url),
+            headers=headers,
+            json={
+                "keywords": "",
+                "locale": str(target.locale),
+                "location": "",
+                "pageNumber": page_number,
+                "sortBy": "recent",
+            },
+            timeout=timeout,
+        )
+        payload = _columnized_json(response, target, page_number)
+        rows = payload["jobSearchResult"]
+        total = payload["totalJobs"]
+        if observed_total is None:
+            observed_total = total
+        elif total != observed_total:
+            raise AdapterError("SAP SuccessFactors total job count changed during pagination")
+        offset = page_number * COLUMNIZED_PAGE_SIZE
+        if total > offset and not rows:
+            raise AdapterError("SAP SuccessFactors columnized results ended before the reported total")
+
+        for envelope in rows:
+            row = envelope.get("response") if isinstance(envelope, Mapping) else None
+            if not isinstance(row, Mapping):
+                raise AdapterError("SAP SuccessFactors columnized result envelope is malformed")
+            external_id = str(row.get("id") or "").strip()
+            if not re.fullmatch(r"[0-9]{1,18}", external_id):
+                raise AdapterError("SAP SuccessFactors columnized job has no stable numeric ID")
+            if external_id in seen:
+                raise AdapterError(f"SAP SuccessFactors repeated stable job ID: {external_id}")
+            title = _clean_text(row.get("unifiedStandardTitle"))
+            url_title = unescape(str(row.get("unifiedUrlTitle") or "").strip())
+            locales = row.get("supportedLocales")
+            if (
+                not title
+                or not url_title
+                or len(url_title) > 240
+                or any(character in url_title for character in "/?#\\")
+                or not isinstance(locales, list)
+                or str(target.locale) not in locales
+            ):
+                raise AdapterError("SAP SuccessFactors columnized job is missing title, URL title, or locale")
+            detail_url = (
+                f"{origin}/job/{quote(url_title, safe='._~-')}/"
+                f"{external_id}-{target.locale}"
+            )
+            detail_response = _get_page(
+                session, target, detail_url, None, offset, timeout
+            )
+            job = _normalize_columnized_detail(
+                row, detail_response, target, external_id, title, detail_url
+            )
+            jobs.append(job)
+            seen.add(external_id)
+            if len(jobs) >= limit:
+                break
+        metadata["pages"].append(
+            {"page_number": page_number, "offset": offset, "jobs_returned": len(rows)}
+        )
+        metadata["jobs_normalized"] = len(jobs)
+        if offset + len(rows) >= total:
+            metadata["stop_reason"] = "total_jobs_reached"
+            break
+    else:
+        metadata["stop_reason"] = "maximum_pages_reached"
+    metadata["total_available"] = observed_total
+    jobs.sort(key=lambda job: (job.updated_at, job.job_id), reverse=True)
+    return jobs
+
+
+def _columnized_json(response: Any, target: CompanyTarget, page_number: int) -> Mapping[str, Any]:
+    if response.status_code != 200:
+        raise AdapterError(
+            f"SAP SuccessFactors HTTP {response.status_code} for {target.name} page={page_number}"
+        )
+    if len(bytes(getattr(response, "content", b"") or b"")) > int(target.max_response_bytes):
+        raise AdapterError("SAP SuccessFactors columnized response exceeded max_response_bytes")
+    content_type = str(getattr(response, "headers", {}).get("content-type", ""))
+    if content_type and "json" not in content_type.casefold():
+        raise AdapterError("SAP SuccessFactors columnized response was not JSON")
+    try:
+        payload = response.json()
+    except (ValueError, requests.RequestException) as exc:
+        raise AdapterError("SAP SuccessFactors columnized response was not valid JSON") from exc
+    if not isinstance(payload, Mapping) or not isinstance(payload.get("jobSearchResult"), list):
+        raise AdapterError("SAP SuccessFactors columnized response is malformed")
+    total = payload.get("totalJobs")
+    if isinstance(total, bool) or not isinstance(total, int) or total < 0:
+        raise AdapterError("SAP SuccessFactors columnized totalJobs must be non-negative")
+    if len(payload["jobSearchResult"]) > COLUMNIZED_PAGE_SIZE:
+        raise AdapterError("SAP SuccessFactors columnized page exceeded the observed page size")
+    return payload
+
+
+def _normalize_columnized_detail(
+    row: Mapping[str, Any],
+    response: Any,
+    target: CompanyTarget,
+    external_id: str,
+    title: str,
+    detail_url: str,
+) -> JobRecord:
+    html = str(getattr(response, "text", "") or "")
+    if not re.search(str(target.identity_regex), html, re.I):
+        raise AdapterError("SAP SuccessFactors detail tenant identity did not match identity_regex")
+    parser = _DomParser()
+    try:
+        parser.feed(html)
+        parser.close()
+    except Exception as exc:
+        raise AdapterError(f"SAP SuccessFactors detail returned malformed HTML: {exc}") from exc
+    canonical_nodes = [
+        node for node in _walk(parser.root)
+        if node.tag == "link" and node.attrs.get("rel", "").casefold() == "canonical"
+    ]
+    if len(canonical_nodes) != 1:
+        raise AdapterError("SAP SuccessFactors detail has no unambiguous canonical URL")
+    canonical = urlparse(urljoin(detail_url, canonical_nodes[0].attrs.get("href", "")))
+    expected = urlparse(detail_url)
+    if (
+        canonical.scheme != "https"
+        or (canonical.hostname or "").casefold() != (expected.hostname or "").casefold()
+        or not canonical.path.rstrip("/").endswith(f"/{external_id}-{target.locale}")
+    ):
+        raise AdapterError("SAP SuccessFactors detail canonical URL did not match the job ID")
+    og_titles = [
+        node.attrs.get("content", "") for node in _walk(parser.root)
+        if node.tag == "meta" and node.attrs.get("property", "").casefold() == "og:title"
+    ]
+    if len(og_titles) != 1 or _clean_text(og_titles[0]) != title:
+        raise AdapterError("SAP SuccessFactors detail title did not match the listing")
+    apply_matches = re.findall(r"j2w\.Apply\.init\s*\(\s*\{[^}]*jobID\s*:\s*([0-9]+)", html, re.S)
+    if apply_matches != [external_id]:
+        raise AdapterError("SAP SuccessFactors detail has no official job-specific apply action")
+
+    detail_fields: dict[str, list[str]] = {}
+    for node in _walk(parser.root):
+        if node.tag != "li":
+            continue
+        text = _node_text(node)
+        match = re.match(r"^([A-Za-z#%][A-Za-z0-9 #&/%-]{1,40}):\s*(.+)$", text)
+        if match:
+            detail_fields.setdefault(match.group(1).casefold(), []).append(_clean_text(match.group(2)))
+    req_ids = _unique_strings(detail_fields.get("req id", []))
+    if req_ids != [external_id]:
+        raise AdapterError("SAP SuccessFactors detail requisition ID did not match the listing")
+    api_locations = _columnized_locations(row.get("jobLocationShort"))
+    detail_locations = _unique_strings(detail_fields.get("location", []))
+    locations = api_locations or detail_locations
+    if not locations:
+        raise AdapterError("SAP SuccessFactors columnized job is missing a stable location")
+    departments = _unique_strings(detail_fields.get("department", []))
+    description_nodes = [
+        node for node in _walk(parser.root)
+        if node.attrs.get("itemprop", "").casefold() == "description"
+    ]
+    description = _node_text(description_nodes[0]) if len(description_nodes) == 1 else None
+    host = (urlparse(str(target.search_url)).hostname or "").casefold()
+    posting_date = _normalize_posting_date(row.get("unifiedStandardStart"))
+    return JobRecord(
+        job_id=f"sap_successfactors:{host}:{external_id}",
+        title=title,
+        company=target.name,
+        location=" | ".join(locations),
+        url=detail_url,
+        updated_at=posting_date,
+        source=f"sap_successfactors:{host}",
+        departments=departments,
+        offices=locations,
+        description=description,
+        raw_metadata={
+            "platform": "sap_successfactors",
+            "endpoint_variant": COLUMNIZED_VARIANT,
+            "external_job_id": external_id,
+            "detail_url": detail_url,
+            "apply_url": detail_url,
+            "fields": detail_fields,
+        },
+    )
+
+
+def _columnized_locations(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise AdapterError("SAP SuccessFactors columnized location field is malformed")
+    locations: list[str] = []
+    for item in value:
+        raw = item if isinstance(item, str) else item.get("value") if isinstance(item, Mapping) else None
+        if raw is None:
+            continue
+        text = _clean_text(_html_to_text(raw))
+        if text:
+            locations.append(text)
+    return _unique_strings(locations)
 
 
 def _get_page(

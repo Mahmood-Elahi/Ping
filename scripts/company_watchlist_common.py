@@ -69,7 +69,7 @@ SUPPORTED_IMPORT_PLATFORMS = {
     "shopify",
 }
 DETECTED_BUT_UNSUPPORTED = {"workable", "rippling"}
-DETECTED_REQUIRES_REVIEW = {"smartrecruiters"}
+DETECTED_REQUIRES_REVIEW = {"adp", "hibob", "smartrecruiters"}
 EXISTING_ONLY_PLATFORMS = {"ibm_search"}
 CUSTOM_PLATFORMS = {
     "amazon",

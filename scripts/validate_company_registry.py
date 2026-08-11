@@ -24,6 +24,7 @@ if str(Path(__file__).resolve().parents[1]) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.scraper.company_careers.adapters import (
+    adp,
     ashby,
     avature,
     bamboohr,
@@ -32,6 +33,7 @@ from src.scraper.company_careers.adapters import (
     embedded_data,
     greenhouse,
     hawksearch_v2,
+    hibob,
     icims,
     lever,
     oracle_recruiting,
@@ -102,6 +104,7 @@ VALIDATION_STATUSES = (
 AdapterFn = Callable[[Any, CompanyTarget, int], list[JobRecord]]
 
 ADAPTERS: dict[str, AdapterFn] = {
+    "adp": adp.fetch_jobs,
     "greenhouse": greenhouse.fetch_jobs,
     "lever": lever.fetch_jobs,
     "ashby": ashby.fetch_jobs,
@@ -119,6 +122,7 @@ ADAPTERS: dict[str, AdapterFn] = {
     "startdate": startdate.fetch_jobs,
     "smartrecruiters": smartrecruiters.fetch_jobs,
     "hawksearch_v2": hawksearch_v2.fetch_jobs,
+    "hibob": hibob.fetch_jobs,
     "ukg_pro": ukg_pro.fetch_jobs,
     "paycor": paycor.fetch_jobs,
     "peoplesoft": peoplesoft.fetch_jobs,
@@ -214,6 +218,18 @@ def source_key(entry: Mapping[str, Any]) -> Optional[str]:
         host = (urlparse(str(entry.get("endpoint_url") or "")).hostname or "").casefold()
         client_guid = str(entry.get("client_guid") or "").strip().casefold()
         return f"hawksearch_v2:{host}:{client_guid}" if host and client_guid else None
+    if platform == "adp":
+        variant = str(entry.get("endpoint_variant") or "").strip().casefold()
+        if variant == adp.WORKFORCE_NOW:
+            parsed = urlparse(str(entry.get("careers_url") or ""))
+            cid = str((parse_qs(parsed.query).get("cid") or [""])[0]).casefold()
+            return f"adp:{(parsed.hostname or '').casefold()}:{cid}" if parsed.hostname and cid else None
+        slug = str(entry.get("slug") or "").strip().casefold()
+        org = str(entry.get("organization_id") or "").strip().casefold()
+        return f"adp:{org}:{slug}" if slug and org else None
+    if platform == "hibob":
+        slug = str(entry.get("slug") or "").strip().casefold()
+        return f"hibob:{slug}" if slug else None
     return None
 
 
@@ -298,6 +314,13 @@ def configured_identifiers(entry: Mapping[str, Any]) -> dict[str, Any]:
             "index_name": entry.get("index_name"),
             "endpoint_variant": entry.get("endpoint_variant"),
         }
+    if platform in {"adp", "hibob"}:
+        return {
+            "slug": entry.get("slug"),
+            "organization_id": entry.get("organization_id"),
+            "endpoint_variant": entry.get("endpoint_variant"),
+            "identity_regex": entry.get("identity_regex"),
+        }
     if platform in {"static_html", "javascript_embedded_data"}:
         return {
             "listing_url": entry.get("listing_url"),
@@ -365,7 +388,7 @@ def endpoint_for(entry: Mapping[str, Any]) -> Optional[str]:
     if platform == "peoplesoft":
         endpoint = str(entry.get("listing_url") or "").strip()
         return endpoint or None
-    if platform in {"smartrecruiters", "hawksearch_v2"}:
+    if platform in {"smartrecruiters", "hawksearch_v2", "adp", "hibob"}:
         endpoint = str(entry.get("endpoint_url") or "").strip()
         return endpoint or None
     return None
@@ -485,6 +508,16 @@ def configuration_error(entry: Mapping[str, Any]) -> Optional[str]:
             hawksearch_v2.validate_target(target)
         except AdapterError as exc:
             return str(exc)
+    if platform == "adp":
+        try:
+            adp.validate_target(target)
+        except AdapterError as exc:
+            return str(exc)
+    if platform == "hibob":
+        try:
+            hibob.validate_target(target)
+        except AdapterError as exc:
+            return str(exc)
     return None
 
 
@@ -555,6 +588,8 @@ def _response_shape_error(platform: str, response: Any) -> Optional[str]:
         "peoplesoft",
         "smartrecruiters",
         "hawksearch_v2",
+        "adp",
+        "hibob",
     } or (
         platform == "icims"
         and "html" in str(getattr(response, "headers", {}).get("content-type", "")).casefold()

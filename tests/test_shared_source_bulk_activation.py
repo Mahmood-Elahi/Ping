@@ -235,7 +235,7 @@ class SharedSourceBulkActivationTests(unittest.TestCase):
             self.assertNotIn(name, constants)
 
     def test_17_unproven_adapter_families_have_no_empty_test_or_adapter_files(self):
-        for filename in ("public_rest.py", "public_graphql.py", "adp.py", "oracle_taleo.py"):
+        for filename in ("public_rest.py", "public_graphql.py", "oracle_taleo.py"):
             self.assertFalse((ROOT / "src" / "scraper" / "company_careers" / "adapters" / filename).exists())
         for filename in ("test_public_rest_adapter.py", "test_public_graphql_adapter.py", "test_adp_adapter.py", "test_oracle_taleo_adapter.py"):
             self.assertFalse((ROOT / "tests" / filename).exists())

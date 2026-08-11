@@ -93,8 +93,8 @@ CORPORATE_SUFFIXES = {
 }
 
 EXISTING_ADAPTER_FAMILIES = {
-    "amazon", "ashby", "atlassian", "eightfold", "google", "greenhouse",
-    "hawksearch_v2", "ibm_search", "lever", "meta", "oracle_recruiting", "phenom",
+    "adp", "amazon", "ashby", "atlassian", "eightfold", "google", "greenhouse",
+    "hawksearch_v2", "hibob", "ibm_search", "lever", "meta", "oracle_recruiting", "phenom",
     "sap_successfactors", "shopify", "smartrecruiters", "uber", "workday",
 }
 

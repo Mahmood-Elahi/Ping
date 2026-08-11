@@ -1,11 +1,13 @@
 """Career-site adapter package."""
 
 from . import (
+    adp,
     bamboohr,
     browser_rendered_html,
     clearcompany,
     embedded_data,
     hawksearch_v2,
+    hibob,
     paycor,
     peoplesoft,
     static_html,
@@ -16,11 +18,13 @@ from . import (
 )
 
 __all__ = [
+    "adp",
     "bamboohr",
     "browser_rendered_html",
     "clearcompany",
     "embedded_data",
     "hawksearch_v2",
+    "hibob",
     "paycor",
     "peoplesoft",
     "static_html",

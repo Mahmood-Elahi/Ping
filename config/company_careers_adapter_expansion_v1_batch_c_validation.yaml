@@ -1,0 +1,180 @@
+batch: company_careers_adapter_expansion_v1_batch_c
+validated_at: 2026-08-10
+production_registry_activated: false
+publication:
+  production_run: false
+  published: false
+  staged: false
+  committed: false
+  pushed: false
+baseline:
+  production_sources: 269
+  parent_mappings: 4
+  original_master_coverage: 193
+  original_master_total: 246
+projection:
+  production_sources: 274
+  parent_mappings: 4
+  original_master_coverage: 196
+  original_master_total: 246
+  companies_recovered: 5
+  jobs_normalized: 84
+  current_student_intern_hits: 0
+adapter_results:
+  implemented: 3
+  rejected: 0
+  rejected_adapters: []
+adapters:
+  - platform: adp
+    implementation_status: implemented
+    registered: true
+    reusable: true
+    contracts:
+      - workforce_now_requisitions_v1
+      - myjobs_requisitions_v1
+    jobs_normalized_each_run: 54
+    additional_companies_unlocked:
+      production_ready:
+        - Astrobotic
+        - Intuitive Machines
+        - FANUC
+      net_new_recoveries:
+        - Astrobotic
+        - Intuitive Machines
+        - FANUC
+      other_reviewed_inventory_matches: []
+    contract_guarantees:
+      - anonymous official career-center configuration or content-link identity
+      - stable itemID or reqId corroborated by the public contract
+      - non-empty title and structured requisition location
+      - official job-specific detail/apply route containing ExternalJobID or reqId
+      - exact tenant, career-site domain, and organization attribution
+      - stable total and deterministic offset bounds
+      - no CAPTCHA, WAF, browser-session, role-code, or alternate-host bypass
+  - platform: hibob
+    implementation_status: implemented
+    registered: true
+    reusable: true
+    contracts:
+      - career_site_job_ads_v1
+    jobs_normalized_each_run: 10
+    additional_companies_unlocked:
+      production_ready:
+        - Helcim
+      net_new_recoveries:
+        - Helcim
+      other_reviewed_inventory_matches: []
+    contract_guarantees:
+      - anonymous tenant-scoped JSON identity and job-ad collection
+      - active published Bob career-site identity
+      - canonical UUID, title, site, country, and published timestamp
+      - official UUID-specific detail and apply routes
+      - bounded collection and deterministic published-date plus UUID ordering
+  - platform: sap_successfactors
+    implementation_status: extended
+    registered: true
+    reusable: true
+    contracts:
+      - rmk_columnized
+    jobs_normalized_each_run: 20
+    additional_companies_unlocked:
+      production_ready:
+        - CPKC
+      net_new_recoveries:
+        - CPKC
+      other_reviewed_inventory_matches: []
+    contract_guarantees:
+      - anonymous official RMK page bootstrap and public recruiting JSON service
+      - exact CSRF token, locale, zero-based page number, and recent sort contract
+      - stable totalJobs and ten-row response bound
+      - numeric requisition ID and title corroborated by each official detail page
+      - canonical detail URL, structured location, tenant identity, and embedded apply action
+      - no CAPTCHA, WAF, cookie fabrication, alternate-host, or browser-session bypass
+recovery_targets:
+  - name: Astrobotic
+    original_master: true
+    master_rank: 189
+    platform: adp
+    endpoint_variant: workforce_now_requisitions_v1
+    validation_status: repeatable_anonymous
+    validation_runs: 2
+    jobs_normalized_each_run: 14
+    total_available_each_run: 14
+    current_student_intern_hits_each_run: 0
+    stable_id_result: valid
+    detail_url_result: valid
+    apply_url_result: valid
+    deterministic_result: stable_ordered_signature
+    production_ready: true
+    activated: false
+  - name: Intuitive Machines
+    original_master: true
+    master_rank: 194
+    platform: adp
+    endpoint_variant: workforce_now_requisitions_v1
+    validation_status: repeatable_anonymous
+    validation_runs: 2
+    jobs_normalized_each_run: 20
+    total_available_each_run: 57
+    current_student_intern_hits_each_run: 0
+    stable_id_result: valid
+    detail_url_result: valid
+    apply_url_result: valid
+    deterministic_result: stable_ordered_signature
+    production_ready: true
+    activated: false
+  - name: FANUC
+    original_master: true
+    master_rank: 98
+    attribution_boundary: FANUC America official regional career site
+    platform: adp
+    endpoint_variant: myjobs_requisitions_v1
+    validation_status: repeatable_anonymous
+    validation_runs: 2
+    jobs_normalized_each_run: 20
+    total_available_each_run: 48
+    current_student_intern_hits_each_run: 0
+    stable_id_result: valid
+    detail_url_result: valid
+    apply_url_result: valid
+    deterministic_result: stable_ordered_signature
+    production_ready: true
+    activated: false
+  - name: Helcim
+    original_master: false
+    platform: hibob
+    endpoint_variant: career_site_job_ads_v1
+    validation_status: repeatable_anonymous
+    validation_runs: 2
+    jobs_normalized_each_run: 10
+    total_available_each_run: 10
+    current_student_intern_hits_each_run: 0
+    stable_id_result: valid
+    detail_url_result: valid
+    apply_url_result: valid
+    deterministic_result: stable_ordered_signature
+    production_ready: true
+    activated: false
+  - name: CPKC
+    original_master: false
+    platform: sap_successfactors
+    endpoint_variant: rmk_columnized
+    validation_status: repeatable_anonymous
+    validation_runs: 2
+    jobs_normalized_each_run: 20
+    total_available_each_run: 206
+    current_student_intern_hits_each_run: 0
+    stable_id_result: valid
+    detail_url_result: valid
+    apply_url_result: valid
+    deterministic_result: stable_ordered_signature
+    production_ready: true
+    activated: false
+official_contract_sources:
+  - https://www.astrobotic.com/company/careers/
+  - https://www.intuitivemachines.com/discover/careers
+  - https://www.fanucamerica.com/careers
+  - https://www.helcim.com/careers/
+  - https://www.cpkcr.com/en/careers
+candidate_registry: config/target_companies.company_careers_adapter_expansion_v1_batch_c_candidates.yaml
+validated_registry: config/target_companies.company_careers_adapter_expansion_v1_batch_c_validated.yaml

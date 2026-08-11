@@ -7,6 +7,7 @@ from typing import Any, Callable, Iterable, List, Optional, Sequence
 import requests
 
 from src.scraper.company_careers.adapters import (
+    adp,
     amazon,
     avature,
     ashby,
@@ -19,6 +20,7 @@ from src.scraper.company_careers.adapters import (
     google,
     greenhouse,
     hawksearch_v2,
+    hibob,
     ibm_search,
     icims,
     lever,
@@ -62,6 +64,7 @@ LocationFilterFn = Callable[[JobRecord], Optional[str]]
 
 
 ADAPTERS: dict[str, AdapterFn] = {
+    "adp": adp.fetch_jobs,
     "greenhouse": greenhouse.fetch_jobs,
     "lever": lever.fetch_jobs,
     "ashby": ashby.fetch_jobs,
@@ -80,6 +83,7 @@ ADAPTERS: dict[str, AdapterFn] = {
     "startdate": startdate.fetch_jobs,
     "smartrecruiters": smartrecruiters.fetch_jobs,
     "hawksearch_v2": hawksearch_v2.fetch_jobs,
+    "hibob": hibob.fetch_jobs,
     "ukg_pro": ukg_pro.fetch_jobs,
     "paycor": paycor.fetch_jobs,
     "peoplesoft": peoplesoft.fetch_jobs,

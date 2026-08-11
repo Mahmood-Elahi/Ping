@@ -69,7 +69,7 @@ KNOWN_FUTURE_FAMILIES = {
     "avature", "icims", "static_html", "custom_rest_api", "custom_graphql",
     "javascript_embedded_data", "oracle_taleo", "parent_company_source",
     "talentbrew_radancy", "jobvite", "brassring", "dayforce",
-    "adp", "ukg", "workable", "recruitee", "teamtailor", "personio", "bamboohr",
+    "ukg", "workable", "recruitee", "teamtailor", "personio", "bamboohr",
 }
 EXISTING_ADAPTERS = set(EXISTING_ADAPTER_FAMILIES)
 EXISTING_ADAPTERS.update({"greenhouse", "lever", "ashby", "workday", "oracle_recruiting", "sap_successfactors", "eightfold", "phenom"})
