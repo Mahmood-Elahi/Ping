@@ -3901,3 +3901,152 @@ target_companies:
     tenant: applyboard
     wd_subdomain: wd3
     site_id: ApplyBoardNH
+  - name: Tenstorrent
+    platform: greenhouse
+    careers_url: https://open.tenstorrent.com/careers
+    source_identity_regex: Tenstorrent
+    identity_regex: Tenstorrent
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+    - boards.greenhouse.io
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://job-boards.greenhouse.io/tenstorrent
+    slug: tenstorrent
+  - name: Magnet Forensics
+    platform: lever
+    careers_url: https://www.magnetforensics.com/careers-at-magnet/
+    source_identity_regex: Magnet Forensics|Magnet
+    identity_regex: Magnet Forensics|Magnet
+    allowed_apply_hosts:
+    - jobs.lever.co
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.lever.co/magnetforensics
+    slug: magnetforensics
+  - name: Arctic Wolf
+    platform: workday
+    careers_url: https://arcticwolf.com/company/careers/
+    source_identity_regex: Arctic Wolf
+    identity_regex: Arctic Wolf
+    allowed_apply_hosts:
+    - arcticwolf.wd1.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://arcticwolf.wd1.myworkdayjobs.com/External
+    search_url: https://arcticwolf.wd1.myworkdayjobs.com/External
+    tenant: arcticwolf
+    wd_subdomain: wd1
+    site_id: External
+  - name: Canadian Tire
+    platform: workday
+    careers_url: https://corp.canadiantire.ca/English/careers/corporate/default.aspxwelcome.asp
+    source_identity_regex: Enterprise_External_Careers_Site|Canadian Tire
+    identity_regex: Enterprise_External_Careers_Site|Canadian Tire
+    allowed_apply_hosts:
+    - canadiantirecorporation.wd3.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://canadiantirecorporation.wd3.myworkdayjobs.com/Enterprise_External_Careers_Site
+    search_url: https://canadiantirecorporation.wd3.myworkdayjobs.com/Enterprise_External_Careers_Site
+    tenant: canadiantirecorporation
+    wd_subdomain: wd3
+    site_id: Enterprise_External_Careers_Site
+  - name: OMERS
+    platform: workday
+    careers_url: https://careers.omers.com/ca/en
+    source_identity_regex: OMERS_External|OMERS
+    identity_regex: OMERS_External|OMERS
+    allowed_apply_hosts:
+    - omers.wd3.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://omers.wd3.myworkdayjobs.com/OMERS_External
+    search_url: https://omers.wd3.myworkdayjobs.com/OMERS_External
+    tenant: omers
+    wd_subdomain: wd3
+    site_id: OMERS_External
+  - name: Hydro One
+    platform: sap_successfactors
+    careers_url: https://jobs.hydroone.com/
+    source_identity_regex: Hydro One
+    identity_regex: Hydro One
+    allowed_apply_hosts:
+    - jobs.hydroone.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.hydroone.com/search/
+    search_url: https://jobs.hydroone.com/search/
+    endpoint_variant: rmk_table
+  - name: Bruce Power
+    platform: workday
+    careers_url: https://www.brucepower.com/careers/
+    source_identity_regex: Bruce Power
+    identity_regex: Bruce Power
+    allowed_apply_hosts:
+    - brucepower.wd3.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://brucepower.wd3.myworkdayjobs.com/BrucePower
+    search_url: https://brucepower.wd3.myworkdayjobs.com/BrucePower
+    tenant: brucepower
+    wd_subdomain: wd3
+    site_id: BrucePower
+  - name: Vector Institute
+    platform: adp
+    careers_url: https://workforcenow.adp.com/mascsr/default/mdf/recruitment/recruitment.html?ccId=9200420850870_2&cid=4ed2be93-8bc5-40e2-915f-931884eac404&lang=en_CA
+    source_identity_regex: Vector
+    identity_regex: Vector
+    allowed_apply_hosts:
+    - workforcenow.adp.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://vectorinstitute.ai/about/careers/open-positions/
+    endpoint_url: https://workforcenow.adp.com/mascsr/default/careercenter/public/events/staffing/v1/job-requisitions
+    endpoint_variant: workforce_now_requisitions_v1
+    page_size: 10
+  - name: Deep Genomics
+    platform: lever
+    careers_url: https://www.deepgenomics.com/careers/
+    source_identity_regex: Deep Genomics
+    identity_regex: Deep Genomics
+    allowed_apply_hosts:
+    - jobs.lever.co
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.lever.co/deepgenomics
+    slug: deepgenomics
+  - name: Multimatic
+    platform: workday
+    careers_url: https://www.multimatic.com/careers/
+    source_identity_regex: Multimatic|Fast Track Your Career
+    identity_regex: Multimatic|Fast Track Your Career
+    allowed_apply_hosts:
+    - multimatic.wd10.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://multimatic.wd10.myworkdayjobs.com/MMEC
+    search_url: https://multimatic.wd10.myworkdayjobs.com/MMEC
+    tenant: multimatic
+    wd_subdomain: wd10
+    site_id: MMEC

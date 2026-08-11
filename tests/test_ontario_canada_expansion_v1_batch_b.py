@@ -30,6 +30,10 @@ def entries(path: Path) -> list[dict]:
     return (yaml.safe_load(path.read_text(encoding="utf-8")) or {})["target_companies"]
 
 
+def entries_from_bytes(content: bytes) -> list[dict]:
+    return (yaml.safe_load(content.decode("utf-8")) or {})["target_companies"]
+
+
 def fake_job(
     job_id: str = "2",
     title: str = "Software Engineering Intern",
@@ -43,6 +47,9 @@ class OntarioCanadaExpansionV1BatchBArtifactTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.production_bytes = batch.PRODUCTION.read_bytes()
+        cls.validated_bytes = batch.VALIDATED_REGISTRY.read_bytes()
+        cls.historical_bytes = cls.validated_bytes[:cls.validated_bytes.index(b"  - name: Tenstorrent")]
+        cls.historical = entries_from_bytes(cls.historical_bytes)
         cls.production = entries(batch.PRODUCTION)
         cls.candidates = entries(batch.CANDIDATE_REGISTRY)
         cls.validated = entries(batch.VALIDATED_REGISTRY)
@@ -50,22 +57,28 @@ class OntarioCanadaExpansionV1BatchBArtifactTests(unittest.TestCase):
         with batch.CANDIDATE_CSV.open(newline="", encoding="utf-8") as handle:
             cls.inventory = list(csv.DictReader(handle))
 
-    def test_01_artifacts_preserve_the_exact_288_source_baseline(self):
-        self.assertEqual(len(self.production), 288)
+    def test_01_activation_preserves_the_exact_288_entry_production_prefix(self):
+        self.assertEqual(len(self.production), 298)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
-        self.assertEqual(self.candidates[:288], self.production)
-        self.assertEqual(self.validated[:288], self.production)
-        self.assertTrue(batch.CANDIDATE_REGISTRY.read_bytes().startswith(self.production_bytes))
-        self.assertTrue(batch.VALIDATED_REGISTRY.read_bytes().startswith(self.production_bytes))
+        self.assertEqual(len(self.historical), 288)
+        self.assertEqual(self.production[:288], self.historical)
+        self.assertEqual(self.candidates[:288], self.historical)
+        self.assertEqual(self.validated[:288], self.historical)
+        self.assertTrue(self.production_bytes.startswith(self.historical_bytes))
+        self.assertEqual(self.production, self.validated)
         self.assertTrue(self.report["candidate_registry_has_exact_288_entry_prefix"])
         self.assertTrue(self.report["validated_registry_has_exact_288_entry_prefix"])
 
-    def test_02_candidates_and_validated_registry_contain_only_safe_additions(self):
+    def test_02_candidate_validated_and_production_contain_safe_additions_once(self):
         self.assertEqual(len(self.candidates), 298)
         self.assertEqual(len(self.validated), 298)
         self.assertEqual([item["name"] for item in self.candidates[288:]], VALIDATED)
         self.assertEqual([item["name"] for item in self.validated[288:]], VALIDATED)
-        self.assertTrue(EXCLUDED.isdisjoint(item["name"] for item in self.validated))
+        self.assertEqual([item["name"] for item in self.production[288:]], VALIDATED)
+        production_names = [item["name"] for item in self.production]
+        self.assertTrue(EXCLUDED.isdisjoint(production_names))
+        for name in VALIDATED:
+            self.assertEqual(production_names.count(name), 1)
         self.assertEqual(len({item["name"].casefold() for item in self.candidates}), 298)
 
     def test_03_all_requested_companies_and_outcomes_are_reported(self):
@@ -147,7 +160,7 @@ class OntarioCanadaExpansionV1BatchBArtifactTests(unittest.TestCase):
         self.assertNotIn("London, London", by_name["OMERS"]["ontario_locations_represented"])
 
     def test_07_projections_and_original_master_coverage(self):
-        self.assertEqual(len(load_target_companies(str(batch.PRODUCTION))), 288)
+        self.assertEqual(len(load_target_companies(str(batch.PRODUCTION))), 298)
         self.assertTrue(all(not item["original_246_master"] for item in self.report["results"]))
         totals = self.report["totals"]
         self.assertEqual(totals["candidate_sources"], 10)
@@ -184,7 +197,7 @@ class OntarioCanadaExpansionV1BatchBArtifactTests(unittest.TestCase):
 
     def test_10_hashes_ignore_and_publication_state(self):
         self.assertEqual(
-            hashlib.sha256(self.production_bytes).hexdigest().upper(),
+            hashlib.sha256(self.historical_bytes).hexdigest().upper(),
             self.report["production_registry_sha256"],
         )
         self.assertEqual(

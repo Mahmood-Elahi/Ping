@@ -55,14 +55,14 @@ class OntarioCanadaExpansionV1BatchAArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_the_exact_274_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 288)
+        self.assertEqual(len(self.production), 298)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(self.historical), 274)
         self.assertEqual(self.production[:274], self.historical)
         self.assertEqual(self.candidates[:274], self.historical)
         self.assertEqual(self.validated[:274], self.historical)
         self.assertTrue(self.production_bytes.startswith(self.historical_bytes))
-        self.assertEqual(self.production, self.validated)
+        self.assertEqual(self.production[:288], self.validated)
         self.assertTrue(self.report["candidate_registry_has_exact_274_entry_prefix"])
         self.assertTrue(self.report["validated_registry_has_exact_274_entry_prefix"])
 
@@ -71,7 +71,7 @@ class OntarioCanadaExpansionV1BatchAArtifactTests(unittest.TestCase):
         self.assertEqual(len(self.validated), 288)
         self.assertEqual([item["name"] for item in self.candidates[274:]], VALIDATED)
         self.assertEqual([item["name"] for item in self.validated[274:]], VALIDATED)
-        self.assertEqual([item["name"] for item in self.production[274:]], VALIDATED)
+        self.assertEqual([item["name"] for item in self.production[274:288]], VALIDATED)
         production_names = [item["name"] for item in self.production]
         self.assertTrue(EXCLUDED.isdisjoint(production_names))
         for name in VALIDATED:
