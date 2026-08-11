@@ -145,6 +145,8 @@ def _normalize(
     job_id: str,
 ) -> JobRecord:
     location = _location(detail.get("atsLocation") or summary.get("atsLocation"))
+    if not location:
+        location = _location(detail.get("location") or summary.get("location"))
     department = str(detail.get("departmentLabel") or summary.get("departmentLabel") or "").strip()
     share_url = f"{contract['careers_url']}/{job_id}"
     return JobRecord(
@@ -171,6 +173,6 @@ def _location(value: Any) -> str:
     parts = [
         str(value.get("city") or "").strip(),
         str(value.get("state") or value.get("province") or "").strip(),
-        str(value.get("country") or "").strip(),
+        str(value.get("country") or value.get("addressCountry") or "").strip(),
     ]
     return ", ".join(dict.fromkeys(part for part in parts if part))
