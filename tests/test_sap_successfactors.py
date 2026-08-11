@@ -14,12 +14,21 @@ from src.scraper.company_careers.registry import load_target_companies
 
 
 class FakeResponse:
-    def __init__(self, text, status_code=200, url="https://jobs.example.com/search/"):
+    def __init__(self, text, status_code=200, url="https://jobs.example.com/search/", payload=None):
         self.text = text
         self.status_code = status_code
         self.url = url
-        self.headers = {"content-type": "text/html;charset=UTF-8"}
+        self._payload = payload
+        self.content = text.encode("utf-8")
+        self.headers = {
+            "content-type": "application/json" if payload is not None else "text/html;charset=UTF-8"
+        }
         self.history = []
+
+    def json(self):
+        if self._payload is None:
+            raise ValueError("No JSON payload")
+        return self._payload
 
 
 class FakeSession:
@@ -45,6 +54,28 @@ class FakeSession:
 class FailingSessionFactory:
     def __call__(self):
         raise AssertionError("Network session initialized")
+
+
+class ColumnizedSession:
+    def __init__(self, payload, detail_html):
+        self.payload = payload
+        self.detail_html = detail_html
+        self.post_calls = []
+        self.get_calls = []
+
+    def post(self, url, **kwargs):
+        self.post_calls.append((url, kwargs))
+        return FakeResponse("{}", payload=self.payload, url=url)
+
+    def get(self, url, **kwargs):
+        self.get_calls.append((url, kwargs))
+        if url == "https://jobs.example.com/search/":
+            return FakeResponse(
+                '<html>Bombardier BS3ColumnizedSearch j2w.searchManager '
+                'var CSRFToken = "12345678-1234-1234-1234-123456789abc";</html>',
+                url=url,
+            )
+        return FakeResponse(self.detail_html, url=url)
 
 
 def target(variant=sf.TABLE_VARIANT, **overrides):
@@ -175,6 +206,53 @@ class SapSuccessFactorsTests(unittest.TestCase):
         item = table_job(additional="calgary, ab, ca")
         job = sf.fetch_jobs(FakeSession([FakeResponse(table_html([item]))]), target())[0]
         self.assertEqual(job.offices, ["Calgary, AB, CA"])
+
+    def test_table_accepts_city_as_the_location_column(self):
+        html = table_html([table_job(location="Toronto, ON, CA")]).replace(
+            '<th id="hdrLocation">Location</th>', '<th id="hdrLocation">City</th>'
+        )
+        job = sf.fetch_jobs(FakeSession([FakeResponse(html)]), target())[0]
+        self.assertEqual(job.location, "Toronto, ON, CA | Edmonton, AB, CA | Calgary, AB, CA")
+
+    def test_columnized_url_and_requisition_id_are_canonicalized(self):
+        external_id = "12345"
+        encoded_title = "Engineering-Professional%2C-Avionics"
+        detail_url = f"https://jobs.example.com/job/Engineering-Professional%2C-Avionics/{external_id}-en_US"
+        payload = {
+            "totalJobs": 1,
+            "jobSearchResult": [{
+                "response": {
+                    "id": external_id,
+                    "unifiedStandardTitle": "Engineering Professional, Avionics",
+                    "unifiedUrlTitle": encoded_title,
+                    "supportedLocales": ["en_US"],
+                    "jobLocationShort": [{"value": "Dorval, QC, CAN"}],
+                    "unifiedStandardStart": "2026-08-11",
+                }
+            }],
+        }
+        detail_html = f'''<!doctype html><html><head>
+          <link rel="canonical" href="{detail_url}">
+          <meta property="og:title" content="Engineering Professional, Avionics">
+        </head><body>Bombardier
+          <div>Requisition ID: {external_id}</div>
+          <script>j2w.Apply.init({{jobID: {external_id}}});</script>
+        </body></html>'''
+        session = ColumnizedSession(payload, detail_html)
+        columnized_target = target(
+            sf.COLUMNIZED_VARIANT,
+            endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
+            endpoint_variant=sf.COLUMNIZED_VARIANT,
+            locale="en_US",
+            identity_regex=r"Bombardier",
+            allowed_apply_hosts=["jobs.example.com"],
+            max_jobs=10,
+        )
+        job = sf.fetch_jobs(session, columnized_target)[0]
+        self.assertEqual(job.job_id, "sap_successfactors:jobs.example.com:12345")
+        self.assertEqual(job.url, detail_url)
+        self.assertNotIn("%252C", job.url)
+        self.assertEqual(job.location, "Dorval, QC, CAN")
 
     def test_html_description_uses_readable_text(self):
         self.assertEqual(sf._html_to_text("<p>Build <b>safe</b> robots.</p><ul><li>Test</li></ul>"), "Build safe robots.\nTest")

@@ -14,7 +14,7 @@ from datetime import date, datetime
 from html import unescape
 from html.parser import HTMLParser
 from typing import Any, Iterable, List, Mapping, Optional
-from urllib.parse import parse_qsl, quote, urljoin, urlparse, urlunparse
+from urllib.parse import parse_qsl, quote, unquote, urljoin, urlparse, urlunparse
 
 import requests
 
@@ -378,7 +378,7 @@ def _fetch_columnized_jobs(
             ):
                 raise AdapterError("SAP SuccessFactors columnized job is missing title, URL title, or locale")
             detail_url = (
-                f"{origin}/job/{quote(url_title, safe='._~-')}/"
+                f"{origin}/job/{quote(unquote(url_title), safe='._~-')}/"
                 f"{external_id}-{target.locale}"
             )
             detail_response = _get_page(
@@ -478,7 +478,14 @@ def _normalize_columnized_detail(
         match = re.match(r"^([A-Za-z#%][A-Za-z0-9 #&/%-]{1,40}):\s*(.+)$", text)
         if match:
             detail_fields.setdefault(match.group(1).casefold(), []).append(_clean_text(match.group(2)))
-    req_ids = _unique_strings(detail_fields.get("req id", []))
+    req_ids = _unique_strings(
+        detail_fields.get("req id", [])
+        + detail_fields.get("requisition id", [])
+    )
+    if not req_ids:
+        req_ids = _unique_strings(
+            re.findall(r"\bRequisition\s+ID:\s*([0-9]{1,18})\b", _node_text(parser.root), re.I)
+        )
     if req_ids != [external_id]:
         raise AdapterError("SAP SuccessFactors detail requisition ID did not match the listing")
     api_locations = _columnized_locations(row.get("jobLocationShort"))
@@ -755,7 +762,7 @@ def _normalize_item(item: Mapping[str, Any], target: CompanyTarget) -> JobRecord
     posting_date = ""
     for label, values in normalized_fields.items():
         key = label.casefold()
-        if "location" in key:
+        if "location" in key or key in {"city", "city/state", "address"}:
             for value in values:
                 locations.extend(re.split(r"\s*[|;]\s*", value))
         if any(token in key for token in ("department", "category", "function", "functional area", "job family")):
