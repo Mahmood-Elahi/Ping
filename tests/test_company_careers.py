@@ -519,6 +519,66 @@ class CompanyCareersTests(unittest.TestCase):
         self.assertEqual(jobs[0].source, "workday:example")
         self.assertIn("/en-US/External/job/Dublin", jobs[0].url)
 
+    def test_workday_uses_non_id_bullet_fields_when_location_text_is_omitted(self):
+        session = FakeSession(
+            post_responses=[
+                FakeResponse(
+                    {
+                        "jobPostings": [
+                            {
+                                "title": "Software Engineer",
+                                "postedOn": "Posted Today",
+                                "externalPath": "/job/Canada-Toronto-Ontario/Software-Engineer_JR2",
+                                "bulletFields": ["Toronto", "Ontario", "JR2"],
+                            }
+                        ]
+                    }
+                )
+            ]
+        )
+        target = CompanyTarget(
+            name="Example",
+            platform="workday",
+            tenant="example",
+            wd_subdomain="wd1",
+            site_id="External",
+            max_pages=1,
+        )
+
+        jobs = workday.fetch_jobs(session, target)
+
+        self.assertEqual(jobs[0].job_id, "JR2")
+        self.assertEqual(jobs[0].location, "Toronto, Ontario")
+
+    def test_workday_uses_official_path_location_when_listing_fields_omit_it(self):
+        session = FakeSession(
+            post_responses=[
+                FakeResponse(
+                    {
+                        "jobPostings": [
+                            {
+                                "title": "Data Analyst",
+                                "externalPath": "/job/Toronto-ON/Data-Analyst_JR3",
+                                "bulletFields": ["JR3"],
+                            }
+                        ]
+                    }
+                )
+            ]
+        )
+        target = CompanyTarget(
+            name="Example",
+            platform="workday",
+            tenant="example",
+            wd_subdomain="wd1",
+            site_id="External",
+            max_pages=1,
+        )
+
+        jobs = workday.fetch_jobs(session, target)
+
+        self.assertEqual(jobs[0].location, "Toronto ON")
+
     def test_workday_falls_back_to_site_id_variants(self):
         session = FakeSession(
             post_responses=[

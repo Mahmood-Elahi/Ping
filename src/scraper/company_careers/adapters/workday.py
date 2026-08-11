@@ -72,6 +72,40 @@ def _stable_job_id(bullet_fields: List[object], external_path: str) -> str:
     return path_token
 
 
+def _location(
+    locations_text: object,
+    bullet_fields: List[object],
+    job_id: str,
+    external_path: str,
+) -> str:
+    """Return Workday's location text, falling back to non-ID listing metadata.
+
+    A small set of official Workday tenants omit ``locationsText`` while still
+    returning city/region components in ``bulletFields``.  The requisition ID
+    is removed using the already-corroborated stable ID; the remaining values
+    are deterministic, public listing metadata rather than inferred geography.
+    """
+    explicit = " ".join(str(locations_text or "").split())
+    if explicit:
+        return explicit
+    values: List[str] = []
+    seen = set()
+    for value in bullet_fields:
+        candidate = " ".join(str(value or "").split())
+        key = candidate.casefold()
+        if candidate and key != job_id.casefold() and key not in seen:
+            seen.add(key)
+            values.append(candidate)
+    if values:
+        return ", ".join(values)
+    parts = [part for part in external_path.split("/") if part]
+    if "job" in parts:
+        index = parts.index("job")
+        if index + 2 < len(parts):
+            return parts[index + 1].replace("-", " ").strip()
+    return ""
+
+
 def _fetch_pages(
     session: requests.Session,
     target: CompanyTarget,
@@ -100,9 +134,11 @@ def _fetch_pages(
 
         for item in items:
             external_path = item.get("externalPath", "") or ""
-            location = item.get("locationsText", "") or ""
             bullet_fields = item.get("bulletFields") or []
             job_id = _stable_job_id(bullet_fields, external_path)
+            location = _location(
+                item.get("locationsText", ""), bullet_fields, job_id, external_path
+            )
             jobs.append(
                 JobRecord(
                     job_id=job_id,
