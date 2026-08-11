@@ -49,7 +49,7 @@ class CalgaryCanadaExpansionV2BatchAArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_exact_262_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 298)
+        self.assertEqual(len(self.production), 302)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(self.historical), 262)
         self.assertEqual(self.production[:262], self.historical)
@@ -65,7 +65,7 @@ class CalgaryCanadaExpansionV2BatchAArtifactTests(unittest.TestCase):
         self.assertEqual([item["name"] for item in self.validated[262:]], VALIDATED)
         self.assertEqual([item["name"] for item in self.production[262:269]], VALIDATED)
         production_names = [item["name"] for item in self.production]
-        later_promotions = {"CPKC", "Helcim"}
+        later_promotions = {"CPKC", "Helcim", "Enerflex"}
         self.assertTrue((EXCLUDED - later_promotions).isdisjoint(production_names))
         for name in later_promotions:
             self.assertEqual(production_names.count(name), 1)

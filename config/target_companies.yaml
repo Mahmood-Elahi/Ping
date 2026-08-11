@@ -4050,3 +4050,67 @@ target_companies:
     tenant: multimatic
     wd_subdomain: wd10
     site_id: MMEC
+  - name: Enerflex
+    platform: sap_successfactors
+    careers_url: https://www.enerflex.com/careers/
+    source_identity_regex: Enerflex
+    identity_regex: Enerflex
+    allowed_apply_hosts:
+    - jobs.enerflex.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://www.enerflex.com/careers/
+    search_url: https://jobs.enerflex.com/search/
+    endpoint_variant: rmk_tile
+  - name: Symend
+    platform: static_html
+    careers_url: https://www.symend.com/company/careers
+    source_identity_regex: Symend
+    identity_regex: Symend
+    allowed_apply_hosts:
+    - symend.applytojob.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://symend.applytojob.com/apply
+    listing_url: https://symend.applytojob.com/apply
+    endpoint_variant: server_rendered_cards
+    listing_selector: ul.list-group
+    job_card_selector: li.list-group-item
+    title_selector: h3.list-group-item-heading a
+    location_selector: ul.list-inline li:first-child
+    department_selector: ul.list-inline li:nth-child(2)
+    detail_link_selector: h3.list-group-item-heading a
+    external_id_regex: /apply/([^/]+)/
+  - name: Circle Cardiovascular Imaging
+    platform: bamboohr
+    careers_url: https://www.circlecvi.com/careers
+    source_identity_regex: Circle Cardiovascular Imaging|Circle CVI
+    identity_regex: Circle Cardiovascular Imaging|Circle CVI
+    allowed_apply_hosts:
+    - circlecardiovascularimaging.bamboohr.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://www.circlecvi.com/careers
+    listing_url: https://circlecardiovascularimaging.bamboohr.com/careers/list
+    slug: circlecardiovascularimaging
+  - name: ATB Financial
+    platform: eightfold
+    careers_url: https://careers.atb.com/careers
+    source_identity_regex: ATB Financial|ATB
+    identity_regex: ATB Financial|ATB
+    allowed_apply_hosts:
+    - careers.atb.com
+    original_workbook_rank: null
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://careers.atb.com/careers
+    endpoint_url: https://careers.atb.com/api/pcsx/search
+    endpoint_variant: pcsx
+    organization_id: atb.com

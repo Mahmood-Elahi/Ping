@@ -65,6 +65,9 @@ ONTARIO_CANADA_EXPANSION_V1_BATCH_B_PROMOTIONS = [
     "Tenstorrent", "Magnet Forensics", "Arctic Wolf", "Canadian Tire", "OMERS",
     "Hydro One", "Bruce Power", "Vector Institute", "Deep Genomics", "Multimatic",
 ]
+CALGARY_ALBERTA_EXPANSION_V2_BATCH_B_PROMOTIONS = [
+    "Enerflex", "Symend", "Circle Cardiovascular Imaging", "ATB Financial",
+]
 HISTORICAL_PRODUCTION_ONLY = [
     "Datadog", "Elastic", "GitLab", "Twilio", "Zscaler", "CrowdStrike",
     "HashiCorp", "Confluent", "Teradyne",
@@ -202,6 +205,7 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
                 + ADAPTER_EXPANSION_V1_BATCH_C_PROMOTIONS
                 + ONTARIO_CANADA_EXPANSION_V1_BATCH_A_PROMOTIONS
                 + ONTARIO_CANADA_EXPANSION_V1_BATCH_B_PROMOTIONS
+                + CALGARY_ALBERTA_EXPANSION_V2_BATCH_B_PROMOTIONS
             )
             if mod.normalize_company_name(name) not in master_names
         ]

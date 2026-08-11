@@ -28,6 +28,10 @@ def entries(path: Path) -> list[dict]:
     return (yaml.safe_load(path.read_text(encoding="utf-8")) or {})["target_companies"]
 
 
+def entries_from_bytes(content: bytes) -> list[dict]:
+    return (yaml.safe_load(content.decode("utf-8")) or {})["target_companies"]
+
+
 def fake_job(
     job_id: str = "2",
     title: str = "Software Engineering Intern",
@@ -47,6 +51,9 @@ class CalgaryAlbertaExpansionV2BatchBArtifactTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.production_bytes = batch.PRODUCTION.read_bytes()
+        cls.validated_bytes = batch.VALIDATED_REGISTRY.read_bytes()
+        cls.historical_bytes = cls.validated_bytes[:cls.validated_bytes.index(b"  - name: Enerflex")]
+        cls.historical = entries_from_bytes(cls.historical_bytes)
         cls.production = entries(batch.PRODUCTION)
         cls.candidates = entries(batch.CANDIDATE_REGISTRY)
         cls.validated = entries(batch.VALIDATED_REGISTRY)
@@ -54,28 +61,33 @@ class CalgaryAlbertaExpansionV2BatchBArtifactTests(unittest.TestCase):
         with batch.CANDIDATE_CSV.open(newline="", encoding="utf-8") as handle:
             cls.inventory = list(csv.DictReader(handle))
 
-    def test_01_artifacts_preserve_exact_298_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 298)
+    def test_01_activation_preserves_exact_298_entry_production_prefix(self):
+        self.assertEqual(len(self.production), 302)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
+        self.assertEqual(len(self.historical), 298)
         self.assertEqual(len(self.candidates), 302)
         self.assertEqual(len(self.validated), 302)
-        self.assertEqual(self.candidates[:298], self.production)
-        self.assertEqual(self.validated[:298], self.production)
-        self.assertTrue(batch.CANDIDATE_REGISTRY.read_bytes().startswith(self.production_bytes))
-        self.assertTrue(batch.VALIDATED_REGISTRY.read_bytes().startswith(self.production_bytes))
+        self.assertEqual(self.production[:298], self.historical)
+        self.assertEqual(self.candidates[:298], self.historical)
+        self.assertEqual(self.validated[:298], self.historical)
+        self.assertTrue(self.production_bytes.startswith(self.historical_bytes))
+        self.assertEqual(self.production, self.validated)
         self.assertTrue(self.report["candidate_registry_has_exact_298_entry_prefix"])
         self.assertTrue(self.report["validated_registry_has_exact_298_entry_prefix"])
 
-    def test_02_candidate_and_validated_artifacts_add_only_the_safe_four(self):
+    def test_02_candidate_validated_and_production_add_only_the_safe_four_once(self):
         self.assertEqual([item["name"] for item in self.candidates[298:]], VALIDATED)
         self.assertEqual([item["name"] for item in self.validated[298:]], VALIDATED)
+        self.assertEqual([item["name"] for item in self.production[298:]], VALIDATED)
         self.assertEqual(
             VALIDATED,
             ["Enerflex", "Symend", "Circle Cardiovascular Imaging", "ATB Financial"],
         )
-        candidate_names = [item["name"] for item in self.candidates]
-        self.assertTrue(EXCLUDED.isdisjoint(candidate_names))
-        self.assertEqual(len({name.casefold() for name in candidate_names}), 302)
+        production_names = [item["name"] for item in self.production]
+        self.assertTrue(EXCLUDED.isdisjoint(production_names))
+        for name in VALIDATED:
+            self.assertEqual(production_names.count(name), 1)
+        self.assertEqual(len({name.casefold() for name in production_names}), 302)
 
     def test_03_report_and_inventory_cover_the_exact_requested_order(self):
         self.assertEqual([row["company"] for row in self.inventory], batch.REVIEWED_COMPANIES)
@@ -259,7 +271,7 @@ class CalgaryAlbertaExpansionV2BatchBArtifactTests(unittest.TestCase):
 
     def test_12_hash_ignore_publication_state_and_opportunities(self):
         self.assertEqual(
-            hashlib.sha256(self.production_bytes).hexdigest().upper(),
+            hashlib.sha256(self.historical_bytes).hexdigest().upper(),
             self.report["production_registry_sha256"],
         )
         self.assertEqual(
