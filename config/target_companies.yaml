@@ -3693,3 +3693,211 @@ target_companies:
     max_pages: 2
     max_jobs: 20
     max_response_bytes: 3000000
+  - name: RBC
+    platform: workday
+    careers_url: https://jobs.rbc.com/ca/en
+    source_identity_regex: RBCGLOBAL1|Careers at RBC
+    allowed_apply_hosts:
+    - rbc.wd3.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://rbc.wd3.myworkdayjobs.com/RBCGLOBAL1
+    search_url: https://rbc.wd3.myworkdayjobs.com/RBCGLOBAL1
+    tenant: rbc
+    wd_subdomain: wd3
+    site_id: RBCGLOBAL1
+  - name: TD Bank
+    platform: workday
+    careers_url: https://careers.td.com/
+    source_identity_regex: TD_Bank_Careers|Careers at TD
+    allowed_apply_hosts:
+    - td.wd3.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://td.wd3.myworkdayjobs.com/TD_Bank_Careers
+    search_url: https://td.wd3.myworkdayjobs.com/TD_Bank_Careers
+    tenant: td
+    wd_subdomain: wd3
+    site_id: TD_Bank_Careers
+  - name: Scotiabank
+    platform: sap_successfactors
+    careers_url: https://jobs.scotiabank.com/
+    source_identity_regex: Scotiabank|Scotia
+    allowed_apply_hosts:
+    - jobs.scotiabank.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.scotiabank.com/search/
+    search_url: https://jobs.scotiabank.com/search/
+    endpoint_variant: rmk_table
+  - name: BMO
+    platform: phenom
+    careers_url: https://jobs.bmo.com/global/en
+    source_identity_regex: BMO|Bank of Montreal
+    allowed_apply_hosts:
+    - bmo.wd3.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.bmo.com/global/en/search-results
+    search_url: https://jobs.bmo.com/global/en/search-results
+    endpoint_variant: embedded_refine_search
+    ref_num: BOMOGLOBAL
+    locale: en_global
+  - name: CIBC
+    platform: workday
+    careers_url: https://www.cibc.com/en/about-cibc/careers.html
+    source_identity_regex: CIBC|Canadian Imperial Bank
+    allowed_apply_hosts:
+    - cibc.wd3.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://cibc.wd3.myworkdayjobs.com/campus
+    search_url: https://cibc.wd3.myworkdayjobs.com/campus
+    tenant: cibc
+    wd_subdomain: wd3
+    site_id: campus
+  - name: Wealthsimple
+    platform: ashby
+    careers_url: https://www.wealthsimple.com/en-ca/careers
+    source_identity_regex: Wealthsimple
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.ashbyhq.com/wealthsimple
+    slug: wealthsimple
+  - name: Thomson Reuters
+    platform: workday
+    careers_url: https://www.thomsonreuters.com/en/careers
+    source_identity_regex: Thomson Reuters
+    allowed_apply_hosts:
+    - thomsonreuters.wd5.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://thomsonreuters.wd5.myworkdayjobs.com/External_Career_Site
+    search_url: https://thomsonreuters.wd5.myworkdayjobs.com/External_Career_Site
+    tenant: thomsonreuters
+    wd_subdomain: wd5
+    site_id: External_Career_Site
+  - name: Manulife
+    platform: phenom
+    careers_url: https://careers.manulife.com/global/en
+    source_identity_regex: Manulife|John Hancock
+    allowed_apply_hosts:
+    - manulife.wd3.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://careers.manulife.com/global/en/search-results
+    search_url: https://careers.manulife.com/global/en/search-results
+    endpoint_variant: embedded_refine_search
+    ref_num: MFZMFIUS
+    locale: en_global
+  - name: Sun Life
+    platform: workday
+    careers_url: https://www.sunlife.ca/en/careers/
+    source_identity_regex: Sun Life
+    allowed_apply_hosts:
+    - sunlife.wd3.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://sunlife.wd3.myworkdayjobs.com/Campus
+    search_url: https://sunlife.wd3.myworkdayjobs.com/Campus
+    tenant: sunlife
+    wd_subdomain: wd3
+    site_id: Campus
+  - name: Ciena
+    platform: workday
+    careers_url: https://www.ciena.com/careers
+    source_identity_regex: Ciena
+    allowed_apply_hosts:
+    - ciena.wd5.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://ciena.wd5.myworkdayjobs.com/Careers
+    search_url: https://ciena.wd5.myworkdayjobs.com/Careers
+    tenant: ciena
+    wd_subdomain: wd5
+    site_id: Careers
+  - name: Nokia Canada
+    platform: oracle_recruiting
+    careers_url: https://fa-evmr-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/jobs
+    source_identity_regex: Nokia
+    allowed_apply_hosts:
+    - fa-evmr-saasfaprod1.fa.ocs.oraclecloud.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.nokia.com/en/sites/CX_1
+    endpoint_url: https://fa-evmr-saasfaprod1.fa.ocs.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+    site_number: CX_1
+    locale: en
+  - name: Ericsson Canada
+    platform: eightfold
+    careers_url: https://jobs.ericsson.com/careers
+    source_identity_regex: Ericsson
+    allowed_apply_hosts:
+    - jobs.ericsson.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.ericsson.com/careers
+    endpoint_url: https://jobs.ericsson.com/api/pcsx/search
+    endpoint_variant: pcsx
+    organization_id: ericsson.com
+  - name: Xanadu
+    platform: static_html
+    careers_url: https://www.xanadu.ai/careers/
+    source_identity_regex: Xanadu
+    allowed_apply_hosts:
+    - xanadu.applytojob.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://xanadu.applytojob.com/
+    listing_url: https://xanadu.applytojob.com/
+    endpoint_variant: server_rendered_cards
+    listing_selector: ul.list-group
+    job_card_selector: li.list-group-item
+    title_selector: h3.list-group-item-heading a
+    location_selector: ul.list-inline li:first-child
+    department_selector: ul.list-inline li:nth-child(2)
+    detail_link_selector: h3.list-group-item-heading a
+    external_id_regex: /apply/([^/]+)/
+  - name: ApplyBoard
+    platform: workday
+    careers_url: https://www.applyboard.com/careers/
+    source_identity_regex: ApplyBoard
+    allowed_apply_hosts:
+    - applyboard.wd3.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://applyboard.wd3.myworkdayjobs.com/ApplyBoardNH
+    search_url: https://applyboard.wd3.myworkdayjobs.com/ApplyBoardNH
+    tenant: applyboard
+    wd_subdomain: wd3
+    site_id: ApplyBoardNH

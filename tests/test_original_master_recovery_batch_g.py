@@ -61,7 +61,7 @@ class OriginalMasterRecoveryBatchGArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_exact_257_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 274)
+        self.assertEqual(len(self.production), 288)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(self.historical), 257)
         self.assertEqual(self.production[:257], self.historical)

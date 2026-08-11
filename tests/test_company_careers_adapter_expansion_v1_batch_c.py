@@ -438,9 +438,9 @@ class BatchCValidationTests(unittest.TestCase):
         production = yaml.safe_load(production_bytes)["target_companies"]
         validated = yaml.safe_load(VALIDATED.read_text(encoding="utf-8"))["target_companies"]
         promoted = ["Astrobotic", "Intuitive Machines", "FANUC", "Helcim", "CPKC"]
-        self.assertEqual(len(production), 274)
-        self.assertEqual(production[269:], validated)
-        self.assertEqual([row["name"] for row in production[269:]], promoted)
+        self.assertEqual(len(production), 288)
+        self.assertEqual(production[269:274], validated)
+        self.assertEqual([row["name"] for row in production[269:274]], promoted)
         names = [row["name"] for row in production]
         for name in promoted:
             self.assertEqual(names.count(name), 1)

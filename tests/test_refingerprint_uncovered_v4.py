@@ -56,6 +56,11 @@ CALGARY_CANADA_EXPANSION_V2_BATCH_A_PROMOTIONS = [
 ADAPTER_EXPANSION_V1_BATCH_C_PROMOTIONS = [
     "Astrobotic", "Intuitive Machines", "FANUC", "Helcim", "CPKC",
 ]
+ONTARIO_CANADA_EXPANSION_V1_BATCH_A_PROMOTIONS = [
+    "RBC", "TD Bank", "Scotiabank", "BMO", "CIBC", "Wealthsimple",
+    "Thomson Reuters", "Manulife", "Sun Life", "Ciena", "Nokia Canada",
+    "Ericsson Canada", "Xanadu", "ApplyBoard",
+]
 HISTORICAL_PRODUCTION_ONLY = [
     "Datadog", "Elastic", "GitLab", "Twilio", "Zscaler", "CrowdStrike",
     "HashiCorp", "Confluent", "Teradyne",
@@ -191,6 +196,7 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
                 + ADAPTER_EXPANSION_V1_BATCH_B_PROMOTIONS
                 + CALGARY_CANADA_EXPANSION_V2_BATCH_A_PROMOTIONS
                 + ADAPTER_EXPANSION_V1_BATCH_C_PROMOTIONS
+                + ONTARIO_CANADA_EXPANSION_V1_BATCH_A_PROMOTIONS
             )
             if mod.normalize_company_name(name) not in master_names
         ]
