@@ -128,10 +128,12 @@ class CompanyTarget:
     id_field: Optional[str] = None
     title_field: Optional[str] = None
     location_field: Optional[str] = None
+    location_fields: List[str] = field(default_factory=list)
     url_field: Optional[str] = None
     date_field: Optional[str] = None
     department_field: Optional[str] = None
     remote_field: Optional[str] = None
+    job_attribution_field: Optional[str] = None
     department_allowlist: List[str] = field(default_factory=list)
     max_scripts: int = 20
     max_response_bytes: int = 3_000_000
@@ -194,10 +196,12 @@ class CompanyTarget:
             id_field=data.get("id_field"),
             title_field=data.get("title_field"),
             location_field=data.get("location_field"),
+            location_fields=list(data.get("location_fields") or []),
             url_field=data.get("url_field"),
             date_field=data.get("date_field"),
             department_field=data.get("department_field"),
             remote_field=data.get("remote_field"),
+            job_attribution_field=data.get("job_attribution_field"),
             department_allowlist=list(data.get("department_allowlist") or []),
             max_scripts=int(data.get("max_scripts") or 20),
             max_response_bytes=int(data.get("max_response_bytes") or 3_000_000),

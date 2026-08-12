@@ -27,7 +27,13 @@ MAX_SCRIPTS = 20
 RETRY_DELAY_SECONDS = 0.1
 TRANSIENT_STATUSES = {202, 408, 425, 500, 502, 503, 504}
 HEADERS = {"Accept": "text/html,application/xhtml+xml", "User-Agent": "job-radar/1.0"}
-SUPPORTED_VARIANTS = {"json_ld_job_posting", "inline_json", "next_data", "public_json_reference"}
+SUPPORTED_VARIANTS = {
+    "json_ld_job_posting",
+    "inline_json",
+    "next_data",
+    "public_json_reference",
+    "public_json_endpoint",
+}
 _PATH_RE = re.compile(r"^[A-Za-z0-9_$-]+(?:\.[A-Za-z0-9_$-]+|\[[0-9]+\])*$")
 _FIELD_RE = re.compile(r"^[A-Za-z0-9_@-]+(?:\.[A-Za-z0-9_@-]+|\[[0-9]+\])*$")
 
@@ -53,7 +59,11 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
         url = (str(target.pagination_url_template).format(page=page_index + 1)
                if target.pagination_url_template else str(target.listing_url))
         response = _get(session, url, timeout)
-        if target.endpoint_variant == "public_json_reference":
+        if target.endpoint_variant == "public_json_endpoint":
+            items, scripts, inspected_bytes, valid_empty = _extract_direct_json(
+                response, target
+            )
+        elif target.endpoint_variant == "public_json_reference":
             items, scripts, inspected_bytes, valid_empty = _extract_public_json(
                 session, response, target, timeout
             )
@@ -128,11 +138,21 @@ def validate_target(target: CompanyTarget) -> None:
         if str(target.pagination_url_template).count("{page}") != 1:
             raise AdapterError("Embedded-data pagination_url_template must contain one {page} placeholder")
         _require_https(str(target.pagination_url_template).replace("{page}", "1"), "pagination_url_template")
-    if target.endpoint_variant != "json_ld_job_posting":
+    if target.endpoint_variant not in {"json_ld_job_posting", "public_json_endpoint"}:
         if not target.embedded_script_selector or not target.embedded_json_path:
             raise AdapterError("Embedded-data target requires a reviewed script selector and JSON path")
         static_html.selector_to_xpath(str(target.embedded_script_selector))
         _validate_path(str(target.embedded_json_path), "JSON path")
+    if target.endpoint_variant == "public_json_endpoint":
+        if not target.embedded_json_path:
+            raise AdapterError("Embedded-data public JSON endpoint requires embedded_json_path")
+        _validate_path(str(target.embedded_json_path), "JSON path")
+        if not target.allowed_source_hosts:
+            raise AdapterError("Embedded-data public JSON endpoint requires allowed_source_hosts")
+        if not target.job_attribution_field or not target.job_attribution_regex:
+            raise AdapterError(
+                "Embedded-data public JSON endpoint requires a per-job attribution field and regex"
+            )
     if target.endpoint_variant == "public_json_reference":
         if not target.endpoint_url or not target.reference_url_attribute:
             raise AdapterError("Embedded-data public JSON reference requires endpoint_url and reference_url_attribute")
@@ -142,9 +162,13 @@ def validate_target(target: CompanyTarget) -> None:
     for field_name, value in (("id_field", target.id_field), ("title_field", target.title_field),
                               ("location_field", target.location_field), ("url_field", target.url_field),
                               ("date_field", target.date_field), ("department_field", target.department_field),
-                              ("remote_field", target.remote_field)):
+                              ("remote_field", target.remote_field),
+                              ("job_attribution_field", target.job_attribution_field)):
         if value and not _FIELD_RE.fullmatch(str(value)):
             raise AdapterError(f"Embedded-data {field_name} is invalid")
+    for value in target.location_fields:
+        if not _FIELD_RE.fullmatch(str(value)):
+            raise AdapterError("Embedded-data location_fields contains an invalid field")
     if target.endpoint_variant != "json_ld_job_posting" and not target.title_field:
         raise AdapterError("Embedded-data target requires title_field")
     if target.endpoint_variant != "json_ld_job_posting" and not target.id_field and not target.external_id_regex and not target.allow_url_id_fallback:
@@ -153,6 +177,10 @@ def validate_target(target: CompanyTarget) -> None:
         raise AdapterError("Embedded-data target requires url_field")
     if target.external_id_regex:
         static_html._safe_regex(str(target.external_id_regex))
+    if target.job_attribution_regex:
+        static_html._safe_regex(str(target.job_attribution_regex))
+    if target.job_attribution_exclude_regex:
+        static_html._safe_regex(str(target.job_attribution_exclude_regex))
     if target.apply_url_template:
         try:
             parsed_template = list(string.Formatter().parse(str(target.apply_url_template)))
@@ -163,6 +191,7 @@ def validate_target(target: CompanyTarget) -> None:
                 raise AdapterError("Embedded-data apply URL template uses an unsafe field")
         _require_https(re.sub(r"\{[^{}]+\}", "value", str(target.apply_url_template)), "apply_url_template")
     static_html._validate_hosts(target.allowed_apply_hosts)
+    static_html._validate_hosts(target.allowed_source_hosts)
     if not 1 <= int(target.max_pages) <= MAX_PAGES or not 1 <= int(target.max_jobs) <= MAX_RESULTS:
         raise AdapterError("Embedded-data page or result limit exceeds the hard maximum")
     if not 1 <= int(target.max_scripts) <= MAX_SCRIPTS:
@@ -255,6 +284,42 @@ def _extract_public_json(
     return list(found), 1, len(content) + len(data_content), not found
 
 
+def _extract_direct_json(
+    response: Any, target: CompanyTarget
+) -> tuple[list[Mapping[str, Any]], int, int, bool]:
+    _validate_source_response(response, target)
+    content = _bounded_content(response, target, expected="json")
+    try:
+        payload = json.loads(content)
+    except (TypeError, ValueError) as exc:
+        raise AdapterError(f"Embedded-data malformed JSON: {exc}") from exc
+    found = json_path(payload, str(target.embedded_json_path))
+    if not isinstance(found, list) or not all(isinstance(item, Mapping) for item in found):
+        raise AdapterError("Embedded-data reviewed JSON path is not a job-object list")
+    attribution = static_html._safe_regex(str(target.job_attribution_regex))
+    exclusion = (
+        static_html._safe_regex(str(target.job_attribution_exclude_regex))
+        if target.job_attribution_exclude_regex
+        else None
+    )
+    for item in found:
+        value = _string(_field(item, target.job_attribution_field))
+        if not value or not attribution.search(value) or (exclusion and exclusion.search(value)):
+            raise AdapterError("Embedded-data job failed exact source attribution")
+    return list(found), 0, len(content), not found
+
+
+def _validate_source_response(response: Any, target: CompanyTarget) -> None:
+    final_url = str(getattr(response, "url", "") or target.listing_url or "")
+    parsed = urlparse(final_url)
+    host = (parsed.hostname or "").casefold()
+    allowed = [str(value).casefold() for value in target.allowed_source_hosts]
+    if parsed.scheme != "https" or not any(
+        host == value or host.endswith("." + value) for value in allowed
+    ):
+        raise AdapterError("Embedded-data JSON endpoint redirected outside allowed source hosts")
+
+
 def _bounded_content(response: Any, target: CompanyTarget, *, expected: str) -> bytes:
     content = getattr(response, "content", None)
     if content is None:
@@ -308,7 +373,14 @@ def _normalize(item: Mapping[str, Any], target: CompanyTarget, page_url: str) ->
         title = _string(_field(item, target.title_field))
         raw_url = _field(item, target.url_field)
         external_id = _string(_field(item, target.id_field)) if target.id_field else ""
-        locations = _values(_field(item, target.location_field)) if target.location_field else []
+        if target.location_fields:
+            locations = _unique(
+                value
+                for field_name in target.location_fields
+                for value in _values(_field(item, field_name))
+            )
+        else:
+            locations = _values(_field(item, target.location_field)) if target.location_field else []
         departments = _values(_field(item, target.department_field)) if target.department_field else []
         updated = _string(_field(item, target.date_field)) if target.date_field else ""
         remote = _string(_field(item, target.remote_field)) if target.remote_field else ""
