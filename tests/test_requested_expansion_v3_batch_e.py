@@ -70,7 +70,7 @@ class RequestedExpansionV3BatchEArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_exact_243_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 325)
+        self.assertEqual(len(self.production), 330)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(self.historical), 243)
         self.assertEqual(self.production[:243], self.historical)
@@ -140,7 +140,7 @@ class RequestedExpansionV3BatchEArtifactTests(unittest.TestCase):
             load_target_companies(str(batch.PRODUCTION)),
             load_parent_source_mappings(batch.PARENT_MAPPINGS),
         )
-        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 196)
+        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 201)
         self.assertTrue(all(not item["original_246_master"] for item in self.report["results"]))
         totals = self.report["totals"]
         self.assertEqual((totals["validated"], totals["excluded"]), (6, 9))

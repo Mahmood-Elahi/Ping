@@ -65,7 +65,7 @@ class RequestedExpansionV3BatchFArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_exact_249_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 325)
+        self.assertEqual(len(self.production), 330)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(self.historical), 249)
         self.assertEqual(self.production[:249], self.historical)
@@ -85,11 +85,11 @@ class RequestedExpansionV3BatchFArtifactTests(unittest.TestCase):
             self.assertEqual([item["name"] for item in self.production].count(name), 1)
         self.assertTrue(EXCLUDED.isdisjoint({item["name"] for item in self.candidates}))
         self.assertTrue(
-            (EXCLUDED - {"Bosch", "Aptiv"}).isdisjoint(
+            (EXCLUDED - {"Bosch", "Aptiv", "Continental"}).isdisjoint(
                 {item["name"] for item in self.production}
             )
         )
-        for name in ("Bosch", "Aptiv"):
+        for name in ("Bosch", "Aptiv", "Continental"):
             self.assertEqual([item["name"] for item in self.production].count(name), 1)
 
     def test_03_report_and_csv_cover_every_requested_company(self):
@@ -142,7 +142,7 @@ class RequestedExpansionV3BatchFArtifactTests(unittest.TestCase):
             load_master_workbook(batch.MASTER_WORKBOOK), load_target_companies(str(batch.PRODUCTION)),
             load_parent_source_mappings(batch.PARENT_MAPPINGS),
         )
-        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 196)
+        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 201)
         self.assertEqual({item["company"] for item in self.report["results"] if item["original_246_master"]}, set(batch.MASTER_RANKS))
         self.assertTrue(all(not next(item for item in self.report["results"] if item["company"] == name)["original_246_master"] for name in VALIDATED))
         totals = self.report["totals"]

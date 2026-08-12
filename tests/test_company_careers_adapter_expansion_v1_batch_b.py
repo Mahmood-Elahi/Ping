@@ -406,7 +406,7 @@ class BatchBRecoveryValidationTests(unittest.TestCase):
         baseline_count = self.data["baseline"]["production_sources"]
         projection_count = self.data["projection"]["production_sources"]
         promoted = ["Bosch", "Aptiv"]
-        self.assertEqual(len(production_data), 325)
+        self.assertEqual(len(production_data), 330)
         self.assertEqual([row["name"] for row in production_data[baseline_count:projection_count]], promoted)
         self.assertEqual(
             len(load_parent_source_mappings()), self.data["baseline"]["parent_mappings"]
@@ -433,7 +433,7 @@ class BatchBRecoveryValidationTests(unittest.TestCase):
         names = [row["name"] for row in production_data]
         for name in promoted:
             self.assertEqual(names.count(name), 1)
-        self.assertNotIn("Continental", names)
+        self.assertEqual(names.count("Continental"), 1)
         self.assertNotIn("Copperleaf", names)
         self.assertNotIn("IFS1", {row.get("slug") for row in production_data})
 

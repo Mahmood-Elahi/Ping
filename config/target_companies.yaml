@@ -4483,3 +4483,106 @@ target_companies:
     max_response_bytes: 3000000
     identity_url: https://www.indie.inc/careers/job-opportunities/
     slug: indiesemiconductor
+  - name: Bloomberg
+    platform: avature
+    careers_url: https://www.bloomberg.com/company/careers/
+    source_identity_regex: Bloomberg Careers|Find the right role
+    identity_regex: Bloomberg Careers|Find the right role
+    allowed_apply_hosts:
+    - bloomberg.avature.net
+    original_workbook_rank: 59
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://bloomberg.avature.net/careers/SearchJobs
+    search_url: https://bloomberg.avature.net/careers/SearchJobs
+    endpoint_variant: avature_portal_html
+    board_id: bloomberg
+    page_size: 12
+  - name: Mercedes-Benz
+    platform: beesite
+    careers_url: https://jobs.mercedes-benz.com/en
+    source_identity_regex: Mercedes-Benz
+    identity_regex: Mercedes-Benz
+    allowed_apply_hosts:
+    - jobs.mercedes-benz.com
+    original_workbook_rank: 111
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.mercedes-benz.com/en
+    endpoint_url: https://jobs.api.mercedes-benz.com/search
+    endpoint_variant: gjb_search_v1
+    locale: en
+    allowed_source_hosts:
+    - jobs.api.mercedes-benz.com
+    job_attribution_regex: (?i)Mercedes[- ]Benz
+    page_size: 10
+  - name: Porsche
+    platform: beesite
+    careers_url: https://jobs.porsche.com/
+    source_identity_regex: Porsche
+    identity_regex: Porsche
+    allowed_apply_hosts:
+    - jobs.porsche.com
+    original_workbook_rank: 114
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.porsche.com/
+    endpoint_url: https://porsche-beesite-production-gjb.app.beesite.de/search/
+    endpoint_variant: gjb_search_v1
+    locale: en
+    allowed_source_hosts:
+    - porsche-beesite-production-gjb.app.beesite.de
+    job_attribution_regex: (?i)Porsche
+    page_size: 10
+  - name: Continental
+    platform: javascript_embedded_data
+    careers_url: https://jobs.continental.com/en/
+    source_identity_regex: '"client"\s*:\s*"continental"'
+    identity_regex: '"client"\s*:\s*"continental"'
+    allowed_apply_hosts:
+    - jobs.continental.com
+    original_workbook_rank: 124
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.continental.com/en/api/result-list/pagetype-jobs/?tx_conjobs_api%5BcurrentPage%5D=1&tx_conjobs_api%5BitemsPerPage%5D=10
+    listing_url: https://jobs.continental.com/en/api/result-list/pagetype-jobs/?tx_conjobs_api%5BcurrentPage%5D=1&tx_conjobs_api%5BitemsPerPage%5D=10
+    pagination_url_template: https://jobs.continental.com/en/api/result-list/pagetype-jobs/?tx_conjobs_api%5BcurrentPage%5D={page}&tx_conjobs_api%5BitemsPerPage%5D=10
+    endpoint_variant: public_json_endpoint
+    embedded_json_path: result.list
+    id_field: uuid
+    title_field: title
+    location_fields:
+    - cityLabel
+    - countryLabel
+    - jobFlexibilityLabel
+    url_field: absoluteUrl
+    date_field: publicationDate
+    department_field: fieldOfWorkLabel
+    job_attribution_field: client
+    job_attribution_regex: ^continental$
+    allowed_source_hosts:
+    - jobs.continental.com
+    page_size: 10
+  - name: Stellantis
+    platform: mcloud_cws
+    careers_url: https://careers.stellantis.com/
+    source_identity_regex: Stellantis
+    identity_regex: Stellantis
+    allowed_apply_hosts:
+    - careers.stellantis.com
+    original_workbook_rank: 132
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://careers.stellantis.com/
+    endpoint_url: https://jobsapi-google.m-cloud.io/api/job/search
+    endpoint_variant: google_jobs_v1
+    organization_id: companies/16115603-6c1b-4c45-b544-238a4e6c51b3
+    job_attribution_regex: (?i)FCA|Stellantis
+    allowed_source_hosts:
+    - jobsapi-google.m-cloud.io
+    page_size: 10

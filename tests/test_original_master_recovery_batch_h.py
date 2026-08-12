@@ -9,6 +9,7 @@ from urllib.parse import parse_qs, urlparse
 import yaml
 
 from scripts import validate_original_master_recovery_batch_h as batch
+from scripts import refingerprint_uncovered_companies as reconciliation
 from src.scraper.company_careers.adapters import beesite, embedded_data, mcloud_cws
 from src.scraper.company_careers.models import AdapterError, CompanyTarget
 from src.scraper.company_careers.scanner import ADAPTERS
@@ -20,6 +21,10 @@ EXCLUDED = {item["company"] for item in batch.EXCLUDED_REVIEWS}
 
 def entries(path: Path) -> list[dict]:
     return (yaml.safe_load(path.read_text(encoding="utf-8")) or {})["target_companies"]
+
+
+def entries_from_bytes(content: bytes) -> list[dict]:
+    return (yaml.safe_load(content.decode("utf-8")) or {})["target_companies"]
 
 
 class Response:
@@ -38,6 +43,8 @@ class OriginalMasterRecoveryBatchHArtifactTests(unittest.TestCase):
         cls.production_bytes = batch.PRODUCTION.read_bytes()
         cls.candidate_bytes = batch.CANDIDATE_REGISTRY.read_bytes()
         cls.validated_bytes = batch.VALIDATED_REGISTRY.read_bytes()
+        cls.historical_bytes = cls.validated_bytes[:cls.validated_bytes.index(b"  - name: Bloomberg")]
+        cls.historical = entries_from_bytes(cls.historical_bytes)
         cls.production = entries(batch.PRODUCTION)
         cls.candidates = entries(batch.CANDIDATE_REGISTRY)
         cls.validated = entries(batch.VALIDATED_REGISTRY)
@@ -45,14 +52,22 @@ class OriginalMasterRecoveryBatchHArtifactTests(unittest.TestCase):
         with batch.CANDIDATE_CSV.open(newline="", encoding="utf-8") as handle:
             cls.rows = list(csv.DictReader(handle))
 
-    def test_baseline_and_candidate_prefix_are_exact(self) -> None:
-        self.assertEqual(325, len(self.production))
+    def test_activation_preserves_exact_325_entry_production_prefix(self) -> None:
+        self.assertEqual(330, len(self.production))
         self.assertEqual(330, len(self.candidates))
         self.assertEqual(330, len(self.validated))
-        self.assertTrue(self.candidate_bytes.startswith(self.production_bytes))
-        self.assertTrue(self.validated_bytes.startswith(self.production_bytes))
+        self.assertEqual(325, len(self.historical))
+        self.assertEqual(self.historical, self.production[:325])
+        self.assertTrue(self.production_bytes.startswith(self.historical_bytes))
+        self.assertEqual(4, len(reconciliation.load_parent_source_mappings(batch.PARENT_MAPPINGS)))
         self.assertEqual(VALIDATED, [item["name"] for item in self.candidates[-5:]])
         self.assertEqual(VALIDATED, [item["name"] for item in self.validated[-5:]])
+        self.assertEqual(VALIDATED, [item["name"] for item in self.production[-5:]])
+        self.assertEqual(self.validated[-5:], self.production[-5:])
+        production_names = [item["name"] for item in self.production]
+        self.assertTrue(EXCLUDED.isdisjoint(production_names))
+        for name in VALIDATED:
+            self.assertEqual(1, production_names.count(name))
 
     def test_report_projects_only_validated_master_recoveries(self) -> None:
         totals = self.report["totals"]
@@ -70,6 +85,14 @@ class OriginalMasterRecoveryBatchHArtifactTests(unittest.TestCase):
             },
             totals["statuses"],
         )
+
+        master = reconciliation.reconcile_master(
+            reconciliation.load_master_workbook(batch.MASTER_WORKBOOK),
+            reconciliation.load_target_companies(str(batch.PRODUCTION)),
+            reconciliation.load_parent_source_mappings(batch.PARENT_MAPPINGS),
+        )
+        self.assertEqual(246, master.total)
+        self.assertEqual(201, len(master.canonical_names) + len(master.mapped_names))
 
     def test_every_requested_company_has_one_result_and_inventory_row(self) -> None:
         self.assertEqual(batch.REVIEWED_COMPANIES, [item["company"] for item in self.report["results"]])
