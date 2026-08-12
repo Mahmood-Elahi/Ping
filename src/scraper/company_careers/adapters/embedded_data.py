@@ -31,6 +31,7 @@ SUPPORTED_VARIANTS = {
     "json_ld_job_posting",
     "inline_json",
     "next_data",
+    "html_attribute_json",
     "public_json_reference",
     "public_json_endpoint",
 }
@@ -61,6 +62,10 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
         response = _get(session, url, timeout)
         if target.endpoint_variant == "public_json_endpoint":
             items, scripts, inspected_bytes, valid_empty = _extract_direct_json(
+                response, target
+            )
+        elif target.endpoint_variant == "html_attribute_json":
+            items, scripts, inspected_bytes, valid_empty = _extract_attribute_json(
                 response, target
             )
         elif target.endpoint_variant == "public_json_reference":
@@ -143,6 +148,23 @@ def validate_target(target: CompanyTarget) -> None:
             raise AdapterError("Embedded-data target requires a reviewed script selector and JSON path")
         static_html.selector_to_xpath(str(target.embedded_script_selector))
         _validate_path(str(target.embedded_json_path), "JSON path")
+    if target.endpoint_variant == "html_attribute_json":
+        if not target.reference_url_attribute:
+            raise AdapterError(
+                "Embedded-data HTML attribute JSON requires reference_url_attribute"
+            )
+        if not re.fullmatch(
+            r"[A-Za-z_:][A-Za-z0-9_.:-]*", str(target.reference_url_attribute)
+        ):
+            raise AdapterError("Embedded-data JSON attribute name is invalid")
+        if not target.allowed_source_hosts:
+            raise AdapterError(
+                "Embedded-data HTML attribute JSON requires allowed_source_hosts"
+            )
+        if not target.job_attribution_field or not target.job_attribution_regex:
+            raise AdapterError(
+                "Embedded-data HTML attribute JSON requires per-job attribution"
+            )
     if target.endpoint_variant == "public_json_endpoint":
         if not target.embedded_json_path:
             raise AdapterError("Embedded-data public JSON endpoint requires embedded_json_path")
@@ -284,6 +306,48 @@ def _extract_public_json(
     return list(found), 1, len(content) + len(data_content), not found
 
 
+def _extract_attribute_json(
+    response: Any, target: CompanyTarget
+) -> tuple[list[Mapping[str, Any]], int, int, bool]:
+    """Read a reviewed JSON bootstrap from one explicit HTML attribute.
+
+    Some public ATS pages server-render their initial job collection in a hidden
+    input instead of a script tag.  This variant deliberately supports only one
+    configured element and one configured attribute; it does not execute client
+    code or inspect arbitrary bundles.
+    """
+    _validate_source_response(response, target)
+    content = _bounded_content(response, target, expected="html")
+    try:
+        root = html.fromstring(content)
+    except (ValueError, TypeError) as exc:
+        raise AdapterError(f"Embedded-data malformed HTTP 200 response: {exc}") from exc
+    _reject_page(root)
+    nodes = static_html.select(root, str(target.embedded_script_selector))
+    if len(nodes) != 1:
+        raise AdapterError(
+            "Embedded-data HTML attribute selector must match exactly once"
+        )
+    attribute = str(target.reference_url_attribute)
+    body = nodes[0].get(attribute)
+    if body is None or not str(body).strip():
+        raise AdapterError("Embedded-data reviewed JSON attribute is empty")
+    body_bytes = str(body).encode("utf-8")
+    if len(body_bytes) > int(target.max_script_bytes):
+        raise AdapterError("Embedded-data JSON attribute exceeded byte limit")
+    try:
+        payload = json.loads(str(body))
+    except (TypeError, ValueError) as exc:
+        raise AdapterError(f"Embedded-data malformed attribute JSON: {exc}") from exc
+    found = json_path(payload, str(target.embedded_json_path))
+    if not isinstance(found, list) or not all(isinstance(item, Mapping) for item in found):
+        raise AdapterError(
+            "Embedded-data reviewed JSON attribute path is not a job-object list"
+        )
+    _require_exact_attribution(found, target)
+    return list(found), 1, len(content) + len(body_bytes), not found
+
+
 def _extract_direct_json(
     response: Any, target: CompanyTarget
 ) -> tuple[list[Mapping[str, Any]], int, int, bool]:
@@ -296,17 +360,23 @@ def _extract_direct_json(
     found = json_path(payload, str(target.embedded_json_path))
     if not isinstance(found, list) or not all(isinstance(item, Mapping) for item in found):
         raise AdapterError("Embedded-data reviewed JSON path is not a job-object list")
+    _require_exact_attribution(found, target)
+    return list(found), 0, len(content), not found
+
+
+def _require_exact_attribution(
+    items: Iterable[Mapping[str, Any]], target: CompanyTarget
+) -> None:
     attribution = static_html._safe_regex(str(target.job_attribution_regex))
     exclusion = (
         static_html._safe_regex(str(target.job_attribution_exclude_regex))
         if target.job_attribution_exclude_regex
         else None
     )
-    for item in found:
+    for item in items:
         value = _string(_field(item, target.job_attribution_field))
         if not value or not attribution.search(value) or (exclusion and exclusion.search(value)):
             raise AdapterError("Embedded-data job failed exact source attribution")
-    return list(found), 0, len(content), not found
 
 
 def _validate_source_response(response: Any, target: CompanyTarget) -> None:
