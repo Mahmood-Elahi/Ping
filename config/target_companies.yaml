@@ -4294,8 +4294,10 @@ target_companies:
     identity_url: https://job-boards.greenhouse.io/affirm
     slug: affirm
   - name: Palo Alto Networks
-    platform: static_html
+    platform: talentbrew
     careers_url: https://jobs.paloaltonetworks.com/en
+    listing_url: https://jobs.paloaltonetworks.com/en/location/canada-jobs/47263/6251999/2
+    endpoint_variant: search_results_data_job_id_v1
     source_identity_regex: Palo Alto Networks
     identity_regex: Palo Alto Networks
     allowed_apply_hosts:
@@ -4304,39 +4306,19 @@ target_companies:
     max_pages: 1
     max_jobs: 20
     max_response_bytes: 3000000
-    identity_url: https://jobs.paloaltonetworks.com/en/location/canada-jobs/47263/6251999/2
-    listing_url: https://jobs.paloaltonetworks.com/en/location/canada-jobs/47263/6251999/2
-    endpoint_variant: server_rendered_cards
-    listing_selector: ul.section29__search-results-ul
-    job_card_selector: li.section29__search-results-li
-    title_selector: h2.section29__search-results-job-title
-    location_selector: span.section29__result-location
-    department_selector: span.section29__result-category
-    detail_link_selector: a.section29__search-results-link
-    external_id_regex: /([0-9]+)$
-    external_id_attribute: null
   - name: Nordic Semiconductor
-    platform: static_html
+    platform: teamtailor
     careers_url: https://www.nordicsemi.com/About-us/Careers
+    listing_url: https://careers.nordicsemi.com/jobs
+    endpoint_variant: server_rendered_jobs_v1
     source_identity_regex: Nordic Semiconductor|Nordic
-    identity_regex: Nordic Semiconductor|Nordic
+    identity_regex: Nordic Semiconductor
     allowed_apply_hosts:
     - careers.nordicsemi.com
     original_workbook_rank: null
     max_pages: 1
     max_jobs: 20
     max_response_bytes: 3000000
-    identity_url: https://careers.nordicsemi.com/jobs
-    listing_url: https://careers.nordicsemi.com/jobs
-    endpoint_variant: server_rendered_cards
-    listing_selector: ul#jobs_list_container
-    job_card_selector: li.group
-    title_selector: a[href*=/jobs/]
-    location_selector: span.text-base span:nth-child(3)
-    department_selector: span.text-base span:first-child
-    detail_link_selector: a[href*=/jobs/]
-    external_id_regex: /jobs/([0-9]+)-
-    external_id_attribute: null
   - name: Motional
     platform: greenhouse
     careers_url: https://motional.com/careers
@@ -4666,27 +4648,18 @@ target_companies:
     apply_url_template: https://apply.careers.dji.com/social-recruitment/dji/170070?locale=zh-CN&hash=%23%2Fjob%2F{id}
     page_size: 15
   - name: Rakuten
-    platform: static_html
+    platform: talentbrew
     careers_url: https://global.rakuten.com/corp/careers/
-    source_identity_regex: Rakuten|data-organization-ids
-    identity_regex: Rakuten|data-organization-ids
+    listing_url: https://japan-job-en.rakuten.careers/search-jobs/
+    endpoint_variant: search_results_data_job_id_v1
+    source_identity_regex: Rakuten
+    identity_regex: Rakuten
     allowed_apply_hosts:
     - japan-job-en.rakuten.careers
     original_workbook_rank: 212
     max_pages: 2
     max_jobs: 20
     max_response_bytes: 3000000
-    identity_url: https://japan-job-en.rakuten.careers/search-jobs/
-    listing_url: https://japan-job-en.rakuten.careers/search-jobs/
-    pagination_url_template: https://japan-job-en.rakuten.careers/search-jobs/?p={page}
-    endpoint_variant: server_rendered_cards
-    listing_selector: section#search-results
-    job_card_selector: section#search-results-list li
-    title_selector: a[data-job-id] h2
-    location_selector: span.job-location
-    department_selector: span.job-category
-    detail_link_selector: a[data-job-id]
-    external_id_regex: /32045/([0-9]+)$
   - name: Target Tech
     platform: workday
     careers_url: https://corporate.target.com/careers/career-areas/corporate/target-tech
@@ -4750,6 +4723,20 @@ target_companies:
     - career-ohb.csod.com
     original_workbook_rank: 197
     page_size: 25
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+  - name: Carbon Upcycling
+    platform: deel
+    careers_url: https://carbonupcycling.com/careers/
+    listing_url: https://jobs.deel.com/carbon-upcycling-technologies
+    endpoint_variant: schema_org_itemlist_jobposting_v1
+    tenant: carbon-upcycling-technologies
+    source_identity_regex: Carbon Upcycling Technologies
+    identity_regex: Carbon Upcycling Technologies
+    allowed_apply_hosts:
+    - jobs.deel.com
+    original_workbook_rank: null
     max_pages: 1
     max_jobs: 20
     max_response_bytes: 3000000

@@ -79,6 +79,7 @@ ROBOTICS_SEMICONDUCTOR_HIGH_FIT_EXPANSION_V1_BATCH_A_PROMOTIONS = [
     "indie Semiconductor",
 ]
 ATS_ADAPTER_EXPANSION_V2_BATCH_A_PROMOTIONS = ["CN Rail", "OHB SE"]
+ATS_ADAPTER_EXPANSION_V2_BATCH_B_PROMOTIONS = ["Carbon Upcycling"]
 HISTORICAL_PRODUCTION_ONLY = [
     "Datadog", "Elastic", "GitLab", "Twilio", "Zscaler", "CrowdStrike",
     "HashiCorp", "Confluent", "Teradyne",
@@ -220,6 +221,7 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
                 + CANADA_HIGH_FIT_EXPANSION_V1_BATCH_A_PROMOTIONS
                 + ROBOTICS_SEMICONDUCTOR_HIGH_FIT_EXPANSION_V1_BATCH_A_PROMOTIONS
                 + ATS_ADAPTER_EXPANSION_V2_BATCH_A_PROMOTIONS
+                + ATS_ADAPTER_EXPANSION_V2_BATCH_B_PROMOTIONS
             )
             if mod.normalize_company_name(name) not in master_names
         ]

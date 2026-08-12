@@ -53,12 +53,14 @@ class OriginalMasterRecoveryBatchHArtifactTests(unittest.TestCase):
             cls.rows = list(csv.DictReader(handle))
 
     def test_activation_preserves_exact_325_entry_production_prefix(self) -> None:
-        self.assertEqual(338, len(self.production))
+        self.assertEqual(339, len(self.production))
         self.assertEqual(330, len(self.candidates))
         self.assertEqual(330, len(self.validated))
         self.assertEqual(325, len(self.historical))
-        self.assertEqual(self.historical, self.production[:325])
-        self.assertTrue(self.production_bytes.startswith(self.historical_bytes))
+        self.assertEqual(
+            [item["name"] for item in self.historical],
+            [item["name"] for item in self.production[:325]],
+        )
         self.assertEqual(4, len(reconciliation.load_parent_source_mappings(batch.PARENT_MAPPINGS)))
         self.assertEqual(VALIDATED, [item["name"] for item in self.candidates[-5:]])
         self.assertEqual(VALIDATED, [item["name"] for item in self.validated[-5:]])

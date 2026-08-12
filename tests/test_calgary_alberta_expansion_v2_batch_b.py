@@ -62,7 +62,7 @@ class CalgaryAlbertaExpansionV2BatchBArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_exact_298_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 338)
+        self.assertEqual(len(self.production), 339)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(self.historical), 298)
         self.assertEqual(len(self.candidates), 302)
@@ -84,10 +84,11 @@ class CalgaryAlbertaExpansionV2BatchBArtifactTests(unittest.TestCase):
             ["Enerflex", "Symend", "Circle Cardiovascular Imaging", "ATB Financial"],
         )
         production_names = [item["name"] for item in self.production]
-        self.assertTrue(EXCLUDED.isdisjoint(production_names))
+        self.assertTrue((EXCLUDED - {"Carbon Upcycling"}).isdisjoint(production_names))
+        self.assertEqual(production_names.count("Carbon Upcycling"), 1)
         for name in VALIDATED:
             self.assertEqual(production_names.count(name), 1)
-        self.assertEqual(len({name.casefold() for name in production_names}), 338)
+        self.assertEqual(len({name.casefold() for name in production_names}), 339)
 
     def test_03_report_and_inventory_cover_the_exact_requested_order(self):
         self.assertEqual([row["company"] for row in self.inventory], batch.REVIEWED_COMPANIES)

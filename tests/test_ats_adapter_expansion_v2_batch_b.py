@@ -170,17 +170,24 @@ class BatchArtifactsTests(unittest.TestCase):
         cls.validated = yaml.safe_load(batch.VALIDATED_REGISTRY.read_text(encoding="utf-8"))["target_companies"]
         cls.report = json.loads(batch.REPORT.read_text(encoding="utf-8"))
 
-    def test_candidate_migrates_three_and_recovers_one_without_activation(self):
-        self.assertEqual(len(self.production), 338)
+    def test_activation_matches_validated_registry_exactly(self):
+        self.assertEqual(len(self.production), 339)
         self.assertEqual(len(self.candidates), 339)
+        self.assertEqual(self.production, self.validated)
         self.assertEqual(self.candidates, self.validated)
         production = {row["name"]: row for row in self.production}
         candidate = {row["name"]: row for row in self.candidates}
-        self.assertEqual(production["Nordic Semiconductor"]["platform"], "static_html")
+        self.assertEqual(production["Nordic Semiconductor"]["platform"], "teamtailor")
+        self.assertEqual(production["Palo Alto Networks"]["platform"], "talentbrew")
+        self.assertEqual(production["Rakuten"]["platform"], "talentbrew")
+        self.assertEqual(production["Carbon Upcycling"]["platform"], "deel")
         self.assertEqual(candidate["Nordic Semiconductor"]["platform"], "teamtailor")
         self.assertEqual(candidate["Palo Alto Networks"]["platform"], "talentbrew")
         self.assertEqual(candidate["Rakuten"]["platform"], "talentbrew")
         self.assertEqual(candidate["Carbon Upcycling"]["platform"], "deel")
+        production_names = [row["name"] for row in self.production]
+        self.assertEqual(production_names[-1], "Carbon Upcycling")
+        self.assertEqual(production_names.count("Carbon Upcycling"), 1)
         self.assertNotIn("Best Buy", candidate)
         self.assertFalse(self.report["production_registry_activated"])
         self.assertTrue(all(value is False for value in self.report["publication"].values()))

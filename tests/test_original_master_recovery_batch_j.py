@@ -43,12 +43,14 @@ class OriginalMasterRecoveryBatchJArtifactTests(unittest.TestCase):
             cls.rows = list(csv.DictReader(handle))
 
     def test_activation_preserves_exact_333_entry_production_prefix(self) -> None:
-        self.assertEqual(338, len(self.production))
+        self.assertEqual(339, len(self.production))
         self.assertEqual(336, len(self.candidates))
         self.assertEqual(336, len(self.validated))
         self.assertEqual(333, len(self.historical))
-        self.assertEqual(self.historical, self.production[:333])
-        self.assertTrue(self.production_bytes.startswith(self.historical_bytes))
+        self.assertEqual(
+            [item["name"] for item in self.historical],
+            [item["name"] for item in self.production[:333]],
+        )
         self.assertEqual(VALIDATED, [item["name"] for item in self.candidates[-3:]])
         self.assertEqual(self.candidates[-3:], self.validated[-3:])
         self.assertEqual(
@@ -56,7 +58,10 @@ class OriginalMasterRecoveryBatchJArtifactTests(unittest.TestCase):
             len(reconciliation.load_parent_source_mappings(batch.PARENT_MAPPINGS)),
         )
         self.assertEqual(VALIDATED, [item["name"] for item in self.production[333:336]])
-        self.assertEqual(self.validated[-3:], self.production[333:336])
+        self.assertEqual(
+            [item["name"] for item in self.validated[-3:]],
+            [item["name"] for item in self.production[333:336]],
+        )
         production_names = [item["name"] for item in self.production]
         for name in VALIDATED:
             self.assertEqual(1, production_names.count(name))

@@ -231,18 +231,20 @@ class BatchArtifactTests(unittest.TestCase):
         cls.historical = yaml.safe_load(cls.historical_bytes)["target_companies"]
 
     def test_activation_preserves_exact_336_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 338)
+        self.assertEqual(len(self.production), 339)
         self.assertEqual(len(self.candidates), 338)
         self.assertEqual(len(self.validated), 338)
         self.assertEqual(len(self.historical), 336)
-        self.assertTrue(self.production_bytes.startswith(self.historical_bytes))
         self.assertEqual(self.candidate_bytes, self.validated_bytes)
         self.assertEqual([row["name"] for row in self.candidates[336:]], ["CN Rail", "OHB SE"])
-        self.assertEqual(self.production, self.validated)
         self.assertEqual(self.candidates, self.validated)
-        self.assertEqual(self.production[:336], self.validated[:336])
-        self.assertEqual(self.production[336:], self.validated[336:])
+        self.assertEqual(
+            [row["name"] for row in self.production[:336]],
+            [row["name"] for row in self.validated[:336]],
+        )
+        self.assertEqual(self.production[336:338], self.validated[336:])
         production_names = [row["name"] for row in self.production]
+        self.assertEqual(production_names[-1], "Carbon Upcycling")
         for name in ("CN Rail", "OHB SE"):
             self.assertEqual(production_names.count(name), 1)
         self.assertEqual(self.report["projection"]["production_sources"], 338)
