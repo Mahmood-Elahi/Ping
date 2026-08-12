@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Callable, Iterable, List, Optional, Sequence
 
 import requests
@@ -20,6 +21,7 @@ from src.scraper.company_careers.adapters import (
     deel,
     eightfold,
     embedded_data,
+    exalead,
     google,
     greenhouse,
     hawksearch_v2,
@@ -84,6 +86,7 @@ ADAPTERS: dict[str, AdapterFn] = {
     "icims": icims.fetch_jobs,
     "static_html": static_html.fetch_jobs,
     "javascript_embedded_data": embedded_data.fetch_jobs,
+    "exalead": exalead.fetch_jobs,
     "browser_rendered_html": browser_rendered_html.fetch_jobs,
     "clearcompany": clearcompany.fetch_jobs,
     "cornerstone_csod": cornerstone_csod.fetch_jobs,
@@ -129,7 +132,16 @@ class CompanyCareersScanner:
         parent_mapping_path: str = DEFAULT_PARENT_MAPPING_PATH,
         original_company_inventory_path: str = DEFAULT_ORIGINAL_COMPANY_INVENTORY_PATH,
     ):
-        self.targets = targets if targets is not None else load_target_companies(config_path)
+        self.targets = (
+            targets
+            if targets is not None
+            else load_target_companies(
+                config_path,
+                apply_reliability_repairs=(
+                    Path(config_path).resolve() == Path(DEFAULT_REGISTRY_PATH).resolve()
+                ),
+            )
+        )
         self.session = session or requests.Session()
         self._isolate_adp_sessions = session is None
         self._session_factory = session_factory

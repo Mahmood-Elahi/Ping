@@ -153,7 +153,7 @@ def build_pipeline(args: argparse.Namespace, targets: list[Any]) -> JobSearchPip
 
 def run_update(args: argparse.Namespace) -> int:
     targets = configure_student_targets(
-        load_target_companies(),
+        load_target_companies(apply_reliability_repairs=True),
         include_new_grad=args.include_new_grad,
     )
     print_plan(args, len(targets))

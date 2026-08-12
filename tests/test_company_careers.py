@@ -39,10 +39,11 @@ from src.utils.job_search_pipeline import JobSearchPipeline
 
 
 class FakeResponse:
-    def __init__(self, payload, status_code=200, text=None):
+    def __init__(self, payload, status_code=200, text=None, headers=None):
         self.payload = payload
         self.status_code = status_code
         self.text = text if text is not None else json.dumps(payload)
+        self.headers = dict(headers or {})
 
     def json(self):
         return self.payload
@@ -776,33 +777,16 @@ class CompanyCareersTests(unittest.TestCase):
         self.assertIn("Build products.", jobs[0].description)
 
     def test_uber_normalization(self):
+        listing = """<!doctype html><html><body>
+        <div data-slot="card" data-id="156408">
+          <h2><a class="js-view-job" href="/en/jobs/156408/">Staff Software Engineer</a></h2>
+          <div data-slot="card-description">
+            <div class="rounded-full"><div>Sunnyvale, California</div></div>
+            <div class="rounded-full"><div>Engineering</div></div>
+          </div>
+        </div></body></html>"""
         session = FakeSession(
-            post_responses=[
-                FakeResponse(
-                    {
-                        "status": "success",
-                        "data": {
-                            "results": [
-                                {
-                                    "id": 156408,
-                                    "title": "Staff Software Engineer",
-                                    "department": "Engineering",
-                                    "team": "Backend",
-                                    "description": "Build backend systems.",
-                                    "updatedDate": "2026-04-16T16:23:00.000Z",
-                                    "allLocations": [
-                                        {
-                                            "city": "Sunnyvale",
-                                            "region": "California",
-                                            "countryName": "United States",
-                                        }
-                                    ],
-                                }
-                            ]
-                        },
-                    }
-                )
-            ]
+            get_responses=[FakeResponse({}, text=listing, headers={"content-type": "text/html"})]
         )
         target = CompanyTarget(name="Uber", platform="uber", max_pages=1)
 
@@ -810,9 +794,10 @@ class CompanyCareersTests(unittest.TestCase):
 
         self.assertEqual(len(jobs), 1)
         self.assertEqual(jobs[0].job_id, "156408")
-        self.assertEqual(jobs[0].location, "Sunnyvale, California, United States")
-        self.assertEqual(jobs[0].url, "https://www.uber.com/us/en/careers/list/156408/")
+        self.assertEqual(jobs[0].location, "Sunnyvale, California")
+        self.assertEqual(jobs[0].url, "https://jobs.uber.com/en/jobs/156408/")
         self.assertEqual(jobs[0].source, "custom:uber")
+        self.assertEqual(jobs[0].departments, ["Engineering"])
 
     def test_ibm_search_normalization_for_hashicorp(self):
         session = FakeSession(

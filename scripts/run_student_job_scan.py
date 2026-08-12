@@ -140,7 +140,7 @@ def main(argv: list[str] | None = None) -> int:
     configure_console()
     args = parse_args(argv)
     targets = configure_student_targets(
-        load_target_companies(),
+        load_target_companies(apply_reliability_repairs=True),
         include_new_grad=args.include_new_grad,
     )
     print_plan(args, len(targets))

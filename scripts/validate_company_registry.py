@@ -33,6 +33,7 @@ from src.scraper.company_careers.adapters import (
     deel,
     eightfold,
     embedded_data,
+    exalead,
     greenhouse,
     hawksearch_v2,
     hibob,
@@ -121,6 +122,7 @@ ADAPTERS: dict[str, AdapterFn] = {
     "icims": icims.fetch_jobs,
     "static_html": static_html.fetch_jobs,
     "javascript_embedded_data": embedded_data.fetch_jobs,
+    "exalead": exalead.fetch_jobs,
     "clearcompany": clearcompany.fetch_jobs,
     "cornerstone_csod": cornerstone_csod.fetch_jobs,
     "deel": deel.fetch_jobs,
@@ -197,6 +199,9 @@ def source_key(entry: Mapping[str, Any]) -> Optional[str]:
         host = (urlparse(str(entry.get("endpoint_url") or entry.get("search_url") or "")).hostname or "").casefold()
         board_id = str(entry.get("board_id") or "").strip().casefold()
         return f"{platform}:{host}:{board_id}" if host and board_id else None
+    if platform == "exalead":
+        host = (urlparse(str(entry.get("endpoint_url") or "")).hostname or "").casefold()
+        return f"exalead:{host}" if host else None
     if platform in {"static_html", "javascript_embedded_data", "talentbrew", "teamtailor"}:
         host = (urlparse(str(entry.get("listing_url") or "")).hostname or "").casefold()
         return f"{platform}:{host}" if host else None
@@ -304,6 +309,11 @@ def configured_identifiers(entry: Mapping[str, Any]) -> dict[str, Any]:
             "board_id": entry.get("board_id"),
             "endpoint_variant": entry.get("endpoint_variant"),
         }
+    if platform == "exalead":
+        return {
+            "endpoint_url": entry.get("endpoint_url"),
+            "endpoint_variant": entry.get("endpoint_variant"),
+        }
     if platform == "clearcompany":
         return {"site_id": entry.get("site_id")}
     if platform in {"ukg_pro", "paycor", "peoplesoft"}:
@@ -393,6 +403,9 @@ def endpoint_for(entry: Mapping[str, Any]) -> Optional[str]:
         return endpoint or None
     if platform in {"avature", "icims"}:
         endpoint = str(entry.get("endpoint_url") or entry.get("search_url") or "").strip()
+        return endpoint or None
+    if platform == "exalead":
+        endpoint = str(entry.get("endpoint_url") or "").strip()
         return endpoint or None
     if platform in {"static_html", "javascript_embedded_data", "talentbrew", "teamtailor", "deel"}:
         endpoint = str(entry.get("listing_url") or "").strip()
@@ -488,6 +501,11 @@ def configuration_error(entry: Mapping[str, Any]) -> Optional[str]:
     if platform == "icims":
         try:
             icims.validate_target(target)
+        except AdapterError as exc:
+            return str(exc)
+    if platform == "exalead":
+        try:
+            exalead.validate_target(target)
         except AdapterError as exc:
             return str(exc)
     if platform == "static_html":
@@ -694,6 +712,15 @@ def _response_shape_error(platform: str, response: Any) -> Optional[str]:
         total = payload.get("totalCount")
         if isinstance(total, bool) or not isinstance(total, int) or total < 0:
             return "iCIMS Jibe totalCount must be a non-negative integer"
+        return None
+    if platform == "exalead":
+        if not isinstance(payload, Mapping):
+            return "Exalead Careers response must be a JSON object"
+        if not isinstance(payload.get("hits"), list):
+            return "Exalead Careers response must contain a hits list"
+        total = payload.get("nhits")
+        if isinstance(total, bool) or not isinstance(total, int) or total < 0:
+            return "Exalead Careers nhits must be a non-negative integer"
         return None
     if platform == "clearcompany":
         if not isinstance(payload, Mapping):

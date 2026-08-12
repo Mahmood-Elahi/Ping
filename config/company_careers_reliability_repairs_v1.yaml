@@ -1,0 +1,26 @@
+company_careers_reliability_repairs:
+  - name: Lattice Semiconductor
+    platform: workday
+    tenant: latticesemi
+    wd_subdomain: wd5
+    site_id: latticesemiconductorscareers
+    careers_url: https://latticesemi.wd5.myworkdayjobs.com/latticesemiconductorscareers
+    source_url: https://www.latticesemi.com/About/Jobs
+    original_workbook_rank: 40
+    industry: Not recorded in repository master workbook
+    max_pages: 2
+    max_jobs: 20
+    evidence_source: https://www.latticesemi.com/About/Jobs
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-11T00:00:00+00:00'
+  - name: Dassault Systèmes
+    platform: exalead
+    careers_url: https://www.3ds.com/careers
+    endpoint_url: https://www.3ds.com/apisearch/card_search_api
+    endpoint_variant: exalead_career_cards_v1
+    allowed_apply_hosts:
+      - www.3ds.com
+    original_workbook_rank: 145
+    page_size: 15
+    max_pages: 2
+    max_jobs: 20
