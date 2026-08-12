@@ -442,6 +442,7 @@ URL_FAMILY_RULES: list[tuple[str, tuple[str, ...], str, str]] = [
     ("workable", ("apply.workable.com",), "workable_account", "GET"),
     ("recruitee", ("recruitee.com",), "recruitee_careers", "GET"),
     ("teamtailor", ("teamtailor.com",), "teamtailor_careers", "GET"),
+    ("deel", ("jobs.deel.com",), "schema_org_itemlist_jobposting_v1", "GET"),
     ("personio", ("jobs.personio.com", "jobs.personio.de"), "personio_jobs", "GET"),
     ("bamboohr", ("bamboohr.com",), "bamboohr_jobs", "GET"),
 ]

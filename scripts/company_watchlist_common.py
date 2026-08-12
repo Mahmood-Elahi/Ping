@@ -69,7 +69,9 @@ SUPPORTED_IMPORT_PLATFORMS = {
     "shopify",
 }
 DETECTED_BUT_UNSUPPORTED = {"workable", "rippling"}
-DETECTED_REQUIRES_REVIEW = {"adp", "cornerstone_csod", "hibob", "smartrecruiters"}
+DETECTED_REQUIRES_REVIEW = {
+    "adp", "cornerstone_csod", "deel", "hibob", "smartrecruiters", "talentbrew", "teamtailor",
+}
 EXISTING_ONLY_PLATFORMS = {"ibm_search"}
 CUSTOM_PLATFORMS = {
     "amazon",
@@ -184,6 +186,13 @@ def detect_ats(url: Any) -> ATSDetection:
     if host == "jobs.ashbyhq.com":
         slug = parts[0] if parts else ""
         return ATSDetection("ashby", slug=slug, note=_slug_note(slug))
+    if host == "jobs.deel.com" and parts:
+        slug = parts[1] if len(parts) > 1 and parts[0] == "job-boards" else parts[0]
+        return ATSDetection(
+            "deel",
+            tenant=slug,
+            note="Detected ATS; exact public Organization and ItemList review required",
+        )
 
     workday_match = re.fullmatch(
         r"(?P<tenant>[a-z0-9-]+)\.(?P<subdomain>wd\d+)\.myworkdayjobs\.com",

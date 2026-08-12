@@ -30,6 +30,7 @@ from src.scraper.company_careers.adapters import (
     bamboohr,
     clearcompany,
     cornerstone_csod,
+    deel,
     eightfold,
     embedded_data,
     greenhouse,
@@ -44,6 +45,8 @@ from src.scraper.company_careers.adapters import (
     sap_successfactors,
     static_html,
     startdate,
+    talentbrew,
+    teamtailor,
     smartrecruiters,
     ukg_pro,
     workday,
@@ -120,8 +123,11 @@ ADAPTERS: dict[str, AdapterFn] = {
     "javascript_embedded_data": embedded_data.fetch_jobs,
     "clearcompany": clearcompany.fetch_jobs,
     "cornerstone_csod": cornerstone_csod.fetch_jobs,
+    "deel": deel.fetch_jobs,
     "bamboohr": bamboohr.fetch_jobs,
     "startdate": startdate.fetch_jobs,
+    "talentbrew": talentbrew.fetch_jobs,
+    "teamtailor": teamtailor.fetch_jobs,
     "smartrecruiters": smartrecruiters.fetch_jobs,
     "hawksearch_v2": hawksearch_v2.fetch_jobs,
     "hibob": hibob.fetch_jobs,
@@ -191,9 +197,12 @@ def source_key(entry: Mapping[str, Any]) -> Optional[str]:
         host = (urlparse(str(entry.get("endpoint_url") or entry.get("search_url") or "")).hostname or "").casefold()
         board_id = str(entry.get("board_id") or "").strip().casefold()
         return f"{platform}:{host}:{board_id}" if host and board_id else None
-    if platform in {"static_html", "javascript_embedded_data"}:
+    if platform in {"static_html", "javascript_embedded_data", "talentbrew", "teamtailor"}:
         host = (urlparse(str(entry.get("listing_url") or "")).hostname or "").casefold()
         return f"{platform}:{host}" if host else None
+    if platform == "deel":
+        tenant = str(entry.get("tenant") or "").strip().casefold()
+        return f"deel:{tenant}" if tenant else None
     if platform == "clearcompany":
         site_id = str(entry.get("site_id") or "").strip().casefold()
         return f"clearcompany:{site_id}" if site_id else None
@@ -334,10 +343,12 @@ def configured_identifiers(entry: Mapping[str, Any]) -> dict[str, Any]:
             "endpoint_variant": entry.get("endpoint_variant"),
             "identity_regex": entry.get("identity_regex"),
         }
-    if platform in {"static_html", "javascript_embedded_data"}:
+    if platform in {"static_html", "javascript_embedded_data", "talentbrew", "teamtailor", "deel"}:
         return {
+            "tenant": entry.get("tenant"),
             "listing_url": entry.get("listing_url"),
             "endpoint_variant": entry.get("endpoint_variant"),
+            "identity_regex": entry.get("identity_regex"),
             "job_card_selector": entry.get("job_card_selector"),
             "embedded_json_path": entry.get("embedded_json_path"),
         }
@@ -383,7 +394,7 @@ def endpoint_for(entry: Mapping[str, Any]) -> Optional[str]:
     if platform in {"avature", "icims"}:
         endpoint = str(entry.get("endpoint_url") or entry.get("search_url") or "").strip()
         return endpoint or None
-    if platform in {"static_html", "javascript_embedded_data"}:
+    if platform in {"static_html", "javascript_embedded_data", "talentbrew", "teamtailor", "deel"}:
         endpoint = str(entry.get("listing_url") or "").strip()
         return endpoint or None
     if platform == "clearcompany":
@@ -482,6 +493,21 @@ def configuration_error(entry: Mapping[str, Any]) -> Optional[str]:
     if platform == "static_html":
         try:
             static_html.validate_target(target)
+        except AdapterError as exc:
+            return str(exc)
+    if platform == "talentbrew":
+        try:
+            talentbrew.validate_target(target)
+        except AdapterError as exc:
+            return str(exc)
+    if platform == "teamtailor":
+        try:
+            teamtailor.validate_target(target)
+        except AdapterError as exc:
+            return str(exc)
+    if platform == "deel":
+        try:
+            deel.validate_target(target)
         except AdapterError as exc:
             return str(exc)
     if platform == "javascript_embedded_data":
@@ -605,6 +631,9 @@ def _response_shape_error(platform: str, response: Any) -> Optional[str]:
         "avature",
         "static_html",
         "javascript_embedded_data",
+        "talentbrew",
+        "teamtailor",
+        "deel",
         "ukg_pro",
         "paycor",
         "peoplesoft",
@@ -1120,8 +1149,14 @@ def validate_company(
                 if diagnostics:
                     messages.append(f"Skipped {len(diagnostics)} malformed or duplicate job entries")
                 result["warning"] = "; ".join(messages)
-    elif platform in {"static_html", "javascript_embedded_data"}:
-        attribute = "static_html_pagination" if platform == "static_html" else "embedded_data_pagination"
+    elif platform in {"static_html", "javascript_embedded_data", "talentbrew", "teamtailor", "deel"}:
+        attribute = {
+            "static_html": "static_html_pagination",
+            "javascript_embedded_data": "embedded_data_pagination",
+            "talentbrew": "talentbrew_pagination",
+            "teamtailor": "teamtailor_pagination",
+            "deel": "deel_pagination",
+        }[platform]
         pagination = getattr(session, attribute, None)
         if isinstance(pagination, Mapping):
             result["pagination_result"] = dict(pagination)

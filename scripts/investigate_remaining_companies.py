@@ -95,7 +95,8 @@ CORPORATE_SUFFIXES = {
 EXISTING_ADAPTER_FAMILIES = {
     "adp", "amazon", "ashby", "atlassian", "eightfold", "google", "greenhouse",
     "hawksearch_v2", "hibob", "ibm_search", "lever", "meta", "oracle_recruiting", "phenom",
-    "cornerstone_csod", "sap_successfactors", "shopify", "smartrecruiters", "uber", "workday",
+    "cornerstone_csod", "deel", "sap_successfactors", "shopify", "smartrecruiters",
+    "talentbrew", "talentbrew_radancy", "teamtailor", "uber", "workday",
 }
 
 FINGERPRINT_FIELDS = [

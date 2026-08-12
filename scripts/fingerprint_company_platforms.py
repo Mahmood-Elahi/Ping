@@ -346,6 +346,7 @@ def detect_platform(evidence: FetchEvidence) -> PlatformDetection:
         ("bamboohr", "BambooHR", ("bamboohr.com",), "GET", "company subdomain", "none", "true", "true"),
         ("recruitee", "Recruitee", ("recruitee.com",), "GET", "company subdomain", "none", "true", "true"),
         ("teamtailor", "Teamtailor", ("teamtailor.com",), "GET", "company subdomain", "page", "true", "true"),
+        ("deel", "Deel", ("jobs.deel.com",), "GET", "tenant slug", "bounded ItemList", "true", "true"),
         ("personio", "Personio", ("jobs.personio.com", "jobs.personio.de"), "GET", "company identifier", "page", "true", "true"),
     ]
     for family, vendor, domains, method, params, pagination, stable_id, apply_url in url_rules:
