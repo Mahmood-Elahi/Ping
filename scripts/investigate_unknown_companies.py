@@ -72,7 +72,7 @@ KNOWN_FUTURE_FAMILIES = {
     "ukg", "workable", "recruitee", "teamtailor", "personio", "bamboohr",
 }
 EXISTING_ADAPTERS = set(EXISTING_ADAPTER_FAMILIES)
-EXISTING_ADAPTERS.update({"greenhouse", "lever", "ashby", "workday", "oracle_recruiting", "sap_successfactors", "eightfold", "phenom"})
+EXISTING_ADAPTERS.update({"cornerstone_csod", "greenhouse", "lever", "ashby", "workday", "oracle_recruiting", "sap_successfactors", "eightfold", "phenom"})
 CUSTOM_PRODUCTION_FAMILIES = {"amazon", "atlassian", "google", "ibm_search", "meta", "shopify", "uber"}
 
 FINAL_CLASSIFICATIONS = {

@@ -29,6 +29,7 @@ from src.scraper.company_careers.adapters import (
     avature,
     bamboohr,
     clearcompany,
+    cornerstone_csod,
     eightfold,
     embedded_data,
     greenhouse,
@@ -118,6 +119,7 @@ ADAPTERS: dict[str, AdapterFn] = {
     "static_html": static_html.fetch_jobs,
     "javascript_embedded_data": embedded_data.fetch_jobs,
     "clearcompany": clearcompany.fetch_jobs,
+    "cornerstone_csod": cornerstone_csod.fetch_jobs,
     "bamboohr": bamboohr.fetch_jobs,
     "startdate": startdate.fetch_jobs,
     "smartrecruiters": smartrecruiters.fetch_jobs,
@@ -174,6 +176,10 @@ def source_key(entry: Mapping[str, Any]) -> Optional[str]:
     if platform == "sap_successfactors":
         host = (urlparse(str(entry.get("search_url") or "")).hostname or "").casefold()
         return f"sap_successfactors:{host}" if host else None
+    if platform == "cornerstone_csod":
+        host = (urlparse(str(entry.get("search_url") or "")).hostname or "").casefold()
+        site_id = str(entry.get("site_id") or "").strip().casefold()
+        return f"cornerstone_csod:{host}:{site_id}" if host and site_id else None
     if platform == "eightfold":
         host = (urlparse(str(entry.get("endpoint_url") or "")).hostname or "").casefold()
         return f"eightfold:{host}" if host else None
@@ -264,6 +270,13 @@ def configured_identifiers(entry: Mapping[str, Any]) -> dict[str, Any]:
         if entry.get("locale") is not None:
             identifiers["locale"] = entry.get("locale")
         return identifiers
+    if platform == "cornerstone_csod":
+        return {
+            "tenant": entry.get("tenant"),
+            "site_id": entry.get("site_id"),
+            "locale": entry.get("locale"),
+            "endpoint_variant": entry.get("endpoint_variant"),
+        }
     if platform == "eightfold":
         return {
             "organization_id": entry.get("organization_id"),
@@ -358,6 +371,9 @@ def endpoint_for(entry: Mapping[str, Any]) -> Optional[str]:
     if platform == "sap_successfactors":
         endpoint = str(entry.get("search_url") or "").strip()
         return endpoint or None
+    if platform == "cornerstone_csod":
+        endpoint = str(entry.get("search_url") or "").strip()
+        return endpoint or None
     if platform == "eightfold":
         endpoint = str(entry.get("endpoint_url") or "").strip()
         return endpoint or None
@@ -436,6 +452,11 @@ def configuration_error(entry: Mapping[str, Any]) -> Optional[str]:
             )
         try:
             sap_successfactors.validate_target(target)
+        except AdapterError as exc:
+            return str(exc)
+    if platform == "cornerstone_csod":
+        try:
+            cornerstone_csod.validate_target(target)
         except AdapterError as exc:
             return str(exc)
     if platform == "eightfold":
@@ -579,6 +600,7 @@ class RecordingRetrySession:
 def _response_shape_error(platform: str, response: Any) -> Optional[str]:
     if platform in {
         "sap_successfactors",
+        "cornerstone_csod",
         "phenom",
         "avature",
         "static_html",
@@ -1038,6 +1060,12 @@ def validate_company(
             target,
             jobs if "jobs" in locals() else [],
         )
+    elif platform == "cornerstone_csod":
+        pagination = getattr(session, "cornerstone_csod_pagination", None)
+        if isinstance(pagination, Mapping):
+            result["pagination_result"] = dict(pagination)
+            result["pages_requested"] = len(pagination.get("pages") or [])
+            result["total_available_jobs"] = pagination.get("total_available")
     elif platform == "sap_successfactors":
         pagination = getattr(session, "sap_successfactors_pagination", None)
         if isinstance(pagination, Mapping):

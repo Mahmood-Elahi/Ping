@@ -10,7 +10,7 @@ import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Optional
-from urllib.parse import urljoin, urlsplit, urlunsplit
+from urllib.parse import parse_qs, urljoin, urlsplit, urlunsplit
 
 import yaml
 
@@ -69,7 +69,7 @@ SUPPORTED_IMPORT_PLATFORMS = {
     "shopify",
 }
 DETECTED_BUT_UNSUPPORTED = {"workable", "rippling"}
-DETECTED_REQUIRES_REVIEW = {"adp", "hibob", "smartrecruiters"}
+DETECTED_REQUIRES_REVIEW = {"adp", "cornerstone_csod", "hibob", "smartrecruiters"}
 EXISTING_ONLY_PLATFORMS = {"ibm_search"}
 CUSTOM_PLATFORMS = {
     "amazon",
@@ -208,6 +208,16 @@ def detect_ats(url: Any) -> ATSDetection:
             "smartrecruiters",
             slug=parts[0],
             note="Detected ATS; reviewed identity and bounds configuration required",
+        )
+    csod_match = re.fullmatch(r"([a-z0-9-]+)\.csod\.com", host)
+    csod_path = re.fullmatch(r"/ux/ats/careersite/([1-9][0-9]{0,5})/home/?", parsed.path)
+    if csod_match and csod_path:
+        tenant = str((parse_qs(parsed.query).get("c") or [csod_match.group(1)])[0]).casefold()
+        return ATSDetection(
+            "cornerstone_csod",
+            tenant=tenant,
+            site_id=csod_path.group(1),
+            note="Detected ATS; reviewed official attribution and endpoint configuration required",
         )
     if host == "apply.workable.com" and parts:
         return ATSDetection("workable", slug=parts[0], note="Detected ATS; no scanner adapter")
