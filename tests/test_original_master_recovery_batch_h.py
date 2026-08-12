@@ -53,7 +53,7 @@ class OriginalMasterRecoveryBatchHArtifactTests(unittest.TestCase):
             cls.rows = list(csv.DictReader(handle))
 
     def test_activation_preserves_exact_325_entry_production_prefix(self) -> None:
-        self.assertEqual(330, len(self.production))
+        self.assertEqual(333, len(self.production))
         self.assertEqual(330, len(self.candidates))
         self.assertEqual(330, len(self.validated))
         self.assertEqual(325, len(self.historical))
@@ -62,8 +62,8 @@ class OriginalMasterRecoveryBatchHArtifactTests(unittest.TestCase):
         self.assertEqual(4, len(reconciliation.load_parent_source_mappings(batch.PARENT_MAPPINGS)))
         self.assertEqual(VALIDATED, [item["name"] for item in self.candidates[-5:]])
         self.assertEqual(VALIDATED, [item["name"] for item in self.validated[-5:]])
-        self.assertEqual(VALIDATED, [item["name"] for item in self.production[-5:]])
-        self.assertEqual(self.validated[-5:], self.production[-5:])
+        self.assertEqual(VALIDATED, [item["name"] for item in self.production[325:330]])
+        self.assertEqual(self.validated[-5:], self.production[325:330])
         production_names = [item["name"] for item in self.production]
         self.assertTrue(EXCLUDED.isdisjoint(production_names))
         for name in VALIDATED:
@@ -92,7 +92,7 @@ class OriginalMasterRecoveryBatchHArtifactTests(unittest.TestCase):
             reconciliation.load_parent_source_mappings(batch.PARENT_MAPPINGS),
         )
         self.assertEqual(246, master.total)
-        self.assertEqual(201, len(master.canonical_names) + len(master.mapped_names))
+        self.assertEqual(204, len(master.canonical_names) + len(master.mapped_names))
 
     def test_every_requested_company_has_one_result_and_inventory_row(self) -> None:
         self.assertEqual(batch.REVIEWED_COMPANIES, [item["company"] for item in self.report["results"]])

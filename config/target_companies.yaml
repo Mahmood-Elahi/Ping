@@ -4586,3 +4586,82 @@ target_companies:
     allowed_source_hosts:
     - jobsapi-google.m-cloud.io
     page_size: 10
+  - name: CATL
+    platform: javascript_embedded_data
+    careers_url: https://talent.catl.com/
+    source_identity_regex: catlhr|CATL|宁德时代
+    identity_regex: catlhr|CATL|宁德时代
+    allowed_apply_hosts:
+    - talent.catl.com
+    original_workbook_rank: 134
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://talent.catl.com/social-recruitment/catlhr/98098
+    listing_url: https://talent.catl.com/social-recruitment/catlhr/98098
+    endpoint_variant: html_attribute_json
+    embedded_script_selector: input#init-data
+    reference_url_attribute: value
+    embedded_json_path: jobs
+    id_field: id
+    title_field: title
+    location_fields:
+    - location.address
+    - location.country
+    url_field: id
+    date_field: updatedAt
+    department_field: department.name
+    job_attribution_field: orgId
+    job_attribution_regex: ^catlhr$
+    allowed_source_hosts:
+    - talent.catl.com
+    apply_url_template: https://talent.catl.com/social-recruitment/catlhr/98098?hash=%23%2Fjob%2F{id}
+    page_size: 15
+  - name: HTC Vive
+    platform: icims
+    careers_url: https://careers.htc.com/
+    source_identity_regex: 'HTC(?: Europe| United States)?|HTC VIVE'
+    identity_regex: 'HTC(?: Europe| United States)?|HTC VIVE'
+    allowed_apply_hosts:
+    - globalcareers-htcvive.icims.com
+    original_workbook_rank: 142
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://globalcareers-htcvive.icims.com/jobs/search
+    search_url: https://globalcareers-htcvive.icims.com/jobs/search
+    endpoint_variant: icims_legacy_portal_html
+    tenant: globalcareers-htcvive
+    board_id: htcvive-global-public
+    page_size: 20
+  - name: DJI
+    platform: javascript_embedded_data
+    careers_url: https://careers.dji.com/zh-CN/
+    source_identity_regex: DJI|大疆|\"orgId\":\"dji\"
+    identity_regex: DJI|大疆|\"orgId\":\"dji\"
+    allowed_apply_hosts:
+    - apply.careers.dji.com
+    original_workbook_rank: 150
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://apply.careers.dji.com/social-recruitment/dji/170070?locale=zh-CN
+    listing_url: https://apply.careers.dji.com/social-recruitment/dji/170070?locale=zh-CN
+    endpoint_variant: html_attribute_json
+    embedded_script_selector: input#init-data
+    reference_url_attribute: value
+    embedded_json_path: jobs
+    id_field: id
+    title_field: title
+    location_fields:
+    - location.address
+    - location.country
+    url_field: id
+    date_field: updatedAt
+    department_field: department.name
+    job_attribution_field: orgId
+    job_attribution_regex: ^dji$
+    allowed_source_hosts:
+    - apply.careers.dji.com
+    apply_url_template: https://apply.careers.dji.com/social-recruitment/dji/170070?locale=zh-CN&hash=%23%2Fjob%2F{id}
+    page_size: 15

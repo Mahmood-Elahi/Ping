@@ -23,6 +23,10 @@ def entries(path: Path) -> list[dict]:
     return (yaml.safe_load(path.read_text(encoding="utf-8")) or {})["target_companies"]
 
 
+def entries_from_bytes(content: bytes) -> list[dict]:
+    return (yaml.safe_load(content.decode("utf-8")) or {})["target_companies"]
+
+
 class Response:
     def __init__(
         self,
@@ -45,6 +49,8 @@ class OriginalMasterRecoveryBatchIArtifactTests(unittest.TestCase):
         cls.production_bytes = batch.PRODUCTION.read_bytes()
         cls.candidate_bytes = batch.CANDIDATE_REGISTRY.read_bytes()
         cls.validated_bytes = batch.VALIDATED_REGISTRY.read_bytes()
+        cls.historical_bytes = cls.validated_bytes[:cls.validated_bytes.index(b"  - name: CATL")]
+        cls.historical = entries_from_bytes(cls.historical_bytes)
         cls.production = entries(batch.PRODUCTION)
         cls.candidates = entries(batch.CANDIDATE_REGISTRY)
         cls.validated = entries(batch.VALIDATED_REGISTRY)
@@ -52,12 +58,13 @@ class OriginalMasterRecoveryBatchIArtifactTests(unittest.TestCase):
         with batch.CANDIDATE_CSV.open(newline="", encoding="utf-8") as handle:
             cls.rows = list(csv.DictReader(handle))
 
-    def test_candidate_and_validated_registries_preserve_exact_330_prefix(self) -> None:
-        self.assertEqual(330, len(self.production))
+    def test_activation_preserves_exact_330_entry_production_prefix(self) -> None:
+        self.assertEqual(333, len(self.production))
         self.assertEqual(333, len(self.candidates))
         self.assertEqual(333, len(self.validated))
-        self.assertTrue(self.candidate_bytes.startswith(self.production_bytes))
-        self.assertTrue(self.validated_bytes.startswith(self.production_bytes))
+        self.assertEqual(330, len(self.historical))
+        self.assertEqual(self.historical, self.production[:330])
+        self.assertTrue(self.production_bytes.startswith(self.historical_bytes))
         self.assertEqual(VALIDATED, [item["name"] for item in self.candidates[-3:]])
         self.assertEqual(VALIDATED, [item["name"] for item in self.validated[-3:]])
         self.assertEqual(self.candidates[-3:], self.validated[-3:])
@@ -65,8 +72,11 @@ class OriginalMasterRecoveryBatchIArtifactTests(unittest.TestCase):
             4,
             len(reconciliation.load_parent_source_mappings(batch.PARENT_MAPPINGS)),
         )
-        production_names = {item["name"] for item in self.production}
-        self.assertTrue(set(VALIDATED).isdisjoint(production_names))
+        self.assertEqual(VALIDATED, [item["name"] for item in self.production[-3:]])
+        self.assertEqual(self.validated[-3:], self.production[-3:])
+        production_names = [item["name"] for item in self.production]
+        for name in VALIDATED:
+            self.assertEqual(1, production_names.count(name))
         self.assertTrue(EXCLUDED.isdisjoint(production_names))
 
     def test_report_projects_only_three_validated_master_recoveries(self) -> None:
@@ -95,7 +105,7 @@ class OriginalMasterRecoveryBatchIArtifactTests(unittest.TestCase):
             reconciliation.load_parent_source_mappings(batch.PARENT_MAPPINGS),
         )
         self.assertEqual(246, master.total)
-        self.assertEqual(201, len(master.canonical_names) + len(master.mapped_names))
+        self.assertEqual(204, len(master.canonical_names) + len(master.mapped_names))
 
     def test_all_requested_companies_have_one_result_and_inventory_row(self) -> None:
         self.assertEqual(
