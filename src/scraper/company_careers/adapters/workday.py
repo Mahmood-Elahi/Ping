@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Dict, List
 
 import requests
@@ -14,12 +15,15 @@ HEADERS = {
     "Accept": "application/json",
     "Content-Type": "application/json",
 }
+FACET_KEY_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
+FACET_VALUE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
 
 
 def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 20) -> List[JobRecord]:
     if not target.tenant or not target.wd_subdomain or not (target.site_id or target.site_ids):
         raise AdapterError("Workday target needs tenant, wd_subdomain, and site_id/site_ids")
 
+    _validate_applied_facets(target)
     site_ids = _candidate_site_ids(target)
     last_error = None
 
@@ -28,7 +32,8 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
             f"https://{target.tenant}.{target.wd_subdomain}.myworkdayjobs.com"
             f"/wday/cxs/{target.tenant}/{site_id}/jobs"
         )
-        for body_index in range(len(_body_variants(0))):
+        body_count = 1 if target.applied_facets else len(_body_variants(0, {}))
+        for body_index in range(body_count):
             try:
                 return _fetch_pages(session, target, api_url, site_id, body_index, timeout)
             except AdapterError as exc:
@@ -46,12 +51,73 @@ def _candidate_site_ids(target: CompanyTarget) -> List[str]:
     return list(dict.fromkeys(site_ids))
 
 
-def _body_variants(offset: int) -> List[Dict[str, object]]:
+def _body_variants(
+    offset: int,
+    applied_facets: Dict[str, List[str]],
+) -> List[Dict[str, object]]:
     return [
-        {"appliedFacets": {}, "limit": 20, "offset": offset, "searchText": ""},
+        {
+            "appliedFacets": applied_facets,
+            "limit": 20,
+            "offset": offset,
+            "searchText": "",
+        },
         {"limit": 20, "offset": offset},
         {"limit": 20, "offset": offset, "searchText": ""},
     ]
+
+
+def _validate_applied_facets(target: CompanyTarget) -> None:
+    """Accept one exact, observed Workday facet without an unfiltered fallback."""
+    facets = target.applied_facets
+    if not facets:
+        return
+    if len(facets) != 1:
+        raise AdapterError("Workday applied_facets must contain exactly one facet")
+    key, values = next(iter(facets.items()))
+    if not FACET_KEY_RE.fullmatch(key):
+        raise AdapterError("Workday applied_facets contains an invalid facet key")
+    if len(values) != 1 or not FACET_VALUE_RE.fullmatch(values[0]):
+        raise AdapterError("Workday applied_facets must contain one safe opaque value")
+
+
+def _verify_applied_facets(payload: object, target: CompanyTarget) -> None:
+    """Fail closed when Workday does not recognize or apply the configured facet."""
+    if not target.applied_facets:
+        return
+    if not isinstance(payload, dict):
+        raise AdapterError("Workday filtered response must be a JSON object")
+    key, values = next(iter(target.applied_facets.items()))
+    requested = values[0]
+    matching = next(
+        (
+            facet
+            for facet in payload.get("facets", [])
+            if isinstance(facet, dict) and facet.get("facetParameter") == key
+        ),
+        None,
+    )
+    if not matching:
+        raise AdapterError("Workday filtered response omitted the configured facet")
+    value = next(
+        (
+            item
+            for item in matching.get("values", [])
+            if isinstance(item, dict) and str(item.get("id") or "") == requested
+        ),
+        None,
+    )
+    total = payload.get("total")
+    count = value.get("count") if value else None
+    if (
+        value is None
+        or isinstance(total, bool)
+        or not isinstance(total, int)
+        or isinstance(count, bool)
+        or not isinstance(count, int)
+        or total != count
+    ):
+        raise AdapterError("Workday did not conclusively apply the configured exact facet")
 
 
 def _stable_job_id(bullet_fields: List[object], external_path: str) -> str:
@@ -119,7 +185,7 @@ def _fetch_pages(
 
     for page in range(max(1, target.max_pages)):
         offset = page * 20
-        body = _body_variants(offset)[body_index]
+        body = _body_variants(offset, target.applied_facets)[body_index]
         response = session.post(api_url, json=body, headers=HEADERS, timeout=timeout)
         if response.status_code != 200:
             if page == 0:
@@ -128,7 +194,10 @@ def _fetch_pages(
                 )
             break
 
-        items = response.json().get("jobPostings", [])
+        payload = response.json()
+        if page == 0:
+            _verify_applied_facets(payload, target)
+        items = payload.get("jobPostings", [])
         if not items:
             break
 

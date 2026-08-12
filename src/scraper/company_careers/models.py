@@ -96,6 +96,7 @@ class CompanyTarget:
     wd_subdomain: Optional[str] = None
     site_id: Optional[str] = None
     site_ids: List[str] = field(default_factory=list)
+    applied_facets: Dict[str, List[str]] = field(default_factory=dict)
     careers_url: Optional[str] = None
     search_url: Optional[str] = None
     endpoint_variant: Optional[str] = None
@@ -164,6 +165,10 @@ class CompanyTarget:
             wd_subdomain=data.get("wd_subdomain"),
             site_id=data.get("site_id"),
             site_ids=list(data.get("site_ids") or []),
+            applied_facets={
+                str(key): _clean_list(value if isinstance(value, list) else [])
+                for key, value in dict(data.get("applied_facets") or {}).items()
+            },
             careers_url=data.get("careers_url"),
             search_url=data.get("search_url"),
             endpoint_variant=data.get("endpoint_variant"),
