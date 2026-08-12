@@ -4665,3 +4665,56 @@ target_companies:
     - apply.careers.dji.com
     apply_url_template: https://apply.careers.dji.com/social-recruitment/dji/170070?locale=zh-CN&hash=%23%2Fjob%2F{id}
     page_size: 15
+  - name: Rakuten
+    platform: static_html
+    careers_url: https://global.rakuten.com/corp/careers/
+    source_identity_regex: Rakuten|data-organization-ids
+    identity_regex: Rakuten|data-organization-ids
+    allowed_apply_hosts:
+    - japan-job-en.rakuten.careers
+    original_workbook_rank: 212
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://japan-job-en.rakuten.careers/search-jobs/
+    listing_url: https://japan-job-en.rakuten.careers/search-jobs/
+    pagination_url_template: https://japan-job-en.rakuten.careers/search-jobs/?p={page}
+    endpoint_variant: server_rendered_cards
+    listing_selector: section#search-results
+    job_card_selector: section#search-results-list li
+    title_selector: a[data-job-id] h2
+    location_selector: span.job-location
+    department_selector: span.job-category
+    detail_link_selector: a[data-job-id]
+    external_id_regex: /32045/([0-9]+)$
+  - name: Target Tech
+    platform: workday
+    careers_url: https://corporate.target.com/careers/career-areas/corporate/target-tech
+    source_identity_regex: Target|tenant:\s*\"target\"|siteId:\s*\"targetcareers\"
+    identity_regex: Target|tenant:\s*\"target\"|siteId:\s*\"targetcareers\"
+    allowed_apply_hosts:
+    - target.wd5.myworkdayjobs.com
+    original_workbook_rank: 214
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://target.wd5.myworkdayjobs.com/targetcareers
+    tenant: target
+    wd_subdomain: wd5
+    site_id: targetcareers
+    applied_facets:
+      jobFamilyGroup:
+      - daccab9f1d25018677ebcc363457460e
+  - name: Twitch
+    platform: greenhouse
+    careers_url: https://careers.twitch.com/en/careers
+    source_identity_regex: Twitch|for=twitch
+    identity_regex: Twitch|for=twitch
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+    original_workbook_rank: 228
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://careers.twitch.com/en/careers
+    slug: twitch

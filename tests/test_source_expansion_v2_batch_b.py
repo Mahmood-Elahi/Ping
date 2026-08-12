@@ -138,11 +138,12 @@ class SourceExpansionV2BatchBArtifactTests(unittest.TestCase):
         for name in VALIDATED:
             self.assertEqual(production_names.count(name), 1)
 
-    def test_05_exclusions_never_enter_validated_or_production(self):
+    def test_05_exclusions_stay_outside_the_milestone_except_later_twitch_activation(self):
         excluded = {result["company"] for result in self.report["results"] if not result["safe_to_activate"]}
         self.assertEqual(excluded, EXCLUDED)
         present = {entry["name"] for entry in self.validated + self.production}
-        self.assertTrue(EXCLUDED.isdisjoint(present))
+        self.assertTrue((EXCLUDED - {"Twitch"}).isdisjoint(present))
+        self.assertEqual(1, sum(entry["name"] == "Twitch" for entry in self.production))
 
     def test_06_every_company_has_requested_report_fields(self):
         required = {

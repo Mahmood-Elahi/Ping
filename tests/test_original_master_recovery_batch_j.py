@@ -42,22 +42,24 @@ class OriginalMasterRecoveryBatchJArtifactTests(unittest.TestCase):
         with batch.CANDIDATE_CSV.open(newline="", encoding="utf-8") as handle:
             cls.rows = list(csv.DictReader(handle))
 
-    def test_candidate_and_validated_registries_preserve_exact_production_prefix(self) -> None:
-        self.assertEqual(333, len(self.production))
+    def test_activation_preserves_exact_333_entry_production_prefix(self) -> None:
+        self.assertEqual(336, len(self.production))
         self.assertEqual(336, len(self.candidates))
         self.assertEqual(336, len(self.validated))
         self.assertEqual(333, len(self.historical))
-        self.assertEqual(self.production, self.historical)
-        self.assertTrue(self.candidate_bytes.startswith(self.production_bytes))
-        self.assertTrue(self.validated_bytes.startswith(self.production_bytes))
+        self.assertEqual(self.historical, self.production[:333])
+        self.assertTrue(self.production_bytes.startswith(self.historical_bytes))
         self.assertEqual(VALIDATED, [item["name"] for item in self.candidates[-3:]])
         self.assertEqual(self.candidates[-3:], self.validated[-3:])
         self.assertEqual(
             4,
             len(reconciliation.load_parent_source_mappings(batch.PARENT_MAPPINGS)),
         )
+        self.assertEqual(VALIDATED, [item["name"] for item in self.production[-3:]])
+        self.assertEqual(self.validated[-3:], self.production[-3:])
         production_names = [item["name"] for item in self.production]
-        self.assertTrue(set(VALIDATED).isdisjoint(production_names))
+        for name in VALIDATED:
+            self.assertEqual(1, production_names.count(name))
         self.assertTrue(EXCLUDED.isdisjoint(production_names))
 
     def test_report_projects_three_recoveries_without_activation(self) -> None:
@@ -89,7 +91,7 @@ class OriginalMasterRecoveryBatchJArtifactTests(unittest.TestCase):
             reconciliation.load_parent_source_mappings(batch.PARENT_MAPPINGS),
         )
         self.assertEqual(246, master.total)
-        self.assertEqual(204, len(master.canonical_names) + len(master.mapped_names))
+        self.assertEqual(207, len(master.canonical_names) + len(master.mapped_names))
 
     def test_all_requested_companies_have_one_result_and_inventory_row(self) -> None:
         self.assertEqual(batch.REVIEWED_COMPANIES, [item["company"] for item in self.report["results"]])

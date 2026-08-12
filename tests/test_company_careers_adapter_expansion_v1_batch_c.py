@@ -438,7 +438,7 @@ class BatchCValidationTests(unittest.TestCase):
         production = yaml.safe_load(production_bytes)["target_companies"]
         validated = yaml.safe_load(VALIDATED.read_text(encoding="utf-8"))["target_companies"]
         promoted = ["Astrobotic", "Intuitive Machines", "FANUC", "Helcim", "CPKC"]
-        self.assertEqual(len(production), 333)
+        self.assertEqual(len(production), 336)
         self.assertEqual(production[269:274], validated)
         self.assertEqual([row["name"] for row in production[269:274]], promoted)
         names = [row["name"] for row in production]
@@ -456,7 +456,7 @@ class BatchCValidationTests(unittest.TestCase):
             load_target_companies(str(PRODUCTION)),
             load_parent_source_mappings(),
         )
-        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 204)
+        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 207)
         self.assertEqual(master.total, 246)
 
         # The validation artifact remains immutable milestone evidence.
