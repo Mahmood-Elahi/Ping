@@ -55,7 +55,7 @@ class OntarioCanadaExpansionV1BatchAArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_the_exact_274_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 336)
+        self.assertEqual(len(self.production), 338)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(self.historical), 274)
         self.assertEqual(self.production[:274], self.historical)
@@ -160,7 +160,7 @@ class OntarioCanadaExpansionV1BatchAArtifactTests(unittest.TestCase):
             load_target_companies(str(batch.PRODUCTION)),
             load_parent_source_mappings(batch.PARENT_MAPPINGS),
         )
-        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 207)
+        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 208)
         self.assertTrue(all(not item["original_246_master"] for item in self.report["results"]))
         totals = self.report["totals"]
         self.assertEqual(totals["candidate_sources"], 14)

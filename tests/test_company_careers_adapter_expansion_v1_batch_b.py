@@ -406,7 +406,7 @@ class BatchBRecoveryValidationTests(unittest.TestCase):
         baseline_count = self.data["baseline"]["production_sources"]
         projection_count = self.data["projection"]["production_sources"]
         promoted = ["Bosch", "Aptiv"]
-        self.assertEqual(len(production_data), 336)
+        self.assertEqual(len(production_data), 338)
         self.assertEqual([row["name"] for row in production_data[baseline_count:projection_count]], promoted)
         self.assertEqual(
             len(load_parent_source_mappings()), self.data["baseline"]["parent_mappings"]

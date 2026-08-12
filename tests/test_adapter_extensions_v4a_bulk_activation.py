@@ -330,7 +330,11 @@ class AdapterExtensionsV4ABulkActivationTests(unittest.TestCase):
                 registry_validator.source_key(expected),
             )
         excluded = {"ohb se"}
-        self.assertFalse(excluded & {registry_validator._name_key(item) for item in production})
+        self.assertFalse(excluded & {registry_validator._name_key(item) for item in validated})
+        self.assertEqual(
+            sum(registry_validator._name_key(item) == "ohb se" for item in production),
+            1,
+        )
         _, batch_g = registry_validator.load_registry(ORIGINAL_MASTER_BATCH_G_VALIDATED)
         expected_yaskawa = next(
             item for item in batch_g

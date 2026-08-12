@@ -223,17 +223,28 @@ class BatchArtifactTests(unittest.TestCase):
         cls.production_bytes = batch.PRODUCTION.read_bytes()
         cls.candidate_bytes = batch.CANDIDATE_REGISTRY.read_bytes()
         cls.validated_bytes = batch.VALIDATED_REGISTRY.read_bytes()
+        cls.historical_bytes = cls.validated_bytes[: cls.validated_bytes.index(b"  - name: CN Rail")]
         cls.report = json.loads(batch.REPORT.read_text(encoding="utf-8"))
         cls.production = yaml.safe_load(cls.production_bytes)["target_companies"]
         cls.candidates = yaml.safe_load(cls.candidate_bytes)["target_companies"]
         cls.validated = yaml.safe_load(cls.validated_bytes)["target_companies"]
+        cls.historical = yaml.safe_load(cls.historical_bytes)["target_companies"]
 
-    def test_exact_baseline_prefix_and_projection_remain_unactivated(self):
-        self.assertEqual(len(self.production), 336)
-        self.assertTrue(self.candidate_bytes.startswith(self.production_bytes))
-        self.assertTrue(self.validated_bytes.startswith(self.production_bytes))
+    def test_activation_preserves_exact_336_entry_production_prefix(self):
+        self.assertEqual(len(self.production), 338)
+        self.assertEqual(len(self.candidates), 338)
+        self.assertEqual(len(self.validated), 338)
+        self.assertEqual(len(self.historical), 336)
+        self.assertTrue(self.production_bytes.startswith(self.historical_bytes))
+        self.assertEqual(self.candidate_bytes, self.validated_bytes)
         self.assertEqual([row["name"] for row in self.candidates[336:]], ["CN Rail", "OHB SE"])
+        self.assertEqual(self.production, self.validated)
         self.assertEqual(self.candidates, self.validated)
+        self.assertEqual(self.production[:336], self.validated[:336])
+        self.assertEqual(self.production[336:], self.validated[336:])
+        production_names = [row["name"] for row in self.production]
+        for name in ("CN Rail", "OHB SE"):
+            self.assertEqual(production_names.count(name), 1)
         self.assertEqual(self.report["projection"]["production_sources"], 338)
         self.assertEqual(self.report["projection"]["original_master_coverage"], 208)
         self.assertFalse(self.report["production_registry_activated"])
@@ -243,19 +254,22 @@ class BatchArtifactTests(unittest.TestCase):
         results = {row["company"]: row for row in self.report["results"]}
         self.assertEqual(list(results), batch.FIXTURES)
         self.assertEqual(self.report["recovered_companies"], ["CN Rail", "OHB SE"])
+        blockers = {
+            "WestJet": "session_or_waf_dependency",
+            "SMART Technologies": "session_or_waf_dependency",
+            "Ross Video": "session_or_waf_dependency",
+            "Chemelex": "session_or_waf_dependency",
+            "Blackline Safety": "captcha_dependency",
+            "AltaLink": "captcha_dependency",
+            "Hugging Face": "captcha_dependency",
+            "Skyworks Solutions": "session_state_dependency",
+        }
         self.assertEqual(
             {row["company"]: row["validation_status"] for row in self.report["remaining_blockers"]},
-            {
-                "WestJet": "session_or_waf_dependency",
-                "SMART Technologies": "session_or_waf_dependency",
-                "Ross Video": "session_or_waf_dependency",
-                "Chemelex": "session_or_waf_dependency",
-                "Blackline Safety": "captcha_dependency",
-                "AltaLink": "captcha_dependency",
-                "Hugging Face": "captcha_dependency",
-                "Skyworks Solutions": "session_state_dependency",
-            },
+            blockers,
         )
+        production_names = {row["name"] for row in self.production}
+        self.assertTrue(set(blockers).isdisjoint(production_names))
 
     def test_adapters_and_registry_validator_are_wired_generically(self):
         self.assertIs(scanner.ADAPTERS["cornerstone_csod"], cornerstone_csod.fetch_jobs)

@@ -62,7 +62,7 @@ class CalgaryAlbertaExpansionV2BatchBArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_exact_298_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 336)
+        self.assertEqual(len(self.production), 338)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(self.historical), 298)
         self.assertEqual(len(self.candidates), 302)
@@ -87,7 +87,7 @@ class CalgaryAlbertaExpansionV2BatchBArtifactTests(unittest.TestCase):
         self.assertTrue(EXCLUDED.isdisjoint(production_names))
         for name in VALIDATED:
             self.assertEqual(production_names.count(name), 1)
-        self.assertEqual(len({name.casefold() for name in production_names}), 336)
+        self.assertEqual(len({name.casefold() for name in production_names}), 338)
 
     def test_03_report_and_inventory_cover_the_exact_requested_order(self):
         self.assertEqual([row["company"] for row in self.inventory], batch.REVIEWED_COMPANIES)
@@ -245,7 +245,7 @@ class CalgaryAlbertaExpansionV2BatchBArtifactTests(unittest.TestCase):
             load_target_companies(str(batch.PRODUCTION)),
             load_parent_source_mappings(batch.PARENT_MAPPINGS),
         )
-        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 207)
+        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 208)
         self.assertTrue(all(not item["original_246_master"] for item in self.report["results"]))
         totals = self.report["totals"]
         self.assertEqual((totals["production_sources"], totals["parent_mappings"]), (298, 4))

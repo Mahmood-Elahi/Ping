@@ -78,6 +78,7 @@ ROBOTICS_SEMICONDUCTOR_HIGH_FIT_EXPANSION_V1_BATCH_A_PROMOTIONS = [
     "Locus Robotics", "Qorvo", "Diodes Incorporated", "Allegro MicroSystems",
     "indie Semiconductor",
 ]
+ATS_ADAPTER_EXPANSION_V2_BATCH_A_PROMOTIONS = ["CN Rail", "OHB SE"]
 HISTORICAL_PRODUCTION_ONLY = [
     "Datadog", "Elastic", "GitLab", "Twilio", "Zscaler", "CrowdStrike",
     "HashiCorp", "Confluent", "Teradyne",
@@ -218,6 +219,7 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
                 + CALGARY_ALBERTA_EXPANSION_V2_BATCH_B_PROMOTIONS
                 + CANADA_HIGH_FIT_EXPANSION_V1_BATCH_A_PROMOTIONS
                 + ROBOTICS_SEMICONDUCTOR_HIGH_FIT_EXPANSION_V1_BATCH_A_PROMOTIONS
+                + ATS_ADAPTER_EXPANSION_V2_BATCH_A_PROMOTIONS
             )
             if mod.normalize_company_name(name) not in master_names
         ]
@@ -227,7 +229,7 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
         )
         self.assertEqual(
             len(self.reconciliation.canonical_names) + len(self.reconciliation.mapped_names),
-            207,
+            208,
         )
 
     def test_08_normalization_does_not_use_weak_substrings(self):

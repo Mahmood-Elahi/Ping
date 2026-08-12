@@ -4718,3 +4718,38 @@ target_companies:
     max_response_bytes: 3000000
     identity_url: https://careers.twitch.com/en/careers
     slug: twitch
+  - name: CN Rail
+    platform: cornerstone_csod
+    careers_url: https://www.cn.ca/en/careers
+    search_url: https://cn360.csod.com/ux/ats/careersite/1/home?c=cn360&lang=en-US
+    endpoint_url: https://us.api.csod.com/rec-job-search/external/jobs
+    endpoint_variant: mobile_career_site_external_search_v1
+    tenant: cn360
+    site_id: '1'
+    locale: en-US
+    source_identity_regex: Canadian National|\bCN\b
+    identity_regex: Canadian National|\bCN\b
+    allowed_apply_hosts:
+    - cn360.csod.com
+    page_size: 25
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+  - name: OHB SE
+    platform: cornerstone_csod
+    careers_url: https://www.ohb.de/en/career
+    search_url: https://career-ohb.csod.com/ux/ats/careersite/4/home?c=career-ohb&lang=en-GB
+    endpoint_url: https://eu-fra.api.csod.com/rec-job-search/external/jobs
+    endpoint_variant: mobile_career_site_external_search_v1
+    tenant: career-ohb
+    site_id: '4'
+    locale: en-GB
+    source_identity_regex: \bOHB\b
+    identity_regex: \bOHB\b
+    allowed_apply_hosts:
+    - career-ohb.csod.com
+    original_workbook_rank: 197
+    page_size: 25
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
