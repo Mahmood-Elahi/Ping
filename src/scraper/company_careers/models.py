@@ -107,6 +107,7 @@ class CompanyTarget:
     job_card_selector: Optional[str] = None
     title_selector: Optional[str] = None
     location_selector: Optional[str] = None
+    fixed_location: Optional[str] = None
     detail_link_selector: Optional[str] = None
     external_id_attribute: Optional[str] = None
     external_id_regex: Optional[str] = None
@@ -179,6 +180,7 @@ class CompanyTarget:
             job_card_selector=data.get("job_card_selector"),
             title_selector=data.get("title_selector"),
             location_selector=data.get("location_selector"),
+            fixed_location=data.get("fixed_location"),
             detail_link_selector=data.get("detail_link_selector"),
             external_id_attribute=data.get("external_id_attribute"),
             external_id_regex=data.get("external_id_regex"),

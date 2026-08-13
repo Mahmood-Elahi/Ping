@@ -17,6 +17,8 @@ HEADERS = {
 }
 FACET_KEY_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
 FACET_VALUE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
+PATH_REQUISITION_RE = re.compile(r"(?:^|_)((?:[A-Z]{1,4})?R\d{4,})$", re.IGNORECASE)
+BULLET_REQUISITION_RE = re.compile(r"^[A-Za-z]{0,8}[-_]?\d{1,20}$")
 
 
 def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 20) -> List[JobRecord]:
@@ -131,11 +133,17 @@ def _stable_job_id(bullet_fields: List[object], external_path: str) -> str:
     path_token = external_path.rstrip("/").rsplit("/", 1)[-1]
     for value in bullet_fields:
         candidate = str(value).strip()
-        if candidate and path_token.casefold().endswith(candidate.casefold()):
+        if (
+            BULLET_REQUISITION_RE.fullmatch(candidate)
+            and path_token.casefold().endswith(candidate.casefold())
+        ):
             return candidate
-    if bullet_fields:
-        return str(bullet_fields[0]).strip()
-    return path_token
+    path_match = PATH_REQUISITION_RE.search(path_token)
+    if path_match:
+        return path_match.group(1)
+    if path_token:
+        return path_token
+    return str(bullet_fields[0]).strip() if bullet_fields else ""
 
 
 def _location(

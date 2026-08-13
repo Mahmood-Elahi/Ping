@@ -155,6 +155,8 @@ def validate_target(target: CompanyTarget) -> None:
                   target.department_selector, target.next_page_selector, target.empty_selector):
         if value:
             selector_to_xpath(str(value))
+    if target.fixed_location and len(str(target.fixed_location)) > 200:
+        raise AdapterError("Static HTML fixed_location exceeds the hard length limit")
     if target.external_id_attribute and not _ATTR_RE.fullmatch(str(target.external_id_attribute)):
         raise AdapterError("Static HTML external_id_attribute is invalid")
     if target.reference_url_attribute and not _ATTR_RE.fullmatch(str(target.reference_url_attribute)):
@@ -334,6 +336,8 @@ def _normalize(card: Any, target: CompanyTarget, page_url: str) -> JobRecord:
     if not title or not external_id:
         raise AdapterError("Static HTML job is missing title or stable identifier")
     locations = _texts(card, target.location_selector)
+    if not locations and target.fixed_location:
+        locations = _unique([str(target.fixed_location)])
     departments = _texts(card, target.department_selector)
     dates = _texts(card, target.date_selector)
     work_modes = [value for value in locations if re.search(r"(?i)\b(remote|hybrid)\b", value)]
