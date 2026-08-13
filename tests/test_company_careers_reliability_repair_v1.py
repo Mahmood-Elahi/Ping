@@ -14,11 +14,14 @@ from src.scraper.company_careers.scanner import CompanyCareersScanner
 
 
 class Response:
-    def __init__(self, payload=None, *, status=200, text=None, headers=None):
+    def __init__(
+        self, payload=None, *, status=200, text=None, headers=None, url=None
+    ):
         self.payload = payload
         self.status_code = status
         self.text = text if text is not None else json.dumps(payload)
         self.headers = dict(headers or {})
+        self.url = url
 
     def json(self):
         return self.payload
@@ -41,6 +44,14 @@ class Session:
 
 
 class CompanyCareersReliabilityRepairV1Tests(unittest.TestCase):
+    META_CONTEXT = (
+        '["LSD",[],{"token":"token"}]'
+        '{"client_revision":1,"hsi":"2"}'
+    )
+    EMPTY_META_PAYLOAD = {
+        "data": {"job_search_with_featured_jobs": {"all_jobs": []}}
+    }
+
     def test_uber_server_rendered_contract_fails_closed_on_unproven_empty_page(self):
         target = CompanyTarget(name="Uber", platform="uber", max_pages=1)
         session = Session(gets=[Response(text="<!doctype html><html><body>changed</body></html>")])
@@ -67,6 +78,175 @@ class CompanyCareersReliabilityRepairV1Tests(unittest.TestCase):
         self.assertEqual(len(session.get_calls), 1)
         self.assertEqual(len(session.post_calls), 2)
         self.assertEqual(session.get_calls[0][0][0], meta.SEARCH_URL)
+
+    def test_meta_non_json_html_fails_closed_without_retry(self):
+        session = Session(
+            gets=[Response(text=self.META_CONTEXT)],
+            posts=[
+                Response(
+                    text="<!doctype html><html><body>unexpected page</body></html>",
+                    headers={"Content-Type": "text/html; charset=utf-8"},
+                )
+            ],
+        )
+        target = CompanyTarget(
+            name="Meta", platform="meta", search_terms=["Engineer"], max_pages=1
+        )
+
+        with self.assertRaisesRegex(AdapterError, "unexpected Content-Type"):
+            meta.fetch_jobs(session, target)
+
+        self.assertEqual(len(session.post_calls), 1)
+
+    def test_meta_empty_body_retries_then_fails_closed(self):
+        empty_responses = [
+            Response(text="", headers={"Content-Type": "application/json"})
+            for _ in range(meta.MAX_ATTEMPTS)
+        ]
+        session = Session(
+            gets=[Response(text=self.META_CONTEXT)], posts=empty_responses
+        )
+        target = CompanyTarget(
+            name="Meta", platform="meta", search_terms=["Engineer"], max_pages=1
+        )
+
+        with patch.object(meta.time, "sleep"), self.assertRaisesRegex(
+            AdapterError, "empty response.*body empty"
+        ):
+            meta.fetch_jobs(session, target)
+
+        self.assertEqual(len(session.post_calls), meta.MAX_ATTEMPTS)
+
+    def test_meta_wrong_content_type_does_not_accept_valid_json(self):
+        session = Session(
+            gets=[Response(text=self.META_CONTEXT)],
+            posts=[
+                Response(
+                    self.EMPTY_META_PAYLOAD,
+                    headers={"Content-Type": "text/html"},
+                )
+            ],
+        )
+        target = CompanyTarget(
+            name="Meta", platform="meta", search_terms=["Engineer"], max_pages=1
+        )
+
+        with self.assertRaisesRegex(AdapterError, "unexpected Content-Type"):
+            meta.fetch_jobs(session, target)
+
+        self.assertEqual(len(session.post_calls), 1)
+
+    def test_meta_recovers_when_transient_non_json_is_followed_by_valid_json(self):
+        session = Session(
+            gets=[Response(text=self.META_CONTEXT)],
+            posts=[
+                Response(
+                    text="<html><title>502 Bad Gateway</title></html>",
+                    headers={"Content-Type": "text/html"},
+                ),
+                Response(
+                    self.EMPTY_META_PAYLOAD,
+                    headers={"Content-Type": "application/json; charset=utf-8"},
+                ),
+            ],
+        )
+        target = CompanyTarget(
+            name="Meta", platform="meta", search_terms=["Engineer"], max_pages=1
+        )
+
+        with patch.object(meta.time, "sleep"):
+            jobs = meta.fetch_jobs(session, target)
+
+        self.assertEqual(jobs, [])
+        self.assertEqual(len(session.post_calls), 2)
+
+    def test_meta_exhausted_malformed_json_is_failed_technical_for_parent_and_children(self):
+        malformed = [
+            Response(
+                text="{truncated",
+                headers={"Content-Type": "application/json"},
+            )
+            for _ in range(meta.MAX_ATTEMPTS)
+        ]
+        session = Session(
+            gets=[Response(text=self.META_CONTEXT)], posts=malformed
+        )
+        target = CompanyTarget(
+            name="Meta", platform="meta", search_terms=["Engineer"], max_pages=1
+        )
+        mappings = [
+            item
+            for item in load_parent_source_mappings()
+            if item.parent_company == "Meta"
+        ]
+
+        with patch.object(meta.time, "sleep"):
+            report = CompanyCareersScanner(
+                targets=[target],
+                session=session,
+                parent_source_mappings=mappings,
+            ).scan()
+
+        self.assertEqual(len(session.post_calls), meta.MAX_ATTEMPTS)
+        self.assertEqual(report.results[0].status, CoverageStatus.FAILED_TECHNICAL)
+        self.assertIn("Could not decode Meta Careers response", report.results[0].error)
+        self.assertEqual(
+            {row["company"]: row["status"] for row in report.mapped_coverage},
+            {
+                "Instagram": CoverageStatus.PARENT_FAILED_TECHNICAL,
+                "WhatsApp": CoverageStatus.PARENT_FAILED_TECHNICAL,
+            },
+        )
+
+    def test_meta_malformed_json_shape_is_not_an_empty_inventory(self):
+        session = Session(
+            gets=[Response(text=self.META_CONTEXT)],
+            posts=[
+                Response(
+                    {"data": {"job_search_with_featured_jobs": {}}},
+                    headers={"Content-Type": "application/json"},
+                )
+            ],
+        )
+        target = CompanyTarget(
+            name="Meta", platform="meta", search_terms=["Engineer"], max_pages=1
+        )
+
+        with self.assertRaisesRegex(AdapterError, "all_jobs list"):
+            meta.fetch_jobs(session, target)
+
+        self.assertEqual(len(session.post_calls), 1)
+
+    def test_meta_challenge_and_redirect_responses_are_not_retried(self):
+        target = CompanyTarget(
+            name="Meta", platform="meta", search_terms=["Engineer"], max_pages=1
+        )
+        cases = [
+            (
+                Response(
+                    text="<html>CAPTCHA: verify you are human</html>",
+                    headers={"Content-Type": "text/html"},
+                ),
+                "challenge or blocked content",
+            ),
+            (
+                Response(
+                    self.EMPTY_META_PAYLOAD,
+                    headers={"Content-Type": "application/json"},
+                    url="https://www.metacareers.com/login/",
+                ),
+                "redirected to an unexpected URL",
+            ),
+        ]
+
+        for response, message in cases:
+            with self.subTest(message=message):
+                session = Session(
+                    gets=[Response(text=self.META_CONTEXT)], posts=[response]
+                )
+                with self.assertRaisesRegex(AdapterError, message):
+                    meta.fetch_jobs(session, target)
+                self.assertEqual(len(session.post_calls), 1)
 
     def test_meta_retry_after_and_exponential_backoff_are_bounded(self):
         future = format_datetime(datetime.now(timezone.utc) + timedelta(minutes=10))
