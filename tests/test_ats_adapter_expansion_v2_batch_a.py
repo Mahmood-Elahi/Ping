@@ -231,7 +231,7 @@ class BatchArtifactTests(unittest.TestCase):
         cls.historical = yaml.safe_load(cls.historical_bytes)["target_companies"]
 
     def test_activation_preserves_exact_336_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 339)
+        self.assertEqual(len(self.production), 344)
         self.assertEqual(len(self.candidates), 338)
         self.assertEqual(len(self.validated), 338)
         self.assertEqual(len(self.historical), 336)
@@ -244,7 +244,7 @@ class BatchArtifactTests(unittest.TestCase):
         )
         self.assertEqual(self.production[336:338], self.validated[336:])
         production_names = [row["name"] for row in self.production]
-        self.assertEqual(production_names[-1], "Carbon Upcycling")
+        self.assertEqual(production_names[338], "Carbon Upcycling")
         for name in ("CN Rail", "OHB SE"):
             self.assertEqual(production_names.count(name), 1)
         self.assertEqual(self.report["projection"]["production_sources"], 338)

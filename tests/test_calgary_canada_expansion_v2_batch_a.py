@@ -54,7 +54,7 @@ class CalgaryCanadaExpansionV2BatchAArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_exact_262_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 339)
+        self.assertEqual(len(self.production), 344)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(self.historical), 262)
         assert_historical_prefix(self, self.production, self.historical)

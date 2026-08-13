@@ -80,6 +80,10 @@ ROBOTICS_SEMICONDUCTOR_HIGH_FIT_EXPANSION_V1_BATCH_A_PROMOTIONS = [
 ]
 ATS_ADAPTER_EXPANSION_V2_BATCH_A_PROMOTIONS = ["CN Rail", "OHB SE"]
 ATS_ADAPTER_EXPANSION_V2_BATCH_B_PROMOTIONS = ["Carbon Upcycling"]
+ALBERTA_ENERGY_EXPANSION_V1_BATCH_A_PROMOTIONS = [
+    "Athabasca Oil", "Paramount Resources", "STEP Energy Services",
+    "Calfrac Well Services", "Weir Group",
+]
 HISTORICAL_PRODUCTION_ONLY = [
     "Datadog", "Elastic", "GitLab", "Twilio", "Zscaler", "CrowdStrike",
     "HashiCorp", "Confluent", "Teradyne",
@@ -222,6 +226,7 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
                 + ROBOTICS_SEMICONDUCTOR_HIGH_FIT_EXPANSION_V1_BATCH_A_PROMOTIONS
                 + ATS_ADAPTER_EXPANSION_V2_BATCH_A_PROMOTIONS
                 + ATS_ADAPTER_EXPANSION_V2_BATCH_B_PROMOTIONS
+                + ALBERTA_ENERGY_EXPANSION_V1_BATCH_A_PROMOTIONS
             )
             if mod.normalize_company_name(name) not in master_names
         ]

@@ -60,21 +60,25 @@ class AlbertaEnergyExpansionV1BatchATests(unittest.TestCase):
                 self.assertLessEqual(entry["max_jobs"], 20)
                 self.assertIsNone(entry["original_workbook_rank"])
 
-    def test_generated_registries_are_inactive_exact_prefixes(self):
-        production = batch.PRODUCTION.read_bytes()
-        candidate = batch.CANDIDATE_REGISTRY.read_bytes()
-        validated = batch.VALIDATED_REGISTRY.read_bytes()
-        self.assertTrue(candidate.startswith(production))
+    def test_activation_matches_validated_registry_exactly(self):
+        production = yaml.safe_load(batch.PRODUCTION.read_bytes())
+        candidate = yaml.safe_load(batch.CANDIDATE_REGISTRY.read_bytes())
+        validated = yaml.safe_load(batch.VALIDATED_REGISTRY.read_bytes())
+        self.assertEqual(production, validated)
         self.assertEqual(candidate, validated)
-        self.assertEqual(batch.PRODUCTION.read_bytes(), production)
-        payload = yaml.safe_load(candidate)
+        payload = production
         self.assertEqual(len(payload["target_companies"]), 344)
         self.assertEqual(
             [entry["name"] for entry in payload["target_companies"][-5:]],
             [entry["name"] for entry in batch.CANDIDATE_ENTRIES],
         )
+        production_names = [entry["name"] for entry in payload["target_companies"]]
+        for name in batch.REVIEWED_COMPANIES:
+            self.assertEqual(production_names.count(name), int(name in {
+                entry["name"] for entry in batch.CANDIDATE_ENTRIES
+            }))
 
-    def test_report_and_csv_cover_every_company_and_do_not_activate(self):
+    def test_report_and_csv_preserve_validation_milestone(self):
         report = json.loads(batch.REPORT.read_text(encoding="utf-8"))
         self.assertEqual(report["validated_companies"], [entry["name"] for entry in batch.CANDIDATE_ENTRIES])
         self.assertEqual(len(report["excluded_companies"]), 15)

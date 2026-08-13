@@ -4722,3 +4722,68 @@ target_companies:
     max_pages: 1
     max_jobs: 20
     max_response_bytes: 3000000
+  - name: Athabasca Oil
+    platform: static_html
+    careers_url: https://www.atha.com/careers-details/calgary-ab.html
+    listing_url: https://www.atha.com/careers-details/calgary-ab.html
+    endpoint_variant: server_rendered_cards
+    listing_selector: .blog
+    job_card_selector: '[itemprop=blogPost]'
+    title_selector: h2[itemprop=name] a
+    detail_link_selector: h2[itemprop=name] a
+    external_id_regex: /([0-9]+)-
+    fixed_location: Calgary, Alberta, Canada
+    identity_regex: Athabasca Oil|ATHA Energy
+    allowed_apply_hosts:
+    - www.atha.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 500000
+  - name: Paramount Resources
+    platform: adp
+    careers_url: https://workforcenow.adp.com/mascsr/default/mdf/recruitment/recruitment.html?cid=b8dcb5ca-ab7a-4dad-b6cd-2c7a858453dd&ccId=19000101_000001&lang=en_CA
+    endpoint_url: https://workforcenow.adp.com/mascsr/default/careercenter/public/events/staffing/v1/job-requisitions
+    endpoint_variant: workforce_now_requisitions_v1
+    identity_regex: Paramount Resources
+    allowed_apply_hosts:
+    - workforcenow.adp.com
+    original_workbook_rank: null
+    page_size: 10
+    max_pages: 1
+    max_jobs: 20
+  - name: STEP Energy Services
+    platform: ukg_pro
+    careers_url: https://recruiting.ultipro.ca/STE5005SEEP/JobBoard/36169e92-ed1b-40fd-afd8-17e31780054c
+    identity_regex: STEP Energy Services
+    allowed_apply_hosts:
+    - recruiting.ultipro.ca
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+  - name: Calfrac Well Services
+    platform: paycor
+    careers_url: https://calfrac.com/careers/
+    endpoint_url: https://recruitingbypaycor.com/career/CareerHome.action?clientId=8a7883d0676d10a101678af01334303a
+    identity_regex: Calfrac Well Services
+    allowed_apply_hosts:
+    - recruitingbypaycor.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+  - name: Weir Group
+    platform: workday
+    careers_url: https://www.global.weir/careers/
+    search_url: https://weir.wd3.myworkdayjobs.com/Weir_External_Careers
+    tenant: weir
+    wd_subdomain: wd3
+    site_id: Weir_External_Careers
+    applied_facets:
+      Country:
+      - a30a87ed25634629aa6c3958aa2b91ea
+    identity_regex: Weir
+    allowed_apply_hosts:
+    - weir.wd3.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
