@@ -208,18 +208,34 @@ def peoplesoft_listing(*, url=PEOPLESOFT_URL):
     )
 
 
-def peoplesoft_detail(*, job_id=PEOPLESOFT_JOB, include_apply=True):
+def peoplesoft_detail(
+    *,
+    job_id=PEOPLESOFT_JOB,
+    title="Team Lead, Credit and Collection",
+    include_apply=True,
+    url=PEOPLESOFT_URL,
+):
     apply = '<a id="APPLYJOB" href="javascript:void(0)">Apply for Job</a>' if include_apply else ""
     return Response(
         f"""
         <html><body><div id="PT_BRAND_COMPINFO">City of Calgary</div>{apply}
           <span id="HRS_SCH_WRK2_HRS_JOB_OPENING_ID">{job_id}</span>
-          <span id="HRS_SCH_WRK2_POSTING_TITLE">Team Lead, Credit and Collection</span>
+          <span id="HRS_SCH_WRK2_POSTING_TITLE">{title}</span>
           <span id="HRS_SCH_WRK_HRS_DESCRLONG">Calgary, Alberta, Canada</span>
           <span id="HRS_SCH_PSTDSC_DESCRLONG$1">Lead the credit and collections team.</span>
         </body></html>
         """,
-        url=PEOPLESOFT_URL,
+        url=url,
+    )
+
+
+def peoplesoft_stale_detail():
+    return Response(
+        "<html><body><h1>City of Calgary Careers</h1><p>Search Jobs</p></body></html>",
+        url=(
+            "https://recruiting.calgary.ca/psc/hcm/EMPLOYEE/HRMS/c/"
+            "HRS_HRAM_FL.HRS_CG_SEARCH_FL.GBL?Page=HRS_APP_SCHJOB_FL&Action=U"
+        ),
     )
 
 
@@ -320,6 +336,47 @@ class PeopleSoftAdapterTests(unittest.TestCase):
         self.assertEqual(job.location, "Calgary, Alberta, Canada")
         self.assertEqual(job.url, PEOPLESOFT_URL)
         self.assertEqual(job.description, "Lead the credit and collections team.")
+
+    def test_official_stale_detail_redirect_is_skipped_without_attribution(self):
+        second_url = PEOPLESOFT_URL.replace(PEOPLESOFT_JOB, "315023")
+        listing = Response(
+            """
+            <html><body><h1>City of Calgary Careers</h1>
+              <a href="{first}">Closed Role</a>
+              <a href="{second}">  TEAM LEAD, CREDIT AND COLLECTION  </a>
+            </body></html>
+            """.format(first=PEOPLESOFT_URL.replace("&", "&amp;"), second=second_url.replace("&", "&amp;")),
+            url="https://www.calgary.ca/careers.html",
+        )
+        jobs = peoplesoft.fetch_jobs(
+            Session(
+                [
+                    listing,
+                    peoplesoft_stale_detail(),
+                    peoplesoft_detail(job_id="315023", url=second_url),
+                ]
+            ),
+            peoplesoft_target(),
+        )
+
+        self.assertEqual([job.job_id for job in jobs], ["315023"])
+
+    def test_title_and_redirect_identity_remain_fail_closed(self):
+        with self.assertRaisesRegex(AdapterError, "title does not match"):
+            peoplesoft.fetch_jobs(
+                Session([peoplesoft_listing(), peoplesoft_detail(title="Different Role")]),
+                peoplesoft_target(),
+            )
+        with self.assertRaisesRegex(AdapterError, "outside its official HTTPS host"):
+            peoplesoft.fetch_jobs(
+                Session(
+                    [
+                        peoplesoft_listing(),
+                        peoplesoft_detail(url="https://evil.test/redirect"),
+                    ]
+                ),
+                peoplesoft_target(),
+            )
 
     def test_detail_mismatch_missing_apply_and_unofficial_hosts_fail_closed(self):
         with self.assertRaisesRegex(AdapterError, "does not match"):

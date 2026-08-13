@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import time
+import unicodedata
 from typing import Any
 from urllib.parse import parse_qs, urljoin, urlparse
 
@@ -71,14 +72,25 @@ def fetch_jobs(
     jobs: list[JobRecord] = []
     for job_id, listing_title, detail_url, posting_sequence in candidates[: int(target.max_jobs)]:
         detail_response = _get(session, detail_url, timeout)
+        route_state = _detail_route_state(detail_response, detail_url, config)
         root, page_text = _parse_page(detail_response, "detail")
         if not re.search(str(target.identity_regex), page_text, re.IGNORECASE):
             raise AdapterError("PeopleSoft detail has mixed or ambiguous company identity")
+        if route_state == "stale":
+            if (
+                _field_text(root, "HRS_SCH_WRK2_HRS_JOB_OPENING_ID")
+                or _field_text(root, "HRS_SCH_WRK2_POSTING_TITLE")
+                or root.xpath("//a[normalize-space()='Apply for Job']")
+            ):
+                raise AdapterError("PeopleSoft stale-detail redirect contains ambiguous job detail")
+            continue
         returned_id = _field_text(root, "HRS_SCH_WRK2_HRS_JOB_OPENING_ID")
-        title = _field_text(root, "HRS_SCH_WRK2_POSTING_TITLE") or listing_title
+        title = _field_text(root, "HRS_SCH_WRK2_POSTING_TITLE")
         location = _field_text(root, "HRS_SCH_WRK_HRS_DESCRLONG")
-        if returned_id != job_id or not title:
-            raise AdapterError("PeopleSoft detail does not match its stable JobOpeningId and title")
+        if returned_id != job_id:
+            raise AdapterError("PeopleSoft detail does not match its stable JobOpeningId")
+        if not title or _normalized_title(title) != _normalized_title(listing_title):
+            raise AdapterError("PeopleSoft detail title does not match its listing title")
         if not root.xpath("//a[normalize-space()='Apply for Job']"):
             raise AdapterError("PeopleSoft detail lacks an official job-specific apply flow")
         descriptions = [
@@ -180,3 +192,38 @@ def _field_text(root: Any, field_id: str) -> str:
     if len(nodes) > 1:
         raise AdapterError(f"PeopleSoft detail contains duplicate {field_id} fields")
     return " ".join(nodes[0].text_content().split()) if nodes else ""
+
+
+def _detail_route_state(response: Any, requested_url: str, config: dict[str, Any]) -> str:
+    """Classify only the two anonymous detail outcomes exposed by PeopleSoft."""
+    requested = urlparse(requested_url)
+    returned = urlparse(str(getattr(response, "url", "") or ""))
+    returned_host = (returned.hostname or "").casefold()
+    if returned.scheme != "https" or returned_host not in config["allowed_hosts"]:
+        raise AdapterError("PeopleSoft detail redirected outside its official HTTPS host")
+    if returned.path != requested.path:
+        raise AdapterError("PeopleSoft detail redirected to an unexpected official route")
+
+    query = {key.casefold(): values for key, values in parse_qs(returned.query).items()}
+    page = str((query.get("page") or [""])[0]).strip().casefold()
+    if page == "hrs_app_schjob_fl":
+        action = str((query.get("action") or [""])[0]).strip().casefold()
+        if action == "u":
+            return "stale"
+        raise AdapterError("PeopleSoft detail redirected to an ambiguous job-search route")
+    if page != "hrs_app_jbpst_fl":
+        raise AdapterError("PeopleSoft detail redirected to an unexpected official route")
+
+    requested_query = {
+        key.casefold(): values for key, values in parse_qs(requested.query).items()
+    }
+    for field in ("jobopeningid", "postingseq", "siteid"):
+        expected = str((requested_query.get(field) or [""])[0]).strip()
+        actual = str((query.get(field) or [""])[0]).strip()
+        if actual != expected:
+            raise AdapterError("PeopleSoft detail route changed its stable job identity")
+    return "detail"
+
+
+def _normalized_title(value: str) -> str:
+    return " ".join(unicodedata.normalize("NFKC", value).split()).casefold()
