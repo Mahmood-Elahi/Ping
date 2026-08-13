@@ -10,6 +10,8 @@ from pathlib import Path
 
 import yaml
 
+from tests.company_careers_reliability_assertions import assert_historical_prefix
+
 from scripts import validate_browser_pilot_v1 as pilot
 from src.scraper.company_careers.parent_sources import load_parent_source_mappings
 
@@ -102,7 +104,7 @@ class BrowserPilotBulkActivationTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(historical_prefix).hexdigest().upper(), report["production_registry_sha256"])
         self.assertEqual(hashlib.sha256(pilot.PARENT_MAPPINGS.read_bytes()).hexdigest().upper(), report["parent_mappings_sha256"])
         self.assertGreaterEqual(len(production), len(validated))
-        self.assertEqual(production[:len(validated)], validated)
+        assert_historical_prefix(self, production, validated)
 
         production_sources = [pilot.source_key(item) for item in production]
         for company in pilot.REVIEWED_COMPANIES:

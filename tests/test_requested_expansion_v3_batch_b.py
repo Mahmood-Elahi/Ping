@@ -12,6 +12,11 @@ from types import SimpleNamespace
 
 import yaml
 
+from tests.company_careers_reliability_assertions import (
+    assert_historical_prefix,
+    with_reliability_repairs,
+)
+
 from scripts import validate_requested_expansion_v3_batch_b as batch
 from scripts.refingerprint_uncovered_companies import load_master_workbook, reconcile_master
 from src.scraper.company_careers.models import AdapterError, CompanyTarget
@@ -52,16 +57,12 @@ class RequestedExpansionV3BatchBArtifactTests(unittest.TestCase):
     def test_01_exact_207_entry_production_prefix_is_preserved(self):
         self.assertEqual(len(self.production), 339)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
-        self.assertTrue(
-            normalized_newlines(self.production_bytes).startswith(
-                normalized_newlines(self.historical_bytes)
-            )
-        )
-        self.assertEqual(self.production[:216], self.validated)
-        self.assertEqual(self.candidates, self.production[:216])
+        assert_historical_prefix(self, self.production, self.validated)
+        self.assertEqual(self.production[:216], with_reliability_repairs(self.validated))
+        self.assertEqual(self.production[:216], with_reliability_repairs(self.candidates))
         self.assertTrue(self.report["candidate_registry_has_exact_207_entry_prefix"])
         self.assertTrue(self.report["validated_registry_has_exact_207_entry_prefix"])
-        self.assertEqual(self.production[:207], self.validated[:207])
+        assert_historical_prefix(self, self.production, self.validated[:207])
 
     def test_02_candidate_and_validated_counts(self):
         self.assertEqual(len(self.candidates), 216)

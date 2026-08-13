@@ -8,6 +8,11 @@ from pathlib import Path
 
 import yaml
 
+from tests.company_careers_reliability_assertions import (
+    assert_historical_prefix,
+    with_reliability_repairs,
+)
+
 from scripts import validate_company_registry as validator
 from scripts import validate_static_embedded_batch as rollout
 from src.scraper.company_careers import scanner
@@ -153,6 +158,7 @@ class StaticEmbeddedBulkActivationTests(unittest.TestCase):
 
         self.assertEqual(excluded & set(production_by_name), set(allowed_by_name))
         for name_key, proven_entry in allowed_by_name.items():
+            proven_entry = with_reliability_repairs([proven_entry])[0]
             self.assertEqual(
                 sum(validator._name_key(item) == name_key for item in production),
                 1,
@@ -214,7 +220,11 @@ class StaticEmbeddedBulkActivationTests(unittest.TestCase):
         self.assertTrue(candidate.startswith(candidate_prefix))
         self.assertTrue(validated.startswith(validated_prefix))
         self.assertEqual(len(yaml.safe_load(candidate_prefix.decode("utf-8"))["target_companies"]), 105)
-        self.assertTrue(production == validated or production.startswith(validated))
+        assert_historical_prefix(
+            self,
+            entries(rollout.PRODUCTION),
+            entries(rollout.VALIDATED_REGISTRY),
+        )
 
     def test_05_candidate_loader_compatibility(self):
         self.assertEqual(len(load_target_companies(str(rollout.CANDIDATE_REGISTRY))), 132)
@@ -315,9 +325,11 @@ class StaticEmbeddedBulkActivationTests(unittest.TestCase):
             self.assertEqual(production_by_name[name_key]["platform"], EXPECTED_SAFE_PLATFORMS[name])
             self.assertEqual(validator.source_key(production_by_name[name_key]), validator.source_key(validated_by_name[name_key]))
         self.assert_exclusions_respect_proven_later_activations(production)
-        production_bytes = normalized_newlines(rollout.PRODUCTION.read_bytes())
-        validated_bytes = normalized_newlines(rollout.VALIDATED_REGISTRY.read_bytes())
-        self.assertTrue(production_bytes == validated_bytes or production_bytes.startswith(validated_bytes))
+        assert_historical_prefix(
+            self,
+            production,
+            entries(rollout.VALIDATED_REGISTRY),
+        )
 
     def test_18_inventory_and_registry_have_no_duplicates(self):
         names = [validator._name_key(item) for item in entries(rollout.CANDIDATE_REGISTRY)]

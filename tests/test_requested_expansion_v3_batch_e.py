@@ -12,6 +12,11 @@ from types import SimpleNamespace
 
 import yaml
 
+from tests.company_careers_reliability_assertions import (
+    assert_historical_prefix,
+    with_reliability_repairs,
+)
+
 from scripts import validate_requested_expansion_v3_batch_e as batch
 from scripts.refingerprint_uncovered_companies import load_master_workbook, reconcile_master
 from src.scraper.company_careers.adapters import bamboohr, startdate, ukg_pro
@@ -73,10 +78,10 @@ class RequestedExpansionV3BatchEArtifactTests(unittest.TestCase):
         self.assertEqual(len(self.production), 339)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(self.historical), 243)
-        self.assertEqual(self.production[:243], self.historical)
+        assert_historical_prefix(self, self.production, self.historical)
         self.assertEqual(self.candidates[:243], self.historical)
         self.assertEqual(self.validated[:243], self.historical)
-        self.assertEqual(self.production[:249], self.validated)
+        self.assertEqual(self.production[:249], with_reliability_repairs(self.validated))
         self.assertEqual(self.candidate_bytes, self.validated_bytes)
         self.assertTrue(self.report["candidate_registry_has_exact_243_entry_prefix"])
         self.assertTrue(self.report["validated_registry_has_exact_243_entry_prefix"])

@@ -12,6 +12,12 @@ from types import SimpleNamespace
 
 import yaml
 
+from tests.company_careers_reliability_assertions import (
+    assert_historical_prefix,
+    assert_historical_registry_bytes,
+    with_reliability_repairs,
+)
+
 from scripts import validate_ontario_canada_expansion_v1_batch_b as batch
 from src.scraper.company_careers.adapters import adp
 from src.scraper.company_careers.models import AdapterError, CompanyTarget
@@ -65,15 +71,11 @@ class OntarioCanadaExpansionV1BatchBArtifactTests(unittest.TestCase):
         self.assertEqual(len(self.production), 339)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(self.historical), 288)
-        self.assertEqual(self.production[:288], self.historical)
+        assert_historical_prefix(self, self.production, self.historical)
         self.assertEqual(self.candidates[:288], self.historical)
         self.assertEqual(self.validated[:288], self.historical)
-        self.assertTrue(
-            normalized_newlines(self.production_bytes).startswith(
-                normalized_newlines(self.historical_bytes)
-            )
-        )
-        self.assertEqual(self.production[:298], self.validated)
+        assert_historical_registry_bytes(self, self.production_bytes, self.historical_bytes)
+        self.assertEqual(self.production[:298], with_reliability_repairs(self.validated))
         self.assertTrue(self.report["candidate_registry_has_exact_288_entry_prefix"])
         self.assertTrue(self.report["validated_registry_has_exact_288_entry_prefix"])
 

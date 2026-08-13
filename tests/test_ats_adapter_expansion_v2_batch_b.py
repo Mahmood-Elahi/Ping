@@ -7,6 +7,8 @@ from pathlib import Path
 
 import yaml
 
+from tests.company_careers_reliability_assertions import with_reliability_repairs
+
 from scripts import company_watchlist_common
 from scripts import validate_ats_adapter_expansion_v2_batch_b as batch
 from scripts import validate_company_registry as registry_validator
@@ -173,7 +175,7 @@ class BatchArtifactsTests(unittest.TestCase):
     def test_activation_matches_validated_registry_exactly(self):
         self.assertEqual(len(self.production), 339)
         self.assertEqual(len(self.candidates), 339)
-        self.assertEqual(self.production, self.validated)
+        self.assertEqual(self.production, with_reliability_repairs(self.validated))
         self.assertEqual(self.candidates, self.validated)
         production = {row["name"]: row for row in self.production}
         candidate = {row["name"]: row for row in self.candidates}

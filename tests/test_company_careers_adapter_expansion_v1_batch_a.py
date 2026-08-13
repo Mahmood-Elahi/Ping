@@ -8,6 +8,8 @@ from unittest.mock import patch
 
 import yaml
 
+from tests.company_careers_reliability_assertions import assert_historical_prefix
+
 from scripts import validate_company_registry as registry_validator
 from src.scraper.company_careers import scanner
 from src.scraper.company_careers.adapters import paycor, peoplesoft, ukg_pro, workable
@@ -455,7 +457,7 @@ class RecoveryTargetValidationTests(unittest.TestCase):
         promoted = ["CoolIT Systems", "Ballard Power Systems", "City of Calgary"]
 
         self.assertGreaterEqual(len(production_data), baseline_count + len(promoted))
-        self.assertEqual(production_data[:baseline_count], historical_data)
+        assert_historical_prefix(self, production_data, historical_data)
         self.assertEqual(
             [row["name"] for row in production_data[baseline_count:baseline_count + len(promoted)]],
             promoted,

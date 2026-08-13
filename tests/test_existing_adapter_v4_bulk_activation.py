@@ -11,6 +11,8 @@ from unittest.mock import patch
 
 import yaml
 
+from tests.company_careers_reliability_assertions import assert_historical_prefix
+
 from scripts import validate_company_registry as validator
 from scripts import validate_existing_adapter_v4_batch as batch
 from src.scraper.company_careers import scanner
@@ -189,7 +191,11 @@ class ExistingAdapterV4ArtifactTests(unittest.TestCase):
             hashlib.sha256(normalized_prefix).hexdigest().upper(),
             HISTORICAL_PRODUCTION_SHA256,
         )
-        self.assertTrue(normalized_newlines(batch.PRODUCTION.read_bytes()).startswith(normalized_prefix))
+        assert_historical_prefix(
+            self,
+            validator.load_registry(batch.PRODUCTION)[1],
+            historical_baseline_entries(),
+        )
 
     def test_07_candidate_registry_contains_exactly_six_historical_additions(self):
         _, candidates = validator.load_registry(batch.CANDIDATE_REGISTRY)
@@ -436,11 +442,7 @@ class ExistingAdapterV4ContractTests(unittest.TestCase):
         ]
         self.assertEqual(len(workday_sites), len(set(workday_sites)))
         self.assertEqual(len(lever_boards), len(set(lever_boards)))
-        self.assertTrue(
-            normalized_newlines(batch.PRODUCTION.read_bytes()).startswith(
-                normalized_newlines(batch.VALIDATED_REGISTRY.read_bytes())
-            )
-        )
+        assert_historical_prefix(self, production, validated)
 
     def test_38_parent_mapping_configuration_remains_unchanged(self):
         digest = hashlib.sha256(batch.PARENT_MAPPINGS.read_bytes()).hexdigest().upper()

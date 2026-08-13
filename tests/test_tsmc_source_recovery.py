@@ -11,6 +11,11 @@ from unittest.mock import patch
 import requests
 import yaml
 
+from tests.company_careers_reliability_assertions import (
+    assert_historical_prefix,
+    assert_historical_target_prefix,
+)
+
 from scripts import validate_company_registry as registry_validator
 from scripts import validate_tsmc_source_recovery as recovery
 from src.scraper.company_careers import scanner
@@ -226,7 +231,7 @@ class TSMCSourceRecoveryTests(unittest.TestCase):
         _, production = registry_validator.load_registry(recovery.PRODUCTION)
         self.assertEqual(len(load_target_companies(str(recovery.CANDIDATE))), 133)
         self.assertGreaterEqual(len(production), len(candidate))
-        self.assertEqual(production[:len(candidate)], candidate)
+        assert_historical_prefix(self, production, candidate)
 
     def test_29_validated_registry_loader_compatibility(self):
         self.assertEqual(len(load_target_companies(str(recovery.VALIDATED))), 133)
@@ -278,7 +283,7 @@ class TSMCSourceRecoveryTests(unittest.TestCase):
         production_tsmc = [item for item in production if item["name"] == "TSMC"]
 
         self.assertGreaterEqual(len(production), len(historical))
-        self.assertEqual(production[:len(historical)], historical)
+        assert_historical_prefix(self, production, historical)
         self.assertEqual(production_tsmc, [historical_tsmc])
         self.assertEqual(
             registry_validator.source_key(production_tsmc[0]),
@@ -313,7 +318,7 @@ class TSMCSourceRecoveryTests(unittest.TestCase):
         self.assertIs(scanner.ADAPTERS["avature"], avature.fetch_jobs)
         historical = load_target_companies(str(recovery.VALIDATED))
         production = load_target_companies()
-        self.assertEqual(production[:len(historical)], historical)
+        assert_historical_target_prefix(self, production, historical)
         self.assertGreaterEqual(len(production), 139)
         historical_tsmc = next(target for target in historical if target.name == "TSMC")
         self.assertEqual([target for target in production if target.name == "TSMC"], [historical_tsmc])

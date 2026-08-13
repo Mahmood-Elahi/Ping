@@ -15,6 +15,12 @@ from urllib.parse import urlparse
 
 import yaml
 
+from tests.company_careers_reliability_assertions import (
+    assert_historical_prefix,
+    assert_historical_registry_bytes,
+    with_reliability_repairs,
+)
+
 from scripts import validate_browser_expansion_v1a as batch
 from src.scraper.company_careers.adapters import browser_rendered_html
 from src.scraper.company_careers.models import AdapterError
@@ -70,10 +76,10 @@ class BrowserExpansionV1AArtifactTests(unittest.TestCase):
         historical_bytes = normalized_newlines(self.historical_bytes)
         self.assertTrue(normalized_newlines(self.candidate_bytes).startswith(historical_bytes))
         self.assertTrue(normalized_newlines(self.validated_bytes).startswith(historical_bytes))
-        self.assertTrue(normalized_newlines(self.production_bytes).startswith(historical_bytes))
+        assert_historical_registry_bytes(self, self.production_bytes, self.historical_bytes)
         self.assertEqual(self.candidates[:148], self.historical)
         self.assertEqual(self.validated[:148], self.historical)
-        self.assertEqual(self.production[:148], self.historical)
+        assert_historical_prefix(self, self.production, self.historical)
         self.assertGreaterEqual(len(self.production), len(self.validated))
 
     def test_02_exact_ten_company_inventory_in_master_order(self):
@@ -144,7 +150,7 @@ class BrowserExpansionV1AArtifactTests(unittest.TestCase):
             "Aurora Innovation",
             "Dassault Systèmes",
         ]
-        validated_promotions = self.validated[148:]
+        validated_promotions = with_reliability_repairs(self.validated[148:])
         self.assertEqual([entry["name"] for entry in validated_promotions], expected_promotions)
         self.assertEqual(self.production[148:156], validated_promotions)
         for validated_entry in validated_promotions:

@@ -11,6 +11,8 @@ from unittest.mock import patch
 
 import yaml
 
+from tests.company_careers_reliability_assertions import assert_historical_prefix
+
 from scripts import validate_adapter_extensions_v4b as rollout
 from scripts import validate_browser_pilot_v1 as browser_pilot
 from scripts import validate_company_registry as registry_validator
@@ -163,7 +165,7 @@ class AdapterExtensionsV4BArtifactTests(unittest.TestCase):
 
         self.assertEqual(candidate_prefix, validated_prefix)
         self.assertEqual(len(historical), rollout.HISTORICAL_PRODUCTION_COUNT)
-        self.assertEqual(production[:len(historical)], historical)
+        assert_historical_prefix(self, production, historical)
 
         promoted = milestone[len(historical):]
         self.assertEqual([entry["name"] for entry in promoted], SAFE)

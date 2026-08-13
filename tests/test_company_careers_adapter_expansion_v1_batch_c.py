@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 VALIDATION = ROOT / "config" / "company_careers_adapter_expansion_v1_batch_c_validation.yaml"
 VALIDATED = ROOT / "config" / "target_companies.company_careers_adapter_expansion_v1_batch_c_validated.yaml"
 PRODUCTION = ROOT / "config" / "target_companies.yaml"
-PRODUCTION_SHA256 = "1EB445ACEF8400D1E7AB824861279F123A7E26D7DF4DCAC1F92990740955EAA5"
+PRODUCTION_SHA256 = "C412092E54FBED85B886AE0071C3D97A552DD8FF7C1C7F2321C22A2EF36C2AB9"
 
 
 def normalized_newlines(content: bytes) -> bytes:

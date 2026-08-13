@@ -14,6 +14,11 @@ from unittest.mock import patch
 
 import yaml
 
+from tests.company_careers_reliability_assertions import (
+    assert_historical_prefix,
+    assert_historical_registry_bytes,
+)
+
 from scripts import validate_browser_expansion_v1b as batch
 from src.scraper.company_careers.adapters import browser_rendered_html
 from src.scraper.company_careers.models import AdapterError
@@ -69,10 +74,10 @@ class BrowserExpansionV1BArtifactTests(unittest.TestCase):
         historical_bytes = normalized_newlines(self.historical_bytes)
         self.assertTrue(normalized_newlines(self.candidate_bytes).startswith(historical_bytes))
         self.assertTrue(normalized_newlines(self.validated_bytes).startswith(historical_bytes))
-        self.assertTrue(normalized_newlines(self.production_bytes).startswith(historical_bytes))
+        assert_historical_registry_bytes(self, self.production_bytes, self.historical_bytes)
         self.assertEqual(self.candidates[:156], self.historical)
         self.assertEqual(self.validated[:156], self.historical)
-        self.assertEqual(self.production[:156], self.historical)
+        assert_historical_prefix(self, self.production, self.historical)
 
     def test_02_exact_seven_company_inventory_in_master_order(self):
         self.assertEqual([row["company"] for row in self.inventory], batch.REVIEWED_COMPANIES)

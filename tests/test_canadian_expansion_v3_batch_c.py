@@ -12,6 +12,11 @@ from types import SimpleNamespace
 
 import yaml
 
+from tests.company_careers_reliability_assertions import (
+    assert_historical_registry_bytes,
+    with_reliability_repairs,
+)
+
 from scripts import validate_canadian_expansion_v3_batch_c as batch
 from scripts.refingerprint_uncovered_companies import load_master_workbook, reconcile_master
 from src.scraper.company_careers.models import AdapterError, CompanyTarget
@@ -59,12 +64,14 @@ class CanadianExpansionV3BatchCArtifactTests(unittest.TestCase):
     def test_01_activation_preserves_exact_216_source_baseline(self):
         self.assertEqual(len(self.production), 339)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
-        self.assertEqual(self.candidates[:216], self.production[:216])
-        self.assertEqual(self.validated[:216], self.production[:216])
+        self.assertEqual(self.production[:216], with_reliability_repairs(self.candidates[:216]))
+        self.assertEqual(self.production[:216], with_reliability_repairs(self.validated[:216]))
         self.assertEqual(self.production[216:227], self.validated[216:])
         self.assertEqual(batch.PRODUCTION.read_bytes(), self.production_bytes)
         historical_prefix = normalized_newlines(self.historical_prefix_bytes)
-        self.assertTrue(normalized_newlines(self.production_bytes).startswith(historical_prefix))
+        assert_historical_registry_bytes(
+            self, self.production_bytes, self.historical_prefix_bytes
+        )
         self.assertTrue(
             normalized_newlines(batch.CANDIDATE_REGISTRY.read_bytes()).startswith(
                 historical_prefix

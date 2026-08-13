@@ -13,6 +13,8 @@ from unittest.mock import patch
 
 import yaml
 
+from tests.company_careers_reliability_assertions import assert_historical_prefix
+
 from scripts import validate_source_expansion_v2_batch_b as batch
 from src.scraper.company_careers.models import AdapterError
 from src.scraper.company_careers.parent_sources import load_parent_source_mappings
@@ -99,7 +101,7 @@ class SourceExpansionV2BatchBArtifactTests(unittest.TestCase):
         self.assertTrue(self.report["validated_registry_has_exact_171_entry_prefix"])
         self.assertEqual(self.candidates[:self.historical_count], self.historical)
         self.assertEqual(self.validated[:self.historical_count], self.historical)
-        self.assertEqual(self.production[:self.historical_count], self.historical)
+        assert_historical_prefix(self, self.production, self.historical)
 
     def test_02_selection_is_historical_uncovered_master_order(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -8,6 +8,11 @@ from pathlib import Path
 
 import yaml
 
+from tests.company_careers_reliability_assertions import (
+    assert_historical_prefix,
+    with_reliability_repairs,
+)
+
 from scripts import validate_avature_icims_batch as rollout
 from scripts import validate_company_registry as validator
 from src.scraper.company_careers import scanner
@@ -148,7 +153,7 @@ class AvatureICIMSBulkActivationTests(unittest.TestCase):
         self.assertTrue(VALIDATED.read_bytes().startswith(validated_baseline))
         self.assertEqual(candidate_baseline, validated_baseline)
         self.assertEqual(len(historical_baseline_entries()), 93)
-        self.assertTrue(PRODUCTION.read_bytes().startswith(VALIDATED.read_bytes()))
+        assert_historical_prefix(self, entries(PRODUCTION), entries(VALIDATED))
 
     def test_36_master_workbook_candidate_order(self):
         ranks = [item["original_workbook_rank"] for item in rollout.CANDIDATE_ENTRIES]
@@ -274,12 +279,13 @@ class AvatureICIMSBulkActivationTests(unittest.TestCase):
 
         for name, platform in EXPECTED_PLATFORMS.items():
             key = " ".join(name.casefold().split())
+            expected_entry = with_reliability_repairs([validated_by_name[key]])[0]
             self.assertEqual(production_names.count(key), 1)
-            self.assertEqual(production_by_name[key]["platform"], platform)
+            self.assertEqual(production_by_name[key]["platform"], expected_entry["platform"])
             self.assertIsNotNone(validator.source_key(production_by_name[key]))
             self.assertEqual(
                 validator.source_key(production_by_name[key]),
-                validator.source_key(validated_by_name[key]),
+                validator.source_key(expected_entry),
             )
         self.assertFalse(
             {" ".join(name.casefold().split()) for name in EXCLUDED_CANDIDATES}
@@ -290,7 +296,7 @@ class AvatureICIMSBulkActivationTests(unittest.TestCase):
         source_keys = [key for key in source_keys if key]
         self.assertEqual(len(source_keys), len(set(source_keys)))
         self.assertTrue(load_target_companies(str(PRODUCTION)))
-        self.assertTrue(PRODUCTION.read_bytes().startswith(VALIDATED.read_bytes()))
+        assert_historical_prefix(self, production_entries, entries(VALIDATED))
 
     def test_51_inventory_and_registries_have_no_duplicates(self):
         with INVENTORY.open(newline="", encoding="utf-8") as handle:

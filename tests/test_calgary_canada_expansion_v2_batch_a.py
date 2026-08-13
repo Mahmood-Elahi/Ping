@@ -12,6 +12,11 @@ from types import SimpleNamespace
 
 import yaml
 
+from tests.company_careers_reliability_assertions import (
+    assert_historical_prefix,
+    with_reliability_repairs,
+)
+
 from scripts import validate_calgary_canada_expansion_v2_batch_a as batch
 from scripts.refingerprint_uncovered_companies import load_master_workbook, reconcile_master
 from src.scraper.company_careers.models import AdapterError, CompanyTarget
@@ -52,10 +57,10 @@ class CalgaryCanadaExpansionV2BatchAArtifactTests(unittest.TestCase):
         self.assertEqual(len(self.production), 339)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(self.historical), 262)
-        self.assertEqual(self.production[:262], self.historical)
+        assert_historical_prefix(self, self.production, self.historical)
         self.assertEqual(self.candidates[:262], self.historical)
         self.assertEqual(self.validated[:262], self.historical)
-        self.assertEqual(self.production[:269], self.validated)
+        self.assertEqual(self.production[:269], with_reliability_repairs(self.validated))
         self.assertTrue(self.report["candidate_registry_has_exact_262_entry_prefix"])
         self.assertTrue(self.report["validated_registry_has_exact_262_entry_prefix"])
 

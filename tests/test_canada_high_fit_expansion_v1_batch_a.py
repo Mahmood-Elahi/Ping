@@ -12,6 +12,11 @@ from types import SimpleNamespace
 
 import yaml
 
+from tests.company_careers_reliability_assertions import (
+    assert_historical_prefix,
+    assert_historical_registry_bytes,
+)
+
 from scripts import validate_canada_high_fit_expansion_v1_batch_a as batch
 from src.scraper.company_careers.models import AdapterError, CompanyTarget
 from src.scraper.company_careers.parent_sources import load_parent_source_mappings
@@ -70,14 +75,10 @@ class CanadaHighFitExpansionV1BatchAArtifactTests(unittest.TestCase):
         self.assertEqual(len(self.production), 339)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(self.historical), 302)
-        self.assertEqual(self.production[:302], self.historical)
+        assert_historical_prefix(self, self.production, self.historical)
         self.assertEqual(self.candidates[:302], self.historical)
         self.assertEqual(self.validated[:302], self.historical)
-        self.assertTrue(
-            normalized_newlines(self.production_bytes).startswith(
-                normalized_newlines(self.historical_bytes)
-            )
-        )
+        assert_historical_registry_bytes(self, self.production_bytes, self.historical_bytes)
         self.assertEqual(
             [item["name"] for item in self.production[:315]],
             [item["name"] for item in self.validated],

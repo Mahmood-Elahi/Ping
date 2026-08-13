@@ -12,6 +12,12 @@ from types import SimpleNamespace
 
 import yaml
 
+from tests.company_careers_reliability_assertions import (
+    assert_historical_prefix,
+    assert_historical_registry_bytes,
+    with_reliability_repairs,
+)
+
 from scripts import validate_calgary_alberta_expansion_v2_batch_b as batch
 from scripts.refingerprint_uncovered_companies import load_master_workbook, reconcile_master
 from src.scraper.company_careers.adapters import bamboohr
@@ -71,15 +77,11 @@ class CalgaryAlbertaExpansionV2BatchBArtifactTests(unittest.TestCase):
         self.assertEqual(len(self.historical), 298)
         self.assertEqual(len(self.candidates), 302)
         self.assertEqual(len(self.validated), 302)
-        self.assertEqual(self.production[:298], self.historical)
+        assert_historical_prefix(self, self.production, self.historical)
         self.assertEqual(self.candidates[:298], self.historical)
         self.assertEqual(self.validated[:298], self.historical)
-        self.assertTrue(
-            normalized_newlines(self.production_bytes).startswith(
-                normalized_newlines(self.historical_bytes)
-            )
-        )
-        self.assertEqual(self.production[:302], self.validated)
+        assert_historical_registry_bytes(self, self.production_bytes, self.historical_bytes)
+        self.assertEqual(self.production[:302], with_reliability_repairs(self.validated))
         self.assertTrue(self.report["candidate_registry_has_exact_298_entry_prefix"])
         self.assertTrue(self.report["validated_registry_has_exact_298_entry_prefix"])
 

@@ -749,23 +749,19 @@ target_companies:
     evidence_confidence: high
     evidence_timestamp: '2026-08-05T01:24:24+00:00'
   - name: Lattice Semiconductor
-    platform: icims
+    platform: workday
     tenant: latticesemi
-    board_id: latticesemi-public
-    careers_url: https://careers-latticesemi.icims.com/jobs/intro?hashed=-625919477
-    search_url: https://careers-latticesemi.icims.com/jobs/search?hashed=-625919477
-    endpoint_variant: icims_legacy_portal_html
+    wd_subdomain: wd5
+    site_id: latticesemiconductorscareers
+    careers_url: https://latticesemi.wd5.myworkdayjobs.com/latticesemiconductorscareers
+    source_url: https://www.latticesemi.com/About/Jobs
     original_workbook_rank: 40
     industry: Not recorded in repository master workbook
-    allowed_apply_hosts:
-    - careers-latticesemi.icims.com
-    page_size: 50
     max_pages: 2
     max_jobs: 20
-    evidence_source: config/company_unknown_investigation_v3.csv
+    evidence_source: https://www.latticesemi.com/About/Jobs
     evidence_confidence: high
-    evidence_timestamp: '2026-08-05T02:53:16+00:00'
-    site_id: '-625919477'
+    evidence_timestamp: '2026-08-11T00:00:00+00:00'
   - name: GitHub
     platform: icims
     tenant: githubinc
@@ -1911,30 +1907,16 @@ target_companies:
     max_jobs: 20
     max_response_bytes: 3000000
   - name: Dassault Systèmes
-    platform: browser_rendered_html
+    platform: exalead
     careers_url: https://www.3ds.com/careers
-    listing_url: https://www.3ds.com/careers/jobs
-    endpoint_variant: browser_rendered_html_v1
-    browser_wait_selector: div.ds-jobs-details-wraper
-    browser_scroll_steps: 0
-    browser_static_variant: server_rendered_links
-    browser_identity_selector: head title
-    browser_identity_regex: Dassault Systèmes
-    listing_selector: div.ds-jobs-details-wraper
-    job_card_selector: div.ds-jobs-details-wraper
-    title_selector: h2.job-details-title
-    location_selector: div.job-details-place
-    detail_link_selector: div.job-details-apply a[href]
-    external_id_regex: '[?&]job=([0-9]+)'
-    external_id_attribute: null
-    department_selector: div.job-details-subtitle
-    date_selector: null
+    endpoint_url: https://www.3ds.com/apisearch/card_search_api
+    endpoint_variant: exalead_career_cards_v1
     allowed_apply_hosts:
-    - talentacquisition.3ds.com
+    - www.3ds.com
     original_workbook_rank: 145
-    max_pages: 1
+    page_size: 15
+    max_pages: 2
     max_jobs: 20
-    max_response_bytes: 3000000
   - name: Tourmaline Oil
     platform: javascript_embedded_data
     careers_url: https://www.tourmalineoil.com/careers

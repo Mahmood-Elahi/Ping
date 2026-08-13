@@ -10,6 +10,11 @@ from unittest.mock import patch
 
 import yaml
 
+from tests.company_careers_reliability_assertions import (
+    assert_historical_prefix,
+    with_reliability_repairs,
+)
+
 from scripts import validate_adapter_extensions_v4a as rollout
 from scripts import validate_company_registry as registry_validator
 from src.scraper.company_careers import scanner
@@ -132,9 +137,9 @@ class AdapterExtensionsV4ABulkActivationTests(unittest.TestCase):
         historical = candidate[:first_batch_a]
         self.assertEqual(first_batch_a, rollout.HISTORICAL_PRODUCTION_COUNT)
         self.assertEqual(validated[:first_batch_a], historical)
-        self.assertEqual(production[:first_batch_a], historical)
+        assert_historical_prefix(self, production, historical)
         self.assertGreaterEqual(len(production), len(validated))
-        self.assertEqual(production[:len(validated)], validated)
+        self.assertEqual(production[:len(validated)], with_reliability_repairs(validated))
 
     def test_05_candidate_registry_loader_compatibility(self):
         self.assertEqual(len(self.candidate_targets), 139)
@@ -314,7 +319,7 @@ class AdapterExtensionsV4ABulkActivationTests(unittest.TestCase):
         self.assertEqual(first_batch_a, rollout.HISTORICAL_PRODUCTION_COUNT)
         self.assertEqual([item["name"] for item in additions], SAFE)
         self.assertGreaterEqual(len(production), len(validated))
-        self.assertEqual(production[:first_batch_a], historical)
+        assert_historical_prefix(self, production, historical)
         self.assertEqual(
             production[first_batch_a:first_batch_a + len(additions)],
             additions,

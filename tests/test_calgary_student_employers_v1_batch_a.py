@@ -12,6 +12,11 @@ from types import SimpleNamespace
 
 import yaml
 
+from tests.company_careers_reliability_assertions import (
+    assert_historical_prefix,
+    with_reliability_repairs,
+)
+
 from scripts import validate_calgary_student_employers_v1_batch_a as batch
 from scripts.refingerprint_uncovered_companies import load_master_workbook, reconcile_master
 from src.scraper.company_careers.models import AdapterError, CompanyTarget
@@ -79,19 +84,15 @@ class CalgaryStudentEmployersBatchAArtifactTests(unittest.TestCase):
                 normalized_newlines(self.validated_prefix_bytes)
             )
         )
-        self.assertTrue(
-            normalized_newlines(self.production_bytes).startswith(
-                normalized_newlines(self.validated_prefix_bytes)
-            )
-        )
+        assert_historical_prefix(self, self.production, self.historical)
         self.assertTrue(self.report["candidate_registry_has_exact_186_entry_prefix"])
         self.assertTrue(self.report["validated_registry_has_exact_186_entry_prefix"])
         self.assertEqual(self.candidates[:HISTORICAL_COUNT], self.historical)
         self.assertEqual(self.validated[:HISTORICAL_COUNT], self.historical)
-        self.assertEqual(self.production[:HISTORICAL_COUNT], self.historical)
+        assert_historical_prefix(self, self.production, self.historical)
         self.assertEqual(
-            self.production[HISTORICAL_COUNT:len(self.validated)],
-            self.validated[HISTORICAL_COUNT:],
+            self.production[:len(self.validated)],
+            with_reliability_repairs(self.validated),
         )
 
     def test_02_production_contains_exact_promotions_and_exclusions(self):
