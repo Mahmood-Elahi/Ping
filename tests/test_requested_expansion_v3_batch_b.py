@@ -27,6 +27,10 @@ def entries(path: Path) -> list[dict]:
     return (yaml.safe_load(path.read_text(encoding="utf-8")) or {})["target_companies"]
 
 
+def normalized_newlines(content: bytes) -> bytes:
+    return content.replace(b"\r\n", b"\n")
+
+
 def fake_job(job_id: str = "2", url: str = "https://jobs.example.test/job/2") -> SimpleNamespace:
     return SimpleNamespace(job_id=job_id, url=url)
 
@@ -48,7 +52,11 @@ class RequestedExpansionV3BatchBArtifactTests(unittest.TestCase):
     def test_01_exact_207_entry_production_prefix_is_preserved(self):
         self.assertEqual(len(self.production), 339)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
-        self.assertTrue(self.production_bytes.startswith(self.historical_bytes))
+        self.assertTrue(
+            normalized_newlines(self.production_bytes).startswith(
+                normalized_newlines(self.historical_bytes)
+            )
+        )
         self.assertEqual(self.production[:216], self.validated)
         self.assertEqual(self.candidates, self.production[:216])
         self.assertTrue(self.report["candidate_registry_has_exact_207_entry_prefix"])

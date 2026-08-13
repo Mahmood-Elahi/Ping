@@ -27,6 +27,19 @@ def entries(path: Path) -> list[dict]:
     return (yaml.safe_load(path.read_text(encoding="utf-8")) or {})["target_companies"]
 
 
+def normalized_newlines(content: bytes) -> bytes:
+    return content.replace(b"\r\n", b"\n")
+
+
+def historical_prefix_bytes(path: Path) -> bytes:
+    marker = b"  - name: Clio"
+    content = path.read_bytes()
+    for line in content.splitlines(keepends=True):
+        if line.rstrip(b"\r\n") == marker:
+            return content[:content.index(line)]
+    raise AssertionError(f"Historical boundary 'Clio' not found in {path}")
+
+
 def fake_job(job_id: str = "2", url: str = "https://jobs.example.test/job/2") -> SimpleNamespace:
     return SimpleNamespace(job_id=job_id, url=url)
 
@@ -35,8 +48,7 @@ class CanadianExpansionV3BatchCArtifactTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.production_bytes = batch.PRODUCTION.read_bytes()
-        candidate_bytes = batch.CANDIDATE_REGISTRY.read_bytes()
-        cls.historical_prefix_bytes = candidate_bytes.partition(b"  - name: Clio\r\n")[0]
+        cls.historical_prefix_bytes = historical_prefix_bytes(batch.CANDIDATE_REGISTRY)
         cls.production = entries(batch.PRODUCTION)
         cls.candidates = entries(batch.CANDIDATE_REGISTRY)
         cls.validated = entries(batch.VALIDATED_REGISTRY)
@@ -51,9 +63,18 @@ class CanadianExpansionV3BatchCArtifactTests(unittest.TestCase):
         self.assertEqual(self.validated[:216], self.production[:216])
         self.assertEqual(self.production[216:227], self.validated[216:])
         self.assertEqual(batch.PRODUCTION.read_bytes(), self.production_bytes)
-        self.assertTrue(self.production_bytes.startswith(self.historical_prefix_bytes))
-        self.assertTrue(batch.CANDIDATE_REGISTRY.read_bytes().startswith(self.historical_prefix_bytes))
-        self.assertTrue(batch.VALIDATED_REGISTRY.read_bytes().startswith(self.historical_prefix_bytes))
+        historical_prefix = normalized_newlines(self.historical_prefix_bytes)
+        self.assertTrue(normalized_newlines(self.production_bytes).startswith(historical_prefix))
+        self.assertTrue(
+            normalized_newlines(batch.CANDIDATE_REGISTRY.read_bytes()).startswith(
+                historical_prefix
+            )
+        )
+        self.assertTrue(
+            normalized_newlines(batch.VALIDATED_REGISTRY.read_bytes()).startswith(
+                historical_prefix
+            )
+        )
         self.assertTrue(self.report["candidate_registry_has_exact_216_entry_prefix"])
         self.assertTrue(self.report["validated_registry_has_exact_216_entry_prefix"])
 

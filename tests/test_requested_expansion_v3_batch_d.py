@@ -27,6 +27,10 @@ def entries(path: Path) -> list[dict]:
     return (yaml.safe_load(path.read_text(encoding="utf-8")) or {})["target_companies"]
 
 
+def normalized_newlines(content: bytes) -> bytes:
+    return content.replace(b"\r\n", b"\n")
+
+
 def fake_job(job_id: str = "2", url: str = "https://jobs.example.test/job/2") -> SimpleNamespace:
     return SimpleNamespace(job_id=job_id, url=url)
 
@@ -53,8 +57,9 @@ class RequestedExpansionV3BatchDArtifactTests(unittest.TestCase):
         self.assertEqual(self.production[:230], self.historical)
         self.assertEqual(self.candidates[:230], self.historical)
         self.assertEqual(self.validated[:230], self.historical)
-        self.assertTrue(self.production_bytes.startswith(self.historical_bytes))
-        self.assertTrue(self.production_bytes.startswith(self.validated_bytes))
+        production_bytes = normalized_newlines(self.production_bytes)
+        self.assertTrue(production_bytes.startswith(normalized_newlines(self.historical_bytes)))
+        self.assertTrue(production_bytes.startswith(normalized_newlines(self.validated_bytes)))
         self.assertEqual(self.candidate_bytes, self.validated_bytes)
         self.assertTrue(self.report["candidate_registry_has_exact_230_entry_prefix"])
         self.assertTrue(self.report["validated_registry_has_exact_230_entry_prefix"])

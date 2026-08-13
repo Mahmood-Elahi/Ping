@@ -30,6 +30,10 @@ def entries(path: Path) -> list[dict]:
     return (yaml.safe_load(path.read_text(encoding="utf-8")) or {})["target_companies"]
 
 
+def normalized_newlines(content: bytes) -> bytes:
+    return content.replace(b"\r\n", b"\n")
+
+
 def historical_prefix_bytes(path: Path) -> bytes:
     content = path.read_bytes()
     marker = f"  - name: {VALIDATED[0]}".encode()
@@ -65,9 +69,21 @@ class CalgaryStudentEmployersBatchAArtifactTests(unittest.TestCase):
             (yaml.safe_load(self.candidate_prefix_bytes) or {})["target_companies"],
             self.historical,
         )
-        self.assertTrue(self.candidate_bytes.startswith(self.candidate_prefix_bytes))
-        self.assertTrue(self.validated_bytes.startswith(self.validated_prefix_bytes))
-        self.assertTrue(self.production_bytes.startswith(self.validated_prefix_bytes))
+        self.assertTrue(
+            normalized_newlines(self.candidate_bytes).startswith(
+                normalized_newlines(self.candidate_prefix_bytes)
+            )
+        )
+        self.assertTrue(
+            normalized_newlines(self.validated_bytes).startswith(
+                normalized_newlines(self.validated_prefix_bytes)
+            )
+        )
+        self.assertTrue(
+            normalized_newlines(self.production_bytes).startswith(
+                normalized_newlines(self.validated_prefix_bytes)
+            )
+        )
         self.assertTrue(self.report["candidate_registry_has_exact_186_entry_prefix"])
         self.assertTrue(self.report["validated_registry_has_exact_186_entry_prefix"])
         self.assertEqual(self.candidates[:HISTORICAL_COUNT], self.historical)

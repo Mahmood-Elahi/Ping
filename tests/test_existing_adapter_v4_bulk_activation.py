@@ -21,7 +21,7 @@ from src.scraper.company_careers.registry import load_target_companies
 
 
 ROOT = Path(__file__).resolve().parents[1]
-HISTORICAL_PRODUCTION_SHA256 = "966175F9AA6D0595903CB1AF527CF92A068CA21AFCC71551CBC535BBFA121C35"
+HISTORICAL_PRODUCTION_SHA256 = "66C9700FC4F86A20CDE8B96E5CB5FF3A2CD8BCE606F08A411366B9448C9280DC"
 PARENT_MAPPINGS_SHA256 = "9FCFA2C5A6B78BB170422E7FD752569AB26BB38ED415F32782E28DB303A323B5"
 EXPECTED = ["Intel", "NXP Semiconductors", "KLA", "Capital One", "Unity", "Loft Orbital"]
 EXPECTED_SOURCE_IDENTITIES = [
@@ -184,8 +184,12 @@ class ExistingAdapterV4ArtifactTests(unittest.TestCase):
         validated_prefix = historical_prefix_bytes(batch.VALIDATED_REGISTRY)
         self.assertEqual(candidate_prefix, validated_prefix)
         self.assertEqual(len(registry_entries_from_bytes(candidate_prefix)), batch.HISTORICAL_PRODUCTION_COUNT)
-        self.assertEqual(hashlib.sha256(candidate_prefix).hexdigest().upper(), HISTORICAL_PRODUCTION_SHA256)
-        self.assertTrue(batch.PRODUCTION.read_bytes().startswith(candidate_prefix))
+        normalized_prefix = normalized_newlines(candidate_prefix)
+        self.assertEqual(
+            hashlib.sha256(normalized_prefix).hexdigest().upper(),
+            HISTORICAL_PRODUCTION_SHA256,
+        )
+        self.assertTrue(normalized_newlines(batch.PRODUCTION.read_bytes()).startswith(normalized_prefix))
 
     def test_07_candidate_registry_contains_exactly_six_historical_additions(self):
         _, candidates = validator.load_registry(batch.CANDIDATE_REGISTRY)

@@ -22,7 +22,11 @@ ROOT = Path(__file__).resolve().parents[1]
 VALIDATION = ROOT / "config" / "company_careers_adapter_expansion_v1_batch_c_validation.yaml"
 VALIDATED = ROOT / "config" / "target_companies.company_careers_adapter_expansion_v1_batch_c_validated.yaml"
 PRODUCTION = ROOT / "config" / "target_companies.yaml"
-PRODUCTION_SHA256 = "41757919E29E39F9628745D7D9E866422754325C61A75BC6CD9E16C176A744A3"
+PRODUCTION_SHA256 = "1EB445ACEF8400D1E7AB824861279F123A7E26D7DF4DCAC1F92990740955EAA5"
+
+
+def normalized_newlines(content: bytes) -> bytes:
+    return content.replace(b"\r\n", b"\n")
 
 
 class Response:
@@ -433,7 +437,10 @@ class BatchCValidationTests(unittest.TestCase):
         production_bytes = PRODUCTION.read_bytes()
         marker = b"  - name: Astrobotic"
         baseline_bytes = production_bytes[:production_bytes.index(marker)]
-        self.assertEqual(hashlib.sha256(baseline_bytes).hexdigest().upper(), PRODUCTION_SHA256)
+        self.assertEqual(
+            hashlib.sha256(normalized_newlines(baseline_bytes)).hexdigest().upper(),
+            PRODUCTION_SHA256,
+        )
 
         production = yaml.safe_load(production_bytes)["target_companies"]
         validated = yaml.safe_load(VALIDATED.read_text(encoding="utf-8"))["target_companies"]

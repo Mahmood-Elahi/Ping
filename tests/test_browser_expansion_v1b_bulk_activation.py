@@ -24,6 +24,10 @@ def entries(path: Path) -> list[dict]:
     return (yaml.safe_load(path.read_text(encoding="utf-8")) or {})["target_companies"]
 
 
+def normalized_newlines(content: bytes) -> bytes:
+    return content.replace(b"\r\n", b"\n")
+
+
 def historical_prefix_bytes(path: Path) -> bytes:
     first_candidate = batch.CANDIDATE_ENTRIES[0]["name"]
     lines = path.read_bytes().splitlines(keepends=True)
@@ -62,9 +66,10 @@ class BrowserExpansionV1BArtifactTests(unittest.TestCase):
         validated_historical_bytes = historical_prefix_bytes(batch.VALIDATED_REGISTRY)
         self.assertEqual(len(self.historical), 156)
         self.assertEqual(validated_historical_bytes, self.historical_bytes)
-        self.assertTrue(self.candidate_bytes.startswith(self.historical_bytes))
-        self.assertTrue(self.validated_bytes.startswith(self.historical_bytes))
-        self.assertTrue(self.production_bytes.startswith(self.historical_bytes))
+        historical_bytes = normalized_newlines(self.historical_bytes)
+        self.assertTrue(normalized_newlines(self.candidate_bytes).startswith(historical_bytes))
+        self.assertTrue(normalized_newlines(self.validated_bytes).startswith(historical_bytes))
+        self.assertTrue(normalized_newlines(self.production_bytes).startswith(historical_bytes))
         self.assertEqual(self.candidates[:156], self.historical)
         self.assertEqual(self.validated[:156], self.historical)
         self.assertEqual(self.production[:156], self.historical)

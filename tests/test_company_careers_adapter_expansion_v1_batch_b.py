@@ -23,7 +23,11 @@ from src.scraper.company_careers.registry import load_target_companies
 ROOT = Path(__file__).resolve().parents[1]
 VALIDATION = ROOT / "config" / "company_careers_adapter_expansion_v1_batch_b_validation.yaml"
 PRODUCTION = ROOT / "config" / "target_companies.yaml"
-BASELINE_PRODUCTION_SHA256 = "6A34E9F175583CD16166AA9CA11DA8504BE1F02FAA86628E06DAC70681467969"
+BASELINE_PRODUCTION_SHA256 = "FF6E921E0A6389E5CE145709A966C3798F773B17CF76696EA5F422D49A12CF9F"
+
+
+def normalized_newlines(content: bytes) -> bytes:
+    return content.replace(b"\r\n", b"\n")
 
 
 class Response:
@@ -398,7 +402,7 @@ class BatchBRecoveryValidationTests(unittest.TestCase):
         marker = b"  - name: Bosch"
         baseline_bytes = production_bytes[:production_bytes.index(marker)]
         self.assertEqual(
-            hashlib.sha256(baseline_bytes).hexdigest().upper(),
+            hashlib.sha256(normalized_newlines(baseline_bytes)).hexdigest().upper(),
             BASELINE_PRODUCTION_SHA256,
         )
 

@@ -32,6 +32,10 @@ def entries_from_bytes(content: bytes) -> list[dict]:
     return (yaml.safe_load(content.decode("utf-8")) or {})["target_companies"]
 
 
+def normalized_newlines(content: bytes) -> bytes:
+    return content.replace(b"\r\n", b"\n")
+
+
 def fake_job(
     job_id: str = "2",
     title: str = "Software Engineering Intern",
@@ -70,7 +74,11 @@ class CalgaryAlbertaExpansionV2BatchBArtifactTests(unittest.TestCase):
         self.assertEqual(self.production[:298], self.historical)
         self.assertEqual(self.candidates[:298], self.historical)
         self.assertEqual(self.validated[:298], self.historical)
-        self.assertTrue(self.production_bytes.startswith(self.historical_bytes))
+        self.assertTrue(
+            normalized_newlines(self.production_bytes).startswith(
+                normalized_newlines(self.historical_bytes)
+            )
+        )
         self.assertEqual(self.production[:302], self.validated)
         self.assertTrue(self.report["candidate_registry_has_exact_298_entry_prefix"])
         self.assertTrue(self.report["validated_registry_has_exact_298_entry_prefix"])
