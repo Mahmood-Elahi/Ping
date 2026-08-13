@@ -4787,3 +4787,150 @@ target_companies:
     original_workbook_rank: null
     max_pages: 1
     max_jobs: 20
+  - name: Air Canada
+    platform: phenom
+    careers_url: https://careers.aircanada.com/ca/en
+    identity_url: https://careers.aircanada.com/ca/en/search-results
+    source_identity_regex: Air Canada|AIPACICA
+    identity_regex: Air Canada|AIPACICA
+    allowed_apply_hosts:
+    - careers.aircanada.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    search_url: https://careers.aircanada.com/ca/en/search-results
+    endpoint_variant: embedded_refine_search
+    ref_num: AIPACICA
+    locale: en_ca
+    apply_url_template: https://careers.aircanada.com/ca/en/job/{job_seq_no}
+  - name: Rogers Communications
+    platform: sap_successfactors
+    careers_url: https://jobs.rogers.com/
+    identity_url: https://jobs.rogers.com/search/
+    source_identity_regex: Rogers
+    identity_regex: Rogers
+    allowed_apply_hosts:
+    - jobs.rogers.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    search_url: https://jobs.rogers.com/search/
+    endpoint_variant: rmk_table
+  - name: Lightspeed Commerce
+    platform: static_html
+    careers_url: https://www.lightspeedhq.com/careers/
+    identity_url: https://www.lightspeedhq.com/careers/openings/
+    source_identity_regex: Lightspeed
+    identity_regex: Lightspeed
+    allowed_apply_hosts:
+    - www.lightspeedhq.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    listing_url: https://www.lightspeedhq.com/careers/openings/
+    endpoint_variant: server_rendered_cards
+    listing_selector: ul.filter__results__list
+    job_card_selector: a[href*=office=Montreal],a[href*=office=Toronto],a[href*=office=Ottawa],a[href*=office=Quebec],a[href$=Canada],a[href$=US]
+    title_selector: span.job-title
+    location_selector: span.job-office
+    department_selector: span.job-dept
+    detail_link_selector: :self
+    external_id_regex: /([0-9a-f-]{36})/
+  - name: Cineplex
+    platform: workday
+    careers_url: https://corp.cineplex.com/careers
+    identity_url: https://corp.cineplex.com/careers
+    source_identity_regex: Cineplex
+    identity_regex: Cineplex
+    allowed_apply_hosts:
+    - cineplex.wd3.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    search_url: https://cineplex.wd3.myworkdayjobs.com/Cineplex
+    tenant: cineplex
+    wd_subdomain: wd3
+    site_id: Cineplex
+  - name: Trulioo
+    platform: ashby
+    careers_url: https://www.trulioo.com/company/careers
+    identity_url: https://www.trulioo.com/apply
+    source_identity_regex: Trulioo|jobs\.ashbyhq\.com/trulioo
+    identity_regex: Trulioo|jobs\.ashbyhq\.com/trulioo
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: trulioo
+  - name: Helm Operations
+    platform: workday
+    careers_url: https://www.helmoperations.com/careers
+    identity_url: https://www.helmoperations.com/careers
+    source_identity_regex: Helm|HelmOperations|volarisgroup
+    identity_regex: Helm|HelmOperations|volarisgroup
+    allowed_apply_hosts:
+    - volarisgroup.wd3.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    search_url: https://volarisgroup.wd3.myworkdayjobs.com/HelmOperations
+    tenant: volarisgroup
+    wd_subdomain: wd3
+    site_id: HelmOperations
+    applied_facets:
+      locations:
+      - fc8da1b0f51d018732ec146710020601
+  - name: Solera Holdings
+    platform: workday
+    careers_url: https://www.solera.com/careers/
+    identity_url: https://www.solera.com/careers/
+    source_identity_regex: Solera
+    identity_regex: Solera
+    allowed_apply_hosts:
+    - solera.wd5.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    search_url: https://solera.wd5.myworkdayjobs.com/Global_Career_Site
+    tenant: solera
+    wd_subdomain: wd5
+    site_id: Global_Career_Site
+    applied_facets:
+      locationCountry:
+      - a30a87ed25634629aa6c3958aa2b91ea
+  - name: Showbie
+    platform: bamboohr
+    careers_url: https://showbie.bamboohr.com/careers
+    identity_url: https://www.showbie.com/about
+    source_identity_regex: Showbie|showbie\.bamboohr\.com
+    identity_regex: Showbie|showbie\.bamboohr\.com
+    allowed_apply_hosts:
+    - showbie.bamboohr.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: showbie
+    listing_url: https://showbie.bamboohr.com/careers/list
+  - name: Coconut Software
+    platform: greenhouse
+    careers_url: https://www.coconutsoftware.com/careers/
+    identity_url: https://www.coconutsoftware.com/careers/
+    source_identity_regex: Coconut Software|boards-api\.greenhouse\.io/v1/boards/coconutsoftware
+    identity_regex: Coconut Software|boards-api\.greenhouse\.io/v1/boards/coconutsoftware
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+    - boards.greenhouse.io
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: coconutsoftware

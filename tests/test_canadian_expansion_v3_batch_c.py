@@ -62,7 +62,7 @@ class CanadianExpansionV3BatchCArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_exact_216_source_baseline(self):
-        self.assertEqual(len(self.production), 344)
+        self.assertEqual(len(self.production), 353)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(self.production[:216], with_reliability_repairs(self.candidates[:216]))
         self.assertEqual(self.production[:216], with_reliability_repairs(self.validated[:216]))

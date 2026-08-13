@@ -36,7 +36,7 @@ class AlbertaCanadaEmployerExpansionV1BatchATests(unittest.TestCase):
         self.assertEqual(len(set(batch.REVIEWED_COMPANIES)), 20)
         self.assertEqual((batch.BASELINE_SOURCES, batch.BASELINE_MAPPINGS), (344, 4))
         self.assertEqual((batch.BASELINE_COVERAGE, batch.MASTER_TOTAL), (208, 246))
-        self.assertEqual(len(self.production), 344)
+        self.assertEqual(len(self.production), 353)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(
             set(batch.REVIEWED_COMPANIES),
@@ -44,18 +44,25 @@ class AlbertaCanadaEmployerExpansionV1BatchATests(unittest.TestCase):
             | {entry["company"] for entry in batch.EXCLUDED},
         )
 
-    def test_candidate_and_validated_registries_are_inactive_exact_prefixes(self):
+    def test_activation_matches_validated_registry_exactly(self):
         self.assertEqual(self.candidate_bytes, self.validated_bytes)
-        self.assertTrue(self.candidate_bytes.startswith(self.production_bytes))
-        self.assertEqual(self.candidates[:344], self.production)
-        self.assertEqual(self.validated[:344], self.production)
+        baseline_prefix = self.validated_bytes[:self.validated_bytes.index(b"  - name: Air Canada")]
+        self.assertEqual(self.production_bytes[:len(baseline_prefix)], baseline_prefix)
+        self.assertEqual(
+            self.production_bytes.replace(b"\r\n", b"\n"),
+            self.validated_bytes.replace(b"\r\n", b"\n"),
+        )
+        self.assertEqual(self.production, self.validated)
         self.assertEqual(len(self.candidates), 353)
         self.assertEqual(
             [entry["name"] for entry in self.candidates[344:]],
             [entry["name"] for entry in batch.CANDIDATE_ENTRIES],
         )
-        production_names = {entry["name"] for entry in self.production}
-        self.assertTrue(production_names.isdisjoint(entry["name"] for entry in batch.CANDIDATE_ENTRIES))
+        production_names = [entry["name"] for entry in self.production]
+        for name in batch.REVIEWED_COMPANIES:
+            self.assertEqual(production_names.count(name), int(name in {
+                entry["name"] for entry in batch.CANDIDATE_ENTRIES
+            }))
 
     def test_candidates_reuse_supported_bounded_anonymous_contracts(self):
         self.assertEqual(

@@ -55,7 +55,7 @@ class RequestedExpansionV3BatchBArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_exact_207_entry_production_prefix_is_preserved(self):
-        self.assertEqual(len(self.production), 344)
+        self.assertEqual(len(self.production), 353)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         assert_historical_prefix(self, self.production, self.validated)
         self.assertEqual(self.production[:216], with_reliability_repairs(self.validated))

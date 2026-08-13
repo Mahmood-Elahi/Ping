@@ -84,6 +84,10 @@ ALBERTA_ENERGY_EXPANSION_V1_BATCH_A_PROMOTIONS = [
     "Athabasca Oil", "Paramount Resources", "STEP Energy Services",
     "Calfrac Well Services", "Weir Group",
 ]
+ALBERTA_CANADA_EMPLOYER_EXPANSION_V1_BATCH_A_PROMOTIONS = [
+    "Air Canada", "Rogers Communications", "Lightspeed Commerce", "Cineplex",
+    "Trulioo", "Helm Operations", "Solera Holdings", "Showbie", "Coconut Software",
+]
 HISTORICAL_PRODUCTION_ONLY = [
     "Datadog", "Elastic", "GitLab", "Twilio", "Zscaler", "CrowdStrike",
     "HashiCorp", "Confluent", "Teradyne",
@@ -227,6 +231,7 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
                 + ATS_ADAPTER_EXPANSION_V2_BATCH_A_PROMOTIONS
                 + ATS_ADAPTER_EXPANSION_V2_BATCH_B_PROMOTIONS
                 + ALBERTA_ENERGY_EXPANSION_V1_BATCH_A_PROMOTIONS
+                + ALBERTA_CANADA_EMPLOYER_EXPANSION_V1_BATCH_A_PROMOTIONS
             )
             if mod.normalize_company_name(name) not in master_names
         ]

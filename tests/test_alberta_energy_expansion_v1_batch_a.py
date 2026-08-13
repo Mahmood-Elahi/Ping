@@ -60,16 +60,16 @@ class AlbertaEnergyExpansionV1BatchATests(unittest.TestCase):
                 self.assertLessEqual(entry["max_jobs"], 20)
                 self.assertIsNone(entry["original_workbook_rank"])
 
-    def test_activation_matches_validated_registry_exactly(self):
+    def test_activation_preserves_validated_registry_exactly(self):
         production = yaml.safe_load(batch.PRODUCTION.read_bytes())
         candidate = yaml.safe_load(batch.CANDIDATE_REGISTRY.read_bytes())
         validated = yaml.safe_load(batch.VALIDATED_REGISTRY.read_bytes())
-        self.assertEqual(production, validated)
+        self.assertEqual(production["target_companies"][:344], validated["target_companies"])
         self.assertEqual(candidate, validated)
         payload = production
-        self.assertEqual(len(payload["target_companies"]), 344)
+        self.assertEqual(len(payload["target_companies"]), 353)
         self.assertEqual(
-            [entry["name"] for entry in payload["target_companies"][-5:]],
+            [entry["name"] for entry in payload["target_companies"][339:344]],
             [entry["name"] for entry in batch.CANDIDATE_ENTRIES],
         )
         production_names = [entry["name"] for entry in payload["target_companies"]]

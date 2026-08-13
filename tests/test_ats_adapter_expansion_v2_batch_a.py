@@ -231,7 +231,7 @@ class BatchArtifactTests(unittest.TestCase):
         cls.historical = yaml.safe_load(cls.historical_bytes)["target_companies"]
 
     def test_activation_preserves_exact_336_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 344)
+        self.assertEqual(len(self.production), 353)
         self.assertEqual(len(self.candidates), 338)
         self.assertEqual(len(self.validated), 338)
         self.assertEqual(len(self.historical), 336)
