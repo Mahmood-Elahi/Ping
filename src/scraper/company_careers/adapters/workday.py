@@ -91,14 +91,7 @@ def _verify_applied_facets(payload: object, target: CompanyTarget) -> None:
         raise AdapterError("Workday filtered response must be a JSON object")
     key, values = next(iter(target.applied_facets.items()))
     requested = values[0]
-    matching = next(
-        (
-            facet
-            for facet in payload.get("facets", [])
-            if isinstance(facet, dict) and facet.get("facetParameter") == key
-        ),
-        None,
-    )
+    matching = _find_facet(payload.get("facets", []), key)
     if not matching:
         raise AdapterError("Workday filtered response omitted the configured facet")
     value = next(
@@ -120,6 +113,32 @@ def _verify_applied_facets(payload: object, target: CompanyTarget) -> None:
         or total != count
     ):
         raise AdapterError("Workday did not conclusively apply the configured exact facet")
+
+
+def _find_facet(facets: object, key: str) -> object:
+    """Return a flat or grouped Workday facet with the requested parameter.
+
+    Workday represents some location filters below a ``locationMainGroup``
+    wrapper.  The filter is still sent and enforced using the nested child's
+    ``facetParameter``.  Walking only facet-shaped values keeps verification
+    tied to Workday's structured response rather than presentation text.
+    """
+    if not isinstance(facets, list):
+        return None
+    for facet in facets:
+        if not isinstance(facet, dict):
+            continue
+        if facet.get("facetParameter") == key:
+            return facet
+        nested = [
+            value
+            for value in facet.get("values", [])
+            if isinstance(value, dict) and isinstance(value.get("values"), list)
+        ]
+        matching = _find_facet(nested, key)
+        if matching is not None:
+            return matching
+    return None
 
 
 def _stable_job_id(bullet_fields: List[object], external_path: str) -> str:
