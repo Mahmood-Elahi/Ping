@@ -72,7 +72,7 @@ class CalgaryAlbertaExpansionV2BatchBArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_exact_298_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 382)
+        self.assertEqual(len(self.production), 401)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(self.historical), 298)
         self.assertEqual(len(self.candidates), 302)
@@ -98,7 +98,7 @@ class CalgaryAlbertaExpansionV2BatchBArtifactTests(unittest.TestCase):
         self.assertEqual(production_names.count("Carbon Upcycling"), 1)
         for name in VALIDATED:
             self.assertEqual(production_names.count(name), 1)
-        self.assertEqual(len({name.casefold() for name in production_names}), 382)
+        self.assertEqual(len({name.casefold() for name in production_names}), 401)
 
     def test_03_report_and_inventory_cover_the_exact_requested_order(self):
         self.assertEqual([row["company"] for row in self.inventory], batch.REVIEWED_COMPANIES)

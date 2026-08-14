@@ -98,6 +98,11 @@ ROBOTICS_EXPANSION_V1_BATCH_A_PROMOTIONS = [
     "Bright Machines", "Symbotic", "Plus One Robotics", "Dexterity",
     "Built Robotics", "Chef Robotics", "Avidbots", "Novarc Technologies",
 ]
+SOFTWARE_EXPANSION_V1_BATCH_A_PROMOTIONS = [
+    "HubSpot", "Dropbox", "Zoom", "Okta", "Box", "Asana", "Notion", "Canva",
+    "Vercel", "Replit", "Airtable", "AppLovin", "Appian", "CarGurus",
+    "Samsara", "PagerDuty", "Miro", "Fivetran", "Braze",
+]
 HISTORICAL_PRODUCTION_ONLY = [
     "Datadog", "Elastic", "GitLab", "Twilio", "Zscaler", "CrowdStrike",
     "HashiCorp", "Confluent", "Teradyne",
@@ -244,6 +249,7 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
                 + ALBERTA_CANADA_EMPLOYER_EXPANSION_V1_BATCH_A_PROMOTIONS
                 + HARDWARE_SEMICONDUCTOR_EXPANSION_V1_BATCH_A_PROMOTIONS
                 + ROBOTICS_EXPANSION_V1_BATCH_A_PROMOTIONS
+                + SOFTWARE_EXPANSION_V1_BATCH_A_PROMOTIONS
             )
             if mod.normalize_company_name(name) not in master_names
         ]

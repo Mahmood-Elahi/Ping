@@ -5341,3 +5341,250 @@ target_companies:
     allowed_apply_hosts:
     - workforcenow.adp.com
     page_size: 10
+  - name: HubSpot
+    platform: greenhouse
+    careers_url: https://www.hubspot.com/careers/jobs/all
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: hubspotjobs
+    source_identity_regex: HubSpot
+    allowed_apply_hosts:
+    - www.hubspot.com
+  - name: Dropbox
+    platform: greenhouse
+    careers_url: https://www.dropbox.jobs/en/jobs/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: dropbox
+    source_identity_regex: Dropbox
+    allowed_apply_hosts:
+    - jobs.dropbox.com
+  - name: Zoom
+    platform: static_html
+    careers_url: https://careers.zoom.us/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    listing_url: https://careers.zoom.us/jobs/search
+    endpoint_variant: server_rendered_cards
+    listing_selector: div[id^=jobs_search_results_]
+    job_card_selector: article.job-search-results-card-col
+    title_selector: h3.job-search-results-card-title a
+    location_selector: li.job-component-location span
+    department_selector: li.job-component-category span
+    detail_link_selector: h3.job-search-results-card-title a
+    external_id_selector: li.job-component-requisition-identifier span
+    job_attribution_selector: li.job-component-dropdown-field-1 span
+    job_attribution_regex: Zoom
+    source_identity_regex: Zoom
+    allowed_apply_hosts:
+    - careers.zoom.us
+  - name: Okta
+    platform: greenhouse
+    careers_url: https://www.okta.com/company/careers/job-listing/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: okta
+    source_identity_regex: Okta|Auth0
+    allowed_apply_hosts:
+    - www.okta.com
+  - name: Box
+    platform: static_html
+    careers_url: https://careers.box.com/en/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    listing_url: https://careers.box.com/en/jobs/
+    endpoint_variant: server_rendered_cards
+    listing_selector: div#js-job-search-results
+    job_card_selector: div.card-job
+    title_selector: h2.card-title a
+    location_selector: ul.job-meta li:first-child
+    department_selector: ul.job-meta li:last-child
+    detail_link_selector: h2.card-title a
+    external_id_attribute: data-id
+    source_identity_regex: Box
+    allowed_apply_hosts:
+    - careers.box.com
+  - name: Asana
+    platform: greenhouse
+    careers_url: https://asana.com/jobs/all
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: asana
+    source_identity_regex: Asana
+    allowed_apply_hosts:
+    - www.asana.com
+  - name: Notion
+    platform: ashby
+    careers_url: https://www.notion.com/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: notion
+    source_identity_regex: Notion
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: Canva
+    platform: smartrecruiters
+    careers_url: https://www.lifeatcanva.com/en/jobs/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: Canva
+    endpoint_url: https://api.smartrecruiters.com/v1/companies/Canva/postings
+    endpoint_variant: companies_postings_v1
+    identity_regex: Canva
+    source_identity_regex: Canva
+    allowed_apply_hosts:
+    - jobs.smartrecruiters.com
+    page_size: 20
+  - name: Vercel
+    platform: greenhouse
+    careers_url: https://vercel.com/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: vercel
+    source_identity_regex: Vercel
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+  - name: Replit
+    platform: ashby
+    careers_url: https://replit.com/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: replit
+    source_identity_regex: Replit
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: Airtable
+    platform: greenhouse
+    careers_url: https://airtable.com/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: airtable
+    source_identity_regex: Airtable
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+  - name: AppLovin
+    platform: greenhouse
+    careers_url: https://www.applovin.com/en/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: applovin
+    source_identity_regex: AppLovin
+    allowed_apply_hosts:
+    - boards.greenhouse.io
+  - name: Appian
+    platform: greenhouse
+    careers_url: https://careers.appian.com/jobs
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: appian
+    source_identity_regex: Appian
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+  - name: CarGurus
+    platform: phenom
+    careers_url: https://careers.cargurus.com/us/en
+    original_workbook_rank: null
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+    search_url: https://careers.cargurus.com/us/en/search-results
+    endpoint_variant: embedded_refine_search
+    ref_num: CABCARUS
+    locale: en_us
+    identity_regex: CarGurus
+    source_identity_regex: CarGurus|CABCARUS
+    allowed_apply_hosts:
+    - careers.cargurus.com
+    page_size: 10
+  - name: Samsara
+    platform: greenhouse
+    careers_url: https://www.samsara.com/company/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: samsara
+    source_identity_regex: Samsara
+    allowed_apply_hosts:
+    - www.samsara.com
+  - name: PagerDuty
+    platform: greenhouse
+    careers_url: https://careers.pagerduty.com/search-page
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: pagerduty
+    source_identity_regex: PagerDuty
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+  - name: Miro
+    platform: javascript_embedded_data
+    careers_url: https://miro.com/careers/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    listing_url: https://miro.com/careers/open-positions/
+    endpoint_variant: next_data
+    embedded_script_selector: script#__NEXT_DATA__
+    embedded_json_path: props.pageProps.jobs
+    id_field: id
+    title_field: title
+    location_field: location
+    url_field: id
+    department_field: departmentName
+    apply_url_template: https://miro.com/careers/vacancy/{id}/?gh_jid={id}
+    source_identity_regex: Miro
+    allowed_apply_hosts:
+    - miro.com
+    max_scripts: 1
+    max_script_bytes: 1000000
+  - name: Fivetran
+    platform: greenhouse
+    careers_url: https://www.fivetran.com/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: fivetran
+    source_identity_regex: Fivetran
+    allowed_apply_hosts:
+    - www.fivetran.com
+  - name: Braze
+    platform: greenhouse
+    careers_url: https://www.braze.com/company/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: braze
+    source_identity_regex: Braze
+    allowed_apply_hosts:
+    - boards.greenhouse.io

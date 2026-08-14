@@ -51,15 +51,24 @@ class SoftwareExpansionV1BatchAArtifactTests(unittest.TestCase):
         with batch.CANDIDATE_CSV.open(newline="", encoding="utf-8") as handle:
             cls.inventory = list(csv.DictReader(handle))
 
-    def test_01_non_activation_preserves_exact_382_entry_baseline(self):
-        self.assertEqual(len(self.production), 382)
+    def test_01_activation_matches_validated_registry_exactly(self):
+        self.assertEqual(len(self.production), 401)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
-        self.assertEqual(self.candidates[:382], self.production)
-        self.assertEqual(self.validated[:382], self.production)
+        self.assertEqual(self.production[:382], self.validated[:382])
         self.assertEqual(self.candidates, self.validated)
         self.assertEqual(len(self.candidates), 401)
+        self.assertEqual(self.production, self.validated)
+        self.assertEqual(
+            self.production_bytes.replace(b"\r\n", b"\n"),
+            batch.VALIDATED_REGISTRY.read_bytes().replace(b"\r\n", b"\n"),
+        )
         self.assertFalse(self.report["production_registry_activated"])
         self.assertTrue(all(value is False for value in self.report["publication"].values()))
+
+        production_names = [item["name"] for item in self.production]
+        for item in batch.CANDIDATE_ENTRIES:
+            self.assertEqual(production_names.count(item["name"]), 1)
+        self.assertNotIn("Grammarly", production_names)
 
     def test_02_all_requested_companies_and_outcomes_are_reported(self):
         self.assertEqual([row["company"] for row in self.inventory], batch.REVIEWED_COMPANIES)
@@ -134,7 +143,7 @@ class SoftwareExpansionV1BatchAArtifactTests(unittest.TestCase):
         self.assertEqual(zoom["job_attribution_regex"], "Zoom")
 
     def test_08_projection_and_original_master_coverage(self):
-        self.assertEqual(len(load_target_companies(str(batch.PRODUCTION))), 382)
+        self.assertEqual(len(load_target_companies(str(batch.PRODUCTION))), 401)
         self.assertEqual(self.report["projection"], {
             "production_sources": 401,
             "source_delta": 19,
@@ -146,8 +155,11 @@ class SoftwareExpansionV1BatchAArtifactTests(unittest.TestCase):
         self.assertTrue(all(not row["original_246_master"] for row in self.report["results"]))
 
     def test_09_hashes_ignore_and_safe_stage_manifest(self):
+        validated_bytes = batch.VALIDATED_REGISTRY.read_bytes()
+        marker = b"  - name: HubSpot"
+        historical_bytes = validated_bytes[:validated_bytes.index(marker)]
         self.assertEqual(
-            hashlib.sha256(self.production_bytes).hexdigest().upper(),
+            hashlib.sha256(historical_bytes).hexdigest().upper(),
             self.report["production_registry_sha256"],
         )
         self.assertEqual(

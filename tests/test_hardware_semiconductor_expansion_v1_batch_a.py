@@ -35,7 +35,7 @@ class HardwareSemiconductorExpansionV1BatchATests(unittest.TestCase):
     def test_baseline_inventory_and_projection_are_exact(self):
         self.assertEqual((batch.BASELINE_SOURCES, batch.BASELINE_MAPPINGS), (353, 4))
         self.assertEqual((batch.BASELINE_COVERAGE, batch.MASTER_TOTAL), (208, 246))
-        self.assertEqual(len(self.production), 382)
+        self.assertEqual(len(self.production), 401)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(batch.REVIEWED_COMPANIES), 20)
         self.assertEqual(len(set(batch.REVIEWED_COMPANIES)), 20)

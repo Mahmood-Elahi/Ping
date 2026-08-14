@@ -50,15 +50,17 @@ class RoboticsExpansionV1BatchAArtifactTests(unittest.TestCase):
         with batch.CANDIDATE_CSV.open(newline="", encoding="utf-8") as handle:
             cls.inventory = list(csv.DictReader(handle))
 
-    def test_01_activation_matches_validated_registry_exactly(self):
-        self.assertEqual(len(self.production), 382)
+    def test_01_activation_preserves_validated_registry_as_exact_prefix(self):
+        self.assertEqual(len(self.production), 401)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(self.production[:370], self.validated[:370])
         self.assertEqual(len(self.candidates), 382)
         self.assertEqual(self.candidates, self.validated)
-        self.assertEqual(self.production, self.validated)
+        self.assertEqual(self.production[:382], self.validated)
+        marker = b"  - name: HubSpot"
+        production_prefix = self.production_bytes[:self.production_bytes.index(marker)]
         self.assertEqual(
-            self.production_bytes.replace(b"\r\n", b"\n"),
+            production_prefix.replace(b"\r\n", b"\n"),
             batch.VALIDATED_REGISTRY.read_bytes().replace(b"\r\n", b"\n"),
         )
         self.assertFalse(self.report["production_registry_activated"])
@@ -162,7 +164,7 @@ class RoboticsExpansionV1BatchAArtifactTests(unittest.TestCase):
             self.assertFalse(by_name[name]["production_ready"])
 
     def test_08_projection_and_master_coverage(self):
-        self.assertEqual(len(load_target_companies(str(batch.PRODUCTION))), 382)
+        self.assertEqual(len(load_target_companies(str(batch.PRODUCTION))), 401)
         self.assertEqual(self.report["projection"], {
             "production_sources": 382, "source_delta": 12,
             "parent_mappings": 4, "mapping_delta": 0,
