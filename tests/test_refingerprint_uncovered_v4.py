@@ -93,6 +93,11 @@ HARDWARE_SEMICONDUCTOR_EXPANSION_V1_BATCH_A_PROMOTIONS = [
     "Credo Technology", "Astera Labs", "SK hynix", "Kioxia", "Logitech",
     "Sonos", "Bose", "Roku", "MaxLinear", "Ambiq", "u-blox", "Corsair",
 ]
+ROBOTICS_EXPANSION_V1_BATCH_A_PROMOTIONS = [
+    "Berkshire Grey", "Diligent Robotics", "Cobalt AI", "Zipline",
+    "Bright Machines", "Symbotic", "Plus One Robotics", "Dexterity",
+    "Built Robotics", "Chef Robotics", "Avidbots", "Novarc Technologies",
+]
 HISTORICAL_PRODUCTION_ONLY = [
     "Datadog", "Elastic", "GitLab", "Twilio", "Zscaler", "CrowdStrike",
     "HashiCorp", "Confluent", "Teradyne",
@@ -238,6 +243,7 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
                 + ALBERTA_ENERGY_EXPANSION_V1_BATCH_A_PROMOTIONS
                 + ALBERTA_CANADA_EMPLOYER_EXPANSION_V1_BATCH_A_PROMOTIONS
                 + HARDWARE_SEMICONDUCTOR_EXPANSION_V1_BATCH_A_PROMOTIONS
+                + ROBOTICS_EXPANSION_V1_BATCH_A_PROMOTIONS
             )
             if mod.normalize_company_name(name) not in master_names
         ]

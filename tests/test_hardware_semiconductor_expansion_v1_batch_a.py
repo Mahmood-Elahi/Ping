@@ -35,7 +35,7 @@ class HardwareSemiconductorExpansionV1BatchATests(unittest.TestCase):
     def test_baseline_inventory_and_projection_are_exact(self):
         self.assertEqual((batch.BASELINE_SOURCES, batch.BASELINE_MAPPINGS), (353, 4))
         self.assertEqual((batch.BASELINE_COVERAGE, batch.MASTER_TOTAL), (208, 246))
-        self.assertEqual(len(self.production), 370)
+        self.assertEqual(len(self.production), 382)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(batch.REVIEWED_COMPANIES), 20)
         self.assertEqual(len(set(batch.REVIEWED_COMPANIES)), 20)
@@ -56,11 +56,13 @@ class HardwareSemiconductorExpansionV1BatchATests(unittest.TestCase):
         self.assertEqual(self.candidates, self.validated)
         baseline_prefix = self.validated[:353]
         self.assertEqual(self.production[:353], baseline_prefix)
+        self.assertEqual(self.production[:370], self.validated)
+        marker = b"  - name: Berkshire Grey"
+        production_prefix = self.production_bytes[:self.production_bytes.index(marker)]
         self.assertEqual(
-            self.production_bytes.replace(b"\r\n", b"\n"),
+            production_prefix.replace(b"\r\n", b"\n"),
             batch.VALIDATED_REGISTRY.read_bytes().replace(b"\r\n", b"\n"),
         )
-        self.assertEqual(self.production, self.validated)
         self.assertEqual(len(self.candidates), 370)
         self.assertEqual(
             [entry["name"] for entry in self.candidates[353:]],

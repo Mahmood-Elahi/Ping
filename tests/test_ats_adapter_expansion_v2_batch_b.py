@@ -173,7 +173,7 @@ class BatchArtifactsTests(unittest.TestCase):
         cls.report = json.loads(batch.REPORT.read_text(encoding="utf-8"))
 
     def test_activation_preserves_validated_registry_exactly(self):
-        self.assertEqual(len(self.production), 370)
+        self.assertEqual(len(self.production), 382)
         self.assertEqual(len(self.candidates), 339)
         self.assertEqual(self.production[:339], with_reliability_repairs(self.validated))
         self.assertEqual(self.candidates, self.validated)

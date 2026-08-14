@@ -5196,3 +5196,148 @@ target_companies:
     endpoint_variant: recruiting_ce_v1
     site_number: CX_1
     locale: en
+  - name: Berkshire Grey
+    platform: bamboohr
+    careers_url: https://www.berkshiregrey.com/careers/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: berkshiregrey
+    listing_url: https://berkshiregrey.bamboohr.com/careers/list
+    source_identity_regex: Berkshire Grey
+    allowed_apply_hosts:
+    - berkshiregrey.bamboohr.com
+  - name: Diligent Robotics
+    platform: greenhouse
+    careers_url: https://www.diligentrobots.com/about/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: diligentrobotics
+    source_identity_regex: Diligent Robotics
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+  - name: Cobalt AI
+    platform: bamboohr
+    careers_url: https://www.cobaltai.com/careers/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: cobaltai
+    listing_url: https://cobaltai.bamboohr.com/careers/list
+    source_identity_regex: Cobalt AI|Cobalt Robotics
+    allowed_apply_hosts:
+    - cobaltai.bamboohr.com
+  - name: Zipline
+    platform: greenhouse
+    careers_url: https://www.zipline.com/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 5000000
+    slug: flyzipline
+    source_identity_regex: Zipline
+    allowed_apply_hosts:
+    - www.zipline.com
+  - name: Bright Machines
+    platform: lever
+    careers_url: https://www.brightmachines.com/careers/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: brightmachines
+    endpoint_variant: postings_api_v0
+    source_identity_regex: Bright Machines
+    allowed_apply_hosts:
+    - jobs.lever.co
+  - name: Symbotic
+    platform: workday
+    careers_url: https://www.symbotic.com/careers/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    tenant: symbotic
+    wd_subdomain: wd504
+    site_id: Symbotic
+    search_url: https://symbotic.wd504.myworkdayjobs.com/Symbotic
+    source_identity_regex: Symbotic
+    allowed_apply_hosts:
+    - symbotic.wd504.myworkdayjobs.com
+  - name: Plus One Robotics
+    platform: bamboohr
+    careers_url: https://www.plusonerobotics.com/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: plusonerobotics
+    listing_url: https://plusonerobotics.bamboohr.com/careers/list
+    source_identity_regex: Plus One Robotics
+    allowed_apply_hosts:
+    - plusonerobotics.bamboohr.com
+  - name: Dexterity
+    platform: lever
+    careers_url: https://jobs.lever.co/dexterity
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: dexterity
+    endpoint_variant: postings_api_v0
+    source_identity_regex: Dexterity
+    allowed_apply_hosts:
+    - jobs.lever.co
+  - name: Built Robotics
+    platform: ashby
+    careers_url: https://www.builtrobotics.com/careers/openings
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: built-robotics
+    source_identity_regex: Built Robotics
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: Chef Robotics
+    platform: lever
+    careers_url: https://www.chefrobotics.ai/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: ChefRobotics
+    endpoint_variant: postings_api_v0
+    source_identity_regex: Chef Robotics
+    allowed_apply_hosts:
+    - jobs.lever.co
+  - name: Avidbots
+    platform: bamboohr
+    careers_url: https://avidbots.com/company/careers/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: avidbots
+    listing_url: https://avidbots.bamboohr.com/careers/list
+    source_identity_regex: Avidbots
+    allowed_apply_hosts:
+    - avidbots.bamboohr.com
+  - name: Novarc Technologies
+    platform: adp
+    careers_url: https://workforcenow.adp.com/mascsr/default/mdf/recruitment/recruitment.html?cid=d355e8f6-9a6c-48a9-b7ba-45a41dc5daad&ccId=9200648065638_2&lang=en_CA
+    original_workbook_rank: null
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+    endpoint_url: https://workforcenow.adp.com/mascsr/default/careercenter/public/events/staffing/v1/job-requisitions
+    endpoint_variant: workforce_now_requisitions_v1
+    identity_regex: WNVPD0000191809
+    source_identity_regex: Novarc Technologies|WNVPD0000191809
+    allowed_apply_hosts:
+    - workforcenow.adp.com
+    page_size: 10

@@ -67,7 +67,7 @@ class AlbertaEnergyExpansionV1BatchATests(unittest.TestCase):
         self.assertEqual(production["target_companies"][:344], validated["target_companies"])
         self.assertEqual(candidate, validated)
         payload = production
-        self.assertEqual(len(payload["target_companies"]), 370)
+        self.assertEqual(len(payload["target_companies"]), 382)
         self.assertEqual(
             [entry["name"] for entry in payload["target_companies"][339:344]],
             [entry["name"] for entry in batch.CANDIDATE_ENTRIES],
