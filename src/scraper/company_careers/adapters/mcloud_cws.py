@@ -6,7 +6,7 @@ import json
 import re
 import time
 from typing import Any, Iterable, Mapping
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import parse_qsl, unquote, urljoin, urlparse, urlunparse
 
 import requests
 
@@ -57,12 +57,18 @@ def fetch_jobs(
         "repeated_page": False,
         "zero_job_contract": False,
         "identity_binding_verified": False,
+        "job_detail_path": None,
+        "declared_ats_hosts": [],
         "diagnostics": [],
         "warnings": [],
     }
     setattr(session, "mcloud_cws_pagination", metadata)
-    _verify_identity_binding(session, target, timeout)
+    job_detail_path, declared_ats_hosts = _verify_identity_binding(
+        session, target, timeout
+    )
     metadata["identity_binding_verified"] = True
+    metadata["job_detail_path"] = job_detail_path
+    metadata["declared_ats_hosts"] = sorted(declared_ats_hosts)
 
     jobs: list[JobRecord] = []
     seen_ids: set[str] = set()
@@ -108,7 +114,12 @@ def fetch_jobs(
 
         new_ids = 0
         for item in items:
-            job = _normalize(item, target)
+            job = _normalize(
+                item,
+                target,
+                job_detail_path=job_detail_path,
+                declared_ats_hosts=declared_ats_hosts,
+            )
             if job.job_id in seen_ids:
                 raise AdapterError("M-Cloud returned a duplicate stable job ID")
             seen_ids.add(job.job_id)
@@ -189,7 +200,7 @@ def validate_target(target: CompanyTarget) -> None:
 
 def _verify_identity_binding(
     session: requests.Session, target: CompanyTarget, timeout: int
-) -> None:
+) -> tuple[str, frozenset[str]]:
     response = _get(
         session,
         str(target.careers_url),
@@ -226,8 +237,31 @@ def _verify_identity_binding(
     configured_api_host = (
         urlparse(str(config.get("api") or "")).hostname or ""
     ).casefold()
-    if configured_api_host != endpoint_host or config.get("job_detail_path") != "/job":
+    job_detail_path = str(config.get("job_detail_path") or "")
+    if configured_api_host != endpoint_host or job_detail_path != "/job":
         raise AdapterError("M-Cloud careers page no longer publishes the configured API host")
+    return job_detail_path, _declared_ats_hosts(config)
+
+
+def _declared_ats_hosts(config: Mapping[str, Any]) -> frozenset[str]:
+    raw = config.get("ATS_params")
+    if raw in (None, ""):
+        return frozenset()
+    try:
+        payload = json.loads(raw) if isinstance(raw, str) else raw
+    except (TypeError, ValueError) as exc:
+        raise AdapterError(f"M-Cloud careers page contains malformed ATS_params: {exc}") from exc
+    rows = payload.get("CONFIG") if isinstance(payload, Mapping) else None
+    if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+        raise AdapterError("M-Cloud careers page contains malformed ATS_params")
+    hosts: set[str] = set()
+    for row in rows:
+        host = _text(row.get("ATS_HOST_NAME")).casefold().rstrip(".")
+        if not host:
+            continue
+        static_html._validate_hosts([host])
+        hosts.add(host)
+    return frozenset(hosts)
 
 
 def _get(
@@ -286,7 +320,13 @@ def _parse_response(
     return list(items), total, total == 0 and not items
 
 
-def _normalize(item: Mapping[str, Any], target: CompanyTarget) -> JobRecord:
+def _normalize(
+    item: Mapping[str, Any],
+    target: CompanyTarget,
+    *,
+    job_detail_path: str,
+    declared_ats_hosts: frozenset[str],
+) -> JobRecord:
     job = item.get("job")
     if not isinstance(job, Mapping):
         raise AdapterError("M-Cloud result is missing its job object")
@@ -309,7 +349,14 @@ def _normalize(item: Mapping[str, Any], target: CompanyTarget) -> JobRecord:
         raise AdapterError("M-Cloud job failed exact source attribution")
     if exclusion and exclusion.search(attribution_text):
         raise AdapterError("M-Cloud job matched excluded attribution")
-    url = _official_url(job.get("url"), target)
+    url = _official_url(
+        job.get("url"),
+        target,
+        external_id=external_id,
+        reference=_text(job.get("ref") or job.get("clientid")),
+        job_detail_path=job_detail_path,
+        declared_ats_hosts=declared_ats_hosts,
+    )
     locations = _locations(job)
     departments = _unique(
         _text(job.get(key))
@@ -335,6 +382,7 @@ def _normalize(item: Mapping[str, Any], target: CompanyTarget) -> JobRecord:
             "reference": _text(job.get("ref")),
             "company_name": _text(job.get("company_name")),
             "brand": _text(job.get("brand")),
+            "source_job_url": _text(job.get("url")),
         },
     )
 
@@ -365,15 +413,53 @@ def _locations(job: Mapping[str, Any]) -> list[str]:
     return _unique(result)
 
 
-def _official_url(value: Any, target: CompanyTarget) -> str:
+def _official_url(
+    value: Any,
+    target: CompanyTarget,
+    *,
+    external_id: str,
+    reference: str,
+    job_detail_path: str,
+    declared_ats_hosts: frozenset[str],
+) -> str:
     url = _text(value)
     parsed = urlparse(url)
     host = (parsed.hostname or "").casefold()
-    if parsed.scheme != "https" or not _allowed_host(host, target.allowed_apply_hosts):
+    if (
+        parsed.scheme != "https"
+        or not host
+        or parsed.username
+        or parsed.password
+        or parsed.fragment
+    ):
         raise AdapterError("M-Cloud job has no official allowed-host URL")
-    if not re.search(r"/job/[0-9]+/", parsed.path):
-        raise AdapterError("M-Cloud job URL has no stable job path")
-    return urlunparse(parsed._replace(fragment=""))
+    expected_path = rf"^{re.escape(job_detail_path.rstrip('/'))}/{re.escape(external_id)}(?:/|$)"
+    if _allowed_host(host, target.allowed_apply_hosts):
+        if not re.search(expected_path, parsed.path):
+            raise AdapterError("M-Cloud job URL has no matching stable job path")
+        return urlunparse(parsed._replace(fragment=""))
+    if host not in declared_ats_hosts:
+        raise AdapterError("M-Cloud job has no official allowed-host URL")
+    if not reference or not _url_contains_reference(parsed, reference):
+        raise AdapterError("M-Cloud declared ATS URL has no matching stable job reference")
+
+    official_url = urljoin(
+        str(target.careers_url),
+        f"{job_detail_path.rstrip('/')}/{external_id}",
+    )
+    official = urlparse(official_url)
+    official_host = (official.hostname or "").casefold()
+    if official.scheme != "https" or not _allowed_host(
+        official_host, target.allowed_apply_hosts
+    ):
+        raise AdapterError("M-Cloud canonical job route is outside allowed_apply_hosts")
+    return urlunparse(official._replace(query="", fragment=""))
+
+
+def _url_contains_reference(parsed: Any, reference: str) -> bool:
+    values = [unquote(part) for part in parsed.path.split("/") if part]
+    values.extend(unquote(value) for _key, value in parse_qsl(parsed.query))
+    return reference in values
 
 
 def _content(response: Any, *, expected: str) -> bytes:

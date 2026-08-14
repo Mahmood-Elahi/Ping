@@ -322,16 +322,24 @@ class MCloudAdapterTests(unittest.TestCase):
         return CompanyTarget(**values)
 
     @staticmethod
-    def identity(organization: str) -> str:
+    def identity(organization: str, *, ats_hosts: tuple[str, ...] = ()) -> str:
         config = {
             "org": organization,
             "api": "https://api.example.com/api/",
             "job_detail_path": "/job",
         }
+        if ats_hosts:
+            config["ATS_params"] = json.dumps(
+                {"CONFIG": [{"ATS_HOST_NAME": host} for host in ats_hosts]}
+            )
         return f"<html><title>Stellantis Careers</title><script>var cws_opts = {json.dumps(config)};</script></html>"
 
     @staticmethod
-    def search() -> str:
+    def search(
+        *,
+        job_url: str = "https://careers.example.com/job/123/manufacturing-intern/",
+        reference: str = "2026-123",
+    ) -> str:
         return json.dumps(
             {
                 "totalHits": 1,
@@ -342,12 +350,13 @@ class MCloudAdapterTests(unittest.TestCase):
                             "title": "Manufacturing Intern",
                             "company_name": "FCA",
                             "brand": "FCA Group",
+                            "ref": reference,
                             "primary_city": "Windsor",
                             "primary_state": "ON",
                             "primary_country": "CA",
                             "primary_category": "Manufacturing",
                             "open_date": "2026-08-11T00:00:00",
-                            "url": "https://careers.example.com/job/123/manufacturing-intern/",
+                            "url": job_url,
                         }
                     }
                 ],
@@ -374,6 +383,101 @@ class MCloudAdapterTests(unittest.TestCase):
         self.assertEqual(["https://careers.example.com/", "https://api.example.com/api/job/search"], session.calls)
         self.assertTrue(session.mcloud_cws_pagination["identity_binding_verified"])  # type: ignore[attr-defined]
         self.assertEqual("Windsor, ON, CA", jobs[0].location)
+
+    def test_declared_external_ats_url_uses_verified_first_party_detail_route(self) -> None:
+        parent = self
+        organization = str(self.target().organization_id)
+        external_url = (
+            "https://jobs.groupe-psa.com/Pages/Offre/detailoffre.aspx"
+            "?idOffre=123&idOrigine=502&offerReference=2026-123"
+        )
+
+        class Session:
+            def get(self, url: str, **_kwargs: object) -> Response:
+                if "careers.example.com" in url:
+                    body = parent.identity(
+                        organization, ats_hosts=("jobs.groupe-psa.com",)
+                    )
+                    return Response(body, url=url, content_type="text/html")
+                return Response(
+                    parent.search(job_url=external_url),
+                    url=url,
+                    content_type="application/json",
+                )
+
+        session = Session()
+        jobs = mcloud_cws.fetch_jobs(session, self.target(), 5)  # type: ignore[arg-type]
+        self.assertEqual("https://careers.example.com/job/123", jobs[0].url)
+        self.assertEqual(external_url, jobs[0].raw_metadata["source_job_url"])
+        self.assertEqual(
+            ["jobs.groupe-psa.com"],
+            session.mcloud_cws_pagination["declared_ats_hosts"],  # type: ignore[attr-defined]
+        )
+
+    def test_undeclared_external_ats_host_still_fails_closed(self) -> None:
+        parent = self
+        organization = str(self.target().organization_id)
+        external_url = "https://untrusted.example.net/job?offerReference=2026-123"
+
+        class Session:
+            def get(self, url: str, **_kwargs: object) -> Response:
+                if "careers.example.com" in url:
+                    return Response(
+                        parent.identity(organization), url=url, content_type="text/html"
+                    )
+                return Response(
+                    parent.search(job_url=external_url),
+                    url=url,
+                    content_type="application/json",
+                )
+
+        with self.assertRaisesRegex(AdapterError, "official allowed-host URL"):
+            mcloud_cws.fetch_jobs(Session(), self.target(), 5)  # type: ignore[arg-type]
+
+    def test_declared_external_ats_url_requires_exact_job_reference(self) -> None:
+        parent = self
+        organization = str(self.target().organization_id)
+        external_url = (
+            "https://jobs.groupe-psa.com/Pages/Offre/detailoffre.aspx"
+            "?offerReference=2026-999"
+        )
+
+        class Session:
+            def get(self, url: str, **_kwargs: object) -> Response:
+                if "careers.example.com" in url:
+                    body = parent.identity(
+                        organization, ats_hosts=("jobs.groupe-psa.com",)
+                    )
+                    return Response(body, url=url, content_type="text/html")
+                return Response(
+                    parent.search(job_url=external_url),
+                    url=url,
+                    content_type="application/json",
+                )
+
+        with self.assertRaisesRegex(AdapterError, "matching stable job reference"):
+            mcloud_cws.fetch_jobs(Session(), self.target(), 5)  # type: ignore[arg-type]
+
+    def test_first_party_job_url_requires_the_same_stable_id(self) -> None:
+        parent = self
+        organization = str(self.target().organization_id)
+
+        class Session:
+            def get(self, url: str, **_kwargs: object) -> Response:
+                if "careers.example.com" in url:
+                    return Response(
+                        parent.identity(organization), url=url, content_type="text/html"
+                    )
+                return Response(
+                    parent.search(
+                        job_url="https://careers.example.com/job/999/wrong-job/"
+                    ),
+                    url=url,
+                    content_type="application/json",
+                )
+
+        with self.assertRaisesRegex(AdapterError, "matching stable job path"):
+            mcloud_cws.fetch_jobs(Session(), self.target(), 5)  # type: ignore[arg-type]
 
     def test_changed_official_organization_fails_before_api(self) -> None:
         parent = self
