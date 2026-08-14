@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, List, Mapping
 from urllib.parse import urlparse, urlunparse
 
@@ -38,6 +39,26 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
         raise AdapterError(f"Greenhouse max_jobs cannot exceed {MAX_RESULTS}")
     if not 1 <= int(target.max_response_bytes) <= MAX_RESPONSE_BYTES:
         raise AdapterError("Greenhouse response byte limit exceeds the hard maximum")
+    if bool(target.job_attribution_field) != bool(target.job_attribution_regex):
+        raise AdapterError(
+            "Greenhouse per-job attribution requires both field and regex"
+        )
+    attribution_regex: re.Pattern[str] | None = None
+    if target.job_attribution_regex:
+        try:
+            attribution_regex = re.compile(str(target.job_attribution_regex), re.IGNORECASE)
+        except re.error as exc:
+            raise AdapterError(f"Greenhouse attribution regex is invalid: {exc}") from exc
+    exclusion_regex: re.Pattern[str] | None = None
+    if target.job_attribution_exclude_regex:
+        try:
+            exclusion_regex = re.compile(
+                str(target.job_attribution_exclude_regex), re.IGNORECASE
+            )
+        except re.error as exc:
+            raise AdapterError(
+                f"Greenhouse attribution exclusion regex is invalid: {exc}"
+            ) from exc
 
     base_url = f"https://boards-api.greenhouse.io/v1/boards/{target.slug}"
     data, listing_bytes, listing_streamed = _get_json(
@@ -75,9 +96,18 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
     maximum_results = int(target.max_jobs)
     detail_limit = min(int(target.max_response_bytes), MAX_DETAIL_RESPONSE_BYTES)
     summaries: list[tuple[Mapping[str, Any], JobRecord]] = []
+    attribution_filtered = 0
     for item in data["jobs"]:
         summary = _listing_record(item, target)
         if allowed_job_ids is not None and summary.job_id not in allowed_job_ids:
+            continue
+        if attribution_regex and not _has_exact_attribution(
+            summary,
+            str(target.job_attribution_field),
+            attribution_regex,
+            exclusion_regex,
+        ):
+            attribution_filtered += 1
             continue
         summaries.append((item, summary))
 
@@ -143,6 +173,8 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
             "candidates_selected": len(selected_summaries),
             "jobs_normalized": len(jobs),
             "department_allowlist": list(target.department_allowlist),
+            "job_attribution_field": target.job_attribution_field,
+            "attribution_filtered": attribution_filtered,
             "zero_job_contract": not data["jobs"],
             "stop_reason": (
                 "maximum_results_reached"
@@ -159,6 +191,25 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
         },
     )
     return jobs
+
+
+def _has_exact_attribution(
+    job: JobRecord,
+    field: str,
+    include: re.Pattern[str],
+    exclude: re.Pattern[str] | None,
+) -> bool:
+    """Accept one job only when its reviewed Greenhouse metadata is exact."""
+    metadata = job.raw_metadata.get("greenhouse_metadata")
+    if not isinstance(metadata, Mapping):
+        raise AdapterError("Greenhouse job metadata attribution must be an object")
+    field_name = field.removeprefix("greenhouse_metadata.")
+    value = metadata.get(field_name)
+    values = value if isinstance(value, list) else [value]
+    cleaned = [str(item).strip() for item in values if str(item or "").strip()]
+    return bool(cleaned) and any(include.fullmatch(item) for item in cleaned) and not any(
+        exclude.search(item) for item in cleaned if exclude
+    )
 
 
 def _get_json(

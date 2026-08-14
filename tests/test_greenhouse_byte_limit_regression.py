@@ -302,6 +302,58 @@ class GreenhouseByteLimitRegressionTests(unittest.TestCase):
         self.assertEqual([job.job_id for job in jobs], ["1", "2"])
         self.assertEqual(session.greenhouse_pagination["candidate_jobs"], 0)
 
+    def test_exact_metadata_attribution_filters_acquired_company_rows(self):
+        listings = [
+            summary(
+                1,
+                title="Core Platform Engineer",
+                metadata=[{
+                    "name": "Acquisition Company",
+                    "value": "CoreWeave",
+                }],
+            ),
+            summary(
+                2,
+                title="ML Platform Engineer",
+                metadata=[{
+                    "name": "Acquisition Company",
+                    "value": "Weights & Biases",
+                }],
+            ),
+        ]
+        session = StreamingSession(
+            [StreamingResponse({"jobs": listings}), StreamingResponse(detail(1))]
+        )
+
+        jobs = greenhouse.fetch_jobs(
+            session,
+            self.target(
+                job_attribution_field="greenhouse_metadata.Acquisition Company",
+                job_attribution_regex=r"CoreWeave",
+            ),
+        )
+
+        self.assertEqual([job.job_id for job in jobs], ["1"])
+        self.assertEqual(session.greenhouse_pagination["attribution_filtered"], 1)
+
+    def test_metadata_attribution_contract_is_complete_and_regex_is_valid(self):
+        for overrides, message in (
+            ({"job_attribution_field": "Brand"}, "both field and regex"),
+            ({"job_attribution_regex": "CoreWeave"}, "both field and regex"),
+            (
+                {
+                    "job_attribution_field": "Brand",
+                    "job_attribution_regex": "(",
+                },
+                "regex is invalid",
+            ),
+        ):
+            with self.subTest(overrides=overrides):
+                with self.assertRaisesRegex(AdapterError, message):
+                    greenhouse.fetch_jobs(
+                        StreamingSession([]), self.target(**overrides)
+                    )
+
 
 if __name__ == "__main__":
     unittest.main()
