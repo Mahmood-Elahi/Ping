@@ -35,7 +35,7 @@ class HardwareSemiconductorExpansionV1BatchATests(unittest.TestCase):
     def test_baseline_inventory_and_projection_are_exact(self):
         self.assertEqual((batch.BASELINE_SOURCES, batch.BASELINE_MAPPINGS), (353, 4))
         self.assertEqual((batch.BASELINE_COVERAGE, batch.MASTER_TOTAL), (208, 246))
-        self.assertEqual(len(self.production), 353)
+        self.assertEqual(len(self.production), 370)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(batch.REVIEWED_COMPANIES), 20)
         self.assertEqual(len(set(batch.REVIEWED_COMPANIES)), 20)
@@ -52,16 +52,24 @@ class HardwareSemiconductorExpansionV1BatchATests(unittest.TestCase):
             "master_delta": 0,
         })
 
-    def test_candidate_and_validated_registries_preserve_production_prefix(self):
+    def test_activation_matches_validated_registry_exactly(self):
         self.assertEqual(self.candidates, self.validated)
-        self.assertEqual(self.candidates[:353], self.production)
+        baseline_prefix = self.validated[:353]
+        self.assertEqual(self.production[:353], baseline_prefix)
+        self.assertEqual(
+            self.production_bytes.replace(b"\r\n", b"\n"),
+            batch.VALIDATED_REGISTRY.read_bytes().replace(b"\r\n", b"\n"),
+        )
+        self.assertEqual(self.production, self.validated)
         self.assertEqual(len(self.candidates), 370)
         self.assertEqual(
             [entry["name"] for entry in self.candidates[353:]],
             [entry["name"] for entry in batch.CANDIDATE_ENTRIES],
         )
-        production_names = {entry["name"] for entry in self.production}
-        self.assertTrue(set(batch.REVIEWED_COMPANIES).isdisjoint(production_names))
+        production_names = [entry["name"] for entry in self.production]
+        promoted = {entry["name"] for entry in batch.CANDIDATE_ENTRIES}
+        for name in batch.REVIEWED_COMPANIES:
+            self.assertEqual(production_names.count(name), int(name in promoted))
 
     def test_all_candidates_reuse_supported_bounded_anonymous_contracts(self):
         self.assertEqual(

@@ -36,7 +36,7 @@ class AlbertaCanadaEmployerExpansionV1BatchATests(unittest.TestCase):
         self.assertEqual(len(set(batch.REVIEWED_COMPANIES)), 20)
         self.assertEqual((batch.BASELINE_SOURCES, batch.BASELINE_MAPPINGS), (344, 4))
         self.assertEqual((batch.BASELINE_COVERAGE, batch.MASTER_TOTAL), (208, 246))
-        self.assertEqual(len(self.production), 353)
+        self.assertEqual(len(self.production), 370)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(
             set(batch.REVIEWED_COMPANIES),
@@ -48,11 +48,12 @@ class AlbertaCanadaEmployerExpansionV1BatchATests(unittest.TestCase):
         self.assertEqual(self.candidate_bytes, self.validated_bytes)
         baseline_prefix = self.validated_bytes[:self.validated_bytes.index(b"  - name: Air Canada")]
         self.assertEqual(self.production_bytes[:len(baseline_prefix)], baseline_prefix)
+        activation_prefix = self.production_bytes[:self.production_bytes.index(b"  - name: HP Inc.")]
         self.assertEqual(
-            self.production_bytes.replace(b"\r\n", b"\n"),
+            activation_prefix.replace(b"\r\n", b"\n"),
             self.validated_bytes.replace(b"\r\n", b"\n"),
         )
-        self.assertEqual(self.production, self.validated)
+        self.assertEqual(self.production[:353], self.validated)
         self.assertEqual(len(self.candidates), 353)
         self.assertEqual(
             [entry["name"] for entry in self.candidates[344:]],

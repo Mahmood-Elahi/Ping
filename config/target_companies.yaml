@@ -4934,3 +4934,265 @@ target_companies:
     max_jobs: 20
     max_response_bytes: 3000000
     slug: coconutsoftware
+  - name: HP Inc.
+    platform: eightfold
+    careers_url: https://hp.eightfold.ai/careers
+    identity_url: https://hp.eightfold.ai/careers
+    source_identity_regex: \bHP\b
+    identity_regex: \bHP\b
+    allowed_apply_hosts:
+    - hp.eightfold.ai
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    endpoint_url: https://hp.eightfold.ai/api/pcsx/search
+    endpoint_variant: pcsx
+    organization_id: hp.com
+  - name: HPE
+    platform: phenom
+    careers_url: https://careers.hpe.com/us/en
+    identity_url: https://careers.hpe.com/us/en/search-results
+    source_identity_regex: Hewlett Packard Enterprise|\bHPE\b
+    identity_regex: Hewlett Packard Enterprise|\bHPE\b
+    allowed_apply_hosts:
+    - hpe.wd5.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    search_url: https://careers.hpe.com/us/en/search-results
+    endpoint_variant: embedded_refine_search
+    ref_num: HPE1US
+    locale: en_us
+  - name: Western Digital
+    platform: smartrecruiters
+    careers_url: https://www.westerndigital.com/careers
+    identity_url: https://careers.smartrecruiters.com/WesternDigital
+    source_identity_regex: Western Digital
+    identity_regex: Western Digital
+    allowed_apply_hosts:
+    - jobs.smartrecruiters.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: WesternDigital
+    endpoint_url: https://api.smartrecruiters.com/v1/companies/WesternDigital/postings
+    endpoint_variant: companies_postings_v1
+    page_size: 20
+  - name: Seagate
+    platform: sap_successfactors
+    careers_url: https://www.seagate.com/ca/en/jobs/
+    identity_url: https://seagatecareers.com/AllJobs
+    source_identity_regex: \bSeagate\b
+    identity_regex: \bSeagate\b
+    allowed_apply_hosts:
+    - seagatecareers.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    search_url: https://seagatecareers.com/search/
+    endpoint_variant: rmk_tile
+  - name: Coherent Corp
+    platform: oracle_recruiting
+    careers_url: https://hcwp.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/jobs
+    identity_url: https://hcwp.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/jobs
+    source_identity_regex: Coherent Corp
+    identity_regex: Coherent Corp
+    allowed_apply_hosts:
+    - hcwp.fa.us2.oraclecloud.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    endpoint_url: https://hcwp.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+    endpoint_variant: recruiting_ce_v1
+    site_number: CX_1
+    locale: en
+  - name: Credo Technology
+    platform: hibob
+    careers_url: https://credo.careers.hibob.com
+    identity_url: https://credosemi.com/about-credo/careers/
+    source_identity_regex: \bCredo\b
+    identity_regex: \bCredo\b
+    allowed_apply_hosts:
+    - credo.careers.hibob.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: credo
+    endpoint_url: https://credo.careers.hibob.com/api/job-ad
+    endpoint_variant: career_site_job_ads_v1
+  - name: Astera Labs
+    platform: greenhouse
+    careers_url: https://www.asteralabs.com/careers/
+    identity_url: https://www.asteralabs.com/careers/
+    source_identity_regex: Astera Labs
+    identity_regex: Astera Labs
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: asteralabs
+  - name: SK hynix
+    platform: greenhouse
+    careers_url: https://job-boards.greenhouse.io/skhynixamerica
+    identity_url: https://job-boards.greenhouse.io/skhynixamerica
+    source_identity_regex: SK hynix
+    identity_regex: SK hynix
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: skhynixamerica
+  - name: Kioxia
+    platform: smartrecruiters
+    careers_url: https://americas.kioxia.com/en-us/careers.html
+    identity_url: https://careers.smartrecruiters.com/Kioxia
+    source_identity_regex: Kioxia
+    identity_regex: Kioxia
+    allowed_apply_hosts:
+    - jobs.smartrecruiters.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: Kioxia
+    endpoint_url: https://api.smartrecruiters.com/v1/companies/Kioxia/postings
+    endpoint_variant: companies_postings_v1
+    page_size: 20
+  - name: Logitech
+    platform: workday
+    careers_url: https://www.logitech.com/en-us/careers
+    identity_url: https://www.logitech.com/en-us/careers
+    source_identity_regex: Logitech
+    identity_regex: Logitech
+    allowed_apply_hosts:
+    - logitech.wd5.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    search_url: https://logitech.wd5.myworkdayjobs.com/Logitech
+    tenant: logitech
+    wd_subdomain: wd5
+    site_id: Logitech
+  - name: Sonos
+    platform: workday
+    careers_url: https://www.sonos.com/en-us/life-at-sonos
+    identity_url: https://sonos.wd1.myworkdayjobs.com/Sonos
+    source_identity_regex: Sonos
+    identity_regex: Sonos
+    allowed_apply_hosts:
+    - sonos.wd1.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    search_url: https://sonos.wd1.myworkdayjobs.com/Sonos
+    tenant: sonos
+    wd_subdomain: wd1
+    site_id: Sonos
+  - name: Bose
+    platform: workday
+    careers_url: https://boseallaboutme.wd503.myworkdayjobs.com/Bose_Careers
+    identity_url: https://careers.bose.com/us/en/search-results
+    source_identity_regex: Bose Corporation|Careers - Bose
+    identity_regex: Bose Corporation|Careers - Bose
+    allowed_apply_hosts:
+    - boseallaboutme.wd503.myworkdayjobs.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    search_url: https://boseallaboutme.wd503.myworkdayjobs.com/Bose_Careers
+    tenant: boseallaboutme
+    wd_subdomain: wd503
+    site_id: Bose_Careers
+  - name: Roku
+    platform: greenhouse
+    careers_url: https://www.weareroku.com/jobs/search/
+    identity_url: https://boards-api.greenhouse.io/v1/boards/roku
+    source_identity_regex: \bRoku\b
+    identity_regex: \bRoku\b
+    allowed_apply_hosts:
+    - www.weareroku.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: roku
+  - name: MaxLinear
+    platform: icims
+    careers_url: https://www.maxlinear.com/company/careers
+    identity_url: https://www.maxlinear.com/company/careers
+    source_identity_regex: MaxLinear
+    identity_regex: MaxLinear
+    allowed_apply_hosts:
+    - careersus-maxlinear.icims.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    search_url: https://careersus-maxlinear.icims.com/jobs/search
+    endpoint_variant: icims_legacy_portal_html
+    tenant: careersus-maxlinear
+    board_id: maxlinear-us
+    page_size: 20
+  - name: Ambiq
+    platform: greenhouse
+    careers_url: https://ambiq.com/careers/
+    identity_url: https://ambiq.com/careers/
+    source_identity_regex: \bAmbiq\b
+    identity_regex: \bAmbiq\b
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: ambiqmicroinc
+  - name: u-blox
+    platform: static_html
+    careers_url: https://www.u-blox.com/en/job-openings
+    identity_url: https://fs-4627.my.salesforce-sites.com/recruit/fRecruit__ApplyJobList?portal=U-Blox+Global
+    source_identity_regex: u-blox
+    identity_regex: u-blox
+    allowed_apply_hosts:
+    - fs-4627.my.salesforce-sites.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    listing_url: https://fs-4627.my.salesforce-sites.com/recruit/fRecruit__ApplyJobList?portal=U-Blox+Global
+    endpoint_variant: server_rendered_cards
+    listing_selector: table.jobListPanel
+    job_card_selector: tr.dataRow
+    title_selector: td:first-child a
+    location_selector: td:nth-child(3),td:nth-child(4),td:nth-child(5)
+    department_selector: td:nth-child(6)
+    detail_link_selector: td:first-child a
+    external_id_regex: '[?&]vacancyNo=([^&]+)'
+  - name: Corsair
+    platform: oracle_recruiting
+    careers_url: https://edix.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/jobs
+    identity_url: https://edix.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/jobs
+    source_identity_regex: CORSAIR Careers
+    identity_regex: CORSAIR Careers
+    allowed_apply_hosts:
+    - edix.fa.us2.oraclecloud.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    endpoint_url: https://edix.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+    endpoint_variant: recruiting_ce_v1
+    site_number: CX_1
+    locale: en
