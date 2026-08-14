@@ -387,10 +387,15 @@ def _locations(value: Any) -> str:
                 country.get("longName") or country.get("codeValue") if isinstance(country, Mapping) else None,
             ]
             text = ", ".join(str(part).strip() for part in parts if str(part or "").strip())
+        # Some Workforce Now tenants append empty location placeholders after
+        # one or more real locations. Ignore only those empty objects; the
+        # collection still fails closed below if no stable location remains.
         if not text:
-            raise AdapterError("ADP requisition location has no stable display value")
+            continue
         if text not in locations:
             locations.append(text)
+    if not locations:
+        raise AdapterError("ADP requisition location has no stable display value")
     return " | ".join(locations)
 
 
