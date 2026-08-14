@@ -160,6 +160,31 @@ class StaticHTMLAdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(AdapterError, "consent"):
             static_html.fetch_jobs(Session(Response("<html><body>Cookie consent required</body></html>")), target())
 
+    def test_23_text_identifier_and_exact_card_attribution(self):
+        body = page(
+            "<article class='job'><span class='brand'>Zoom</span>"
+            "<span class='req'>R12345</span><h2><a class='title' href='/jobs/role'>Engineer</a></h2>"
+            "<span class='location'>Remote, United States</span></article>"
+            "<article class='job'><span class='brand'>Workvivo</span>"
+            "<span class='req'>R12346</span><h2><a class='title' href='/jobs/other'>Engineer</a></h2>"
+            "<span class='location'>Remote, United States</span></article>"
+        )
+        jobs = static_html.fetch_jobs(Session(Response(body)), target(
+            external_id_attribute=None,
+            external_id_selector="span.req",
+            job_attribution_selector="span.brand",
+            job_attribution_regex=r"Zoom",
+        ))
+        self.assertEqual(len(jobs), 1)
+        self.assertTrue(jobs[0].job_id.endswith(":R12345"))
+
+    def test_24_text_identifier_requires_one_match(self):
+        body = page(card().replace("data-id='123'", "") + "<span class='req'>R2</span>")
+        with self.assertRaisesRegex(AdapterError, "exactly once"):
+            static_html.fetch_jobs(Session(Response(body)), target(
+                external_id_attribute=None, external_id_selector="span.req"
+            ))
+
 
 if __name__ == "__main__":
     unittest.main()

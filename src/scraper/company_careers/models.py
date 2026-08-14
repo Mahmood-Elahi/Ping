@@ -110,6 +110,7 @@ class CompanyTarget:
     fixed_location: Optional[str] = None
     detail_link_selector: Optional[str] = None
     external_id_attribute: Optional[str] = None
+    external_id_selector: Optional[str] = None
     external_id_regex: Optional[str] = None
     date_selector: Optional[str] = None
     department_selector: Optional[str] = None
@@ -136,6 +137,7 @@ class CompanyTarget:
     department_field: Optional[str] = None
     remote_field: Optional[str] = None
     job_attribution_field: Optional[str] = None
+    job_attribution_selector: Optional[str] = None
     department_allowlist: List[str] = field(default_factory=list)
     max_scripts: int = 20
     max_response_bytes: int = 3_000_000
@@ -183,6 +185,7 @@ class CompanyTarget:
             fixed_location=data.get("fixed_location"),
             detail_link_selector=data.get("detail_link_selector"),
             external_id_attribute=data.get("external_id_attribute"),
+            external_id_selector=data.get("external_id_selector"),
             external_id_regex=data.get("external_id_regex"),
             date_selector=data.get("date_selector"),
             department_selector=data.get("department_selector"),
@@ -209,6 +212,7 @@ class CompanyTarget:
             department_field=data.get("department_field"),
             remote_field=data.get("remote_field"),
             job_attribution_field=data.get("job_attribution_field"),
+            job_attribution_selector=data.get("job_attribution_selector"),
             department_allowlist=list(data.get("department_allowlist") or []),
             max_scripts=int(data.get("max_scripts") or 20),
             max_response_bytes=int(data.get("max_response_bytes") or 3_000_000),

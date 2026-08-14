@@ -286,6 +286,22 @@ class GreenhouseByteLimitRegressionTests(unittest.TestCase):
         with self.assertRaisesRegex(AdapterError, "does not match its stable job ID"):
             greenhouse.fetch_jobs(session, self.target())
 
+    def test_large_board_without_student_roles_uses_bounded_backfill(self):
+        listings = [
+            summary(index, title=f"Software Engineer {index}")
+            for index in range(1, 25)
+        ]
+        session = StreamingSession([
+            StreamingResponse({"jobs": listings}),
+            StreamingResponse(detail(1)),
+            StreamingResponse(detail(2)),
+        ])
+
+        jobs = greenhouse.fetch_jobs(session, self.target(max_jobs=2))
+
+        self.assertEqual([job.job_id for job in jobs], ["1", "2"])
+        self.assertEqual(session.greenhouse_pagination["candidate_jobs"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

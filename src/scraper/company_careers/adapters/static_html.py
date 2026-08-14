@@ -152,7 +152,8 @@ def validate_target(target: CompanyTarget) -> None:
         _require_https(str(target.pagination_url_template).replace("{page}", "1"), "pagination_url_template")
     for value in (target.listing_selector, target.job_card_selector, target.title_selector,
                   target.location_selector, target.detail_link_selector, target.date_selector,
-                  target.department_selector, target.next_page_selector, target.empty_selector):
+                  target.department_selector, target.next_page_selector, target.empty_selector,
+                  target.external_id_selector, target.job_attribution_selector):
         if value:
             selector_to_xpath(str(value))
     if target.fixed_location and len(str(target.fixed_location)) > 200:
@@ -163,8 +164,17 @@ def validate_target(target: CompanyTarget) -> None:
         raise AdapterError("Static HTML reference_url_attribute is invalid")
     if target.external_id_regex:
         _safe_regex(str(target.external_id_regex))
-    if not target.external_id_attribute and not target.external_id_regex and not target.allow_url_id_fallback:
+    if (not target.external_id_attribute and not target.external_id_selector
+            and not target.external_id_regex and not target.allow_url_id_fallback):
         raise AdapterError("Static HTML target requires an identifier extraction contract")
+    if bool(target.job_attribution_selector) != bool(target.job_attribution_regex):
+        raise AdapterError(
+            "Static HTML per-card attribution requires both selector and regex"
+        )
+    if target.job_attribution_regex:
+        _safe_regex(str(target.job_attribution_regex))
+    if target.job_attribution_exclude_regex:
+        _safe_regex(str(target.job_attribution_exclude_regex))
     _validate_hosts(target.allowed_apply_hosts)
     if not 1 <= int(target.max_pages) <= MAX_PAGES or not 1 <= int(target.max_jobs) <= MAX_RESULTS:
         raise AdapterError("Static HTML page or result limit exceeds the hard maximum")
@@ -319,6 +329,7 @@ def _reject_non_listing(root: Any, content: bytes, valid_empty: bool) -> None:
 
 
 def _normalize(card: Any, target: CompanyTarget, page_url: str) -> JobRecord:
+    _require_card_attribution(card, target)
     title_nodes = select(card, str(target.title_selector))
     link_nodes = select(card, str(target.detail_link_selector))
     title = _text(title_nodes[0]) if title_nodes else ""
@@ -327,6 +338,13 @@ def _normalize(card: Any, target: CompanyTarget, page_url: str) -> JobRecord:
     external_id = ""
     if target.external_id_attribute:
         external_id = str(card.get(str(target.external_id_attribute)) or "").strip()
+    if not external_id and target.external_id_selector:
+        nodes = select(card, str(target.external_id_selector))
+        if len(nodes) != 1:
+            raise AdapterError(
+                "Static HTML stable identifier selector must match exactly once per card"
+            )
+        external_id = _text(nodes[0])
     if not external_id and target.external_id_regex:
         match = _safe_regex(str(target.external_id_regex)).search(url)
         external_id = (match.group(1) if match and match.groups() else match.group(0) if match else "")
@@ -368,7 +386,29 @@ def _card_identity(card: Any, target: CompanyTarget) -> str:
         return reference
     if target.external_id_attribute and card.get(str(target.external_id_attribute)):
         return str(card.get(str(target.external_id_attribute)))
+    if target.external_id_selector:
+        nodes = select(card, str(target.external_id_selector))
+        if len(nodes) == 1:
+            return _text(nodes[0])
     return _text(card)[:200]
+
+
+def _require_card_attribution(card: Any, target: CompanyTarget) -> None:
+    """Fail closed when a mixed-brand listing card is not the configured brand."""
+    if not target.job_attribution_selector:
+        return
+    values = _texts(card, target.job_attribution_selector)
+    if len(values) != 1:
+        raise AdapterError(
+            "Static HTML attribution selector must match exactly once per card"
+        )
+    include = _safe_regex(str(target.job_attribution_regex))
+    exclude = (
+        _safe_regex(str(target.job_attribution_exclude_regex))
+        if target.job_attribution_exclude_regex else None
+    )
+    if not include.fullmatch(values[0]) or (exclude and exclude.search(values[0])):
+        raise AdapterError("Static HTML job failed exact per-card attribution")
 
 
 def _official_url(url: str, target: CompanyTarget) -> str:

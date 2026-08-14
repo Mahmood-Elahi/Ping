@@ -81,8 +81,10 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
             continue
         summaries.append((item, summary))
 
-    candidate_summaries = _candidate_summaries(summaries, maximum_results)
-    selected_summaries = candidate_summaries[:maximum_results]
+    prioritized_summaries, candidate_count = _prioritized_summaries(
+        summaries, maximum_results
+    )
+    selected_summaries = prioritized_summaries[:maximum_results]
     jobs: list[JobRecord] = []
     detail_requests = 0
     detail_bytes = 0
@@ -137,7 +139,7 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
             "maximum_results": maximum_results,
             "jobs_returned": len(data["jobs"]),
             "jobs_scanned": len(data["jobs"]),
-            "candidate_jobs": len(candidate_summaries),
+            "candidate_jobs": candidate_count,
             "candidates_selected": len(selected_summaries),
             "jobs_normalized": len(jobs),
             "department_allowlist": list(target.department_allowlist),
@@ -242,12 +244,12 @@ def _listing_record(item: Any, target: CompanyTarget) -> JobRecord:
     )
 
 
-def _candidate_summaries(
+def _prioritized_summaries(
     summaries: list[tuple[Mapping[str, Any], JobRecord]], maximum_results: int
-) -> list[tuple[Mapping[str, Any], JobRecord]]:
+) -> tuple[list[tuple[Mapping[str, Any], JobRecord]], int]:
     """Search a full large board and prioritize likely in-scope student roles."""
     if len(summaries) <= maximum_results:
-        return summaries
+        return summaries, len(summaries)
 
     candidates: list[tuple[tuple[Mapping[str, Any], JobRecord], Mapping[str, Any]]] = []
     for pair in summaries:
@@ -260,7 +262,12 @@ def _candidate_summaries(
             _candidate_location_priority(candidate[0][1]),
         )
     )
-    return [pair for pair, _signals in candidates]
+    prioritized = [pair for pair, _signals in candidates]
+    candidate_ids = {pair[1].job_id for pair in prioritized}
+    # Preserve a useful bounded source when no internship is open today.
+    # Explicit student roles stay first; ordinary roles only backfill capacity.
+    prioritized.extend(pair for pair in summaries if pair[1].job_id not in candidate_ids)
+    return prioritized, len(candidates)
 
 
 def _candidate_signal_priority(signals: Mapping[str, Any]) -> int:
