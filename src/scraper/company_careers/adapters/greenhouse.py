@@ -114,6 +114,12 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
     prioritized_summaries, candidate_count = _prioritized_summaries(
         summaries, maximum_results
     )
+    if target.job_attribution_field:
+        prioritized_summaries = _prioritize_attribution_groups(
+            prioritized_summaries,
+            candidate_count,
+            str(target.job_attribution_field),
+        )
     selected_summaries = prioritized_summaries[:maximum_results]
     jobs: list[JobRecord] = []
     detail_requests = 0
@@ -319,6 +325,49 @@ def _prioritized_summaries(
     # Explicit student roles stay first; ordinary roles only backfill capacity.
     prioritized.extend(pair for pair in summaries if pair[1].job_id not in candidate_ids)
     return prioritized, len(candidates)
+
+
+def _prioritize_attribution_groups(
+    summaries: list[tuple[Mapping[str, Any], JobRecord]],
+    candidate_count: int,
+    field: str,
+) -> list[tuple[Mapping[str, Any], JobRecord]]:
+    """Represent each accepted structured attribution without displacing students.
+
+    A reviewed parent board can expose multiple exactly attributed brands. Keep
+    all student candidates first, then reserve the earliest remaining row for
+    each attribution value before backfilling in source order. This only affects
+    already accepted rows and never infers a brand from title or description.
+    """
+    candidates = summaries[:candidate_count]
+    remaining = summaries[candidate_count:]
+    covered = {
+        value.casefold()
+        for _item, job in candidates
+        for value in _attribution_values(job, field)
+    }
+    representatives: list[tuple[Mapping[str, Any], JobRecord]] = []
+    representative_ids: set[str] = set()
+    for pair in remaining:
+        values = _attribution_values(pair[1], field)
+        if any(value.casefold() not in covered for value in values):
+            representatives.append(pair)
+            representative_ids.add(pair[1].job_id)
+            covered.update(value.casefold() for value in values)
+    return [
+        *candidates,
+        *representatives,
+        *(pair for pair in remaining if pair[1].job_id not in representative_ids),
+    ]
+
+
+def _attribution_values(job: JobRecord, field: str) -> list[str]:
+    metadata = job.raw_metadata.get("greenhouse_metadata")
+    if not isinstance(metadata, Mapping):
+        return []
+    value = metadata.get(field.removeprefix("greenhouse_metadata."))
+    values = value if isinstance(value, list) else [value]
+    return [str(item).strip() for item in values if str(item or "").strip()]
 
 
 def _candidate_signal_priority(signals: Mapping[str, Any]) -> int:

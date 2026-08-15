@@ -1,0 +1,71 @@
+company_parent_source_mappings:
+- child_company: Instagram
+  parent_company: Meta
+  enabled: true
+  match_field: departments
+  match_type: exact_normalized
+  accepted_values:
+  - Instagram
+  canonical_source: custom:meta
+  display_behavior: child_brand_metadata
+  confidence: high
+  evidence:
+    official_child_careers_url: https://www.metacareers.com/areas-of-work/instagram/
+    official_parent_search_url: https://www.metacareers.com/jobsearch/?teams%5B0%5D=Instagram
+    validation_artifact: output/quick_wins_candidate_validation.json
+- child_company: Universal Robots
+  parent_company: Teradyne
+  enabled: true
+  match_field: raw_metadata.fields.Subsidiary
+  match_type: exact_normalized
+  accepted_values:
+  - Universal-Robots
+  canonical_source: sap_successfactors:jobs.teradyne.com
+  display_behavior: child_brand_metadata
+  confidence: high
+  evidence:
+    official_child_careers_url: https://www.universal-robots.com/about-universal-robots/careers/
+    official_parent_search_url: https://jobs.teradyne.com/search/
+    validation_artifact: output/quick_wins_candidate_validation.json
+- child_company: WhatsApp
+  parent_company: Meta
+  enabled: true
+  match_field: departments
+  match_type: exact_normalized
+  accepted_values:
+  - WhatsApp
+  canonical_source: custom:meta
+  display_behavior: child_brand_metadata
+  confidence: high
+  evidence:
+    official_child_careers_url: https://www.metacareers.com/areas-of-work/whatsapp/
+    official_parent_search_url: https://www.metacareers.com/jobsearch/?teams%5B0%5D=WhatsApp
+    validation_artifact: output/quick_wins_candidate_validation.json
+- child_company: Google DeepMind
+  parent_company: Google
+  enabled: true
+  match_field: departments
+  match_type: exact_normalized
+  accepted_values:
+  - DeepMind
+  canonical_source: custom:google
+  display_behavior: child_brand_metadata
+  confidence: high
+  evidence:
+    validation_artifact: output/shared_api_validation.json
+    evidence_source: bounded production-parent recheck
+    validation_status: validated_parent_mapping_with_current_jobs
+- child_company: Weights & Biases
+  parent_company: CoreWeave
+  enabled: true
+  match_field: raw_metadata.greenhouse_metadata.Acquisition Company
+  match_type: exact_normalized
+  accepted_values:
+  - Weights & Biases
+  canonical_source: greenhouse:coreweave
+  display_behavior: child_brand_metadata
+  confidence: high
+  evidence:
+    official_child_careers_url: https://site.wandb.ai/careers/
+    official_parent_search_url: https://www.coreweave.com/careers
+    validation_artifact: output/ml_infrastructure_data_systems_expansion_v1_batch_a_validation.json

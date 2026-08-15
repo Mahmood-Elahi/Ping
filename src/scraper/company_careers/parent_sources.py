@@ -26,6 +26,7 @@ ALLOWED_CONFIDENCE_VALUES = {"high"}
 ALLOWED_MATCH_FIELDS = {
     "departments",
     "raw_metadata.fields.Subsidiary",
+    "raw_metadata.greenhouse_metadata.Acquisition Company",
 }
 NEW_MAPPING_FIELDS = {
     "child_company",
@@ -277,6 +278,16 @@ def _field_values(job: JobRecord, field: str) -> Iterable[str]:
         if not isinstance(fields, Mapping):
             return ()
         values = fields.get("Subsidiary")
+        if isinstance(values, list):
+            return tuple(str(value) for value in values)
+        if values not in (None, ""):
+            return (str(values),)
+        return ()
+    if field == "raw_metadata.greenhouse_metadata.Acquisition Company":
+        metadata = job.raw_metadata.get("greenhouse_metadata")
+        if not isinstance(metadata, Mapping):
+            return ()
+        values = metadata.get("Acquisition Company")
         if isinstance(values, list):
             return tuple(str(value) for value in values)
         if values not in (None, ""):

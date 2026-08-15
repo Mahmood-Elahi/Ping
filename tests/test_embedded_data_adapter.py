@@ -189,6 +189,43 @@ class EmbeddedDataAdapterTests(unittest.TestCase):
                    endpoint_url="https://careers.example.test/api/jobs", reference_url_attribute="data-jobs-url")
         self.assertEqual(embedded_data.fetch_jobs(session, t)[0].title, "Engineer")
 
+    def test_23_next_flight_collection_normalization(self):
+        jobs = [item("flight-7", url="/company/careers/engineer-flight-7/")]
+        stream = "127:[\"$\",\"section\",null,{\"positions\":" + json.dumps(jobs) + "}]\n"
+        wrapper = "self.__next_f.push(" + json.dumps([1, stream]) + ")"
+        page = f"<html><title>Jobs</title><script>{wrapper}</script></html>"
+        flight_target = target(
+            endpoint_variant="next_flight_collection",
+            embedded_script_selector="script",
+            embedded_json_path="positions",
+            id_field=None,
+            external_id_regex=r"-([a-z0-9-]+)/$",
+            listing_url="https://apply.example.test/company/careers/",
+        )
+        job = embedded_data.fetch_jobs(Session(Response(page)), flight_target)[0]
+        self.assertEqual(job.title, "Engineer")
+        self.assertEqual(job.url, "https://apply.example.test/company/careers/engineer-flight-7/")
+        self.assertTrue(job.job_id.endswith(":flight-7"))
+
+    def test_24_next_flight_is_bounded_and_fail_closed(self):
+        duplicate = "self.__next_f.push(" + json.dumps([1, '\"positions\":[]']) + ")"
+        page = f"<html><script>{duplicate}</script><script>{duplicate}</script></html>"
+        flight_target = target(
+            endpoint_variant="next_flight_collection",
+            embedded_script_selector="script",
+            embedded_json_path="positions",
+        )
+        with self.assertRaisesRegex(AdapterError, "exactly once"):
+            embedded_data.fetch_jobs(Session(Response(page)), flight_target)
+        with self.assertRaisesRegex(AdapterError, "top-level field"):
+            embedded_data.validate_target(
+                target(
+                    endpoint_variant="next_flight_collection",
+                    embedded_script_selector="script",
+                    embedded_json_path="props.positions",
+                )
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -227,6 +227,35 @@ class ParentSourceAnnotationTests(unittest.TestCase):
         self.assertEqual(serialized["child_brands"], ["Instagram"])
         self.assertEqual(serialized["raw_metadata"]["child_brands"], ["Instagram"])
 
+    def test_15b_greenhouse_acquisition_company_uses_exact_metadata(self):
+        mapping = ParentSourceMapping.from_dict(
+            mapping_dict(
+                child_company="Weights & Biases",
+                parent_company="CoreWeave",
+                canonical_source="greenhouse:coreweave",
+                match_field="raw_metadata.greenhouse_metadata.Acquisition Company",
+                accepted_values=["Weights & Biases"],
+            )
+        )
+        candidate = job(
+            company="CoreWeave",
+            source="greenhouse:coreweave",
+            raw_metadata={
+                "greenhouse_metadata": {
+                    "Acquisition Company": "Weights & Biases",
+                }
+            },
+        )
+        self.assertEqual(
+            annotate_child_brand_metadata(candidate, [mapping]).child_brands,
+            ["Weights & Biases"],
+        )
+        candidate.raw_metadata["greenhouse_metadata"]["Acquisition Company"] = "CoreWeave"
+        self.assertEqual(
+            annotate_child_brand_metadata(candidate, [mapping]).child_brands,
+            [],
+        )
+
 
 class ParentSourceScannerCoverageTests(unittest.TestCase):
     def setUp(self):

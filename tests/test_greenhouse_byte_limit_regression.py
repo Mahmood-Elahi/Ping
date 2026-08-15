@@ -336,6 +336,45 @@ class GreenhouseByteLimitRegressionTests(unittest.TestCase):
         self.assertEqual([job.job_id for job in jobs], ["1"])
         self.assertEqual(session.greenhouse_pagination["attribution_filtered"], 1)
 
+    def test_accepted_attribution_groups_are_represented_within_bound(self):
+        listings = [
+            summary(
+                index,
+                title=f"Platform Engineer {index}",
+                metadata=[{
+                    "name": "Acquisition Company",
+                    "value": "CoreWeave",
+                }],
+            )
+            for index in range(1, 4)
+        ]
+        listings.append(
+            summary(
+                4,
+                title="ML Infrastructure Engineer",
+                metadata=[{
+                    "name": "Acquisition Company",
+                    "value": "Weights & Biases",
+                }],
+            )
+        )
+        session = StreamingSession([
+            StreamingResponse({"jobs": listings}),
+            StreamingResponse(detail(1)),
+            StreamingResponse(detail(4)),
+        ])
+
+        jobs = greenhouse.fetch_jobs(
+            session,
+            self.target(
+                max_jobs=2,
+                job_attribution_field="greenhouse_metadata.Acquisition Company",
+                job_attribution_regex=r"CoreWeave|Weights & Biases",
+            ),
+        )
+
+        self.assertEqual([job.job_id for job in jobs], ["1", "4"])
+
     def test_metadata_attribution_contract_is_complete_and_regex_is_valid(self):
         for overrides, message in (
             ({"job_attribution_field": "Brand"}, "both field and regex"),

@@ -34,6 +34,7 @@ SUPPORTED_VARIANTS = {
     "html_attribute_json",
     "public_json_reference",
     "public_json_endpoint",
+    "next_flight_collection",
 }
 _PATH_RE = re.compile(r"^[A-Za-z0-9_$-]+(?:\.[A-Za-z0-9_$-]+|\[[0-9]+\])*$")
 _FIELD_RE = re.compile(r"^[A-Za-z0-9_@-]+(?:\.[A-Za-z0-9_@-]+|\[[0-9]+\])*$")
@@ -62,6 +63,10 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
         response = _get(session, url, timeout)
         if target.endpoint_variant == "public_json_endpoint":
             items, scripts, inspected_bytes, valid_empty = _extract_direct_json(
+                response, target
+            )
+        elif target.endpoint_variant == "next_flight_collection":
+            items, scripts, inspected_bytes, valid_empty = _extract_next_flight(
                 response, target
             )
         elif target.endpoint_variant == "html_attribute_json":
@@ -148,6 +153,12 @@ def validate_target(target: CompanyTarget) -> None:
             raise AdapterError("Embedded-data target requires a reviewed script selector and JSON path")
         static_html.selector_to_xpath(str(target.embedded_script_selector))
         _validate_path(str(target.embedded_json_path), "JSON path")
+    if target.endpoint_variant == "next_flight_collection" and not re.fullmatch(
+        r"[A-Za-z0-9_$-]+", str(target.embedded_json_path)
+    ):
+        raise AdapterError(
+            "Embedded-data Next.js Flight collection path must be one top-level field"
+        )
     if target.endpoint_variant == "html_attribute_json":
         if not target.reference_url_attribute:
             raise AdapterError(
@@ -274,6 +285,89 @@ def _extract(response: Any, target: CompanyTarget) -> tuple[list[Mapping[str, An
         matched_schema = True
         results.extend(found)
     return results, len(scripts), inspected, matched_schema and not results
+
+
+def _extract_next_flight(
+    response: Any, target: CompanyTarget
+) -> tuple[list[Mapping[str, Any]], int, int, bool]:
+    """Read one reviewed list from bounded Next.js Flight inline chunks.
+
+    Flight pages serialize server-rendered data into inert
+    ``self.__next_f.push([1, "..."])`` calls. This variant decodes only that
+    exact JSON argument shape and then reads one explicitly configured
+    top-level collection. It never evaluates JavaScript or follows bundles.
+    """
+    content = _bounded_content(response, target, expected="html")
+    try:
+        root = html.fromstring(content)
+    except (ValueError, TypeError) as exc:
+        raise AdapterError(f"Embedded-data malformed HTTP 200 response: {exc}") from exc
+    _reject_page(root)
+
+    selected = static_html.select(root, str(target.embedded_script_selector))
+    prefix = "self.__next_f.push("
+    scripts = [node for node in selected if (node.text or "").strip().startswith(prefix)]
+    if len(scripts) > int(target.max_scripts):
+        raise AdapterError("Embedded-data script-count limit exceeded")
+    if not scripts:
+        raise AdapterError("Embedded-data reviewed Flight script selector did not match")
+
+    collection_name = str(target.embedded_json_path)
+    marker = json.dumps(collection_name) + ":"
+    collections: list[list[Any]] = []
+    inspected = len(content)
+    for script in scripts:
+        if script.get("src"):
+            raise AdapterError("Embedded-data generic external script bundles are unsupported")
+        body = (script.text or "").strip()
+        byte_count = len(body.encode("utf-8"))
+        if byte_count > int(target.max_script_bytes):
+            raise AdapterError("Embedded-data script byte limit exceeded")
+        inspected += byte_count
+        if not body.endswith(")"):
+            raise AdapterError("Embedded-data malformed Next.js Flight wrapper")
+        try:
+            wrapper = json.loads(body[len(prefix):-1])
+        except (TypeError, ValueError) as exc:
+            raise AdapterError(f"Embedded-data malformed Next.js Flight JSON: {exc}") from exc
+        if (
+            not isinstance(wrapper, list)
+            or len(wrapper) != 2
+            or wrapper[0] != 1
+            or not isinstance(wrapper[1], str)
+        ):
+            raise AdapterError("Embedded-data unsupported Next.js Flight wrapper")
+        stream = wrapper[1]
+        start = 0
+        while True:
+            index = stream.find(marker, start)
+            if index < 0:
+                break
+            try:
+                value, consumed = json.JSONDecoder().raw_decode(
+                    stream[index + len(marker):]
+                )
+            except (TypeError, ValueError) as exc:
+                raise AdapterError(
+                    f"Embedded-data malformed Next.js Flight collection: {exc}"
+                ) from exc
+            if not isinstance(value, list):
+                raise AdapterError(
+                    "Embedded-data reviewed Next.js Flight collection is not a list"
+                )
+            collections.append(value)
+            start = index + len(marker) + consumed
+
+    if len(collections) != 1:
+        raise AdapterError(
+            "Embedded-data reviewed Next.js Flight collection must occur exactly once"
+        )
+    found = collections[0]
+    if not all(isinstance(item, Mapping) for item in found):
+        raise AdapterError(
+            "Embedded-data reviewed Next.js Flight collection contains unsupported values"
+        )
+    return list(found), len(scripts), inspected, not found
 
 
 def _extract_public_json(
