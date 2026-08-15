@@ -50,6 +50,10 @@ def fetch_jobs(
         "maximum_pages": maximum_pages,
         "maximum_results": maximum_jobs,
         "total_available": None,
+        "initial_total_available": None,
+        "final_total_available": None,
+        "observed_total_counts": [],
+        "total_count_changed": False,
         "pages": [],
         "pages_fetched": 0,
         "jobs_normalized": 0,
@@ -92,10 +96,7 @@ def fetch_jobs(
         )
         _validate_final_url(response, target.allowed_source_hosts, "search endpoint")
         items, total, zero_contract = _parse_response(response, target)
-        if metadata["total_available"] is None:
-            metadata["total_available"] = total
-        elif metadata["total_available"] != total:
-            raise AdapterError("M-Cloud total job count changed during pagination")
+        _record_total_observation(metadata, offset, total)
         identities = tuple(_job_id(item) for item in items)
         page_record = {
             "page": page_index + 1,
@@ -103,6 +104,7 @@ def fetch_jobs(
             "url": str(getattr(response, "url", target.endpoint_url)),
             "jobs_returned": len(items),
             "jobs_normalized": 0,
+            "reported_total": total,
         }
         metadata["pages"].append(page_record)
         metadata["pages_fetched"] = len(metadata["pages"])
@@ -142,7 +144,8 @@ def fetch_jobs(
         if len(jobs) >= maximum_jobs:
             metadata["stop_reason"] = "maximum_results_reached"
             break
-        if len(jobs) >= total:
+        latest_total = metadata["final_total_available"]
+        if latest_total is not None and offset + len(items) >= latest_total:
             metadata["stop_reason"] = "total_jobs_reached"
             break
         if len(items) < page_size:
@@ -153,6 +156,34 @@ def fetch_jobs(
     else:
         metadata["stop_reason"] = "maximum_pages_reached"
     return jobs
+
+
+def _record_total_observation(
+    metadata: dict[str, Any], offset: int, total: int
+) -> None:
+    previous_total = metadata["final_total_available"]
+    metadata["observed_total_counts"].append(total)
+    if metadata["initial_total_available"] is None:
+        metadata["initial_total_available"] = total
+    elif previous_total is not None and total != previous_total:
+        message = (
+            "M-Cloud total job count changed during pagination: "
+            f"{previous_total} -> {total}"
+        )
+        metadata["total_count_changed"] = True
+        metadata["warnings"].append(message)
+        metadata["diagnostics"].append(
+            {
+                "offset": offset,
+                "level": "warning",
+                "warning": message,
+                "previous_total_available": previous_total,
+                "total_available": total,
+            }
+        )
+    metadata["final_total_available"] = total
+    # Retain the existing field as a compatibility alias for the latest valid hint.
+    metadata["total_available"] = total
 
 
 def validate_target(target: CompanyTarget) -> None:

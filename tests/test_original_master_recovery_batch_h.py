@@ -4,6 +4,7 @@ import csv
 import json
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 
 import yaml
@@ -363,6 +364,33 @@ class MCloudAdapterTests(unittest.TestCase):
             }
         )
 
+    @staticmethod
+    def search_page(job_ids: tuple[int, ...], *, total: int) -> str:
+        return json.dumps(
+            {
+                "totalHits": total,
+                "searchResults": [
+                    {
+                        "job": {
+                            "id": job_id,
+                            "title": f"Stellantis Role {job_id}",
+                            "company_name": "FCA",
+                            "brand": "Stellantis",
+                            "ref": f"2026-{job_id}",
+                            "primary_city": "Windsor",
+                            "primary_state": "ON",
+                            "primary_country": "CA",
+                            "url": (
+                                "https://careers.example.com/"
+                                f"job/{job_id}/stellantis-role-{job_id}/"
+                            ),
+                        }
+                    }
+                    for job_id in job_ids
+                ],
+            }
+        )
+
     def test_official_binding_is_verified_before_search(self) -> None:
         parent = self
         organization = str(self.target().organization_id)
@@ -489,6 +517,162 @@ class MCloudAdapterTests(unittest.TestCase):
 
         with self.assertRaisesRegex(AdapterError, "configured organization"):
             mcloud_cws.fetch_jobs(Session(), self.target(), 5)  # type: ignore[arg-type]
+
+    @patch.object(mcloud_cws.time, "sleep", return_value=None)
+    def test_total_increase_is_diagnostic_and_unique_jobs_are_retained(
+        self, _sleep: object
+    ) -> None:
+        parent = self
+        organization = str(self.target().organization_id)
+
+        class Session:
+            def __init__(self) -> None:
+                self.api_params: list[dict[str, object]] = []
+
+            def get(self, url: str, **kwargs: object) -> Response:
+                if "careers.example.com" in url:
+                    return Response(
+                        parent.identity(organization), url=url, content_type="text/html"
+                    )
+                params = dict(kwargs["params"])  # type: ignore[arg-type]
+                self.api_params.append(params)
+                page = len(self.api_params)
+                body = parent.search_page(
+                    (101, 102) if page == 1 else (103, 104),
+                    total=20 if page == 1 else 21,
+                )
+                return Response(body, url=url, content_type="application/json")
+
+        session = Session()
+        jobs = mcloud_cws.fetch_jobs(
+            session,
+            self.target(page_size=2, max_pages=2, max_jobs=4),
+            5,
+        )  # type: ignore[arg-type]
+        pagination = session.mcloud_cws_pagination  # type: ignore[attr-defined]
+        self.assertEqual([item["offset"] for item in session.api_params], [0, 2])
+        self.assertEqual(
+            [job.job_id for job in jobs],
+            [
+                "mcloud_cws:api.example.com:101",
+                "mcloud_cws:api.example.com:102",
+                "mcloud_cws:api.example.com:103",
+                "mcloud_cws:api.example.com:104",
+            ],
+        )
+        self.assertEqual(
+            [job.url for job in jobs],
+            [
+                "https://careers.example.com/job/101/stellantis-role-101/",
+                "https://careers.example.com/job/102/stellantis-role-102/",
+                "https://careers.example.com/job/103/stellantis-role-103/",
+                "https://careers.example.com/job/104/stellantis-role-104/",
+            ],
+        )
+        self.assertTrue(all(job.company == "Stellantis" for job in jobs))
+        self.assertEqual(pagination["initial_total_available"], 20)
+        self.assertEqual(pagination["final_total_available"], 21)
+        self.assertEqual(pagination["total_available"], 21)
+        self.assertEqual(pagination["observed_total_counts"], [20, 21])
+        self.assertTrue(pagination["total_count_changed"])
+        self.assertEqual(
+            [page["reported_total"] for page in pagination["pages"]], [20, 21]
+        )
+        self.assertEqual(pagination["stop_reason"], "maximum_results_reached")
+        self.assertEqual(
+            pagination["warnings"],
+            ["M-Cloud total job count changed during pagination: 20 -> 21"],
+        )
+        self.assertEqual(pagination["diagnostics"][0]["level"], "warning")
+
+    @patch.object(mcloud_cws.time, "sleep", return_value=None)
+    def test_total_decrease_uses_latest_hint_without_discarding_unique_jobs(
+        self, _sleep: object
+    ) -> None:
+        parent = self
+        organization = str(self.target().organization_id)
+        bodies = [
+            parent.search_page((201, 202), total=20),
+            parent.search_page((203, 204), total=3),
+        ]
+
+        class Session:
+            def get(self, url: str, **_kwargs: object) -> Response:
+                if "careers.example.com" in url:
+                    return Response(
+                        parent.identity(organization), url=url, content_type="text/html"
+                    )
+                return Response(
+                    bodies.pop(0), url=url, content_type="application/json"
+                )
+
+        session = Session()
+        jobs = mcloud_cws.fetch_jobs(
+            session,
+            self.target(page_size=2, max_pages=2, max_jobs=5),
+            5,
+        )  # type: ignore[arg-type]
+        pagination = session.mcloud_cws_pagination  # type: ignore[attr-defined]
+        self.assertEqual(len(jobs), 4)
+        self.assertEqual(pagination["observed_total_counts"], [20, 3])
+        self.assertEqual(pagination["final_total_available"], 3)
+        self.assertEqual(pagination["stop_reason"], "total_jobs_reached")
+
+    @patch.object(mcloud_cws.time, "sleep", return_value=None)
+    def test_total_drift_does_not_weaken_duplicate_stable_id_failure(
+        self, _sleep: object
+    ) -> None:
+        parent = self
+        organization = str(self.target().organization_id)
+        bodies = [
+            parent.search_page((301, 302), total=20),
+            parent.search_page((302, 303), total=21),
+        ]
+
+        class Session:
+            def get(self, url: str, **_kwargs: object) -> Response:
+                if "careers.example.com" in url:
+                    return Response(
+                        parent.identity(organization), url=url, content_type="text/html"
+                    )
+                return Response(
+                    bodies.pop(0), url=url, content_type="application/json"
+                )
+
+        with self.assertRaisesRegex(AdapterError, "duplicate stable job ID"):
+            mcloud_cws.fetch_jobs(
+                Session(),
+                self.target(page_size=2, max_pages=2, max_jobs=4),
+                5,
+            )  # type: ignore[arg-type]
+
+    @patch.object(mcloud_cws.time, "sleep", return_value=None)
+    def test_malformed_later_total_still_fails_closed(self, _sleep: object) -> None:
+        parent = self
+        organization = str(self.target().organization_id)
+        malformed = json.loads(parent.search_page((403, 404), total=21))
+        malformed["totalHits"] = "21"
+        bodies = [
+            parent.search_page((401, 402), total=20),
+            json.dumps(malformed),
+        ]
+
+        class Session:
+            def get(self, url: str, **_kwargs: object) -> Response:
+                if "careers.example.com" in url:
+                    return Response(
+                        parent.identity(organization), url=url, content_type="text/html"
+                    )
+                return Response(
+                    bodies.pop(0), url=url, content_type="application/json"
+                )
+
+        with self.assertRaisesRegex(AdapterError, "totalHits is invalid"):
+            mcloud_cws.fetch_jobs(
+                Session(),
+                self.target(page_size=2, max_pages=2, max_jobs=4),
+                5,
+            )  # type: ignore[arg-type]
 
 
 if __name__ == "__main__":
