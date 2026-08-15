@@ -5588,3 +5588,197 @@ target_companies:
     source_identity_regex: Braze
     allowed_apply_hosts:
     - boards.greenhouse.io
+  - name: DigitalOcean
+    platform: greenhouse
+    careers_url: https://www.digitalocean.com/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: digitalocean98
+    source_identity_regex: DigitalOcean
+    allowed_apply_hosts:
+    - www.digitalocean.com
+  - name: Fastly
+    platform: greenhouse
+    careers_url: https://www.fastly.com/about/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: fastly
+    source_identity_regex: Fastly
+    allowed_apply_hosts:
+    - www.fastly.com
+  - name: Akamai
+    platform: oracle_recruiting
+    careers_url: https://jobs.akamai.com/en/sites/CX_1/jobs
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 24
+    max_response_bytes: 3000000
+    endpoint_url: https://fa-extu-saasfaprod1.fa.ocs.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+    endpoint_variant: recruiting_ce_v1
+    site_number: CX_1
+    locale: en
+    source_identity_regex: Akamai Career Site|Akamai Technologies
+    allowed_apply_hosts:
+    - jobs.akamai.com
+  - name: CoreWeave
+    platform: greenhouse
+    careers_url: https://www.coreweave.com/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 5000000
+    slug: coreweave
+    source_identity_regex: CoreWeave
+    allowed_apply_hosts:
+    - coreweave.com
+    department_allowlist:
+    - Technology
+    job_attribution_field: greenhouse_metadata.Acquisition Company
+    job_attribution_regex: CoreWeave
+  - name: Crusoe
+    platform: ashby
+    careers_url: https://www.crusoe.ai/about/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: Crusoe
+    source_identity_regex: Crusoe
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: Lambda
+    platform: ashby
+    careers_url: https://lambda.ai/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: lambda
+    source_identity_regex: Lambda
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: Cockroach Labs
+    platform: greenhouse
+    careers_url: https://www.cockroachlabs.com/careers/jobs/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: cockroachlabs
+    source_identity_regex: Cockroach Labs
+    allowed_apply_hosts:
+    - www.cockroachlabs.com
+  - name: Grafana Labs
+    platform: greenhouse
+    careers_url: https://grafana.com/careers/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 5000000
+    slug: grafanalabs
+    source_identity_regex: Grafana Labs
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+  - name: Sentry
+    platform: ashby
+    careers_url: https://sentry.io/careers/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: sentry
+    source_identity_regex: Sentry
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: Vanta
+    platform: ashby
+    careers_url: https://www.vanta.com/company/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: vanta
+    source_identity_regex: Vanta
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: Pulumi
+    platform: greenhouse
+    careers_url: https://www.pulumi.com/careers/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: pulumicorporation
+    source_identity_regex: Pulumi
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+  - name: Temporal
+    platform: greenhouse
+    careers_url: https://temporal.io/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: temporaltechnologies
+    source_identity_regex: Temporal Technologies|Temporal
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+  - name: Tailscale
+    platform: greenhouse
+    careers_url: https://tailscale.com/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: tailscale
+    source_identity_regex: Tailscale
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+  - name: Netlify
+    platform: greenhouse
+    careers_url: https://www.netlify.com/careers/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: netlify
+    source_identity_regex: Netlify
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+  - name: Render
+    platform: ashby
+    careers_url: https://render.com/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: render
+    source_identity_regex: Render
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: PlanetScale
+    platform: greenhouse
+    careers_url: https://planetscale.com/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: planetscale
+    source_identity_regex: PlanetScale
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+  - name: Supabase
+    platform: ashby
+    careers_url: https://supabase.com/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: supabase
+    source_identity_regex: Supabase
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com

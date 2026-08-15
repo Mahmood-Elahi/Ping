@@ -103,6 +103,11 @@ SOFTWARE_EXPANSION_V1_BATCH_A_PROMOTIONS = [
     "Vercel", "Replit", "Airtable", "AppLovin", "Appian", "CarGurus",
     "Samsara", "PagerDuty", "Miro", "Fivetran", "Braze",
 ]
+INFRASTRUCTURE_EXPANSION_V1_BATCH_A_PROMOTIONS = [
+    "DigitalOcean", "Fastly", "Akamai", "CoreWeave", "Crusoe", "Lambda",
+    "Cockroach Labs", "Grafana Labs", "Sentry", "Vanta", "Pulumi", "Temporal",
+    "Tailscale", "Netlify", "Render", "PlanetScale", "Supabase",
+]
 HISTORICAL_PRODUCTION_ONLY = [
     "Datadog", "Elastic", "GitLab", "Twilio", "Zscaler", "CrowdStrike",
     "HashiCorp", "Confluent", "Teradyne",
@@ -250,6 +255,7 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
                 + HARDWARE_SEMICONDUCTOR_EXPANSION_V1_BATCH_A_PROMOTIONS
                 + ROBOTICS_EXPANSION_V1_BATCH_A_PROMOTIONS
                 + SOFTWARE_EXPANSION_V1_BATCH_A_PROMOTIONS
+                + INFRASTRUCTURE_EXPANSION_V1_BATCH_A_PROMOTIONS
             )
             if mod.normalize_company_name(name) not in master_names
         ]

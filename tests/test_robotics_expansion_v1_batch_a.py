@@ -51,7 +51,7 @@ class RoboticsExpansionV1BatchAArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_validated_registry_as_exact_prefix(self):
-        self.assertEqual(len(self.production), 401)
+        self.assertEqual(len(self.production), 418)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(self.production[:370], self.validated[:370])
         self.assertEqual(len(self.candidates), 382)
@@ -164,7 +164,7 @@ class RoboticsExpansionV1BatchAArtifactTests(unittest.TestCase):
             self.assertFalse(by_name[name]["production_ready"])
 
     def test_08_projection_and_master_coverage(self):
-        self.assertEqual(len(load_target_companies(str(batch.PRODUCTION))), 401)
+        self.assertEqual(len(load_target_companies(str(batch.PRODUCTION))), 418)
         self.assertEqual(self.report["projection"], {
             "production_sources": 382, "source_delta": 12,
             "parent_mappings": 4, "mapping_delta": 0,

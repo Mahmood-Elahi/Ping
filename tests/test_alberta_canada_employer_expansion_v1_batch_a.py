@@ -36,7 +36,7 @@ class AlbertaCanadaEmployerExpansionV1BatchATests(unittest.TestCase):
         self.assertEqual(len(set(batch.REVIEWED_COMPANIES)), 20)
         self.assertEqual((batch.BASELINE_SOURCES, batch.BASELINE_MAPPINGS), (344, 4))
         self.assertEqual((batch.BASELINE_COVERAGE, batch.MASTER_TOTAL), (208, 246))
-        self.assertEqual(len(self.production), 401)
+        self.assertEqual(len(self.production), 418)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(
             set(batch.REVIEWED_COMPANIES),
