@@ -5782,3 +5782,220 @@ target_companies:
     source_identity_regex: Supabase
     allowed_apply_hosts:
     - jobs.ashbyhq.com
+  - name: Together AI
+    platform: greenhouse
+    careers_url: https://www.together.ai/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: togetherai
+    source_identity_regex: Together AI
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+  - name: SambaNova Systems
+    platform: greenhouse
+    careers_url: https://sambanova.ai/company/careers/job-openings
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: sambanovasystems
+    source_identity_regex: SambaNova Systems
+    allowed_apply_hosts:
+    - sambanova.ai
+  - name: Etched
+    platform: ashby
+    careers_url: https://www.etched.com/join
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: etched
+    source_identity_regex: Etched
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: d-Matrix
+    platform: ashby
+    careers_url: https://www.d-matrix.ai/careers/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: d-Matrix
+    source_identity_regex: d-Matrix
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: Cognition
+    platform: ashby
+    careers_url: https://cognition.com/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: cognition
+    source_identity_regex: Cognition
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: Anysphere
+    platform: static_html
+    careers_url: https://cursor.com/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    listing_url: https://cursor.com/careers
+    endpoint_variant: server_rendered_links
+    source_identity_regex: Anysphere, Inc\.
+    listing_selector: main#main
+    job_card_selector: a.card[href^=/careers/]
+    title_selector: p.type-base
+    location_selector: .text-theme-text-sec span:last-child
+    department_selector: .text-theme-text-sec span:first-child
+    detail_link_selector: :self
+    external_id_regex: /careers/([^/?#]+)
+    allowed_apply_hosts:
+    - cursor.com
+  - name: Glean
+    platform: greenhouse
+    careers_url: https://www.glean.com/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: gleanwork
+    source_identity_regex: Glean
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+  - name: Harvey
+    platform: ashby
+    careers_url: https://www.harvey.ai/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: harvey
+    source_identity_regex: Harvey
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: Writer
+    platform: ashby
+    careers_url: https://writer.com/company/careers/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: writer
+    source_identity_regex: WRITER|Writer
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: Runway
+    platform: ashby
+    careers_url: https://runway.com/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: runway-ml
+    source_identity_regex: Runway
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: ElevenLabs
+    platform: ashby
+    careers_url: https://elevenlabs.io/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: elevenlabs
+    source_identity_regex: ElevenLabs
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: Synthesia
+    platform: ashby
+    careers_url: https://www.synthesia.io/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: synthesia
+    source_identity_regex: Synthesia
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: Sierra
+    platform: ashby
+    careers_url: https://sierra.ai/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: Sierra
+    source_identity_regex: Sierra
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: Abridge
+    platform: ashby
+    careers_url: https://www.abridge.com/life-at-abridge
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: Abridge
+    source_identity_regex: Abridge
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: Hebbia
+    platform: ashby
+    careers_url: https://www.hebbia.com/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: hebbia-ai
+    source_identity_regex: Hebbia
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: Pinecone
+    platform: ashby
+    careers_url: https://www.pinecone.io/careers/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: pinecone
+    source_identity_regex: Pinecone
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: Modal
+    platform: ashby
+    careers_url: https://modal.com/company
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: modal
+    source_identity_regex: Modal
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: Baseten
+    platform: ashby
+    careers_url: https://www.baseten.co/resources/careers/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: baseten
+    source_identity_regex: Baseten
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: LangChain
+    platform: ashby
+    careers_url: https://www.langchain.com/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: langchain
+    source_identity_regex: LangChain
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com

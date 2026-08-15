@@ -52,7 +52,7 @@ class SoftwareExpansionV1BatchAArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_validated_registry_as_exact_prefix(self):
-        self.assertEqual(len(self.production), 418)
+        self.assertEqual(len(self.production), 437)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(self.production[:382], self.validated[:382])
         self.assertEqual(self.candidates, self.validated)
@@ -145,7 +145,7 @@ class SoftwareExpansionV1BatchAArtifactTests(unittest.TestCase):
         self.assertEqual(zoom["job_attribution_regex"], "Zoom")
 
     def test_08_projection_and_original_master_coverage(self):
-        self.assertEqual(len(load_target_companies(str(batch.PRODUCTION))), 418)
+        self.assertEqual(len(load_target_companies(str(batch.PRODUCTION))), 437)
         self.assertEqual(self.report["projection"], {
             "production_sources": 401,
             "source_delta": 19,

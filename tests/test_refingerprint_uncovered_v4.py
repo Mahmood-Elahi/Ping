@@ -108,6 +108,12 @@ INFRASTRUCTURE_EXPANSION_V1_BATCH_A_PROMOTIONS = [
     "Cockroach Labs", "Grafana Labs", "Sentry", "Vanta", "Pulumi", "Temporal",
     "Tailscale", "Netlify", "Render", "PlanetScale", "Supabase",
 ]
+AI_ML_EXPANSION_V1_BATCH_A_PROMOTIONS = [
+    "Together AI", "SambaNova Systems", "Etched", "d-Matrix", "Cognition",
+    "Anysphere", "Glean", "Harvey", "Writer", "Runway", "ElevenLabs",
+    "Synthesia", "Sierra", "Abridge", "Hebbia", "Pinecone", "Modal",
+    "Baseten", "LangChain",
+]
 HISTORICAL_PRODUCTION_ONLY = [
     "Datadog", "Elastic", "GitLab", "Twilio", "Zscaler", "CrowdStrike",
     "HashiCorp", "Confluent", "Teradyne",
@@ -256,6 +262,7 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
                 + ROBOTICS_EXPANSION_V1_BATCH_A_PROMOTIONS
                 + SOFTWARE_EXPANSION_V1_BATCH_A_PROMOTIONS
                 + INFRASTRUCTURE_EXPANSION_V1_BATCH_A_PROMOTIONS
+                + AI_ML_EXPANSION_V1_BATCH_A_PROMOTIONS
             )
             if mod.normalize_company_name(name) not in master_names
         ]

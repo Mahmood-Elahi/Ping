@@ -319,7 +319,7 @@ class CompanyCareersReliabilityRepairV1Tests(unittest.TestCase):
     def test_production_registry_contains_current_contracts_and_baselines(self):
         entries = load_target_companies(apply_reliability_repairs=True)
         by_name = {entry.name: entry for entry in entries}
-        self.assertEqual(len(entries), 418)
+        self.assertEqual(len(entries), 437)
         self.assertEqual(by_name["Lattice Semiconductor"].platform, "workday")
         self.assertEqual(by_name["Lattice Semiconductor"].site_id, "latticesemiconductorscareers")
         self.assertEqual(by_name["Dassault Systèmes"].platform, "exalead")

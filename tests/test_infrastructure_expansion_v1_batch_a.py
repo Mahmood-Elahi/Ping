@@ -33,15 +33,17 @@ class InfrastructureExpansionV1BatchAArtifactTests(unittest.TestCase):
         with batch.CANDIDATE_CSV.open(newline="", encoding="utf-8") as handle:
             cls.inventory = list(csv.DictReader(handle))
 
-    def test_01_activation_matches_validated_registry_exactly(self):
-        self.assertEqual(len(self.production), 418)
+    def test_01_activation_preserves_validated_registry_as_exact_prefix(self):
+        self.assertEqual(len(self.production), 437)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(self.production[:401], self.validated[:401])
         self.assertEqual(self.candidates, self.validated)
         self.assertEqual(len(self.candidates), 418)
-        self.assertEqual(self.production, self.validated)
+        self.assertEqual(self.production[:418], self.validated)
+        marker = b"  - name: Together AI"
+        production_prefix = self.production_bytes[:self.production_bytes.index(marker)]
         self.assertEqual(
-            self.production_bytes.replace(b"\r\n", b"\n"),
+            production_prefix.replace(b"\r\n", b"\n"),
             batch.VALIDATED_REGISTRY.read_bytes().replace(b"\r\n", b"\n"),
         )
         self.assertFalse(self.report["production_registry_activated"])
@@ -153,7 +155,7 @@ class InfrastructureExpansionV1BatchAArtifactTests(unittest.TestCase):
         self.assertTrue(akamai["endpoint_url"].endswith("recruitingCEJobRequisitions"))
 
     def test_09_projection_and_original_master_coverage(self):
-        self.assertEqual(len(load_target_companies(str(batch.PRODUCTION))), 418)
+        self.assertEqual(len(load_target_companies(str(batch.PRODUCTION))), 437)
         self.assertEqual(self.report["projection"], {
             "production_sources": 418,
             "source_delta": 17,
