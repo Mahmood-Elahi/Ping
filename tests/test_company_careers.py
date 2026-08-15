@@ -166,6 +166,12 @@ class CompanyCareersTests(unittest.TestCase):
                 None,
             ),
             (
+                "Chip Simulation Software Intern",
+                "San Jose",
+                "eligible_us_onsite",
+                None,
+            ),
+            (
                 "Software Engineering Intern",
                 "Remote",
                 "eligible_remote_unspecified",

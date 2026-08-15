@@ -23,6 +23,11 @@ if str(ROOT) not in sys.path:
 from scripts import validate_company_registry as registry_validator
 from src.scraper.company_careers.adapters import ashby, greenhouse, static_html
 from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.student_roles import (
+    student_job_exclusion_reason,
+    student_job_signals,
+    student_location_exclusion_reason,
+)
 
 
 PRODUCTION = ROOT / "config" / "target_companies.yaml"
@@ -46,10 +51,6 @@ REVIEWED_COMPANIES = [
     "Modal", "Baseten", "LangChain",
 ]
 
-STUDENT_RE = re.compile(
-    r"(?i)\b(intern(?:ship)?|student|co[ -]?op|undergrad(?:uate)?|"
-    r"new grad(?:uate)?|early career|graduate program)\b"
-)
 SUMMER_2027_RE = re.compile(r"(?i)\bsummer\s+2027\b")
 FOCUS_RE = re.compile(
     r"(?i)\b(artificial intelligence|AI|machine learning|ML|deep learning|"
@@ -256,12 +257,45 @@ SAFE_TO_STAGE_FILES = [
     "config/target_companies.ai_ml_expansion_v1_batch_a_candidates.yaml",
     "config/target_companies.ai_ml_expansion_v1_batch_a_validated.yaml",
     "scripts/validate_ai_ml_expansion_v1_batch_a.py",
+    "src/scraper/company_careers/student_roles.py",
     "tests/test_ai_ml_expansion_v1_batch_a.py",
+    "tests/test_company_careers.py",
 ]
 
 
 def _in_scope(job: JobRecord) -> bool:
     return bool(IN_SCOPE_RE.search(" | ".join([job.location, *job.offices])))
+
+
+def _production_student_exclusion_reason(job: JobRecord) -> str | None:
+    role_reason = student_job_exclusion_reason(job)
+    if role_reason:
+        return role_reason
+    return student_location_exclusion_reason(job)
+
+
+def _is_production_student_hit(job: JobRecord) -> bool:
+    return _production_student_exclusion_reason(job) is None
+
+
+def _student_candidate_evidence(jobs: list[JobRecord]) -> list[dict[str, Any]]:
+    evidence: list[dict[str, Any]] = []
+    for job in jobs:
+        signals = student_job_signals(job)
+        if not signals["matching_rule"]:
+            continue
+        role_reason = student_job_exclusion_reason(job)
+        location_reason = student_location_exclusion_reason(job)
+        evidence.append({
+            "job_id": job.job_id,
+            "title": job.title,
+            "location": job.location,
+            "matching_rule": signals["matching_rule"],
+            "role_exclusion": role_reason,
+            "location_exclusion": location_reason,
+            "production_match": role_reason is None and location_reason is None,
+        })
+    return evidence
 
 
 def _allowed_url(url: str, allowed_hosts: list[str]) -> bool:
@@ -384,7 +418,7 @@ def _validate_twice(entry: dict[str, Any]) -> dict[str, Any]:
                 "jobs_observed": len(observed),
                 "jobs_normalized": len(scoped),
                 "out_of_scope_filtered": len(observed) - len(scoped),
-                "student_hits": sum(bool(STUDENT_RE.search(job.title)) for job in scoped),
+                "student_hits": sum(_is_production_student_hit(job) for job in scoped),
                 "summer_2027_hits": sum(bool(SUMMER_2027_RE.search(job.title)) for job in scoped),
                 "focus_hits": sum(bool(FOCUS_RE.search(job.title)) for job in scoped),
                 "signature": _signature(scoped),
@@ -438,10 +472,13 @@ def _validate_twice(entry: dict[str, Any]) -> dict[str, Any]:
         "validation_status": "repeatable_anonymous" if stable else "unstable_or_failed",
         "jobs_observed": runs[0].get("jobs_observed", 0),
         "jobs_normalized": len(jobs),
-        "current_student_intern_hits": sum(bool(STUDENT_RE.search(job.title)) for job in jobs),
+        "current_student_intern_hits": sum(_is_production_student_hit(job) for job in jobs),
         "summer_2027_hits": sum(bool(SUMMER_2027_RE.search(job.title)) for job in jobs),
         "current_focus_role_hits": sum(bool(FOCUS_RE.search(job.title)) for job in jobs),
-        "current_student_role_evidence": [job.title for job in jobs if STUDENT_RE.search(job.title)],
+        "current_student_role_evidence": [
+            job.title for job in jobs if _is_production_student_hit(job)
+        ],
+        "current_student_candidate_evidence": _student_candidate_evidence(jobs),
         "current_focus_role_evidence": [job.title for job in jobs if FOCUS_RE.search(job.title)],
         "stable_id_result": "valid" if stable else "invalid",
         "title_result": "valid" if stable and all(job.title for job in jobs) else "invalid",
@@ -470,6 +507,7 @@ def _excluded_row(row: dict[str, Any]) -> dict[str, Any]:
         "summer_2027_hits": 0,
         "current_focus_role_hits": 0,
         "current_student_role_evidence": [],
+        "current_student_candidate_evidence": [],
         "current_focus_role_evidence": [],
         "stable_id_result": "not_validated",
         "title_result": "not_validated",

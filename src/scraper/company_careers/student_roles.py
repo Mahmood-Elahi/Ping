@@ -111,7 +111,7 @@ US_LOCATION_TERMS = (
     "south carolina", "south dakota", "tennessee", "texas", "utah", "vermont",
     "virginia", "washington", "west virginia", "wisconsin", "wyoming",
     "austin", "boston", "chicago", "denver", "los angeles", "new york city",
-    "san diego", "san francisco", "seattle",
+    "san diego", "san francisco", "san jose", "seattle",
 )
 US_STATE_CODES = {
     "ak", "al", "ar", "az", "ca", "co", "ct", "dc", "de", "fl", "ga", "hi",

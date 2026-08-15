@@ -33,20 +33,24 @@ class AiMlExpansionV1BatchAArtifactTests(unittest.TestCase):
         with batch.CANDIDATE_CSV.open(newline="", encoding="utf-8") as handle:
             cls.inventory = list(csv.DictReader(handle))
 
-    def test_01_candidate_and_validated_registries_are_not_activated(self):
-        self.assertEqual(len(self.production), 418)
+    def test_01_activation_matches_validated_registry_exactly(self):
+        self.assertEqual(len(self.production), 437)
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
         self.assertEqual(len(self.candidates), 437)
         self.assertEqual(self.candidates, self.validated)
-        self.assertEqual(self.production, self.candidates[:418])
-        self.assertNotEqual(self.production, self.validated)
+        self.assertEqual(self.production[:418], self.candidates[:418])
+        self.assertEqual(self.production, self.validated)
+        self.assertEqual(
+            self.production_bytes.replace(b"\r\n", b"\n"),
+            batch.VALIDATED_REGISTRY.read_bytes().replace(b"\r\n", b"\n"),
+        )
         self.assertFalse(self.report["production_registry_activated"])
         self.assertTrue(all(value is False for value in self.report["publication"].values()))
 
         production_names = [item["name"] for item in self.production]
         for item in batch.CANDIDATE_ENTRIES:
-            self.assertNotIn(item["name"], production_names)
-        self.assertNotIn("Groq", [item["name"] for item in self.candidates])
+            self.assertEqual(production_names.count(item["name"]), 1)
+        self.assertNotIn("Groq", production_names)
 
     def test_02_all_requested_companies_and_outcomes_are_reported(self):
         self.assertEqual([row["company"] for row in self.inventory], batch.REVIEWED_COMPANIES)
@@ -101,16 +105,74 @@ class AiMlExpansionV1BatchAArtifactTests(unittest.TestCase):
     def test_05_current_job_student_summer_and_focus_counts(self):
         jobs = self.report["jobs"]
         self.assertEqual(jobs["normalized_total"], 237)
-        self.assertEqual(jobs["student_intern_hits_total"], 21)
+        self.assertEqual(jobs["student_intern_hits_total"], 19)
         self.assertEqual(jobs["summer_2027_hits_total"], 0)
         self.assertEqual(jobs["focus_role_hits_total"], 83)
         self.assertEqual(jobs["by_company"]["Etched"]["student_intern_hits"], 17)
         self.assertEqual(jobs["by_company"]["Together AI"]["student_intern_hits"], 2)
-        self.assertEqual(jobs["by_company"]["Modal"]["student_intern_hits"], 1)
-        modal = next(row for row in self.report["results"] if row["company"] == "Modal")
-        self.assertEqual(modal["current_student_role_evidence"], ["ML Research Intern"])
+        self.assertEqual(jobs["by_company"]["Modal"]["student_intern_hits"], 0)
+        self.assertEqual(jobs["by_company"]["Harvey"]["student_intern_hits"], 0)
 
-    def test_06_acquisition_rebrand_stale_board_and_parent_routing_review(self):
+    def test_06_student_metrics_match_production_filters_and_exact_jobs(self):
+        by_name = {row["company"]: row for row in self.report["results"]}
+        etched = by_name["Etched"]["current_student_candidate_evidence"]
+        self.assertEqual(len(etched), 17)
+        self.assertTrue(all(item["production_match"] for item in etched))
+        self.assertEqual({item["location"] for item in etched}, {"San Jose"})
+        self.assertEqual(
+            {item["job_id"] for item in etched},
+            {
+                "27e5bd6b-9357-45f0-9e79-cfa2bf4eeba8",
+                "f32908bd-8abc-495c-ab69-ac893b6c924d",
+                "5f1f5739-3b58-467c-b351-ff183c94d96d",
+                "dacedaca-c4ca-4964-85a7-8df1738005bb",
+                "904ddf46-55fc-4a8f-8b49-f32cfe88116a",
+                "a0a1671e-15d4-474c-8227-97fe16ade553",
+                "699f3ab2-07e4-466c-9d76-3d4a3abb4ebc",
+                "0321523b-f0c3-44cd-9c46-cf318a1cad9e",
+                "6f23713f-5409-45b7-aae8-adb8710cdbc3",
+                "1b073af4-6764-45ca-a22d-40a4823f0877",
+                "f05e3218-5ec7-41d1-bc99-bb7014422229",
+                "bd8c5768-7efa-4a18-9e56-485ccaf4ec77",
+                "f02e8035-7dc9-4b0c-aab7-75bbb4e975b8",
+                "157ed4f4-6e3b-4ec9-b93f-3e363e92041e",
+                "ce683632-421a-4ef9-8664-b253356969a3",
+                "b45e357c-07ea-4499-9911-1d3cc9b9ac71",
+                "639fe410-56a4-44aa-ac93-8ee7c10c7d75",
+            },
+        )
+
+        modal = next(row for row in self.report["results"] if row["company"] == "Modal")
+        self.assertEqual(modal["current_student_role_evidence"], [])
+        self.assertEqual(modal["current_student_candidate_evidence"], [{
+            "job_id": "38888294-6bc7-4dab-b072-6d0f0c2ed79a",
+            "title": "ML Research Intern",
+            "location": "New York | San Francisco",
+            "matching_rule": "strong_title:research_intern",
+            "role_exclusion": "graduate_only",
+            "location_exclusion": None,
+            "production_match": False,
+        }])
+
+        together = by_name["Together AI"]["current_student_candidate_evidence"]
+        self.assertEqual(
+            [(item["job_id"], item["title"], item["location"]) for item in together],
+            [
+                (
+                    "5157661007",
+                    "Research Intern, Model Shaping (Fall 2026)",
+                    "San Francisco, Amsterdam",
+                ),
+                (
+                    "5157559007",
+                    "Systems Research Engineer Intern - GPU Programming (Fall 2026)",
+                    "San Francisco",
+                ),
+            ],
+        )
+        self.assertTrue(all(item["production_match"] for item in together))
+
+    def test_07_acquisition_rebrand_stale_board_and_parent_routing_review(self):
         routing = self.report["routing_review"]
         self.assertEqual(set(routing), {"Groq", "Anysphere", "Runway", "Writer", "Hebbia"})
         self.assertIn("non-exclusive technology license", routing["Groq"])
@@ -159,8 +221,11 @@ class AiMlExpansionV1BatchAArtifactTests(unittest.TestCase):
         self.assertTrue(all(not row["original_246_master"] for row in self.report["results"]))
 
     def test_10_hashes_ignore_and_safe_stage_manifest(self):
+        validated_bytes = batch.VALIDATED_REGISTRY.read_bytes()
+        marker = b"  - name: Together AI"
+        historical_bytes = validated_bytes[:validated_bytes.index(marker)]
         self.assertEqual(
-            hashlib.sha256(self.production_bytes).hexdigest().upper(),
+            hashlib.sha256(historical_bytes).hexdigest().upper(),
             self.report["production_registry_sha256"],
         )
         self.assertEqual(
