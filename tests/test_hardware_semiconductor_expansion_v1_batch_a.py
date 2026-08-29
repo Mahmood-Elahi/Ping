@@ -11,6 +11,8 @@ from urllib.parse import urlparse
 
 import yaml
 
+from tests.company_careers_reliability_assertions import assert_historical_prefix
+
 from scripts import validate_company_registry as registry_validator
 from scripts import validate_hardware_semiconductor_expansion_v1_batch_a as batch
 from src.scraper.company_careers.models import CompanyTarget
@@ -35,8 +37,8 @@ class HardwareSemiconductorExpansionV1BatchATests(unittest.TestCase):
     def test_baseline_inventory_and_projection_are_exact(self):
         self.assertEqual((batch.BASELINE_SOURCES, batch.BASELINE_MAPPINGS), (353, 4))
         self.assertEqual((batch.BASELINE_COVERAGE, batch.MASTER_TOTAL), (208, 246))
-        self.assertEqual(len(self.production), 437)
-        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
+        self.assertGreaterEqual(len(self.production), 452)
+        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 5)
         self.assertEqual(len(batch.REVIEWED_COMPANIES), 20)
         self.assertEqual(len(set(batch.REVIEWED_COMPANIES)), 20)
         self.assertEqual(
@@ -55,14 +57,8 @@ class HardwareSemiconductorExpansionV1BatchATests(unittest.TestCase):
     def test_activation_matches_validated_registry_exactly(self):
         self.assertEqual(self.candidates, self.validated)
         baseline_prefix = self.validated[:353]
-        self.assertEqual(self.production[:353], baseline_prefix)
-        self.assertEqual(self.production[:370], self.validated)
-        marker = b"  - name: Berkshire Grey"
-        production_prefix = self.production_bytes[:self.production_bytes.index(marker)]
-        self.assertEqual(
-            production_prefix.replace(b"\r\n", b"\n"),
-            batch.VALIDATED_REGISTRY.read_bytes().replace(b"\r\n", b"\n"),
-        )
+        assert_historical_prefix(self, self.production, baseline_prefix)
+        assert_historical_prefix(self, self.production, self.validated)
         self.assertEqual(len(self.candidates), 370)
         self.assertEqual(
             [entry["name"] for entry in self.candidates[353:]],

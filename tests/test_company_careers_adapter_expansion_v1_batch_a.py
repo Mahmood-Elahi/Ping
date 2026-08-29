@@ -12,7 +12,7 @@ from tests.company_careers_reliability_assertions import assert_historical_prefi
 
 from scripts import validate_company_registry as registry_validator
 from src.scraper.company_careers import scanner
-from src.scraper.company_careers.adapters import paycor, peoplesoft, ukg_pro, workable
+from src.scraper.company_careers.adapters import dayforce, paycor, peoplesoft, ukg_pro, workable
 from src.scraper.company_careers.models import AdapterError, CompanyTarget
 from src.scraper.company_careers.parent_sources import load_parent_source_mappings
 
@@ -486,7 +486,7 @@ class RecoveryTargetValidationTests(unittest.TestCase):
         self.assertIs(scanner.ADAPTERS["ukg_pro"], ukg_pro.fetch_jobs)
         self.assertIs(scanner.ADAPTERS["paycor"], paycor.fetch_jobs)
         self.assertIs(scanner.ADAPTERS["peoplesoft"], peoplesoft.fetch_jobs)
-        self.assertNotIn("dayforce", scanner.ADAPTERS)
+        self.assertIs(scanner.ADAPTERS["dayforce"], dayforce.fetch_jobs)
         self.assertNotIn("workable", scanner.ADAPTERS)
 
     def test_registered_targets_use_the_shared_registry_validator(self):
@@ -519,7 +519,10 @@ class RecoveryTargetValidationTests(unittest.TestCase):
             [row["name"] for row in production_data[baseline_count:baseline_count + len(promoted)]],
             promoted,
         )
-        self.assertEqual(len(load_parent_source_mappings()), self.data["baseline"]["parent_mappings"])
+        self.assertEqual(
+            len(load_parent_source_mappings()),
+            self.data["baseline"]["parent_mappings"] + 1,
+        )
         self.assertEqual(
             (
                 self.data["baseline"]["original_master_coverage"],
@@ -530,7 +533,9 @@ class RecoveryTargetValidationTests(unittest.TestCase):
         production_names = [row["name"] for row in production_data]
         for name in promoted:
             self.assertEqual(production_names.count(name), 1)
-        self.assertNotIn("SMART Technologies", production_names)
+        historical_names = production_names[:baseline_count + len(promoted)]
+        self.assertNotIn("SMART Technologies", historical_names)
+        self.assertEqual(production_names.count("SMART Technologies"), 1)
         self.assertNotIn("AltaLink", production_names)
 
         runtime_fields = {

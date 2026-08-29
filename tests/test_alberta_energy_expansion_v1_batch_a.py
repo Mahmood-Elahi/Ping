@@ -5,6 +5,8 @@ import unittest
 
 import yaml
 
+from tests.company_careers_reliability_assertions import assert_historical_prefix
+
 from scripts import validate_alberta_energy_expansion_v1_batch_a as batch
 from scripts import validate_company_registry as registry_validator
 from src.scraper.company_careers.adapters import static_html, workday
@@ -64,17 +66,22 @@ class AlbertaEnergyExpansionV1BatchATests(unittest.TestCase):
         production = yaml.safe_load(batch.PRODUCTION.read_bytes())
         candidate = yaml.safe_load(batch.CANDIDATE_REGISTRY.read_bytes())
         validated = yaml.safe_load(batch.VALIDATED_REGISTRY.read_bytes())
-        self.assertEqual(production["target_companies"][:344], validated["target_companies"])
+        assert_historical_prefix(
+            self,
+            production["target_companies"],
+            validated["target_companies"],
+        )
         self.assertEqual(candidate, validated)
         payload = production
-        self.assertEqual(len(payload["target_companies"]), 437)
+        self.assertGreaterEqual(len(payload["target_companies"]), 452)
         self.assertEqual(
             [entry["name"] for entry in payload["target_companies"][339:344]],
             [entry["name"] for entry in batch.CANDIDATE_ENTRIES],
         )
         production_names = [entry["name"] for entry in payload["target_companies"]]
+        historical_names = production_names[:344]
         for name in batch.REVIEWED_COMPANIES:
-            self.assertEqual(production_names.count(name), int(name in {
+            self.assertEqual(historical_names.count(name), int(name in {
                 entry["name"] for entry in batch.CANDIDATE_ENTRIES
             }))
 

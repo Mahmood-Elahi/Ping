@@ -12,7 +12,7 @@ from scripts import company_watchlist_common, investigate_remaining_companies, i
 from scripts import validate_ats_adapter_expansion_v2_batch_a as batch
 from scripts import validate_company_registry as registry_validator
 from src.scraper.company_careers import scanner
-from src.scraper.company_careers.adapters import cornerstone_csod, sap_successfactors
+from src.scraper.company_careers.adapters import cornerstone_csod, dayforce, sap_successfactors
 from src.scraper.company_careers.models import AdapterError, CompanyTarget
 
 
@@ -231,7 +231,7 @@ class BatchArtifactTests(unittest.TestCase):
         cls.historical = yaml.safe_load(cls.historical_bytes)["target_companies"]
 
     def test_activation_preserves_exact_336_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 437)
+        self.assertGreaterEqual(len(self.production), 452)
         self.assertEqual(len(self.candidates), 338)
         self.assertEqual(len(self.validated), 338)
         self.assertEqual(len(self.historical), 336)
@@ -270,13 +270,13 @@ class BatchArtifactTests(unittest.TestCase):
             {row["company"]: row["validation_status"] for row in self.report["remaining_blockers"]},
             blockers,
         )
-        production_names = {row["name"] for row in self.production}
-        self.assertTrue(set(blockers).isdisjoint(production_names))
+        historical_names = {row["name"] for row in self.validated}
+        self.assertTrue(set(blockers).isdisjoint(historical_names))
 
     def test_adapters_and_registry_validator_are_wired_generically(self):
         self.assertIs(scanner.ADAPTERS["cornerstone_csod"], cornerstone_csod.fetch_jobs)
         self.assertIs(scanner.ADAPTERS["sap_successfactors"], sap_successfactors.fetch_jobs)
-        self.assertNotIn("dayforce", scanner.ADAPTERS)
+        self.assertIs(scanner.ADAPTERS["dayforce"], dayforce.fetch_jobs)
         self.assertNotIn("workable", scanner.ADAPTERS)
         expected = {
             "CN Rail": "cornerstone_csod:cn360.csod.com:1",

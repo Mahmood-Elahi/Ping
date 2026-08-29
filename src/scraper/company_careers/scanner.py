@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 from typing import Any, Callable, Iterable, List, Optional, Sequence
 
 import requests
@@ -18,6 +19,7 @@ from src.scraper.company_careers.adapters import (
     browser_rendered_html,
     clearcompany,
     cornerstone_csod,
+    dayforce,
     deel,
     eightfold,
     embedded_data,
@@ -90,6 +92,7 @@ ADAPTERS: dict[str, AdapterFn] = {
     "browser_rendered_html": browser_rendered_html.fetch_jobs,
     "clearcompany": clearcompany.fetch_jobs,
     "cornerstone_csod": cornerstone_csod.fetch_jobs,
+    "dayforce": dayforce.fetch_jobs,
     "deel": deel.fetch_jobs,
     "bamboohr": bamboohr.fetch_jobs,
     "beesite": beesite.fetch_jobs,
@@ -258,13 +261,14 @@ class CompanyCareersScanner:
                     )
                 )
             except AdapterError as exc:
+                error_type, remediation = self._adapter_failure_details(str(exc))
                 results.append(
                     CompanyScanResult(
                         target=target,
                         status=CoverageStatus.FAILED_TECHNICAL,
                         error=str(exc),
-                        error_type="adapter_error",
-                        remediation="Inspect the adapter endpoint, request shape, and parser assumptions.",
+                        error_type=error_type,
+                        remediation=remediation,
                     )
                 )
             except requests.RequestException as exc:
@@ -310,6 +314,58 @@ class CompanyCareersScanner:
             for child_brand in job.child_brands:
                 counts[child_brand] = counts.get(child_brand, 0) + 1
         return counts
+
+    @staticmethod
+    def _adapter_failure_details(error: str) -> tuple[str, str]:
+        """Classify adapter failures without changing their fail-closed contract."""
+        lowered = error.casefold()
+        if (
+            re.search(r"\bhttp (408|425|429|500|502|503|504)\b", lowered)
+            or "transient upstream maintenance redirect" in lowered
+        ):
+            return (
+                "transient_upstream_http",
+                "Retry later; the bounded public source returned a transient HTTP failure.",
+            )
+        if "blocked response" in lowered or "captcha" in lowered or "challenge" in lowered:
+            return (
+                "external_access_blocked",
+                "The official public source blocked bounded anonymous access; do not bypass its access controls.",
+            )
+        if "response exceeded" in lowered or "byte limit" in lowered or "size bound" in lowered:
+            return (
+                "response_size_safety_rejection",
+                "Find a narrower structured source; do not raise the global response limit.",
+            )
+        if "browser-rendered" in lowered and ("timeout" in lowered or "selector" in lowered):
+            return (
+                "browser_rendering_failure",
+                "Verify the reviewed selector or migrate to a public structured source.",
+            )
+        if "did not match" in lowered or "repeated stable" in lowered or "duplicate stable" in lowered:
+            return (
+                "validation_identity_mismatch",
+                "Inspect listing/detail identifiers or pagination; preserve stable-ID validation.",
+            )
+        if "unsupported" in lowered:
+            return (
+                "unsupported_ats_variant",
+                "Model and test the observed public ATS variant before enabling it.",
+            )
+        if "malformed" in lowered or "missing" in lowered or "unexpected content-type" in lowered:
+            return (
+                "adapter_schema_mismatch",
+                "Inspect the upstream schema and add a bounded, fixture-backed contract if reusable.",
+            )
+        if re.search(r"\bhttp 404\b", lowered):
+            return (
+                "stale_company_configuration",
+                "Verify the employer's current official career board and update the registry.",
+            )
+        return (
+            "adapter_error",
+            "Inspect the adapter endpoint, request shape, and parser assumptions.",
+        )
 
     def _mapped_coverage(
         self,

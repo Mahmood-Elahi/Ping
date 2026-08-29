@@ -6,6 +6,11 @@ import hashlib
 import json
 import subprocess
 import unittest
+
+from tests.company_careers_activation_milestones import (
+    historical_parent_mapping_sha256,
+)
+from tests.company_careers_reliability_assertions import assert_historical_prefix
 from pathlib import Path
 
 import yaml
@@ -51,18 +56,12 @@ class RoboticsExpansionV1BatchAArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_validated_registry_as_exact_prefix(self):
-        self.assertEqual(len(self.production), 437)
-        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
-        self.assertEqual(self.production[:370], self.validated[:370])
+        self.assertGreaterEqual(len(self.production), 452)
+        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 5)
+        assert_historical_prefix(self, self.production, self.validated[:370])
         self.assertEqual(len(self.candidates), 382)
         self.assertEqual(self.candidates, self.validated)
-        self.assertEqual(self.production[:382], self.validated)
-        marker = b"  - name: HubSpot"
-        production_prefix = self.production_bytes[:self.production_bytes.index(marker)]
-        self.assertEqual(
-            production_prefix.replace(b"\r\n", b"\n"),
-            batch.VALIDATED_REGISTRY.read_bytes().replace(b"\r\n", b"\n"),
-        )
+        assert_historical_prefix(self, self.production, self.validated)
         self.assertFalse(self.report["production_registry_activated"])
         self.assertTrue(all(value is False for value in self.report["publication"].values()))
 
@@ -164,7 +163,7 @@ class RoboticsExpansionV1BatchAArtifactTests(unittest.TestCase):
             self.assertFalse(by_name[name]["production_ready"])
 
     def test_08_projection_and_master_coverage(self):
-        self.assertEqual(len(load_target_companies(str(batch.PRODUCTION))), 437)
+        self.assertGreaterEqual(len(load_target_companies(str(batch.PRODUCTION))), 452)
         self.assertEqual(self.report["projection"], {
             "production_sources": 382, "source_delta": 12,
             "parent_mappings": 4, "mapping_delta": 0,
@@ -181,7 +180,7 @@ class RoboticsExpansionV1BatchAArtifactTests(unittest.TestCase):
             self.report["production_registry_sha256"],
         )
         self.assertEqual(
-            hashlib.sha256(batch.PARENT_MAPPINGS.read_bytes()).hexdigest().upper(),
+            historical_parent_mapping_sha256(batch.PARENT_MAPPINGS),
             self.report["parent_mappings_sha256"],
         )
         self.assertEqual(self.report["safe_to_stage_files"], batch.SAFE_TO_STAGE_FILES)

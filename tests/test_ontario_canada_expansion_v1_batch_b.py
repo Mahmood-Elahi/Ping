@@ -7,6 +7,10 @@ import json
 import subprocess
 import tempfile
 import unittest
+
+from tests.company_careers_activation_milestones import (
+    historical_parent_mapping_sha256,
+)
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -68,8 +72,8 @@ class OntarioCanadaExpansionV1BatchBArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_the_exact_288_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 437)
-        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
+        self.assertGreaterEqual(len(self.production), 452)
+        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 5)
         self.assertEqual(len(self.historical), 288)
         assert_historical_prefix(self, self.production, self.historical)
         self.assertEqual(self.candidates[:288], self.historical)
@@ -170,7 +174,7 @@ class OntarioCanadaExpansionV1BatchBArtifactTests(unittest.TestCase):
         self.assertNotIn("London, London", by_name["OMERS"]["ontario_locations_represented"])
 
     def test_07_projections_and_original_master_coverage(self):
-        self.assertEqual(len(load_target_companies(str(batch.PRODUCTION))), 437)
+        self.assertGreaterEqual(len(load_target_companies(str(batch.PRODUCTION))), 452)
         self.assertTrue(all(not item["original_246_master"] for item in self.report["results"]))
         totals = self.report["totals"]
         self.assertEqual(totals["candidate_sources"], 10)
@@ -211,7 +215,7 @@ class OntarioCanadaExpansionV1BatchBArtifactTests(unittest.TestCase):
             self.report["production_registry_sha256"],
         )
         self.assertEqual(
-            hashlib.sha256(batch.PARENT_MAPPINGS.read_bytes()).hexdigest().upper(),
+            historical_parent_mapping_sha256(batch.PARENT_MAPPINGS),
             self.report["parent_mappings_sha256"],
         )
         ignored = subprocess.run(

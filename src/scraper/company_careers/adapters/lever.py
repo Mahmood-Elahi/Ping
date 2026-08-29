@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import time
 from typing import Any, Iterable, List, Mapping
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import urlencode, urlparse, urlunparse
 
 import requests
 
@@ -26,6 +26,11 @@ HOST_RE = re.compile(
     re.I,
 )
 HEADERS = {"Accept": "application/json", "User-Agent": "job-radar/1.0"}
+DEFAULT_ENDPOINT = "https://api.lever.co/v0/postings"
+ENDPOINT_HOSTS = {
+    "api.lever.co": "jobs.lever.co",
+    "api.eu.lever.co": "jobs.eu.lever.co",
+}
 
 
 def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 20) -> List[JobRecord]:
@@ -33,12 +38,22 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
     validate_target(target)
     timeout = min(max(1, int(timeout)), MAX_TIMEOUT_SECONDS)
     maximum_results = min(MAX_RESULTS, max(1, int(target.max_jobs)))
-    url = f"https://api.lever.co/v0/postings/{target.slug}?mode=json"
+    query: list[tuple[str, str]] = [
+        ("mode", "json"),
+        ("limit", str(maximum_results)),
+    ]
+    # Lever applies repeated department parameters as an OR filter. Sending
+    # the reviewed allowlist to the server preserves shared-board attribution
+    # while keeping even very large public boards below the response cap.
+    query.extend(("department", value) for value in _clean(target.department_allowlist))
+    endpoint = str(target.endpoint_url or f"{DEFAULT_ENDPOINT}/{target.slug}").rstrip("/")
+    url = f"{endpoint}?{urlencode(query)}"
     response = _get(session, url, timeout)
     payload = _payload(response, target)
     metadata: dict[str, Any] = {
         "endpoint_variant": target.endpoint_variant or ENDPOINT_VARIANT,
         "request_method": "GET",
+        "server_result_limit": maximum_results,
         "pages_fetched": 1,
         "maximum_pages": 1,
         "maximum_results": maximum_results,
@@ -121,6 +136,21 @@ def validate_target(target: CompanyTarget) -> None:
         raise AdapterError("Lever allowed_apply_hosts contains an invalid host")
     if any(not str(value).strip() for value in target.department_allowlist):
         raise AdapterError("Lever department_allowlist contains an empty value")
+    endpoint = urlparse(str(target.endpoint_url or f"{DEFAULT_ENDPOINT}/{target.slug}"))
+    expected_path = f"/v0/postings/{target.slug}"
+    expected_apply_host = ENDPOINT_HOSTS.get((endpoint.hostname or "").casefold())
+    if (
+        endpoint.scheme != "https"
+        or expected_apply_host is None
+        or endpoint.path.rstrip("/") != expected_path
+        or endpoint.query
+        or endpoint.fragment
+        or endpoint.username
+        or endpoint.password
+    ):
+        raise AdapterError("Lever endpoint_url must be an approved board-specific postings endpoint")
+    if expected_apply_host not in {str(host).casefold() for host in hosts}:
+        raise AdapterError("Lever API region does not match the allow-listed apply host")
 
 
 def _get(session: requests.Session, url: str, timeout: int) -> Any:

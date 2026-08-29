@@ -73,6 +73,59 @@ class EmbeddedDataAdapterTests(unittest.TestCase):
         html = document({"props": {"pageProps": {"jobs": [item()]}}}, selector_id="__NEXT_DATA__")
         self.assertEqual(embedded_data.fetch_jobs(Session(Response(html)), t)[0].title, "Engineer")
 
+    def test_03b_next_data_prismic_document_schema_falls_back_from_legacy_fields(self):
+        current = {
+            "id": "aojBphEAAC4ADcNf",
+            "url": "/jobs/production-superintendent",
+            "type": "job_posting",
+            "data": {"title": "Production Superintendent"},
+        }
+        t = target(
+            endpoint_variant="next_data",
+            embedded_script_selector="script#__NEXT_DATA__",
+            embedded_json_path="props.pageProps.jobs",
+            id_field="link.id",
+            title_field="label",
+            url_field="link.url",
+            location_field=None,
+            date_field=None,
+            department_field=None,
+            remote_field=None,
+            listing_url="https://careers.example.test/jobs",
+            allowed_apply_hosts=["careers.example.test"],
+        )
+        html = document(
+            {"props": {"pageProps": {"jobs": [current]}}},
+            selector_id="__NEXT_DATA__",
+        )
+        job = embedded_data.fetch_jobs(Session(Response(html)), t)[0]
+        self.assertEqual(job.title, "Production Superintendent")
+        self.assertTrue(job.job_id.endswith(":aojBphEAAC4ADcNf"))
+        self.assertEqual(job.url, "https://careers.example.test/jobs/production-superintendent")
+
+    def test_03c_next_data_legacy_prismic_schema_remains_supported(self):
+        legacy = {
+            "label": "Legacy Engineer",
+            "link": {"id": "legacy-1", "url": "https://apply.example.test/jobs/legacy-1"},
+        }
+        t = target(
+            endpoint_variant="next_data",
+            embedded_script_selector="script#__NEXT_DATA__",
+            embedded_json_path="props.pageProps.jobs",
+            id_field="link.id",
+            title_field="label",
+            url_field="link.url",
+            location_field=None,
+            date_field=None,
+            department_field=None,
+            remote_field=None,
+        )
+        html = document(
+            {"props": {"pageProps": {"jobs": [legacy]}}},
+            selector_id="__NEXT_DATA__",
+        )
+        self.assertEqual(embedded_data.fetch_jobs(Session(Response(html)), t)[0].title, "Legacy Engineer")
+
     def test_04_reviewed_json_path_enforcement(self):
         with self.assertRaisesRegex(AdapterError, "missing component"):
             embedded_data.fetch_jobs(Session(Response(document({"other": []}))), target())

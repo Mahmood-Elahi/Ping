@@ -6,6 +6,10 @@ import inspect
 import json
 import tempfile
 import unittest
+
+from tests.company_careers_activation_milestones import (
+    historical_parent_mapping_sha256,
+)
 from pathlib import Path
 from unittest.mock import patch
 
@@ -241,7 +245,7 @@ class AdapterExtensionsV4BArtifactTests(unittest.TestCase):
         validated_prefix = historical_prefix_bytes(rollout.VALIDATED_REGISTRY)
         self.assertEqual(candidate_prefix, validated_prefix)
         self.assertEqual(self.report["production_registry_sha256"], hashlib.sha256(candidate_prefix).hexdigest().upper())
-        self.assertEqual(self.report["parent_mappings_sha256"], hashlib.sha256(rollout.PARENT_MAPPINGS.read_bytes()).hexdigest().upper())
+        self.assertEqual(self.report["parent_mappings_sha256"], historical_parent_mapping_sha256(rollout.PARENT_MAPPINGS))
 
     def test_12_future_append_only_production_growth_does_not_change_milestone_delta(self):
         future = [vars(target) for target in self.production]

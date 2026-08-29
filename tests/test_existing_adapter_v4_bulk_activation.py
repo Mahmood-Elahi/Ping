@@ -5,6 +5,10 @@ import hashlib
 import inspect
 import sqlite3
 import unittest
+
+from tests.company_careers_activation_milestones import (
+    historical_parent_mapping_sha256,
+)
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -445,9 +449,9 @@ class ExistingAdapterV4ContractTests(unittest.TestCase):
         assert_historical_prefix(self, production, validated)
 
     def test_38_parent_mapping_configuration_remains_unchanged(self):
-        digest = hashlib.sha256(batch.PARENT_MAPPINGS.read_bytes()).hexdigest().upper()
+        digest = historical_parent_mapping_sha256(batch.PARENT_MAPPINGS)
         self.assertEqual(digest, PARENT_MAPPINGS_SHA256)
-        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
+        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 5)
 
     def test_39_request_cache_avoids_duplicate_network_call(self):
         fake = FakeSession([FakeResponse([])])

@@ -360,10 +360,15 @@ def _normalize(card: Any, target: CompanyTarget, page_url: str) -> JobRecord:
     dates = _texts(card, target.date_selector)
     work_modes = [value for value in locations if re.search(r"(?i)\b(remote|hybrid)\b", value)]
     host = (urlparse(str(target.listing_url)).hostname or "").casefold()
+    # Some hosted ATS products (notably Jobvite) serve many unrelated company
+    # boards from one hostname.  A reviewed slug gives those boards separate
+    # source namespaces while preserving the historical host-only contract for
+    # every existing static target.
+    source_namespace = str(target.slug or host).strip().casefold()
     return JobRecord(
-        job_id=f"static_html:{host}:{external_id}", title=title, company=target.name,
+        job_id=f"static_html:{source_namespace}:{external_id}", title=title, company=target.name,
         location=" | ".join(locations), url=url, updated_at=dates[0] if dates else "",
-        source=f"static_html:{host}", departments=departments, offices=locations,
+        source=f"static_html:{source_namespace}", departments=departments, offices=locations,
         raw_metadata={"platform": "static_html", "endpoint_variant": target.endpoint_variant,
                       "external_job_id": external_id, "work_modes": work_modes},
     )

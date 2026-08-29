@@ -26,6 +26,8 @@ DEFAULT_SEARCH_TERMS = [
     "Staff Software Engineer",
     "Production Engineer",
 ]
+MAX_RESULTS = 20
+MAX_PAGES = 3
 MAX_ATTEMPTS = 3
 BASE_BACKOFF_SECONDS = 1.0
 MAX_BACKOFF_SECONDS = 4.0
@@ -77,6 +79,11 @@ class _RequestPacer:
 
 
 def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 20) -> List[JobRecord]:
+    if not 1 <= int(target.max_jobs) <= MAX_RESULTS:
+        raise AdapterError(f"Meta Careers max_jobs must be between 1 and {MAX_RESULTS}")
+    if not 1 <= int(target.max_pages) <= MAX_PAGES:
+        raise AdapterError(f"Meta Careers max_pages must be between 1 and {MAX_PAGES}")
+    maximum_jobs = int(target.max_jobs)
     search_terms = target.search_terms or DEFAULT_SEARCH_TERMS
     jobs: List[JobRecord] = []
     seen: set[str] = set()
@@ -86,7 +93,11 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
     page_context = _fetch_search_context(session, "", timeout, pacer=pacer)
 
     for term in search_terms:
+        if len(jobs) >= maximum_jobs:
+            break
         for page in range(1, max(1, target.max_pages) + 1):
+            if len(jobs) >= maximum_jobs:
+                break
             payload = _fetch_results_page(
                 session, term, page, page_context, timeout, pacer=pacer
             )
@@ -100,6 +111,8 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                     continue
                 seen.add(key)
                 jobs.append(job)
+                if len(jobs) >= maximum_jobs:
+                    break
 
     return jobs
 
@@ -326,9 +339,14 @@ def _decode_graphql_response(response: Any) -> Dict[str, Any]:
             raise AdapterError(
                 f"Meta Careers GraphQL returned upstream-error content ({details})"
             )
-        raise AdapterError(
-            f"Meta Careers GraphQL returned unexpected Content-Type ({details})"
-        )
+        # Meta currently serves its GraphQL object with ``text/html`` on some
+        # successful anonymous requests.  Accept only a syntactically valid
+        # JSON object after the redirect, challenge, upstream-error, and body
+        # shape checks above.  Actual HTML and malformed JSON still fail closed.
+        if shape != "json-like":
+            raise AdapterError(
+                f"Meta Careers GraphQL returned unexpected Content-Type ({details})"
+            )
 
     return _decode_graphql_payload(text, details=details)
 

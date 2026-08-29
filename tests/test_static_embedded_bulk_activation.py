@@ -247,10 +247,11 @@ class StaticEmbeddedBulkActivationTests(unittest.TestCase):
         for validated_entry in validated_additions:
             name = validated_entry["name"]
             name_key = validator._name_key(validated_entry)
+            current_entry = with_reliability_repairs([validated_entry])[0]
             self.assertEqual(sum(validator._name_key(item) == name_key for item in production), 1)
             self.assertEqual(validated_entry["platform"], EXPECTED_SAFE_PLATFORMS[name])
-            self.assertEqual(production_by_name[name_key]["platform"], validated_entry["platform"])
-            self.assertEqual(validator.source_key(production_by_name[name_key]), validator.source_key(validated_entry))
+            self.assertEqual(production_by_name[name_key]["platform"], current_entry["platform"])
+            self.assertEqual(validator.source_key(production_by_name[name_key]), validator.source_key(current_entry))
         self.assert_exclusions_respect_proven_later_activations(production)
 
     def test_07_synthetic_baseline_delta_behavior(self):
@@ -321,9 +322,10 @@ class StaticEmbeddedBulkActivationTests(unittest.TestCase):
         self.assertEqual(len(production_sources), len(set(production_sources)))
         for name in EXPECTED_SAFE_COMPANIES:
             name_key = validator._name_key({"name": name})
+            current_entry = with_reliability_repairs([validated_by_name[name_key]])[0]
             self.assertEqual(production_names.count(name_key), 1)
-            self.assertEqual(production_by_name[name_key]["platform"], EXPECTED_SAFE_PLATFORMS[name])
-            self.assertEqual(validator.source_key(production_by_name[name_key]), validator.source_key(validated_by_name[name_key]))
+            self.assertEqual(production_by_name[name_key]["platform"], current_entry["platform"])
+            self.assertEqual(validator.source_key(production_by_name[name_key]), validator.source_key(current_entry))
         self.assert_exclusions_respect_proven_later_activations(production)
         assert_historical_prefix(
             self,

@@ -7,6 +7,10 @@ import json
 import subprocess
 import tempfile
 import unittest
+
+from tests.company_careers_activation_milestones import (
+    historical_parent_mapping_sha256,
+)
 from pathlib import Path
 
 import yaml
@@ -66,8 +70,8 @@ class OriginalMasterRecoveryBatchGArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_exact_257_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 437)
-        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
+        self.assertGreaterEqual(len(self.production), 452)
+        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 5)
         self.assertEqual(len(self.historical), 257)
         assert_historical_prefix(self, self.production, self.historical)
         self.assertEqual(self.candidates[:257], self.historical)
@@ -84,13 +88,9 @@ class OriginalMasterRecoveryBatchGArtifactTests(unittest.TestCase):
         self.assertEqual([item["name"] for item in self.production[257:262]], VALIDATED)
         self.assertEqual(len(VALIDATED), 5)
         self.assertTrue(EXCLUDED.isdisjoint({item["name"] for item in self.candidates}))
+        historical_production_names = [item["name"] for item in self.production[:262]]
+        self.assertTrue(EXCLUDED.isdisjoint(historical_production_names))
         production_names = [item["name"] for item in self.production]
-        later_promotions = {
-            "Astrobotic", "Intuitive Machines", "FANUC", "Mercedes-Benz", "OHB SE",
-        }
-        self.assertTrue((EXCLUDED - later_promotions).isdisjoint(production_names))
-        for name in later_promotions:
-            self.assertEqual(production_names.count(name), 1)
         for name in VALIDATED:
             self.assertEqual(production_names.count(name), 1)
 
@@ -145,7 +145,7 @@ class OriginalMasterRecoveryBatchGArtifactTests(unittest.TestCase):
             load_target_companies(str(batch.PRODUCTION)),
             load_parent_source_mappings(batch.PARENT_MAPPINGS),
         )
-        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 208)
+        self.assertGreaterEqual(len(master.canonical_names) + len(master.mapped_names), 208)
         self.assertTrue(all(item["original_246_master"] for item in self.report["results"]))
         totals = self.report["totals"]
         self.assertEqual((totals["validated"], totals["excluded"]), (5, 10))
@@ -205,7 +205,7 @@ class OriginalMasterRecoveryBatchGArtifactTests(unittest.TestCase):
             self.report["production_registry_sha256"],
         )
         self.assertEqual(
-            hashlib.sha256(batch.PARENT_MAPPINGS.read_bytes()).hexdigest().upper(),
+            historical_parent_mapping_sha256(batch.PARENT_MAPPINGS),
             self.report["parent_mappings_sha256"],
         )
         ignored = subprocess.run(

@@ -30,6 +30,7 @@ from src.scraper.company_careers.adapters import (
     bamboohr,
     clearcompany,
     cornerstone_csod,
+    dayforce,
     deel,
     eightfold,
     embedded_data,
@@ -125,6 +126,7 @@ ADAPTERS: dict[str, AdapterFn] = {
     "exalead": exalead.fetch_jobs,
     "clearcompany": clearcompany.fetch_jobs,
     "cornerstone_csod": cornerstone_csod.fetch_jobs,
+    "dayforce": dayforce.fetch_jobs,
     "deel": deel.fetch_jobs,
     "bamboohr": bamboohr.fetch_jobs,
     "startdate": startdate.fetch_jobs,
@@ -188,6 +190,10 @@ def source_key(entry: Mapping[str, Any]) -> Optional[str]:
         host = (urlparse(str(entry.get("search_url") or "")).hostname or "").casefold()
         site_id = str(entry.get("site_id") or "").strip().casefold()
         return f"cornerstone_csod:{host}:{site_id}" if host and site_id else None
+    if platform == "dayforce":
+        tenant = str(entry.get("tenant") or "").strip().casefold()
+        site_id = str(entry.get("site_id") or "").strip().casefold()
+        return f"dayforce:{tenant}:{site_id}" if tenant and site_id else None
     if platform == "eightfold":
         host = (urlparse(str(entry.get("endpoint_url") or "")).hostname or "").casefold()
         return f"eightfold:{host}" if host else None
@@ -204,7 +210,9 @@ def source_key(entry: Mapping[str, Any]) -> Optional[str]:
         return f"exalead:{host}" if host else None
     if platform in {"static_html", "javascript_embedded_data", "talentbrew", "teamtailor"}:
         host = (urlparse(str(entry.get("listing_url") or "")).hostname or "").casefold()
-        return f"{platform}:{host}" if host else None
+        slug = str(entry.get("slug") or "").strip().casefold()
+        namespace = slug if platform == "static_html" and slug else host
+        return f"{platform}:{namespace}" if namespace else None
     if platform == "deel":
         tenant = str(entry.get("tenant") or "").strip().casefold()
         return f"deel:{tenant}" if tenant else None
@@ -285,6 +293,13 @@ def configured_identifiers(entry: Mapping[str, Any]) -> dict[str, Any]:
             identifiers["locale"] = entry.get("locale")
         return identifiers
     if platform == "cornerstone_csod":
+        return {
+            "tenant": entry.get("tenant"),
+            "site_id": entry.get("site_id"),
+            "locale": entry.get("locale"),
+            "endpoint_variant": entry.get("endpoint_variant"),
+        }
+    if platform == "dayforce":
         return {
             "tenant": entry.get("tenant"),
             "site_id": entry.get("site_id"),
@@ -395,6 +410,9 @@ def endpoint_for(entry: Mapping[str, Any]) -> Optional[str]:
     if platform == "cornerstone_csod":
         endpoint = str(entry.get("search_url") or "").strip()
         return endpoint or None
+    if platform == "dayforce":
+        endpoint = str(entry.get("search_url") or "").strip()
+        return endpoint or None
     if platform == "eightfold":
         endpoint = str(entry.get("endpoint_url") or "").strip()
         return endpoint or None
@@ -481,6 +499,11 @@ def configuration_error(entry: Mapping[str, Any]) -> Optional[str]:
     if platform == "cornerstone_csod":
         try:
             cornerstone_csod.validate_target(target)
+        except AdapterError as exc:
+            return str(exc)
+    if platform == "dayforce":
+        try:
+            dayforce.validate_target(target)
         except AdapterError as exc:
             return str(exc)
     if platform == "eightfold":
@@ -645,6 +668,7 @@ def _response_shape_error(platform: str, response: Any) -> Optional[str]:
     if platform in {
         "sap_successfactors",
         "cornerstone_csod",
+        "dayforce",
         "phenom",
         "avature",
         "static_html",
@@ -1118,6 +1142,12 @@ def validate_company(
         )
     elif platform == "cornerstone_csod":
         pagination = getattr(session, "cornerstone_csod_pagination", None)
+        if isinstance(pagination, Mapping):
+            result["pagination_result"] = dict(pagination)
+            result["pages_requested"] = len(pagination.get("pages") or [])
+            result["total_available_jobs"] = pagination.get("total_available")
+    elif platform == "dayforce":
+        pagination = getattr(session, "dayforce_pagination", None)
         if isinstance(pagination, Mapping):
             result["pagination_result"] = dict(pagination)
             result["pages_requested"] = len(pagination.get("pages") or [])

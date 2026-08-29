@@ -7,6 +7,10 @@ import json
 import subprocess
 import tempfile
 import unittest
+
+from tests.company_careers_activation_milestones import (
+    historical_parent_mapping_sha256,
+)
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -54,8 +58,8 @@ class CalgaryCanadaExpansionV2BatchAArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_exact_262_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 437)
-        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
+        self.assertGreaterEqual(len(self.production), 452)
+        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 5)
         self.assertEqual(len(self.historical), 262)
         assert_historical_prefix(self, self.production, self.historical)
         self.assertEqual(self.candidates[:262], self.historical)
@@ -70,8 +74,9 @@ class CalgaryCanadaExpansionV2BatchAArtifactTests(unittest.TestCase):
         self.assertEqual([item["name"] for item in self.validated[262:]], VALIDATED)
         self.assertEqual([item["name"] for item in self.production[262:269]], VALIDATED)
         production_names = [item["name"] for item in self.production]
+        historical_production_names = production_names[:269]
+        self.assertTrue(EXCLUDED.isdisjoint(historical_production_names))
         later_promotions = {"CPKC", "Helcim", "Enerflex"}
-        self.assertTrue((EXCLUDED - later_promotions).isdisjoint(production_names))
         for name in later_promotions:
             self.assertEqual(production_names.count(name), 1)
         for name in VALIDATED:
@@ -184,7 +189,7 @@ class CalgaryCanadaExpansionV2BatchAArtifactTests(unittest.TestCase):
             load_target_companies(str(batch.PRODUCTION)),
             load_parent_source_mappings(batch.PARENT_MAPPINGS),
         )
-        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 208)
+        self.assertGreaterEqual(len(master.canonical_names) + len(master.mapped_names), 208)
         self.assertTrue(all(not item["original_246_master"] for item in self.report["results"]))
         totals = self.report["totals"]
         self.assertEqual((totals["validated"], totals["excluded"]), (7, 8))
@@ -203,7 +208,7 @@ class CalgaryCanadaExpansionV2BatchAArtifactTests(unittest.TestCase):
 
     def test_12_hash_ignore_and_no_publication_state(self):
         self.assertEqual(hashlib.sha256(self.historical_bytes).hexdigest().upper(), self.report["production_registry_sha256"])
-        self.assertEqual(hashlib.sha256(batch.PARENT_MAPPINGS.read_bytes()).hexdigest().upper(), self.report["parent_mappings_sha256"])
+        self.assertEqual(historical_parent_mapping_sha256(batch.PARENT_MAPPINGS), self.report["parent_mappings_sha256"])
         ignored = subprocess.run(
             ["git", "check-ignore", str(batch.REPORT.relative_to(batch.ROOT))], cwd=batch.ROOT,
             capture_output=True, text=True, check=False,

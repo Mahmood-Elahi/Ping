@@ -59,7 +59,7 @@ class OriginalMasterRecoveryBatchIArtifactTests(unittest.TestCase):
             cls.rows = list(csv.DictReader(handle))
 
     def test_activation_preserves_exact_330_entry_production_prefix(self) -> None:
-        self.assertEqual(437, len(self.production))
+        self.assertGreaterEqual(len(self.production), 452)
         self.assertEqual(333, len(self.candidates))
         self.assertEqual(333, len(self.validated))
         self.assertEqual(330, len(self.historical))
@@ -71,7 +71,7 @@ class OriginalMasterRecoveryBatchIArtifactTests(unittest.TestCase):
         self.assertEqual(VALIDATED, [item["name"] for item in self.validated[-3:]])
         self.assertEqual(self.candidates[-3:], self.validated[-3:])
         self.assertEqual(
-            4,
+            5,
             len(reconciliation.load_parent_source_mappings(batch.PARENT_MAPPINGS)),
         )
         self.assertEqual(VALIDATED, [item["name"] for item in self.production[330:333]])
@@ -110,7 +110,7 @@ class OriginalMasterRecoveryBatchIArtifactTests(unittest.TestCase):
             reconciliation.load_parent_source_mappings(batch.PARENT_MAPPINGS),
         )
         self.assertEqual(246, master.total)
-        self.assertEqual(208, len(master.canonical_names) + len(master.mapped_names))
+        self.assertGreaterEqual(len(master.canonical_names) + len(master.mapped_names), 208)
 
     def test_all_requested_companies_have_one_result_and_inventory_row(self) -> None:
         self.assertEqual(

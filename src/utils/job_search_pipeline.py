@@ -276,7 +276,7 @@ class JobSearchPipeline:
         }
 
         print(
-            "  [SUMMARY] Company careers: "
+            "  [SUMMARY] Company careers legacy local-DB persistence: "
             f"{successful_saves} saved, {skipped_existing} skipped, "
             f"{failed_saves} failed, coverage report: {output_paths['coverage_json']}"
         )

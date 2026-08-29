@@ -24,3 +24,154 @@ company_careers_reliability_repairs:
     page_size: 15
     max_pages: 2
     max_jobs: 20
+  - name: ASML
+    platform: browser_rendered_html
+    careers_url: https://www.asml.com/en/careers
+    listing_url: https://www.asml.com/en/careers/find-your-job
+    endpoint_variant: browser_rendered_html_v1
+    browser_wait_selector: a.search-results__item
+    browser_scroll_steps: 0
+    browser_static_variant: server_rendered_links
+    browser_identity_selector: head title
+    browser_identity_regex: ASML
+    listing_selector: a.search-results__item
+    job_card_selector: a.search-results__item
+    title_selector: h3.search-results-title-text
+    location_selector: ul.search-results__fields li:first-child
+    department_selector: ul.search-results__fields li:nth-child(2)
+    detail_link_selector: ':self'
+    external_id_regex: -([jJ][0-9]+)$
+    allowed_apply_hosts:
+      - www.asml.com
+    original_workbook_rank: 26
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: https://www.asml.com/en/careers/find-your-job
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-28T00:00:00+00:00'
+  - name: Tourmaline Oil
+    platform: javascript_embedded_data
+    careers_url: https://www.tourmalineoil.com/careers
+    source_identity_regex: Tourmaline Oil
+    listing_url: https://www.tourmalineoil.com/careers
+    endpoint_variant: next_data
+    embedded_script_selector: script#__NEXT_DATA__
+    embedded_json_path: props.pageProps.pageData.data.body[1].items
+    id_field: link.id
+    title_field: label
+    url_field: link.url
+    allowed_apply_hosts:
+      - tourmaline.cdn.prismic.io
+      - www.tourmalineoil.com
+    original_workbook_rank: 181
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    max_scripts: 1
+    max_script_bytes: 1000000
+    evidence_source: https://www.tourmalineoil.com/careers
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-28T00:00:00+00:00'
+  - name: Seagate
+    platform: sap_successfactors
+    careers_url: https://www.seagate.com/ca/en/jobs/
+    identity_url: https://seagatecareers.com/AllJobs
+    source_identity_regex: \bSeagate\b
+    identity_regex: \bSeagate\b
+    search_url: https://seagatecareers.com/search/
+    endpoint_url: https://seagatecareers.com/services/recruiting/v1/jobs
+    endpoint_variant: rmk_columnized
+    locale: en_US
+    page_size: 10
+    allowed_apply_hosts:
+      - seagatecareers.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: https://seagatecareers.com/search/
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-28T00:00:00+00:00'
+  - name: Mobileye
+    platform: lever
+    careers_url: https://careers.mobileye.com/jobs
+    slug: mobileye
+    endpoint_url: https://api.eu.lever.co/v0/postings/mobileye
+    endpoint_variant: postings_api_v0
+    allowed_apply_hosts:
+      - jobs.eu.lever.co
+    original_workbook_rank: 130
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: https://careers.mobileye.com/jobs
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-28T00:00:00+00:00'
+  - name: Beckhoff Automation
+    platform: adp
+    careers_url: https://workforcenow.adp.com/mascsr/default/mdf/recruitment/recruitment.html?cid=a779a6fa-3c8a-4324-8d68-d71fbb4c1516&ccId=19000101_000001&lang=en_US
+    endpoint_url: https://workforcenow.adp.com/mascsr/default/careercenter/public/events/staffing/v1/job-requisitions
+    endpoint_variant: workforce_now_requisitions_v1
+    identity_regex: \bBeckhoff\b
+    allowed_apply_hosts:
+      - workforcenow.adp.com
+    original_workbook_rank: 102
+    page_size: 10
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: https://www.beckhoff.com/en-us/company/job-opportunities/
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-28T00:00:00+00:00'
+  - name: Temporal
+    platform: static_html
+    careers_url: https://temporal.io/careers
+    listing_url: https://temporal.io/careers
+    endpoint_variant: server_rendered_links
+    listing_selector: a[href^='/careers/']
+    job_card_selector: a[href^='/careers/']
+    title_selector: span[data-size='32']
+    location_selector: span.inline-flex
+    detail_link_selector: ':self'
+    external_id_regex: /careers/([0-9a-f]{8}-[0-9a-f-]{27,})$
+    allowed_apply_hosts:
+      - temporal.io
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 1000000
+    evidence_source: https://temporal.io/careers
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-28T00:00:00+00:00'
+  - name: Kinross Gold
+    platform: sap_successfactors
+    careers_url: https://www.kinross.com/careers/
+    search_url: https://jobs.kinross.com/search/
+    endpoint_url: https://jobs.kinross.com/services/recruiting/v1/jobs
+    endpoint_variant: rmk_columnized
+    identity_regex: \bKinross\b
+    locale: en_US
+    allowed_apply_hosts:
+      - jobs.kinross.com
+    page_size: 10
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: https://jobs.kinross.com/search/
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-28T00:00:00+00:00'
+  - name: Parkland
+    platform: talentbrew
+    careers_url: https://www.parkland.ca/careers
+    listing_url: https://parkland-careers.ttcportals.com/search/parkland/jobs
+    endpoint_variant: search_results_data_job_id_v1
+    identity_regex: \bParkland\b
+    allowed_apply_hosts:
+      - parkland-careers.ttcportals.com
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: https://www.parkland.ca/careers
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-29T00:00:00+00:00'

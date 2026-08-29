@@ -362,7 +362,11 @@ class SharedSourceBulkActivationTests(unittest.TestCase):
         historical = historical_mapping_prefix()
         production = mapping_entries(rollout.PRODUCTION_MAPPINGS)
         deepmind = mapping_entries(rollout.VALIDATED_REGISTRY)[-1]
-        self.assertEqual(production, historical + [deepmind])
+        wandb = production[-1]
+        self.assertEqual(wandb["child_company"], "Weights & Biases")
+        self.assertEqual(wandb["parent_company"], "CoreWeave")
+        self.assertEqual(wandb["canonical_source"], "greenhouse:coreweave")
+        self.assertEqual(production, historical + [deepmind, wandb])
         children = [
             validator._name_key({"name": item["child_company"]})
             for item in production

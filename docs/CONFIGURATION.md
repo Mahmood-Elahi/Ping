@@ -32,6 +32,7 @@ Current platform keys:
 - `lever`
 - `ashby`
 - `workday`
+- `dayforce`
 - `amazon`
 - `shopify`
 - `google`
@@ -70,6 +71,27 @@ Workday:
   wd_subdomain: wd5
   site_id: external_experienced
 ```
+
+Dayforce:
+
+```yaml
+- name: WestJet
+  platform: dayforce
+  tenant: WestJet
+  site_id: CANDIDATEPORTAL
+  locale: en-CA
+  search_url: https://jobs.dayforcehcm.com/en-CA/WestJet/CANDIDATEPORTAL
+  endpoint_url: https://jobs.dayforcehcm.com/api/geo/WestJet/jobposting/search
+  endpoint_variant: nextjs_jobposting_search
+  allowed_apply_hosts: [jobs.dayforcehcm.com]
+  page_size: 25
+  max_pages: 2
+  max_jobs: 50
+```
+
+Dayforce uses an anonymous public board session: the adapter reads tenant and
+board identity from the server-rendered shell, obtains its public CSRF token,
+and then pages the JSON search endpoint in fixed 25-job increments.
 
 Custom source with search terms:
 

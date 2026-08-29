@@ -898,8 +898,8 @@ class CompanyCareersTests(unittest.TestCase):
 
         self.assertEqual(report.results[0].status, CoverageStatus.FAILED_TECHNICAL)
         self.assertIn("HTTP 404", report.results[0].error)
-        self.assertEqual(report.results[0].error_type, "adapter_error")
-        self.assertIn("adapter endpoint", report.results[0].remediation)
+        self.assertEqual(report.results[0].error_type, "stale_company_configuration")
+        self.assertIn("current official career board", report.results[0].remediation)
 
     def test_scanner_reports_not_implemented_with_remediation(self):
         target = CompanyTarget(name="UnknownCo", platform="unknown_platform")

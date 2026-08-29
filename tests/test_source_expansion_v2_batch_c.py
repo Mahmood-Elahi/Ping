@@ -7,6 +7,10 @@ import json
 import subprocess
 import tempfile
 import unittest
+
+from tests.company_careers_activation_milestones import (
+    historical_parent_mapping_sha256,
+)
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -184,10 +188,10 @@ class SourceExpansionV2BatchCArtifactTests(unittest.TestCase):
             self.report["production_registry_sha256"],
         )
         self.assertEqual(
-            hashlib.sha256(batch.PARENT_MAPPINGS.read_bytes()).hexdigest().upper(),
+            historical_parent_mapping_sha256(batch.PARENT_MAPPINGS),
             self.report["parent_mappings_sha256"],
         )
-        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
+        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 5)
 
     def test_10_projection_uses_only_validated_sources(self):
         totals = self.report["totals"]

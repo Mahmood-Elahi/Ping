@@ -534,9 +534,12 @@ def _normalize(item: Mapping[str, Any], target: CompanyTarget, page_url: str) ->
         updated = _string(item.get("datePosted"))
         remote = _string(item.get("jobLocationType"))
     else:
-        title = _string(_field(item, target.title_field))
-        raw_url = _field(item, target.url_field)
-        external_id = _string(_field(item, target.id_field)) if target.id_field else ""
+        title = _string(_normalization_field(item, target, target.title_field))
+        raw_url = _normalization_field(item, target, target.url_field)
+        external_id = (
+            _string(_normalization_field(item, target, target.id_field))
+            if target.id_field else ""
+        )
         if target.location_fields:
             locations = _unique(
                 value
@@ -579,6 +582,31 @@ def _normalize(item: Mapping[str, Any], target: CompanyTarget, page_url: str) ->
 
 def _field(item: Mapping[str, Any], path: Optional[str]) -> Any:
     return json_path(item, str(path)) if path else None
+
+
+_NEXT_DATA_PRISMIC_ALIASES = {
+    "label": ("data.title",),
+    "link.url": ("url",),
+    "link.id": ("id",),
+}
+
+
+def _normalization_field(
+    item: Mapping[str, Any], target: CompanyTarget, path: Optional[str]
+) -> Any:
+    """Read reviewed Next.js/Prismic document fields across its two schemas."""
+    paths = [str(path)] if path else []
+    if target.endpoint_variant == "next_data":
+        paths.extend(_NEXT_DATA_PRISMIC_ALIASES.get(str(path), ()))
+    last_error: Optional[AdapterError] = None
+    for candidate in paths:
+        try:
+            return _field(item, candidate)
+        except AdapterError as exc:
+            last_error = exc
+    if last_error is not None:
+        raise last_error
+    return None
 
 
 def _json_ld_locations(value: Any) -> list[str]:

@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 import ast
+import copy
 import csv
 import hashlib
 import json
 import subprocess
 import unittest
+
+from tests.company_careers_activation_milestones import (
+    historical_parent_mapping_sha256,
+)
+from tests.company_careers_reliability_assertions import assert_historical_prefix
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -34,16 +40,15 @@ class AiMlExpansionV1BatchAArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_matches_validated_registry_exactly(self):
-        self.assertEqual(len(self.production), 437)
-        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
+        self.assertGreaterEqual(len(self.production), 452)
+        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 5)
         self.assertEqual(len(self.candidates), 437)
         self.assertEqual(self.candidates, self.validated)
-        self.assertEqual(self.production[:418], self.candidates[:418])
-        self.assertEqual(self.production, self.validated)
-        self.assertEqual(
-            self.production_bytes.replace(b"\r\n", b"\n"),
-            batch.VALIDATED_REGISTRY.read_bytes().replace(b"\r\n", b"\n"),
-        )
+        historical = copy.deepcopy(self.validated)
+        next(item for item in historical if item["name"] == "CoreWeave")[
+            "job_attribution_regex"
+        ] = "CoreWeave|Weights & Biases"
+        assert_historical_prefix(self, self.production, historical)
         self.assertFalse(self.report["production_registry_activated"])
         self.assertTrue(all(value is False for value in self.report["publication"].values()))
 
@@ -229,7 +234,7 @@ class AiMlExpansionV1BatchAArtifactTests(unittest.TestCase):
             self.report["production_registry_sha256"],
         )
         self.assertEqual(
-            hashlib.sha256(batch.PARENT_MAPPINGS.read_bytes()).hexdigest().upper(),
+            historical_parent_mapping_sha256(batch.PARENT_MAPPINGS),
             self.report["parent_mappings_sha256"],
         )
         self.assertEqual(self.report["safe_to_stage_files"], batch.SAFE_TO_STAGE_FILES)

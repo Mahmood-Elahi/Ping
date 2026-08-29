@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import hashlib
 import inspect
 import json
 import unittest
 from pathlib import Path
 
 import yaml
+
+from tests.company_careers_reliability_assertions import assert_historical_prefix
 
 from scripts import company_watchlist_common, investigate_remaining_companies, investigate_unknown_companies
 from scripts.refingerprint_uncovered_companies import load_master_workbook, reconcile_master
@@ -22,11 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 VALIDATION = ROOT / "config" / "company_careers_adapter_expansion_v1_batch_c_validation.yaml"
 VALIDATED = ROOT / "config" / "target_companies.company_careers_adapter_expansion_v1_batch_c_validated.yaml"
 PRODUCTION = ROOT / "config" / "target_companies.yaml"
-PRODUCTION_SHA256 = "C412092E54FBED85B886AE0071C3D97A552DD8FF7C1C7F2321C22A2EF36C2AB9"
-
-
-def normalized_newlines(content: bytes) -> bytes:
-    return content.replace(b"\r\n", b"\n")
+BASELINE_REGISTRY = ROOT / "config" / "target_companies.calgary_canada_expansion_v2_batch_a_validated.yaml"
 
 
 class Response:
@@ -40,6 +37,7 @@ class Response:
             "content-type": content_type
             or ("application/json" if isinstance(value, (dict, list)) else "text/html")
         }
+        self.history = []
 
     def json(self):
         if isinstance(self._value, (dict, list)):
@@ -235,6 +233,27 @@ def columnized_page(**response_overrides):
 
 
 class AdpAdapterTests(unittest.TestCase):
+    def test_workforce_now_classifies_exact_adp_maintenance_redirect_without_parsing_html(self):
+        response = Response(
+            "<html><title>We are sorry | ADP maintenance page</title></html>",
+            url="https://sorry.adp.com/maintenance/6a923d2c556ac/",
+        )
+        with self.assertRaisesRegex(AdapterError, "transient upstream maintenance redirect"):
+            adp.fetch_jobs(Session(gets=[response]), wfn_target())
+
+        error_type, _ = scanner.CompanyCareersScanner._adapter_failure_details(
+            "ADP Workforce Now career-center identity returned transient upstream maintenance redirect"
+        )
+        self.assertEqual(error_type, "transient_upstream_http")
+
+    def test_workforce_now_does_not_treat_arbitrary_html_as_maintenance(self):
+        response = Response(
+            "<html><title>Welcome</title></html>",
+            url="https://workforcenow.adp.com/mascsr/default/error.html",
+        )
+        with self.assertRaisesRegex(AdapterError, "was not valid JSON"):
+            adp.fetch_jobs(Session(gets=[response]), wfn_target())
+
     def test_scanner_isolates_anonymous_adp_sessions_between_targets(self):
         sessions = []
 
@@ -323,6 +342,29 @@ class AdpAdapterTests(unittest.TestCase):
                 wfn_target(),
             )
 
+    def test_workforce_now_accepts_exact_metadata_free_zero_inventory(self):
+        session = Session(gets=[
+            Response({"contentLinks": [{"contentBody": {"contentTitle": "Example Space"}}]}),
+            Response({"jobRequisitions": []}),
+        ])
+        self.assertEqual(adp.fetch_jobs(session, wfn_target()), [])
+        self.assertEqual(session.adp_pagination["total_available"], 0)
+        self.assertEqual(session.adp_pagination["stop_reason"], "total_jobs_reached")
+
+        for malformed in (
+            {"jobRequisitions": [wfn_item()]},
+            {"jobRequisitions": [], "unexpected": True},
+        ):
+            with self.subTest(payload=malformed), self.assertRaisesRegex(
+                AdapterError, "listing response is malformed"
+            ):
+                adp.fetch_jobs(
+                    Session(gets=[
+                        Response({"contentLinks": [{"contentBody": {"contentTitle": "Example Space"}}]}),
+                        Response(malformed),
+                    ]),
+                    wfn_target(),
+                )
     def test_myjobs_requires_exact_site_attribution_and_apply_action(self):
         session = Session(gets=[
             Response(myjobs_config()),
@@ -434,24 +476,19 @@ class BatchCValidationTests(unittest.TestCase):
         self.assertIs(scanner.ADAPTERS["hibob"], hibob.fetch_jobs)
         self.assertIs(scanner.ADAPTERS["sap_successfactors"], sap_successfactors.fetch_jobs)
 
-        production_bytes = PRODUCTION.read_bytes()
-        marker = b"  - name: Astrobotic"
-        baseline_bytes = production_bytes[:production_bytes.index(marker)]
-        self.assertEqual(
-            hashlib.sha256(normalized_newlines(baseline_bytes)).hexdigest().upper(),
-            PRODUCTION_SHA256,
-        )
-
-        production = yaml.safe_load(production_bytes)["target_companies"]
+        production = yaml.safe_load(PRODUCTION.read_bytes())["target_companies"]
         validated = yaml.safe_load(VALIDATED.read_text(encoding="utf-8"))["target_companies"]
+        baseline = yaml.safe_load(BASELINE_REGISTRY.read_bytes())["target_companies"]
+        self.assertEqual(len(baseline), 269)
+        assert_historical_prefix(self, production, baseline)
         promoted = ["Astrobotic", "Intuitive Machines", "FANUC", "Helcim", "CPKC"]
-        self.assertEqual(len(production), 437)
+        self.assertGreaterEqual(len(production), len(validated))
         self.assertEqual(production[269:274], validated)
         self.assertEqual([row["name"] for row in production[269:274]], promoted)
         names = [row["name"] for row in production]
         for name in promoted:
             self.assertEqual(names.count(name), 1)
-        self.assertEqual(len(load_parent_source_mappings()), 4)
+        self.assertEqual(len(load_parent_source_mappings()), 5)
 
         fanuc = production[271]
         self.assertEqual(fanuc["name"], "FANUC")
@@ -463,7 +500,7 @@ class BatchCValidationTests(unittest.TestCase):
             load_target_companies(str(PRODUCTION)),
             load_parent_source_mappings(),
         )
-        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 208)
+        self.assertGreaterEqual(len(master.canonical_names) + len(master.mapped_names), 208)
         self.assertEqual(master.total, 246)
 
         # The validation artifact remains immutable milestone evidence.

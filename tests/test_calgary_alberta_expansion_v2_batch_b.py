@@ -7,6 +7,10 @@ import json
 import subprocess
 import tempfile
 import unittest
+
+from tests.company_careers_activation_milestones import (
+    historical_parent_mapping_sha256,
+)
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -72,8 +76,8 @@ class CalgaryAlbertaExpansionV2BatchBArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_exact_298_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 437)
-        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
+        self.assertGreaterEqual(len(self.production), 452)
+        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 5)
         self.assertEqual(len(self.historical), 298)
         self.assertEqual(len(self.candidates), 302)
         self.assertEqual(len(self.validated), 302)
@@ -94,11 +98,16 @@ class CalgaryAlbertaExpansionV2BatchBArtifactTests(unittest.TestCase):
             ["Enerflex", "Symend", "Circle Cardiovascular Imaging", "ATB Financial"],
         )
         production_names = [item["name"] for item in self.production]
-        self.assertTrue((EXCLUDED - {"Carbon Upcycling"}).isdisjoint(production_names))
+        historical_production_names = production_names[:302]
+        self.assertTrue(
+            (EXCLUDED - {"Carbon Upcycling"}).isdisjoint(
+                historical_production_names
+            )
+        )
         self.assertEqual(production_names.count("Carbon Upcycling"), 1)
         for name in VALIDATED:
             self.assertEqual(production_names.count(name), 1)
-        self.assertEqual(len({name.casefold() for name in production_names}), 437)
+        self.assertEqual(len({name.casefold() for name in production_names}), len(production_names))
 
     def test_03_report_and_inventory_cover_the_exact_requested_order(self):
         self.assertEqual([row["company"] for row in self.inventory], batch.REVIEWED_COMPANIES)
@@ -256,7 +265,7 @@ class CalgaryAlbertaExpansionV2BatchBArtifactTests(unittest.TestCase):
             load_target_companies(str(batch.PRODUCTION)),
             load_parent_source_mappings(batch.PARENT_MAPPINGS),
         )
-        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 208)
+        self.assertGreaterEqual(len(master.canonical_names) + len(master.mapped_names), 208)
         self.assertTrue(all(not item["original_246_master"] for item in self.report["results"]))
         totals = self.report["totals"]
         self.assertEqual((totals["production_sources"], totals["parent_mappings"]), (298, 4))
@@ -286,7 +295,7 @@ class CalgaryAlbertaExpansionV2BatchBArtifactTests(unittest.TestCase):
             self.report["production_registry_sha256"],
         )
         self.assertEqual(
-            hashlib.sha256(batch.PARENT_MAPPINGS.read_bytes()).hexdigest().upper(),
+            historical_parent_mapping_sha256(batch.PARENT_MAPPINGS),
             self.report["parent_mappings_sha256"],
         )
         ignored = subprocess.run(

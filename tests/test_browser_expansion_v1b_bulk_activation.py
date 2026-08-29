@@ -8,6 +8,10 @@ import json
 import subprocess
 import tempfile
 import unittest
+
+from tests.company_careers_activation_milestones import (
+    historical_parent_mapping_sha256,
+)
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -17,6 +21,7 @@ import yaml
 from tests.company_careers_reliability_assertions import (
     assert_historical_prefix,
     assert_historical_registry_bytes,
+    with_reliability_repairs,
 )
 
 from scripts import validate_browser_expansion_v1b as batch
@@ -147,17 +152,18 @@ class BrowserExpansionV1BArtifactTests(unittest.TestCase):
             self.report["production_registry_sha256"],
         )
         self.assertEqual(
-            hashlib.sha256(batch.PARENT_MAPPINGS.read_bytes()).hexdigest().upper(),
+            historical_parent_mapping_sha256(batch.PARENT_MAPPINGS),
             self.report["parent_mappings_sha256"],
         )
-        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
+        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 5)
         expected_promotions = ["Tourmaline Oil", "MDA Space", "JD.com", "Patreon"]
         validated_promotions = self.validated[156:]
         self.assertEqual([entry["name"] for entry in validated_promotions], expected_promotions)
-        self.assertEqual(self.production[156:160], validated_promotions)
+        repaired_promotions = with_reliability_repairs(validated_promotions)
+        self.assertEqual(self.production[156:160], repaired_promotions)
         for validated_entry in validated_promotions:
             matches = [entry for entry in self.production if entry["name"] == validated_entry["name"]]
-            self.assertEqual(matches, [validated_entry])
+            self.assertEqual(matches, with_reliability_repairs([validated_entry]))
         production_names = [entry["name"] for entry in self.production]
         self.assertNotIn("Walmart Global Tech", production_names)
         for name in ("Astrobotic", "Intuitive Machines"):

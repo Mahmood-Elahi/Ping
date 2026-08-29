@@ -7,6 +7,10 @@ import json
 import subprocess
 import tempfile
 import unittest
+
+from tests.company_careers_activation_milestones import (
+    historical_parent_mapping_sha256,
+)
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -55,8 +59,8 @@ class RequestedExpansionV3BatchBArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_exact_207_entry_production_prefix_is_preserved(self):
-        self.assertEqual(len(self.production), 437)
-        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
+        self.assertGreaterEqual(len(self.production), 452)
+        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 5)
         assert_historical_prefix(self, self.production, self.validated)
         self.assertEqual(self.production[:216], with_reliability_repairs(self.validated))
         self.assertEqual(self.production[:216], with_reliability_repairs(self.candidates))
@@ -153,7 +157,7 @@ class RequestedExpansionV3BatchBArtifactTests(unittest.TestCase):
         )
         requested = {row["company"] for row in master.rows}.intersection(batch.REVIEWED_COMPANIES)
         self.assertEqual(requested, set())
-        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 208)
+        self.assertGreaterEqual(len(master.canonical_names) + len(master.mapped_names), 208)
         totals = self.report["totals"]
         self.assertEqual(totals["candidate_sources"], 9)
         self.assertEqual(totals["validated"], 9)
@@ -217,7 +221,7 @@ class RequestedExpansionV3BatchBArtifactTests(unittest.TestCase):
             self.report["production_registry_sha256"],
         )
         self.assertEqual(
-            hashlib.sha256(batch.PARENT_MAPPINGS.read_bytes()).hexdigest().upper(),
+            historical_parent_mapping_sha256(batch.PARENT_MAPPINGS),
             self.report["parent_mappings_sha256"],
         )
         ignored = subprocess.run(

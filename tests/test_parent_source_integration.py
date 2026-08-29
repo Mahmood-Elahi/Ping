@@ -90,12 +90,15 @@ class ParentSourceConfigurationTests(unittest.TestCase):
     def setUp(self):
         self.mappings = load_parent_source_mappings(MAPPINGS_PATH)
 
-    def test_01_exactly_four_enabled_mappings(self):
-        self.assertEqual(len(self.mappings), 4)
+    def test_01_exactly_five_enabled_mappings(self):
+        self.assertEqual(len(self.mappings), 5)
         self.assertTrue(all(item.enabled for item in self.mappings))
         self.assertEqual(
             [item.child_company for item in self.mappings],
-            ["Google DeepMind", "Instagram", "Universal Robots", "WhatsApp"],
+            [
+                "Google DeepMind", "Instagram", "Universal Robots",
+                "Weights & Biases", "WhatsApp",
+            ],
         )
 
     def test_02_loader_remains_compatible_with_reviewed_legacy_schema(self):
@@ -574,6 +577,7 @@ class ParentSourceSheetsAndRegistryTests(unittest.TestCase):
                     "Teradyne",
                     "sap_successfactors:jobs.teradyne.com",
                 ),
+                "Weights & Biases": ("CoreWeave", "greenhouse:coreweave"),
             },
         )
         self.assertTrue(all(mapping.enabled for mapping in mappings))
@@ -600,7 +604,7 @@ class ParentSourceValidationIsolationTests(unittest.TestCase):
         historical_mappings = [
             item
             for item in load_parent_source_mappings(MAPPINGS_PATH)
-            if item.child_company != "Google DeepMind"
+            if item.child_company not in {"Google DeepMind", "Weights & Biases"}
         ]
         meta_jobs = [job(job_id=f"meta-{index}", departments=["Instagram"]) for index in range(25)]
         teradyne_jobs = [

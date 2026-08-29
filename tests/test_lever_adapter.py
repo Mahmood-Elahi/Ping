@@ -142,11 +142,45 @@ class LeverAdapterTests(unittest.TestCase):
         job = lever.fetch_jobs(Session(Response([posting()])), target(endpoint_variant=None, allowed_apply_hosts=[]))[0]
         self.assertEqual(job.source, "lever:example")
 
-    def test_15_no_company_specific_or_browser_logic(self):
+    def test_15_server_side_limit_and_department_filter_bound_large_boards(self):
+        session = Session(Response([posting()]))
+        lever.fetch_jobs(
+            session,
+            target(max_jobs=7, department_allowlist=["Match Group", "Corporate"]),
+        )
+
+        self.assertEqual(
+            session.calls[0][0],
+            "https://api.lever.co/v0/postings/example?mode=json&limit=7&"
+            "department=Match+Group&department=Corporate",
+        )
+        self.assertEqual(session.lever_pagination["server_result_limit"], 7)
+
+    def test_16_no_company_specific_or_browser_logic(self):
         import inspect
         source = inspect.getsource(lever).casefold()
         for forbidden in ("match group", "zoox", "playwright", "selenium", "eval(", "exec("):
             self.assertNotIn(forbidden, source)
+
+    def test_17_explicit_eu_api_endpoint_is_bounded_and_region_matched(self):
+        session = Session(Response([]))
+        eu_target = target(
+            slug="mobileye",
+            endpoint_url="https://api.eu.lever.co/v0/postings/mobileye",
+            allowed_apply_hosts=["jobs.eu.lever.co"],
+        )
+        self.assertEqual(lever.fetch_jobs(session, eu_target), [])
+        self.assertEqual(
+            session.calls[0][0],
+            "https://api.eu.lever.co/v0/postings/mobileye?mode=json&limit=20",
+        )
+        with self.assertRaisesRegex(AdapterError, "region"):
+            lever.validate_target(
+                target(
+                    endpoint_url="https://api.eu.lever.co/v0/postings/example",
+                    allowed_apply_hosts=["jobs.lever.co"],
+                )
+            )
 
 
 if __name__ == "__main__":

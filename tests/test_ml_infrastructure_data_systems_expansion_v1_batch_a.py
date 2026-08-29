@@ -11,6 +11,8 @@ from urllib.parse import urlparse
 
 import yaml
 
+from tests.company_careers_reliability_assertions import assert_historical_prefix
+
 from scripts import validate_company_registry as registry_validator
 from scripts import validate_ml_infrastructure_data_systems_expansion_v1_batch_a as batch
 from src.scraper.company_careers.models import CompanyTarget
@@ -32,11 +34,18 @@ class MlInfrastructureDataSystemsExpansionV1BatchAArtifactTests(unittest.TestCas
         with batch.CANDIDATE_CSV.open(newline="", encoding="utf-8") as handle:
             cls.inventory = list(csv.DictReader(handle))
 
-    def test_01_isolated_artifacts_preserve_production_baseline(self):
-        self.assertEqual(len(self.production), 437)
-        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
+    def test_01_activation_matches_validated_artifacts_exactly(self):
+        self.assertGreaterEqual(len(self.production), len(self.validated))
+        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 5)
         self.assertEqual(len(self.candidates), 452)
         self.assertEqual(self.candidates, self.validated)
+        assert_historical_prefix(self, self.production, self.validated)
+        historical = entries(batch.VALIDATED_REGISTRY)
+        assert_historical_prefix(self, self.production, historical)
+        self.assertEqual(
+            load_parent_source_mappings(batch.PARENT_MAPPINGS),
+            load_parent_source_mappings(batch.VALIDATED_MAPPINGS),
+        )
         self.assertEqual(len(load_parent_source_mappings(batch.CANDIDATE_MAPPINGS)), 5)
         self.assertEqual(
             batch.CANDIDATE_MAPPINGS.read_bytes(),
@@ -65,7 +74,7 @@ class MlInfrastructureDataSystemsExpansionV1BatchAArtifactTests(unittest.TestCas
             [item["name"] for item in batch.CANDIDATE_ENTRIES],
         )
         existing_keys = {
-            key for item in self.production
+            key for item in self.production[:437]
             if (key := registry_validator.source_key(item)) is not None
         }
         keys = [registry_validator.source_key(item) for item in additions]
@@ -199,12 +208,21 @@ class MlInfrastructureDataSystemsExpansionV1BatchAArtifactTests(unittest.TestCas
         self.assertTrue(all(not row["original_246_master"] for row in self.report["results"]))
 
     def test_11_hashes_ignore_and_safe_stage_manifest(self):
-        self.assertEqual(
-            hashlib.sha256(batch.PRODUCTION.read_bytes()).hexdigest().upper(),
-            self.report["production_registry_sha256"],
+        validated_bytes = batch.VALIDATED_REGISTRY.read_bytes()
+        marker = b"  - name: Anyscale\r\n"
+        historical_bytes = validated_bytes[:validated_bytes.index(marker)].replace(
+            b"    job_attribution_regex: CoreWeave|Weights & Biases\n",
+            b"    job_attribution_regex: CoreWeave\n",
         )
         self.assertEqual(
-            hashlib.sha256(batch.PARENT_MAPPINGS.read_bytes()).hexdigest().upper(),
+            hashlib.sha256(historical_bytes).hexdigest().upper(),
+            self.report["production_registry_sha256"],
+        )
+        mapping_bytes = batch.PARENT_MAPPINGS.read_bytes().replace(b"\r\n", b"\n")
+        mapping_marker = b"  - child_company: Weights & Biases\n"
+        historical_mapping_bytes = mapping_bytes[:mapping_bytes.index(mapping_marker)]
+        self.assertEqual(
+            hashlib.sha256(historical_mapping_bytes).hexdigest().upper(),
             self.report["parent_mappings_sha256"],
         )
         self.assertEqual(self.report["safe_to_stage_files"], batch.SAFE_TO_STAGE_FILES)

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import inspect
 import json
 import unittest
@@ -8,6 +7,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import yaml
+
+from tests.company_careers_reliability_assertions import assert_historical_prefix
 
 from scripts import company_watchlist_common
 from scripts import investigate_remaining_companies
@@ -23,11 +24,7 @@ from src.scraper.company_careers.registry import load_target_companies
 ROOT = Path(__file__).resolve().parents[1]
 VALIDATION = ROOT / "config" / "company_careers_adapter_expansion_v1_batch_b_validation.yaml"
 PRODUCTION = ROOT / "config" / "target_companies.yaml"
-BASELINE_PRODUCTION_SHA256 = "7C9603FEF06D6D1D2C9AFEFFEA25169E60D98E43DC6B502EB588392F4B559243"
-
-
-def normalized_newlines(content: bytes) -> bytes:
-    return content.replace(b"\r\n", b"\n")
+BASELINE_REGISTRY = ROOT / "config" / "target_companies.requested_expansion_v3_batch_f_validated.yaml"
 
 
 class Response:
@@ -398,22 +395,18 @@ class BatchBRecoveryValidationTests(unittest.TestCase):
         self.assertFalse(self.data["production_registry_activated"])
         self.assertTrue(all(value is False for value in self.data["publication"].values()))
 
-        production_bytes = PRODUCTION.read_bytes()
-        marker = b"  - name: Bosch"
-        baseline_bytes = production_bytes[:production_bytes.index(marker)]
-        self.assertEqual(
-            hashlib.sha256(normalized_newlines(baseline_bytes)).hexdigest().upper(),
-            BASELINE_PRODUCTION_SHA256,
-        )
-
-        production_data = yaml.safe_load(production_bytes)["target_companies"]
+        production_data = yaml.safe_load(PRODUCTION.read_bytes())["target_companies"]
         baseline_count = self.data["baseline"]["production_sources"]
+        baseline = yaml.safe_load(BASELINE_REGISTRY.read_bytes())["target_companies"]
+        self.assertEqual(len(baseline), baseline_count)
+        assert_historical_prefix(self, production_data, baseline)
         projection_count = self.data["projection"]["production_sources"]
         promoted = ["Bosch", "Aptiv"]
-        self.assertEqual(len(production_data), 437)
+        self.assertGreaterEqual(len(production_data), projection_count)
         self.assertEqual([row["name"] for row in production_data[baseline_count:projection_count]], promoted)
         self.assertEqual(
-            len(load_parent_source_mappings()), self.data["baseline"]["parent_mappings"]
+            len(load_parent_source_mappings()),
+            self.data["baseline"]["parent_mappings"] + 1,
         )
 
         runtime_fields = {

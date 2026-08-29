@@ -11,7 +11,7 @@ __________       .__        __________             .___
 
 Target-company job discovery with source coverage.
 
-RoleRadar scans LinkedIn and company career systems such as Greenhouse, Ashby, Workday, Lever, Amazon Jobs, Google Careers, Meta Careers, Atlassian, Uber, Shopify, and other custom career pages. It normalizes postings, ranks relevant roles, and writes transparent coverage reports so you can see matches, gaps, and failed sources.
+RoleRadar scans LinkedIn and company career systems such as Greenhouse, Ashby, Workday, Lever, Dayforce, Amazon Jobs, Google Careers, Meta Careers, Atlassian, Uber, Shopify, and other custom career pages. It normalizes postings, ranks relevant roles, and writes transparent coverage reports so you can see matches, gaps, and failed sources.
 
 Most job-search workflows depend on LinkedIn alone or hide source failures. RoleRadar is built for targeted searches: define companies, run scans, review ranked jobs, and inspect source coverage without guessing what was missed.
 
@@ -165,6 +165,7 @@ RoleRadar currently includes adapters for:
 - LinkedIn through Playwright
 - Greenhouse
 - Lever
+- Dayforce
 - Ashby
 - Workday
 - Amazon Jobs

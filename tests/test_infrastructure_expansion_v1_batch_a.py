@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 import ast
+import copy
 import csv
 import hashlib
 import json
 import subprocess
 import unittest
+
+from tests.company_careers_activation_milestones import (
+    historical_parent_mapping_sha256,
+)
+from tests.company_careers_reliability_assertions import assert_historical_prefix
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -34,18 +40,16 @@ class InfrastructureExpansionV1BatchAArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_validated_registry_as_exact_prefix(self):
-        self.assertEqual(len(self.production), 437)
-        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
-        self.assertEqual(self.production[:401], self.validated[:401])
+        self.assertGreaterEqual(len(self.production), 452)
+        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 5)
+        assert_historical_prefix(self, self.production, self.validated[:401])
         self.assertEqual(self.candidates, self.validated)
         self.assertEqual(len(self.candidates), 418)
-        self.assertEqual(self.production[:418], self.validated)
-        marker = b"  - name: Together AI"
-        production_prefix = self.production_bytes[:self.production_bytes.index(marker)]
-        self.assertEqual(
-            production_prefix.replace(b"\r\n", b"\n"),
-            batch.VALIDATED_REGISTRY.read_bytes().replace(b"\r\n", b"\n"),
-        )
+        historical = copy.deepcopy(self.validated)
+        next(item for item in historical if item["name"] == "CoreWeave")[
+            "job_attribution_regex"
+        ] = "CoreWeave|Weights & Biases"
+        assert_historical_prefix(self, self.production, historical)
         self.assertFalse(self.report["production_registry_activated"])
         self.assertTrue(all(value is False for value in self.report["publication"].values()))
 
@@ -155,7 +159,7 @@ class InfrastructureExpansionV1BatchAArtifactTests(unittest.TestCase):
         self.assertTrue(akamai["endpoint_url"].endswith("recruitingCEJobRequisitions"))
 
     def test_09_projection_and_original_master_coverage(self):
-        self.assertEqual(len(load_target_companies(str(batch.PRODUCTION))), 437)
+        self.assertGreaterEqual(len(load_target_companies(str(batch.PRODUCTION))), 452)
         self.assertEqual(self.report["projection"], {
             "production_sources": 418,
             "source_delta": 17,
@@ -175,7 +179,7 @@ class InfrastructureExpansionV1BatchAArtifactTests(unittest.TestCase):
             self.report["production_registry_sha256"],
         )
         self.assertEqual(
-            hashlib.sha256(batch.PARENT_MAPPINGS.read_bytes()).hexdigest().upper(),
+            historical_parent_mapping_sha256(batch.PARENT_MAPPINGS),
             self.report["parent_mappings_sha256"],
         )
         self.assertEqual(self.report["safe_to_stage_files"], batch.SAFE_TO_STAGE_FILES)

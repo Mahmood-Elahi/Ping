@@ -7,6 +7,10 @@ import json
 import subprocess
 import tempfile
 import unittest
+
+from tests.company_careers_activation_milestones import (
+    historical_parent_mapping_sha256,
+)
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -70,8 +74,8 @@ class RequestedExpansionV3BatchFArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_exact_249_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 437)
-        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
+        self.assertGreaterEqual(len(self.production), 452)
+        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 5)
         self.assertEqual(len(self.historical), 249)
         assert_historical_prefix(self, self.production, self.historical)
         self.assertEqual(self.candidates[:249], self.historical)
@@ -147,7 +151,7 @@ class RequestedExpansionV3BatchFArtifactTests(unittest.TestCase):
             load_master_workbook(batch.MASTER_WORKBOOK), load_target_companies(str(batch.PRODUCTION)),
             load_parent_source_mappings(batch.PARENT_MAPPINGS),
         )
-        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 208)
+        self.assertGreaterEqual(len(master.canonical_names) + len(master.mapped_names), 208)
         self.assertEqual({item["company"] for item in self.report["results"] if item["original_246_master"]}, set(batch.MASTER_RANKS))
         self.assertTrue(all(not next(item for item in self.report["results"] if item["company"] == name)["original_246_master"] for name in VALIDATED))
         totals = self.report["totals"]
@@ -194,7 +198,7 @@ class RequestedExpansionV3BatchFArtifactTests(unittest.TestCase):
 
     def test_10_hash_ignore_and_publication_state(self):
         self.assertEqual(hashlib.sha256(self.historical_bytes).hexdigest().upper(), self.report["production_registry_sha256"])
-        self.assertEqual(hashlib.sha256(batch.PARENT_MAPPINGS.read_bytes()).hexdigest().upper(), self.report["parent_mappings_sha256"])
+        self.assertEqual(historical_parent_mapping_sha256(batch.PARENT_MAPPINGS), self.report["parent_mappings_sha256"])
         ignored = subprocess.run(
             ["git", "check-ignore", str(batch.REPORT.relative_to(batch.ROOT))], cwd=batch.ROOT,
             capture_output=True, text=True, check=False,

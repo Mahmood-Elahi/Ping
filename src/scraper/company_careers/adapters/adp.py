@@ -263,13 +263,20 @@ def _fetch_myjobs(session: requests.Session, target: CompanyTarget, timeout: int
 
 
 def _wfn_listing(payload: Any, offset: int, page_size: int) -> tuple[list[Mapping[str, Any]], int]:
-    if not isinstance(payload, Mapping) or not isinstance(payload.get("jobRequisitions"), list) or not isinstance(payload.get("meta"), Mapping):
+    if not isinstance(payload, Mapping) or not isinstance(payload.get("jobRequisitions"), list):
+        raise AdapterError("ADP Workforce Now listing response is malformed")
+    rows = payload["jobRequisitions"]
+    # Workforce Now omits ``meta`` for the exact zero-inventory response used
+    # by some public tenants.  Accept only the unambiguous first-page envelope;
+    # non-empty or later pages still require the normal total/offset metadata.
+    if not isinstance(payload.get("meta"), Mapping):
+        if offset == 0 and not rows and set(payload) == {"jobRequisitions"}:
+            return [], 0
         raise AdapterError("ADP Workforce Now listing response is malformed")
     meta = payload["meta"]
     total = _nonnegative_int(meta.get("totalNumber"), "ADP Workforce Now totalNumber")
     if meta.get("startSequence") != offset:
         raise AdapterError("ADP Workforce Now startSequence did not match the requested offset")
-    rows = payload["jobRequisitions"]
     if len(rows) > page_size or any(not isinstance(row, Mapping) for row in rows):
         raise AdapterError("ADP Workforce Now page exceeded its bound or contained a malformed row")
     return rows, total
@@ -351,6 +358,19 @@ def _normalize_myjobs(row: Mapping[str, Any], target: CompanyTarget) -> JobRecor
 
 def _get_json(session: requests.Session, url: str, label: str, timeout: int, **kwargs: Any) -> Any:
     response = session.get(url, timeout=timeout, **kwargs)
+    # Legacy Workforce Now tenants can be redirected by ADP's edge to a
+    # branded maintenance page that deliberately returns HTTP 200.  This is
+    # neither a career-center configuration variant nor malformed tenant JSON;
+    # identify only the exact observed ADP-owned maintenance contract so the
+    # scanner can report a transient upstream failure without accepting HTML.
+    requested_host = (urlparse(url).hostname or "").casefold()
+    resolved = urlparse(str(getattr(response, "url", "") or ""))
+    if (
+        requested_host.endswith(".adp.com")
+        and (resolved.hostname or "").casefold() == "sorry.adp.com"
+        and re.fullmatch(r"/maintenance/[A-Za-z0-9]+/?", resolved.path)
+    ):
+        raise AdapterError(f"ADP {label} returned transient upstream maintenance redirect")
     if response.status_code != 200:
         raise AdapterError(f"ADP {label} returned HTTP {response.status_code}")
     content = bytes(getattr(response, "content", b"") or b"")

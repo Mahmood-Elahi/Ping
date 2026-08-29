@@ -293,7 +293,7 @@ class TSMCSourceRecoveryTests(unittest.TestCase):
     def test_36_parent_mappings_remain_unchanged(self):
         data = yaml.safe_load(recovery.PARENT_MAPPINGS.read_text(encoding="utf-8"))
         enabled = [row for row in data["company_parent_source_mappings"] if row["enabled"]]
-        self.assertEqual(len(enabled), 4)
+        self.assertEqual(len(enabled), 5)
 
     def test_37_no_supabase_initialization(self):
         self._assert_no_import("supabase")

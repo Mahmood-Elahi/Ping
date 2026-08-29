@@ -8,6 +8,10 @@ import json
 import subprocess
 import tempfile
 import unittest
+
+from tests.company_careers_activation_milestones import (
+    historical_parent_mapping_sha256,
+)
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -137,8 +141,8 @@ class BrowserExpansionV1AArtifactTests(unittest.TestCase):
 
     def test_09_production_and_parent_mappings_are_unchanged(self):
         self.assertEqual(hashlib.sha256(self.historical_bytes).hexdigest().upper(), self.report["production_registry_sha256"])
-        self.assertEqual(hashlib.sha256(batch.PARENT_MAPPINGS.read_bytes()).hexdigest().upper(), self.report["parent_mappings_sha256"])
-        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
+        self.assertEqual(historical_parent_mapping_sha256(batch.PARENT_MAPPINGS), self.report["parent_mappings_sha256"])
+        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 5)
 
         expected_promotions = [
             "SpaceX",

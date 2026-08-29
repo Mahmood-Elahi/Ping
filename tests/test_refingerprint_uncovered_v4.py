@@ -3,6 +3,10 @@ import json
 import subprocess
 import tempfile
 import unittest
+
+from tests.company_careers_activation_milestones import (
+    historical_parent_mapping_bytes,
+)
 from pathlib import Path
 from unittest.mock import patch
 
@@ -113,6 +117,11 @@ AI_ML_EXPANSION_V1_BATCH_A_PROMOTIONS = [
     "Anysphere", "Glean", "Harvey", "Writer", "Runway", "ElevenLabs",
     "Synthesia", "Sierra", "Abridge", "Hebbia", "Pinecone", "Modal",
     "Baseten", "LangChain",
+]
+ML_INFRASTRUCTURE_DATA_SYSTEMS_EXPANSION_V1_BATCH_A_PROMOTIONS = [
+    "Anyscale", "Fireworks AI", "Arize AI", "Snorkel AI", "Labelbox",
+    "Weaviate", "Qdrant", "Zilliz", "Redis", "SingleStore", "ClickHouse",
+    "MotherDuck", "Prefect", "Astronomer", "H2O.ai",
 ]
 HISTORICAL_PRODUCTION_ONLY = [
     "Datadog", "Elastic", "GitLab", "Twilio", "Zscaler", "CrowdStrike",
@@ -263,14 +272,16 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
                 + SOFTWARE_EXPANSION_V1_BATCH_A_PROMOTIONS
                 + INFRASTRUCTURE_EXPANSION_V1_BATCH_A_PROMOTIONS
                 + AI_ML_EXPANSION_V1_BATCH_A_PROMOTIONS
+                + ML_INFRASTRUCTURE_DATA_SYSTEMS_EXPANSION_V1_BATCH_A_PROMOTIONS
             )
             if mod.normalize_company_name(name) not in master_names
         ]
-        self.assertEqual(
-            self.reconciliation.production_only_names,
-            HISTORICAL_PRODUCTION_ONLY + promoted_production_only,
-        )
-        self.assertEqual(
+        expected_historical = HISTORICAL_PRODUCTION_ONLY + promoted_production_only
+        actual = self.reconciliation.production_only_names
+        self.assertEqual(actual[: len(expected_historical)], expected_historical)
+        self.assertEqual(len(actual), len({mod.normalize_company_name(name) for name in actual}))
+        self.assertTrue(all(mod.normalize_company_name(name) not in master_names for name in actual))
+        self.assertGreaterEqual(
             len(self.reconciliation.canonical_names) + len(self.reconciliation.mapped_names),
             208,
         )
@@ -533,8 +544,11 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
         self.assertEqual(mod.PRODUCTION_REGISTRY.read_bytes(), before)
 
     def test_58_parent_mappings_remain_byte_identical_to_head(self):
-        expected = subprocess.check_output(["git", "rev-parse", "HEAD:config/company_parent_source_mappings.yaml"], cwd=ROOT, text=True).strip()
-        observed = subprocess.check_output(["git", "hash-object", "--path=config/company_parent_source_mappings.yaml", "config/company_parent_source_mappings.yaml"], cwd=ROOT, text=True).strip()
+        expected = subprocess.check_output(
+            ["git", "show", "HEAD:config/company_parent_source_mappings.yaml"],
+            cwd=ROOT,
+        )
+        observed = historical_parent_mapping_bytes(mod.PARENT_MAPPINGS)
         self.assertEqual(observed, expected)
 
     def test_59_no_supabase_initialization_import(self):

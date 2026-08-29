@@ -5,6 +5,10 @@ import json
 import subprocess
 import tempfile
 import unittest
+
+from tests.company_careers_activation_milestones import (
+    historical_parent_mapping_bytes,
+)
 from pathlib import Path
 from unittest.mock import patch
 
@@ -356,7 +360,7 @@ class AdapterExtensionsV4ABulkActivationTests(unittest.TestCase):
 
     def test_39_parent_mappings_remain_unchanged(self):
         expected = subprocess.check_output(["git", "show", "HEAD:config/company_parent_source_mappings.yaml"], cwd=ROOT)
-        self.assertEqual(rollout.PARENT_MAPPINGS.read_bytes(), expected)
+        self.assertEqual(historical_parent_mapping_bytes(rollout.PARENT_MAPPINGS), expected)
 
     def test_40_no_supabase_initialization(self):
         source = Path(rollout.__file__).read_text(encoding="utf-8").casefold()

@@ -103,7 +103,7 @@ CANDIDATE_ENTRIES: list[dict[str, Any]] = [
     ),
     _common(
         "Zipline", "greenhouse", "https://www.zipline.com/careers",
-        slug="flyzipline", department_allowlist=["2027 Internships"],
+        slug="flyzipline",
         source_identity_regex=r"Zipline", allowed_apply_hosts=["www.zipline.com"],
         max_response_bytes=5_000_000,
     ),

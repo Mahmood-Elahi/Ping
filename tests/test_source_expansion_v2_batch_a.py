@@ -8,13 +8,20 @@ import json
 import subprocess
 import tempfile
 import unittest
+
+from tests.company_careers_activation_milestones import (
+    historical_parent_mapping_sha256,
+)
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import yaml
 
-from tests.company_careers_reliability_assertions import assert_historical_prefix
+from tests.company_careers_reliability_assertions import (
+    assert_historical_prefix,
+    with_reliability_repairs,
+)
 
 from scripts import validate_source_expansion_v2_batch_a as batch
 from src.scraper.company_careers.adapters import browser_rendered_html
@@ -129,7 +136,10 @@ class SourceExpansionV2BatchAArtifactTests(unittest.TestCase):
         production_promotions = self.production[self.historical_count:promotion_end]
         self.assertEqual([entry["name"] for entry in validated_promotions], safe)
         self.assertEqual([entry["name"] for entry in validated_promotions], PROMOTED)
-        self.assertEqual(production_promotions, validated_promotions)
+        self.assertEqual(
+            production_promotions,
+            with_reliability_repairs(validated_promotions),
+        )
         self.assertEqual(len(self.validated), self.historical_count + len(safe))
         self.assertGreaterEqual(len(self.production), promotion_end)
         production_names = [entry["name"] for entry in self.production]
@@ -195,10 +205,10 @@ class SourceExpansionV2BatchAArtifactTests(unittest.TestCase):
             self.report["production_registry_sha256"],
         )
         self.assertEqual(
-            hashlib.sha256(batch.PARENT_MAPPINGS.read_bytes()).hexdigest().upper(),
+            historical_parent_mapping_sha256(batch.PARENT_MAPPINGS),
             self.report["parent_mappings_sha256"],
         )
-        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
+        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 5)
 
     def test_10_projection_uses_only_validated_sources(self):
         totals = self.report["totals"]

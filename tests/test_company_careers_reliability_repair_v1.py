@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import json
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -11,6 +12,7 @@ from src.scraper.company_careers.models import AdapterError, CompanyTarget, Cove
 from src.scraper.company_careers.parent_sources import load_parent_source_mappings
 from src.scraper.company_careers.registry import load_target_companies
 from src.scraper.company_careers.scanner import CompanyCareersScanner
+from src.utils.job_search_pipeline import JobSearchPipeline
 
 
 class Response:
@@ -79,6 +81,36 @@ class CompanyCareersReliabilityRepairV1Tests(unittest.TestCase):
         self.assertEqual(len(session.post_calls), 2)
         self.assertEqual(session.get_calls[0][0][0], meta.SEARCH_URL)
 
+    def test_meta_enforces_the_configured_cross_term_result_bound(self):
+        rows = [
+            {
+                "id": f"meta-{index}",
+                "title": f"Engineer {index}",
+                "locations": ["Remote, US"],
+            }
+            for index in range(25)
+        ]
+        payload = {
+            "data": {"job_search_with_featured_jobs": {"all_jobs": rows}}
+        }
+        session = Session(
+            gets=[Response(text=self.META_CONTEXT)],
+            posts=[Response(payload)],
+        )
+        target = CompanyTarget(
+            name="Meta",
+            platform="meta",
+            search_terms=["One", "Two"],
+            max_pages=3,
+            max_jobs=20,
+        )
+
+        with patch.object(meta.time, "sleep"):
+            jobs = meta.fetch_jobs(session, target)
+
+        self.assertEqual(len(jobs), 20)
+        self.assertEqual(len(session.post_calls), 1)
+
     def test_meta_non_json_html_fails_closed_without_retry(self):
         session = Session(
             gets=[Response(text=self.META_CONTEXT)],
@@ -117,7 +149,7 @@ class CompanyCareersReliabilityRepairV1Tests(unittest.TestCase):
 
         self.assertEqual(len(session.post_calls), meta.MAX_ATTEMPTS)
 
-    def test_meta_wrong_content_type_does_not_accept_valid_json(self):
+    def test_meta_accepts_structurally_valid_json_with_wrong_content_type(self):
         session = Session(
             gets=[Response(text=self.META_CONTEXT)],
             posts=[
@@ -131,8 +163,7 @@ class CompanyCareersReliabilityRepairV1Tests(unittest.TestCase):
             name="Meta", platform="meta", search_terms=["Engineer"], max_pages=1
         )
 
-        with self.assertRaisesRegex(AdapterError, "unexpected Content-Type"):
-            meta.fetch_jobs(session, target)
+        self.assertEqual(meta.fetch_jobs(session, target), [])
 
         self.assertEqual(len(session.post_calls), 1)
 
@@ -319,11 +350,74 @@ class CompanyCareersReliabilityRepairV1Tests(unittest.TestCase):
     def test_production_registry_contains_current_contracts_and_baselines(self):
         entries = load_target_companies(apply_reliability_repairs=True)
         by_name = {entry.name: entry for entry in entries}
-        self.assertEqual(len(entries), 437)
+        self.assertGreaterEqual(len(entries), 452)
         self.assertEqual(by_name["Lattice Semiconductor"].platform, "workday")
         self.assertEqual(by_name["Lattice Semiconductor"].site_id, "latticesemiconductorscareers")
         self.assertEqual(by_name["Dassault Systèmes"].platform, "exalead")
-        self.assertEqual(len(load_parent_source_mappings()), 4)
+        self.assertEqual(len(load_parent_source_mappings()), 5)
+
+    def test_production_reliability_overlay_uses_current_source_contracts(self):
+        by_name = {
+            entry.name: entry
+            for entry in load_target_companies(apply_reliability_repairs=True)
+        }
+        expected_platforms = {
+            "ASML": "browser_rendered_html",
+            "Tourmaline Oil": "javascript_embedded_data",
+            "Seagate": "sap_successfactors",
+            "Mobileye": "lever",
+            "Beckhoff Automation": "adp",
+            "Temporal": "static_html",
+            "Kinross Gold": "sap_successfactors",
+            "Parkland": "talentbrew",
+        }
+        self.assertEqual(
+            {name: by_name[name].platform for name in expected_platforms},
+            expected_platforms,
+        )
+        self.assertEqual(by_name["ASML"].title_selector, "h3.search-results-title-text")
+        self.assertEqual(by_name["Seagate"].endpoint_variant, "rmk_columnized")
+        self.assertEqual(by_name["Kinross Gold"].endpoint_variant, "rmk_columnized")
+        self.assertEqual(
+            by_name["Kinross Gold"].endpoint_url,
+            "https://jobs.kinross.com/services/recruiting/v1/jobs",
+        )
+        self.assertEqual(
+            by_name["Parkland"].listing_url,
+            "https://parkland-careers.ttcportals.com/search/parkland/jobs",
+        )
+        self.assertEqual(
+            by_name["Mobileye"].endpoint_url,
+            "https://api.eu.lever.co/v0/postings/mobileye",
+        )
+        self.assertEqual(
+            by_name["Temporal"].external_id_regex,
+            r"/careers/([0-9a-f]{8}-[0-9a-f-]{27,})$",
+        )
+
+    def test_adapter_error_reporting_distinguishes_actionable_failure_classes(self):
+        cases = {
+            "Workday HTTP 502 for Ciena": "transient_upstream_http",
+            "ADP identity returned transient upstream maintenance redirect": "transient_upstream_http",
+            "Static HTML blocked response (HTTP 403)": "external_access_blocked",
+            "Static HTML response exceeded byte limit": "response_size_safety_rejection",
+            "Browser-rendered timeout or wait selector failure": "browser_rendering_failure",
+            "detail requisition ID did not match the listing": "validation_identity_mismatch",
+            "unsupported ADP variant": "unsupported_ats_variant",
+            "listing response is malformed": "adapter_schema_mismatch",
+            "Greenhouse HTTP 404": "stale_company_configuration",
+        }
+        for message, expected in cases.items():
+            with self.subTest(message=message):
+                self.assertEqual(
+                    CompanyCareersScanner._adapter_failure_details(message)[0],
+                    expected,
+                )
+
+    def test_company_careers_summary_names_legacy_local_database_scope(self):
+        source = inspect.getsource(JobSearchPipeline._search_company_careers)
+        self.assertIn("Company careers legacy local-DB persistence", source)
+        self.assertNotIn('"  [SUMMARY] Company careers: "', source)
 
     def test_technical_failure_is_not_a_successful_zero_inventory(self):
         target = CompanyTarget(name="Meta", platform="repair_failure")

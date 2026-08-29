@@ -7,6 +7,10 @@ import json
 import subprocess
 import tempfile
 import unittest
+
+from tests.company_careers_activation_milestones import (
+    historical_parent_mapping_sha256,
+)
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -67,8 +71,8 @@ class CalgaryStudentEmployersBatchAArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_exact_production_prefix_and_counts(self):
-        self.assertEqual(len(self.production), 437)
-        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
+        self.assertGreaterEqual(len(self.production), 452)
+        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 5)
         self.assertEqual(len(self.historical), HISTORICAL_COUNT)
         self.assertEqual(
             (yaml.safe_load(self.candidate_prefix_bytes) or {})["target_companies"],
@@ -171,7 +175,7 @@ class CalgaryStudentEmployersBatchAArtifactTests(unittest.TestCase):
         )
         requested_master = {row["company"] for row in master.rows}.intersection(batch.REVIEWED_COMPANIES)
         self.assertEqual(requested_master, MASTER_MEMBERS)
-        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 208)
+        self.assertGreaterEqual(len(master.canonical_names) + len(master.mapped_names), 208)
         self.assertEqual(master.total, 246)
         totals = self.report["totals"]
         self.assertEqual(totals["additional_canonical_production_sources_projected"], 12)
@@ -217,7 +221,7 @@ class CalgaryStudentEmployersBatchAArtifactTests(unittest.TestCase):
     def test_13_production_and_mapping_hashes_match(self):
         self.assertEqual(hashlib.sha256(self.validated_prefix_bytes).hexdigest().upper(),
                          self.report["production_registry_sha256"])
-        self.assertEqual(hashlib.sha256(batch.PARENT_MAPPINGS.read_bytes()).hexdigest().upper(),
+        self.assertEqual(historical_parent_mapping_sha256(batch.PARENT_MAPPINGS),
                          self.report["parent_mappings_sha256"])
 
     def test_14_report_is_ignored_and_all_writes_are_disabled(self):

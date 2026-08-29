@@ -57,9 +57,10 @@ class FailingSessionFactory:
 
 
 class ColumnizedSession:
-    def __init__(self, payload, detail_html):
+    def __init__(self, payload, detail_html, *, identity="Bombardier"):
         self.payload = payload
         self.detail_html = detail_html
+        self.identity = identity
         self.post_calls = []
         self.get_calls = []
 
@@ -71,7 +72,7 @@ class ColumnizedSession:
         self.get_calls.append((url, kwargs))
         if url == "https://jobs.example.com/search/":
             return FakeResponse(
-                '<html>Bombardier BS3ColumnizedSearch j2w.searchManager '
+                f'<html>{self.identity} BS3ColumnizedSearch j2w.searchManager '
                 'var CSRFToken = "12345678-1234-1234-1234-123456789abc";</html>',
                 url=url,
             )
@@ -188,6 +189,42 @@ def tile_html(jobs, *, total=None, page_size=25):
 
 
 class SapSuccessFactorsTests(unittest.TestCase):
+    def test_kinross_current_columnized_contract_is_explicit_and_strict(self):
+        external_id = "47942"
+        detail_url = (
+            "https://jobs.example.com/job/Mobile-Maintenance-Mechanic/"
+            f"{external_id}-en_US"
+        )
+        payload = {
+            "totalJobs": 1,
+            "jobSearchResult": [{"response": {
+                "id": external_id,
+                "unifiedStandardTitle": "Mobile Maintenance Mechanic",
+                "unifiedUrlTitle": "Mobile-Maintenance-Mechanic",
+                "supportedLocales": ["en_US"],
+                "jobLocationShort": ["Round Mountain, NV, USA"],
+                "unifiedStandardStart": "3/18/25",
+            }}],
+        }
+        detail_html = f'''<!doctype html><html><head>
+          <link rel="canonical" href="{detail_url}">
+          <meta property="og:title" content="Mobile Maintenance Mechanic">
+        </head><body>Kinross<div>Req ID: {external_id}</div>
+          <script>j2w.Apply.init({{jobID: {external_id}}});</script></body></html>'''
+        job = sf.fetch_jobs(
+            ColumnizedSession(payload, detail_html, identity="Kinross"),
+            target(
+                sf.COLUMNIZED_VARIANT,
+                endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
+                locale="en_US",
+                identity_regex=r"\bKinross\b",
+                allowed_apply_hosts=["jobs.example.com"],
+                max_jobs=10,
+            ),
+        )[0]
+        self.assertEqual(job.raw_metadata["external_job_id"], external_id)
+        self.assertEqual(job.url, detail_url)
+
     def test_table_normalization_ids_apply_url_locations_date_department_description(self):
         session = FakeSession([FakeResponse(table_html([table_job()]))])
         jobs = sf.fetch_jobs(session, target())
@@ -253,6 +290,143 @@ class SapSuccessFactorsTests(unittest.TestCase):
         self.assertEqual(job.url, detail_url)
         self.assertNotIn("%252C", job.url)
         self.assertEqual(job.location, "Dorval, QC, CAN")
+
+    def test_columnized_nested_req_id_wrapper_preserves_exact_identity(self):
+        external_id = "106197"
+        detail_url = f"https://jobs.example.com/job/Manager-Public-Works/{external_id}-en_US"
+        payload = {
+            "totalJobs": 1,
+            "jobSearchResult": [{"response": {
+                "id": external_id,
+                "unifiedStandardTitle": "Manager Public Works",
+                "unifiedUrlTitle": "Manager-Public-Works",
+                "supportedLocales": ["en_US"],
+                "jobLocationShort": ["St. Paul, MN, USA"],
+                "unifiedStandardStart": "2026-08-28",
+            }}],
+        }
+        detail_html = f'''<!doctype html><html><head>
+          <link rel="canonical" href="{detail_url}">
+          <meta property="og:title" content="Manager Public Works">
+        </head><body>Bombardier<ul><li>Req ID: {external_id}
+          <ul><li>Req ID: {external_id}</li><li>Department: Engineering</li></ul>
+        </li></ul><script>j2w.Apply.init({{jobID: {external_id}}});</script></body></html>'''
+        job = sf.fetch_jobs(
+            ColumnizedSession(payload, detail_html),
+            target(
+                sf.COLUMNIZED_VARIANT,
+                endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
+                locale="en_US",
+                identity_regex=r"Bombardier",
+                allowed_apply_hosts=["jobs.example.com"],
+                max_jobs=10,
+            ),
+        )[0]
+        self.assertEqual(job.raw_metadata["external_job_id"], external_id)
+        self.assertEqual(job.url, detail_url)
+
+    def test_columnized_real_requisition_mismatch_is_still_rejected(self):
+        external_id = "12345"
+        detail_url = f"https://jobs.example.com/job/Engineer/{external_id}-en_US"
+        payload = {
+            "totalJobs": 1,
+            "jobSearchResult": [{"response": {
+                "id": external_id,
+                "unifiedStandardTitle": "Engineer",
+                "unifiedUrlTitle": "Engineer",
+                "supportedLocales": ["en_US"],
+                "jobLocationShort": ["Calgary, AB, CAN"],
+                "unifiedStandardStart": "2026-08-28",
+            }}],
+        }
+        detail_html = f'''<!doctype html><html><head>
+          <link rel="canonical" href="{detail_url}">
+          <meta property="og:title" content="Engineer">
+        </head><body>Bombardier<div>Requisition ID: 99999</div>
+          <script>j2w.Apply.init({{jobID: {external_id}}});</script></body></html>'''
+        with self.assertRaisesRegex(AdapterError, "requisition ID did not match"):
+            sf.fetch_jobs(
+                ColumnizedSession(payload, detail_html),
+                target(
+                    sf.COLUMNIZED_VARIANT,
+                    endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
+                    locale="en_US",
+                    identity_regex=r"Bombardier",
+                    allowed_apply_hosts=["jobs.example.com"],
+                    max_jobs=10,
+                ),
+            )
+
+    def test_columnized_missing_visible_requisition_field_uses_canonical_and_apply_ids(self):
+        external_id = "12807"
+        detail_url = f"https://jobs.example.com/job/Engineering-Specialist/{external_id}-en_US"
+        payload = {
+            "totalJobs": 1,
+            "jobSearchResult": [{"response": {
+                "id": external_id,
+                "unifiedStandardTitle": "Engineering Specialist",
+                "unifiedUrlTitle": "Engineering-Specialist",
+                "supportedLocales": ["en_US"],
+                "jobLocationShort": ["Longmont, CO, USA"],
+                "unifiedStandardStart": "2026-08-28",
+            }}],
+        }
+        detail_html = f'''<!doctype html><html><head>
+          <link rel="canonical" href="{detail_url}">
+          <meta property="og:title" content="Engineering Specialist">
+        </head><body>Seagate
+          <script>j2w.Apply.init({{jobID: {external_id}}});</script></body></html>'''
+        job = sf.fetch_jobs(
+            ColumnizedSession(payload, detail_html),
+            target(
+                sf.COLUMNIZED_VARIANT,
+                endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
+                locale="en_US",
+                identity_regex=r"Bombardier|Seagate",
+                allowed_apply_hosts=["jobs.example.com"],
+                max_jobs=10,
+            ),
+        )[0]
+        self.assertEqual(job.raw_metadata["external_job_id"], external_id)
+
+    def test_columnized_identical_duplicate_is_skipped_but_conflict_is_rejected(self):
+        row = {
+            "id": "15004",
+            "unifiedStandardTitle": "Engineer",
+            "unifiedUrlTitle": "Engineer",
+            "supportedLocales": ["en_US"],
+            "jobLocationShort": ["Montreal, QC, CAN"],
+            "unifiedStandardStart": "2026-08-28",
+        }
+        detail_url = "https://jobs.example.com/job/Engineer/15004-en_US"
+        detail_html = f'''<!doctype html><html><head>
+          <link rel="canonical" href="{detail_url}">
+          <meta property="og:title" content="Engineer">
+        </head><body>Bombardier<div>Requisition ID: 15004</div>
+          <script>j2w.Apply.init({{jobID: 15004}});</script></body></html>'''
+        duplicate_payload = {
+            "totalJobs": 2,
+            "jobSearchResult": [{"response": dict(row)}, {"response": dict(row)}],
+        }
+        columnized_target = target(
+            sf.COLUMNIZED_VARIANT,
+            endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
+            locale="en_US",
+            identity_regex=r"Bombardier",
+            allowed_apply_hosts=["jobs.example.com"],
+            max_jobs=10,
+        )
+        jobs = sf.fetch_jobs(ColumnizedSession(duplicate_payload, detail_html), columnized_target)
+        self.assertEqual([job.raw_metadata["external_job_id"] for job in jobs], ["15004"])
+
+        conflicting = dict(row)
+        conflicting["unifiedStandardTitle"] = "Different Engineer"
+        conflict_payload = {
+            "totalJobs": 2,
+            "jobSearchResult": [{"response": dict(row)}, {"response": conflicting}],
+        }
+        with self.assertRaisesRegex(AdapterError, "conflicting repeated stable job ID"):
+            sf.fetch_jobs(ColumnizedSession(conflict_payload, detail_html), columnized_target)
 
     def test_html_description_uses_readable_text(self):
         self.assertEqual(sf._html_to_text("<p>Build <b>safe</b> robots.</p><ul><li>Test</li></ul>"), "Build safe robots.\nTest")

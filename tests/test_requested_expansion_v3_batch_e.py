@@ -7,6 +7,10 @@ import json
 import subprocess
 import tempfile
 import unittest
+
+from tests.company_careers_activation_milestones import (
+    historical_parent_mapping_sha256,
+)
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -75,8 +79,8 @@ class RequestedExpansionV3BatchEArtifactTests(unittest.TestCase):
             cls.inventory = list(csv.DictReader(handle))
 
     def test_01_activation_preserves_exact_243_entry_production_prefix(self):
-        self.assertEqual(len(self.production), 437)
-        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 4)
+        self.assertGreaterEqual(len(self.production), 452)
+        self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 5)
         self.assertEqual(len(self.historical), 243)
         assert_historical_prefix(self, self.production, self.historical)
         self.assertEqual(self.candidates[:243], self.historical)
@@ -93,7 +97,11 @@ class RequestedExpansionV3BatchEArtifactTests(unittest.TestCase):
         self.assertEqual([item["name"] for item in self.validated[243:]], VALIDATED)
         self.assertEqual([item["name"] for item in self.production[243:249]], VALIDATED)
         self.assertTrue(EXCLUDED.isdisjoint({item["name"] for item in self.candidates}))
-        self.assertTrue(EXCLUDED.isdisjoint({item["name"] for item in self.production}))
+        self.assertTrue(
+            EXCLUDED.isdisjoint(
+                {item["name"] for item in self.production[:249]}
+            )
+        )
         for name in VALIDATED:
             self.assertEqual([item["name"] for item in self.production].count(name), 1)
 
@@ -145,7 +153,7 @@ class RequestedExpansionV3BatchEArtifactTests(unittest.TestCase):
             load_target_companies(str(batch.PRODUCTION)),
             load_parent_source_mappings(batch.PARENT_MAPPINGS),
         )
-        self.assertEqual(len(master.canonical_names) + len(master.mapped_names), 208)
+        self.assertGreaterEqual(len(master.canonical_names) + len(master.mapped_names), 208)
         self.assertTrue(all(not item["original_246_master"] for item in self.report["results"]))
         totals = self.report["totals"]
         self.assertEqual((totals["validated"], totals["excluded"]), (6, 9))
@@ -190,7 +198,7 @@ class RequestedExpansionV3BatchEArtifactTests(unittest.TestCase):
 
     def test_10_hash_ignore_and_publication_state(self):
         self.assertEqual(hashlib.sha256(self.historical_bytes).hexdigest().upper(), self.report["production_registry_sha256"])
-        self.assertEqual(hashlib.sha256(batch.PARENT_MAPPINGS.read_bytes()).hexdigest().upper(), self.report["parent_mappings_sha256"])
+        self.assertEqual(historical_parent_mapping_sha256(batch.PARENT_MAPPINGS), self.report["parent_mappings_sha256"])
         ignored = subprocess.run(
             ["git", "check-ignore", str(batch.REPORT.relative_to(batch.ROOT))],
             cwd=batch.ROOT, capture_output=True, text=True, check=False,

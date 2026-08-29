@@ -6,6 +6,10 @@ import hashlib
 import subprocess
 import tempfile
 import unittest
+
+from tests.company_careers_activation_milestones import (
+    historical_parent_mapping_sha256,
+)
 from pathlib import Path
 
 import yaml
@@ -102,7 +106,7 @@ class BrowserPilotBulkActivationTests(unittest.TestCase):
         production = entries(pilot.PRODUCTION)
 
         self.assertEqual(hashlib.sha256(historical_prefix).hexdigest().upper(), report["production_registry_sha256"])
-        self.assertEqual(hashlib.sha256(pilot.PARENT_MAPPINGS.read_bytes()).hexdigest().upper(), report["parent_mappings_sha256"])
+        self.assertEqual(historical_parent_mapping_sha256(pilot.PARENT_MAPPINGS), report["parent_mappings_sha256"])
         self.assertGreaterEqual(len(production), len(validated))
         assert_historical_prefix(self, production, validated)
 
@@ -114,7 +118,7 @@ class BrowserPilotBulkActivationTests(unittest.TestCase):
             self.assertEqual(len(expected), 1)
             self.assertEqual(observed, expected)
             self.assertEqual(production_sources.count(pilot.source_key(expected[0])), 1)
-        self.assertEqual(len(load_parent_source_mappings(pilot.PARENT_MAPPINGS)), 4)
+        self.assertEqual(len(load_parent_source_mappings(pilot.PARENT_MAPPINGS)), 5)
 
     def test_07_no_persistence_or_dashboard_publication_imports(self):
         tree = ast.parse(Path(pilot.__file__).read_text(encoding="utf-8"))

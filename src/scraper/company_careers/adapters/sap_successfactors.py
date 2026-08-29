@@ -7,6 +7,7 @@ whose subsequent pages are returned as HTML fragments.
 
 from __future__ import annotations
 
+import json
 import re
 import time
 from dataclasses import dataclass, field
@@ -316,6 +317,7 @@ def _fetch_columnized_jobs(
     max_pages = int(target.max_pages)
     jobs: list[JobRecord] = []
     seen: set[str] = set()
+    seen_fingerprints: dict[str, str] = {}
     observed_total: Optional[int] = None
     metadata: dict[str, Any] = {
         "endpoint_variant": COLUMNIZED_VARIANT,
@@ -356,6 +358,7 @@ def _fetch_columnized_jobs(
         if total > offset and not rows:
             raise AdapterError("SAP SuccessFactors columnized results ended before the reported total")
 
+        page_new_ids = 0
         for envelope in rows:
             row = envelope.get("response") if isinstance(envelope, Mapping) else None
             if not isinstance(row, Mapping):
@@ -363,8 +366,12 @@ def _fetch_columnized_jobs(
             external_id = str(row.get("id") or "").strip()
             if not re.fullmatch(r"[0-9]{1,18}", external_id):
                 raise AdapterError("SAP SuccessFactors columnized job has no stable numeric ID")
+            fingerprint = json.dumps(row, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
             if external_id in seen:
-                raise AdapterError(f"SAP SuccessFactors repeated stable job ID: {external_id}")
+                if seen_fingerprints.get(external_id) != fingerprint:
+                    raise AdapterError(f"SAP SuccessFactors conflicting repeated stable job ID: {external_id}")
+                metadata.setdefault("duplicate_ids_skipped", []).append(external_id)
+                continue
             title = _clean_text(row.get("unifiedStandardTitle"))
             url_title = unescape(str(row.get("unifiedUrlTitle") or "").strip())
             locales = row.get("supportedLocales")
@@ -389,8 +396,12 @@ def _fetch_columnized_jobs(
             )
             jobs.append(job)
             seen.add(external_id)
+            seen_fingerprints[external_id] = fingerprint
+            page_new_ids += 1
             if len(jobs) >= limit:
                 break
+        if rows and page_new_ids == 0:
+            raise AdapterError("SAP SuccessFactors columnized pagination repeated a complete page")
         metadata["pages"].append(
             {"page_number": page_number, "offset": offset, "jobs_returned": len(rows)}
         )
@@ -478,7 +489,7 @@ def _normalize_columnized_detail(
         match = re.match(r"^([A-Za-z#%][A-Za-z0-9 #&/%-]{1,40}):\s*(.+)$", text)
         if match:
             detail_fields.setdefault(match.group(1).casefold(), []).append(_clean_text(match.group(2)))
-    req_ids = _unique_strings(
+    req_ids = _exact_numeric_ids(
         detail_fields.get("req id", [])
         + detail_fields.get("requisition id", [])
     )
@@ -486,7 +497,10 @@ def _normalize_columnized_detail(
         req_ids = _unique_strings(
             re.findall(r"\bRequisition\s+ID:\s*([0-9]{1,18})\b", _node_text(parser.root), re.I)
         )
-    if req_ids != [external_id]:
+    # Some standard RMK detail templates omit the human-readable Req ID field.
+    # Canonical URL and j2w.Apply.jobID are already independently required above;
+    # when a requisition field is present it remains an additional strict check.
+    if req_ids and req_ids != [external_id]:
         raise AdapterError("SAP SuccessFactors detail requisition ID did not match the listing")
     api_locations = _columnized_locations(row.get("jobLocationShort"))
     detail_locations = _unique_strings(detail_fields.get("location", []))
@@ -537,6 +551,24 @@ def _columnized_locations(value: Any) -> list[str]:
         if text:
             locations.append(text)
     return _unique_strings(locations)
+
+
+def _exact_numeric_ids(values: Iterable[Any]) -> list[str]:
+    """Keep only complete RMK identifiers from possibly nested field wrappers.
+
+    Some columnized detail templates nest the real field list inside another
+    ``li``.  The outer node begins with ``Req ID`` but its text also contains
+    every following field, while the leaf node contains the exact ID.  Treating
+    the wrapper as a second identifier creates a false mismatch.  Requiring the
+    entire extracted value to be one numeric ID preserves strict identity
+    validation and ignores only presentation containers.
+    """
+    identifiers: list[str] = []
+    for value in values:
+        candidate = _clean_text(value)
+        if re.fullmatch(r"[0-9]{1,18}", candidate):
+            identifiers.append(candidate)
+    return _unique_strings(identifiers)
 
 
 def _get_page(

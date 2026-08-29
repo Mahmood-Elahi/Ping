@@ -1021,32 +1021,20 @@ target_companies:
     next_page_selector: null
     allow_url_id_fallback: false
   - name: Mobileye
-    platform: static_html
+    platform: lever
     careers_url: https://careers.mobileye.com/jobs
-    listing_url: https://careers.mobileye.com/jobs
-    endpoint_variant: server_rendered_cards
-    original_workbook_rank: 130
+    slug: mobileye
+    endpoint_url: https://api.eu.lever.co/v0/postings/mobileye
+    endpoint_variant: postings_api_v0
     allowed_apply_hosts:
-    - careers.mobileye.com
+      - jobs.eu.lever.co
+    original_workbook_rank: 130
     max_pages: 1
     max_jobs: 20
-    max_scripts: 20
-    max_response_bytes: 1500000
-    max_script_bytes: 1000000
-    evidence_source: config/company_remaining_inventory_v2.csv
-    evidence_confidence: medium
-    evidence_timestamp: '2026-08-05T01:24:24+00:00'
-    listing_selector: div.jobItem
-    job_card_selector: div.jobItem
-    title_selector: h3
-    detail_link_selector: a[href^='/jobs/']
-    external_id_regex: /([0-9a-f]{8}-[0-9a-f-]{27,})$
-    external_id_attribute: null
-    location_selector: .location
-    department_selector: .department
-    pagination_url_template: null
-    next_page_selector: null
-    allow_url_id_fallback: false
+    max_response_bytes: 3000000
+    evidence_source: https://careers.mobileye.com/jobs
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-28T00:00:00+00:00'
   - name: Skydio
     platform: static_html
     careers_url: https://www.skydio.com/ja-jp/careers
@@ -1819,19 +1807,20 @@ target_companies:
     browser_identity_regex: ASML
     listing_selector: a.search-results__item
     job_card_selector: a.search-results__item
-    title_selector: h2.search-results-title-text
+    title_selector: h3.search-results-title-text
     location_selector: ul.search-results__fields li:first-child
+    department_selector: ul.search-results__fields li:nth-child(2)
     detail_link_selector: :self
     external_id_regex: -([jJ][0-9]+)$
-    external_id_attribute: null
-    department_selector: ul.search-results__fields li:nth-child(2)
-    date_selector: null
     allowed_apply_hosts:
-    - www.asml.com
+      - www.asml.com
     original_workbook_rank: 26
     max_pages: 1
     max_jobs: 20
     max_response_bytes: 3000000
+    evidence_source: https://www.asml.com/en/careers/find-your-job
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-28T00:00:00+00:00'
   - name: Adyen
     platform: greenhouse
     careers_url: https://careers.adyen.com/
@@ -1921,12 +1910,6 @@ target_companies:
     platform: javascript_embedded_data
     careers_url: https://www.tourmalineoil.com/careers
     source_identity_regex: Tourmaline Oil
-    allowed_apply_hosts:
-    - tourmaline.cdn.prismic.io
-    original_workbook_rank: 181
-    max_pages: 1
-    max_jobs: 20
-    max_response_bytes: 3000000
     listing_url: https://www.tourmalineoil.com/careers
     endpoint_variant: next_data
     embedded_script_selector: script#__NEXT_DATA__
@@ -1934,8 +1917,18 @@ target_companies:
     id_field: link.id
     title_field: label
     url_field: link.url
+    allowed_apply_hosts:
+      - tourmaline.cdn.prismic.io
+      - www.tourmalineoil.com
+    original_workbook_rank: 181
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
     max_scripts: 1
     max_script_bytes: 1000000
+    evidence_source: https://www.tourmalineoil.com/careers
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-28T00:00:00+00:00'
   - name: MDA Space
     platform: browser_rendered_html
     careers_url: https://mda.space/careers
@@ -2041,30 +2034,21 @@ target_companies:
     organization_id: globalfoundries.com
     identity_url: https://gf.com/careers/
   - name: Beckhoff Automation
-    platform: browser_rendered_html
-    careers_url: https://www.beckhoff.com/en-us/company/job-opportunities/
-    listing_url: https://www.paycomonline.net/v4/ats/web.php/portal/D42904D53A8DFA8C80CE390CB7CAFCEF/career-page
-    endpoint_variant: browser_rendered_html_v1
-    browser_wait_selector: a[href*='/jobs/']
-    browser_scroll_steps: 0
-    browser_static_variant: server_rendered_links
-    browser_identity_selector: body
-    browser_identity_regex: Beckhoff Automation
-    listing_selector: a[href*=/jobs/]
-    job_card_selector: a[href*=/jobs/]
-    title_selector: h2[data-testid=typography]
-    location_selector: null
-    detail_link_selector: :self
-    external_id_regex: /jobs/([0-9]+)
-    external_id_attribute: null
-    department_selector: null
-    date_selector: null
+    platform: adp
+    careers_url: https://workforcenow.adp.com/mascsr/default/mdf/recruitment/recruitment.html?cid=a779a6fa-3c8a-4324-8d68-d71fbb4c1516&ccId=19000101_000001&lang=en_US
+    endpoint_url: https://workforcenow.adp.com/mascsr/default/careercenter/public/events/staffing/v1/job-requisitions
+    endpoint_variant: workforce_now_requisitions_v1
+    identity_regex: \bBeckhoff\b
     allowed_apply_hosts:
-    - www.paycomonline.net
+      - workforcenow.adp.com
     original_workbook_rank: 102
-    max_pages: 1
+    page_size: 10
+    max_pages: 2
     max_jobs: 20
     max_response_bytes: 3000000
+    evidence_source: https://www.beckhoff.com/en-us/company/job-opportunities/
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-28T00:00:00+00:00'
   - name: Lucid Motors
     platform: greenhouse
     careers_url: https://lucidmotors.com/careers
@@ -4987,14 +4971,20 @@ target_companies:
     identity_url: https://seagatecareers.com/AllJobs
     source_identity_regex: \bSeagate\b
     identity_regex: \bSeagate\b
+    search_url: https://seagatecareers.com/search/
+    endpoint_url: https://seagatecareers.com/services/recruiting/v1/jobs
+    endpoint_variant: rmk_columnized
+    locale: en_US
+    page_size: 10
     allowed_apply_hosts:
-    - seagatecareers.com
+      - seagatecareers.com
     original_workbook_rank: null
     max_pages: 1
     max_jobs: 20
     max_response_bytes: 3000000
-    search_url: https://seagatecareers.com/search/
-    endpoint_variant: rmk_tile
+    evidence_source: https://seagatecareers.com/search/
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-28T00:00:00+00:00'
   - name: Coherent Corp
     platform: oracle_recruiting
     careers_url: https://hcwp.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/jobs
@@ -5638,7 +5628,7 @@ target_companies:
     department_allowlist:
     - Technology
     job_attribution_field: greenhouse_metadata.Acquisition Company
-    job_attribution_regex: CoreWeave
+    job_attribution_regex: CoreWeave|Weights & Biases
   - name: Crusoe
     platform: ashby
     careers_url: https://www.crusoe.ai/about/careers
@@ -5717,16 +5707,25 @@ target_companies:
     allowed_apply_hosts:
     - job-boards.greenhouse.io
   - name: Temporal
-    platform: greenhouse
+    platform: static_html
     careers_url: https://temporal.io/careers
+    listing_url: https://temporal.io/careers
+    endpoint_variant: server_rendered_links
+    listing_selector: a[href^='/careers/']
+    job_card_selector: a[href^='/careers/']
+    title_selector: span[data-size='32']
+    location_selector: span.inline-flex
+    detail_link_selector: :self
+    external_id_regex: /careers/([0-9a-f]{8}-[0-9a-f-]{27,})$
+    allowed_apply_hosts:
+      - temporal.io
     original_workbook_rank: null
     max_pages: 1
     max_jobs: 20
-    max_response_bytes: 3000000
-    slug: temporaltechnologies
-    source_identity_regex: Temporal Technologies|Temporal
-    allowed_apply_hosts:
-    - job-boards.greenhouse.io
+    max_response_bytes: 1000000
+    evidence_source: https://temporal.io/careers
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-28T00:00:00+00:00'
   - name: Tailscale
     platform: greenhouse
     careers_url: https://tailscale.com/careers
@@ -5999,3 +5998,917 @@ target_companies:
     source_identity_regex: LangChain
     allowed_apply_hosts:
     - jobs.ashbyhq.com
+  - name: Anyscale
+    platform: ashby
+    careers_url: https://www.anyscale.com/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: anyscale
+    source_identity_regex: \bAnyscale\b
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: Fireworks AI
+    platform: ashby
+    careers_url: https://fireworks.ai/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: fireworks
+    source_identity_regex: 'Fireworks(?: AI)?'
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: Arize AI
+    platform: greenhouse
+    careers_url: https://arize.com/careers/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: arizeai
+    source_identity_regex: 'Arize(?: AI)?'
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+  - name: Snorkel AI
+    platform: greenhouse
+    careers_url: https://snorkel.ai/join-us/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: snorkelai
+    source_identity_regex: 'Snorkel(?: AI)?'
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+  - name: Labelbox
+    platform: greenhouse
+    careers_url: https://labelbox.com/company/careers/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: labelbox
+    source_identity_regex: \bLabelbox\b
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+  - name: Weaviate
+    platform: ashby
+    careers_url: https://weaviate.io/company/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: weaviate
+    source_identity_regex: \bWeaviate\b
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: Qdrant
+    platform: ashby
+    careers_url: https://qdrant.tech/about-us/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: qdrant.tech
+    source_identity_regex: \bQdrant\b
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: Zilliz
+    platform: lever
+    careers_url: https://zilliz.com/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: zilliz
+    source_identity_regex: \bZilliz\b
+    allowed_apply_hosts:
+    - jobs.lever.co
+  - name: Redis
+    platform: javascript_embedded_data
+    careers_url: https://redis.io/company/careers/current-job-openings/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    listing_url: https://redis.io/company/careers/current-job-openings/
+    endpoint_variant: next_flight_collection
+    source_identity_regex: \bRedis\b
+    embedded_script_selector: script
+    embedded_json_path: positions
+    title_field: title
+    location_field: location
+    url_field: pathname
+    department_field: department
+    external_id_regex: -([0-9a-f]{8}-[0-9a-f-]{27})/$
+    allowed_apply_hosts:
+    - redis.io
+    max_script_bytes: 1000000
+  - name: SingleStore
+    platform: greenhouse
+    careers_url: https://www.singlestore.com/careers/jobs/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: singlestore
+    source_identity_regex: \bSingleStore\b
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+  - name: ClickHouse
+    platform: greenhouse
+    careers_url: https://clickhouse.com/company/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: clickhouse
+    source_identity_regex: \bClickHouse\b
+    allowed_apply_hosts:
+    - job-boards.greenhouse.io
+  - name: MotherDuck
+    platform: ashby
+    careers_url: https://motherduck.com/careers/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: MotherDuck
+    source_identity_regex: \bMotherDuck\b
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: Prefect
+    platform: ashby
+    careers_url: https://www.prefect.io/careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: prefect
+    source_identity_regex: \bPrefect\b
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: Astronomer
+    platform: ashby
+    careers_url: https://www.astronomer.io/careers/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: astronomer
+    source_identity_regex: \bAstronomer\b
+    allowed_apply_hosts:
+    - jobs.ashbyhq.com
+  - name: H2O.ai
+    platform: static_html
+    careers_url: https://h2o.ai/company/careers/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    listing_url: https://h2oai.applytojob.com/apply
+    endpoint_variant: server_rendered_cards
+    source_identity_regex: H2O\.ai|h2o\.ai
+    identity_regex: H2O\.ai|h2o\.ai
+    listing_selector: ul.list-group
+    job_card_selector: li.list-group-item
+    title_selector: h3.list-group-item-heading a
+    location_selector: ul.list-inline li:first-child
+    department_selector: ul.list-inline li:nth-child(2)
+    detail_link_selector: h3.list-group-item-heading a
+    external_id_regex: /apply/([^/]+)/
+    allowed_apply_hosts:
+    - h2oai.applytojob.com
+  # Canadian employer expansion v4 (2026-08): verified public ATS sources.
+  - name: Ada
+    platform: greenhouse
+    careers_url: https://www.ada.cx/careers
+    slug: ada18
+    allowed_apply_hosts: [job-boards.greenhouse.io, boards.greenhouse.io]
+    max_pages: 1
+    max_jobs: 20
+  - name: StackAdapt
+    platform: greenhouse
+    careers_url: https://www.stackadapt.com/careers
+    slug: stackadapt
+    allowed_apply_hosts: [job-boards.greenhouse.io, boards.greenhouse.io]
+    max_pages: 1
+    max_jobs: 20
+  - name: League
+    platform: greenhouse
+    careers_url: https://league.com/ca/careers/
+    slug: leagueinc
+    allowed_apply_hosts: [job-boards.greenhouse.io, boards.greenhouse.io]
+    max_pages: 1
+    max_jobs: 20
+  - name: Auvik Networks
+    platform: greenhouse
+    careers_url: https://www.auvik.com/careers/
+    slug: auviknetworks
+    allowed_apply_hosts: [job-boards.greenhouse.io, boards.greenhouse.io]
+    max_pages: 1
+    max_jobs: 20
+  - name: AbCellera
+    platform: greenhouse
+    careers_url: https://www.abcellera.com/careers
+    slug: abcellera
+    allowed_apply_hosts: [job-boards.greenhouse.io, boards.greenhouse.io]
+    max_pages: 1
+    max_jobs: 20
+  - name: Aspect Biosystems
+    platform: greenhouse
+    careers_url: https://www.aspectbiosystems.com/careers
+    slug: aspectbiosystems
+    allowed_apply_hosts: [job-boards.greenhouse.io, boards.greenhouse.io]
+    max_pages: 1
+    max_jobs: 20
+  - name: Later
+    platform: greenhouse
+    careers_url: https://later.com/careers/
+    slug: later
+    allowed_apply_hosts: [job-boards.greenhouse.io, boards.greenhouse.io]
+    max_pages: 1
+    max_jobs: 20
+  - name: Apply Digital
+    platform: lever
+    careers_url: https://www.applydigital.com/careers
+    slug: applydigital
+    allowed_apply_hosts: [jobs.lever.co]
+    max_pages: 1
+    max_jobs: 20
+  - name: Fullscript
+    platform: lever
+    careers_url: https://fullscript.com/careers
+    slug: fullscript
+    allowed_apply_hosts: [jobs.lever.co]
+    max_pages: 1
+    max_jobs: 20
+  - name: Caseware
+    platform: lever
+    careers_url: https://www.caseware.com/about-us/careers/
+    slug: caseware
+    allowed_apply_hosts: [jobs.lever.co]
+    max_pages: 1
+    max_jobs: 20
+  - name: AltaML
+    platform: lever
+    careers_url: https://altaml.com/careers/
+    slug: altaml
+    allowed_apply_hosts: [jobs.lever.co]
+    max_pages: 1
+    max_jobs: 20
+  - name: Allstate Canada
+    platform: workday
+    careers_url: https://www.allstate.ca/careers
+    tenant: allstate
+    wd_subdomain: wd5
+    site_id: allstate_careers
+    allowed_apply_hosts: [allstate.wd5.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Achievers
+    platform: lever
+    careers_url: https://www.achievers.com/company/careers/
+    slug: achievers
+    allowed_apply_hosts: [jobs.lever.co]
+    max_pages: 1
+    max_jobs: 20
+  - name: BenchSci
+    platform: lever
+    careers_url: https://www.benchsci.com/careers
+    slug: benchsci
+    allowed_apply_hosts: [jobs.lever.co]
+    max_pages: 1
+    max_jobs: 20
+  - name: Hopper
+    platform: ashby
+    careers_url: https://careers.hopper.com/
+    slug: hopper
+    allowed_apply_hosts: [jobs.ashbyhq.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: ZayZoon
+    platform: ashby
+    careers_url: https://www.zayzoon.com/careers
+    slug: zayzoon
+    allowed_apply_hosts: [jobs.ashbyhq.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: KOHO
+    platform: ashby
+    careers_url: https://www.koho.ca/careers/
+    slug: koho
+    allowed_apply_hosts: [jobs.ashbyhq.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Float
+    platform: ashby
+    careers_url: https://floatfinancial.com/careers
+    slug: float
+    allowed_apply_hosts: [jobs.ashbyhq.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Rewind
+    platform: ashby
+    careers_url: https://rewind.com/careers/
+    slug: rewind
+    allowed_apply_hosts: [jobs.ashbyhq.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Solace
+    platform: ashby
+    careers_url: https://solace.com/company/careers/
+    slug: solace
+    allowed_apply_hosts: [jobs.ashbyhq.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Clearco
+    platform: ashby
+    careers_url: https://clear.co/careers
+    slug: clearco
+    allowed_apply_hosts: [jobs.ashbyhq.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: BlueDot
+    platform: ashby
+    careers_url: https://bluedot.global/careers/
+    slug: bluedot
+    allowed_apply_hosts: [jobs.ashbyhq.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: SurveyMonkey
+    platform: ashby
+    careers_url: https://www.surveymonkey.com/mp/jobs/
+    slug: surveymonkey
+    allowed_apply_hosts: [jobs.ashbyhq.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Ubisoft
+    platform: smartrecruiters
+    careers_url: https://www.ubisoft.com/en-us/company/careers
+    slug: Ubisoft2
+    endpoint_url: https://api.smartrecruiters.com/v1/companies/Ubisoft2/postings
+    endpoint_variant: companies_postings_v1
+    identity_regex: Ubisoft
+    allowed_apply_hosts: [jobs.smartrecruiters.com]
+    page_size: 20
+    max_pages: 1
+    max_jobs: 20
+  - name: SGS
+    platform: smartrecruiters
+    careers_url: https://www.sgs.com/en/careers-at-sgs
+    slug: SGS
+    endpoint_url: https://api.smartrecruiters.com/v1/companies/SGS/postings
+    endpoint_variant: companies_postings_v1
+    identity_regex: SGS
+    allowed_apply_hosts: [jobs.smartrecruiters.com]
+    page_size: 20
+    max_pages: 1
+    max_jobs: 20
+  - name: Avery Dennison
+    platform: smartrecruiters
+    careers_url: https://www.averydennison.com/en/home/about-us/careers.html
+    slug: AveryDennison
+    endpoint_url: https://api.smartrecruiters.com/v1/companies/AveryDennison/postings
+    endpoint_variant: companies_postings_v1
+    identity_regex: Avery Dennison
+    allowed_apply_hosts: [jobs.smartrecruiters.com]
+    page_size: 20
+    max_pages: 1
+    max_jobs: 20
+  - name: Genetec
+    platform: smartrecruiters
+    careers_url: https://www.genetec.com/careers
+    slug: Genetec
+    endpoint_url: https://api.smartrecruiters.com/v1/companies/Genetec/postings
+    endpoint_variant: companies_postings_v1
+    identity_regex: genetec
+    allowed_apply_hosts: [jobs.smartrecruiters.com]
+    page_size: 20
+    max_pages: 1
+    max_jobs: 20
+  - name: Gameloft
+    platform: smartrecruiters
+    careers_url: https://www.gameloft.com/careers
+    slug: Gameloft
+    endpoint_url: https://api.smartrecruiters.com/v1/companies/Gameloft/postings
+    endpoint_variant: companies_postings_v1
+    identity_regex: Gameloft
+    allowed_apply_hosts: [jobs.smartrecruiters.com]
+    page_size: 20
+    max_pages: 1
+    max_jobs: 20
+  - name: Arista Networks
+    platform: smartrecruiters
+    careers_url: https://www.arista.com/en/careers
+    slug: AristaNetworks
+    endpoint_url: https://api.smartrecruiters.com/v1/companies/AristaNetworks/postings
+    endpoint_variant: companies_postings_v1
+    identity_regex: Arista Networks
+    allowed_apply_hosts: [jobs.smartrecruiters.com]
+    page_size: 20
+    max_pages: 1
+    max_jobs: 20
+  - name: Assent
+    platform: smartrecruiters
+    careers_url: https://www.assent.com/company/careers/
+    slug: Assent
+    endpoint_url: https://api.smartrecruiters.com/v1/companies/Assent/postings
+    endpoint_variant: companies_postings_v1
+    identity_regex: Assent
+    allowed_apply_hosts: [jobs.smartrecruiters.com]
+    page_size: 20
+    max_pages: 1
+    max_jobs: 20
+  - name: Lumentum
+    platform: workday
+    careers_url: https://www.lumentum.com/en/careers
+    tenant: lumentum
+    wd_subdomain: wd5
+    site_id: LITE
+    allowed_apply_hosts: [lumentum.wd5.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Workday
+    platform: workday
+    careers_url: https://www.workday.com/en-us/company/careers.html
+    tenant: workday
+    wd_subdomain: wd5
+    site_id: Workday
+    allowed_apply_hosts: [workday.wd5.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Dell Technologies
+    platform: workday
+    careers_url: https://jobs.dell.com/
+    tenant: dell
+    wd_subdomain: wd1
+    site_id: External
+    allowed_apply_hosts: [dell.wd1.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Hydro Ottawa
+    platform: workday
+    careers_url: https://hydroottawa.com/en/about-us/careers
+    tenant: hydroottawa
+    wd_subdomain: wd3
+    site_id: hydro_ottawa_careersite
+    allowed_apply_hosts: [hydroottawa.wd3.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: NAV CANADA
+    platform: workday
+    careers_url: https://www.navcanada.ca/en/careers.aspx
+    tenant: navcanada
+    wd_subdomain: wd10
+    site_id: NAV_Careers
+    allowed_apply_hosts: [navcanada.wd10.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Hitachi
+    platform: workday
+    careers_url: https://careers.hitachi.com/
+    tenant: hitachi
+    wd_subdomain: wd1
+    site_id: hitachi
+    allowed_apply_hosts: [hitachi.wd1.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Intact Financial
+    platform: workday
+    careers_url: https://careers.intactfc.com/
+    tenant: intactfc
+    wd_subdomain: wd3
+    site_id: intactfc
+    allowed_apply_hosts: [intactfc.wd3.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Interac
+    platform: workday
+    careers_url: https://www.interac.ca/en/careers/
+    tenant: interac
+    wd_subdomain: wd3
+    site_id: Interac
+    allowed_apply_hosts: [interac.wd3.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Finning
+    platform: workday
+    careers_url: https://www.finning.com/en_CA/company/careers.html
+    tenant: finning
+    wd_subdomain: wd3
+    site_id: External
+    allowed_apply_hosts: [finning.wd3.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Trimble
+    platform: workday
+    careers_url: https://www.trimble.com/en/our-company/careers
+    tenant: trimble
+    wd_subdomain: wd1
+    site_id: TrimbleCareers
+    allowed_apply_hosts: [trimble.wd1.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Schweitzer Engineering Laboratories
+    platform: workday
+    careers_url: https://selinc.com/company/careers/
+    tenant: selinc
+    wd_subdomain: wd1
+    site_id: SEL
+    allowed_apply_hosts: [selinc.wd1.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Proofpoint
+    platform: workday
+    careers_url: https://www.proofpoint.com/us/company/careers
+    tenant: proofpoint
+    wd_subdomain: wd5
+    site_id: proofpointcareers
+    allowed_apply_hosts: [proofpoint.wd5.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Calix
+    platform: workday
+    careers_url: https://www.calix.com/about-calix/careers.html
+    tenant: calix
+    wd_subdomain: wd1
+    site_id: external
+    allowed_apply_hosts: [calix.wd1.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Johnson Electric
+    platform: workday
+    careers_url: https://www.johnsonelectric.com/en/careers
+    tenant: johnsonelectric
+    wd_subdomain: wd3
+    site_id: Career_JE
+    allowed_apply_hosts: [johnsonelectric.wd3.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: IKO
+    platform: workday
+    careers_url: https://www.iko.com/our-company/careers/
+    tenant: iko
+    wd_subdomain: wd3
+    site_id: IKO_Careers
+    allowed_apply_hosts: [iko.wd3.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Johnson & Johnson
+    platform: workday
+    careers_url: https://www.careers.jnj.com/
+    tenant: jj
+    wd_subdomain: wd5
+    site_id: JJ
+    allowed_apply_hosts: [jj.wd5.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Dow
+    platform: workday
+    careers_url: https://corporate.dow.com/en-us/careers.html
+    tenant: dow
+    wd_subdomain: wd1
+    site_id: ExternalCareers
+    allowed_apply_hosts: [dow.wd1.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: CSA Group
+    platform: workday
+    careers_url: https://www.csagroup.org/careers/
+    tenant: csagroup
+    wd_subdomain: wd3
+    site_id: csagroup
+    allowed_apply_hosts: [csagroup.wd3.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Bird Construction
+    platform: workday
+    careers_url: https://www.bird.ca/careers
+    tenant: bird
+    wd_subdomain: wd3
+    site_id: BirdConstructionCareers
+    allowed_apply_hosts: [bird.wd3.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Roche
+    platform: workday
+    careers_url: https://careers.roche.com/
+    tenant: roche
+    wd_subdomain: wd3
+    site_id: roche-ext
+    allowed_apply_hosts: [roche.wd3.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: McKesson
+    platform: workday
+    careers_url: https://careers.mckesson.com/
+    tenant: mckesson
+    wd_subdomain: wd3
+    site_id: External_Careers
+    allowed_apply_hosts: [mckesson.wd3.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Sanofi
+    platform: workday
+    careers_url: https://jobs.sanofi.com/
+    tenant: sanofi
+    wd_subdomain: wd3
+    site_id: SanofiCareers
+    allowed_apply_hosts: [sanofi.wd3.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Ledcor
+    platform: workday
+    careers_url: https://jobs.ledcor.com/
+    tenant: ledcor
+    wd_subdomain: wd3
+    site_id: ledcor_external
+    allowed_apply_hosts: [ledcor.wd3.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: AstraZeneca
+    platform: workday
+    careers_url: https://careers.astrazeneca.com/
+    tenant: astrazeneca
+    wd_subdomain: wd3
+    site_id: Careers
+    allowed_apply_hosts: [astrazeneca.wd3.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Dragonfly
+    platform: workday
+    careers_url: https://dragonflyshipping.com/careers/
+    tenant: intelcomgroup
+    wd_subdomain: wd3
+    site_id: Intelcom
+    allowed_apply_hosts: [intelcomgroup.wd3.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: HOOPP
+    platform: workday
+    careers_url: https://hoopp.com/careers/student-opportunities
+    tenant: hoopp
+    wd_subdomain: wd10
+    site_id: HOOPPStudent
+    allowed_apply_hosts: [hoopp.wd10.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: SOTI
+    platform: workday
+    careers_url: https://www.soti.net/about/careers/
+    tenant: soti
+    wd_subdomain: wd3
+    site_id: SOTI-Next-Gen
+    allowed_apply_hosts: [soti.wd3.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: BCI
+    platform: workday
+    careers_url: https://www.bci.ca/careers/
+    tenant: bci
+    wd_subdomain: wd10
+    site_id: BCI_Careers
+    allowed_apply_hosts: [bci.wd10.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Ontario Teachers' Pension Plan
+    platform: workday
+    careers_url: https://www.otpp.com/en-ca/careers/
+    tenant: otppb
+    wd_subdomain: wd3
+    site_id: OntarioTeachers_Careers
+    allowed_apply_hosts: [otppb.wd3.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: PSP Investments
+    platform: workday
+    careers_url: https://www.investpsp.com/en/careers/
+    tenant: investpsp
+    wd_subdomain: wd3
+    site_id: psp_careers
+    allowed_apply_hosts: [investpsp.wd3.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: AIMCo
+    platform: workday
+    careers_url: https://www.aimco.ca/careers
+    tenant: aimco
+    wd_subdomain: wd10
+    site_id: AIMCoCareers
+    allowed_apply_hosts: [aimco.wd10.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Siemens Healthineers
+    platform: workday
+    careers_url: https://www.siemens-healthineers.com/careers
+    tenant: onehealthineers
+    wd_subdomain: wd3
+    site_id: SHSJB
+    allowed_apply_hosts: [onehealthineers.wd3.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: EXFO
+    platform: workday
+    careers_url: https://careers.exfo.com/
+    tenant: exfo
+    wd_subdomain: wd10
+    site_id: EXFO_Careers
+    allowed_apply_hosts: [exfo.wd10.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: EllisDon
+    platform: workday
+    careers_url: https://www.ellisdon.com/careers
+    tenant: ellisdon
+    wd_subdomain: wd3
+    site_id: Ellis-Don
+    allowed_apply_hosts: [ellisdon.wd3.myworkdayjobs.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Hatch
+    platform: sap_successfactors
+    careers_url: https://www.hatch.com/Careers
+    search_url: https://jobs.hatch.com/search/
+    endpoint_variant: rmk_table
+    allowed_apply_hosts: [jobs.hatch.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: PCL Construction
+    platform: sap_successfactors
+    careers_url: https://www.pcl.com/ca/en/careers
+    search_url: https://careers.pcl.com/search/
+    endpoint_variant: rmk_table
+    allowed_apply_hosts: [careers.pcl.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: SaskPower
+    platform: sap_successfactors
+    careers_url: https://www.saskpower.com/careers
+    search_url: https://jobs.saskpower.com/search/
+    endpoint_variant: rmk_table
+    allowed_apply_hosts: [jobs.saskpower.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: FortisBC
+    platform: sap_successfactors
+    careers_url: https://www.fortisbc.com/about-us/careers
+    search_url: https://careers.fortisbc.com/search/
+    endpoint_variant: rmk_table
+    allowed_apply_hosts: [careers.fortisbc.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: VIA Rail
+    platform: sap_successfactors
+    careers_url: https://www.viarail.ca/en/careers
+    search_url: https://careers.viarail.ca/search/
+    endpoint_variant: rmk_table
+    allowed_apply_hosts: [careers.viarail.ca]
+    max_pages: 1
+    max_jobs: 20
+  - name: Canada Life
+    platform: sap_successfactors
+    careers_url: https://www.canadalife.com/about-us/careers.html
+    search_url: https://jobs.canadalife.com/search/
+    endpoint_variant: rmk_table
+    allowed_apply_hosts: [jobs.canadalife.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Kinross Gold
+    platform: sap_successfactors
+    careers_url: https://www.kinross.com/careers/
+    search_url: https://jobs.kinross.com/search/
+    endpoint_url: https://jobs.kinross.com/services/recruiting/v1/jobs
+    endpoint_variant: rmk_columnized
+    identity_regex: \bKinross\b
+    locale: en_US
+    allowed_apply_hosts: [jobs.kinross.com]
+    page_size: 10
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+  - name: Aecon
+    platform: sap_successfactors
+    careers_url: https://www.aecon.com/careers
+    search_url: https://jobs.aecon.com/search/
+    endpoint_variant: rmk_table
+    allowed_apply_hosts: [jobs.aecon.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: EPCOR
+    platform: static_html
+    careers_url: https://www.epcor.com/about/careers/
+    listing_url: https://jobs.jobvite.com/epcor/jobs
+    endpoint_variant: server_rendered_cards
+    slug: epcor
+    listing_selector: table.jv-job-list
+    job_card_selector: tr
+    title_selector: td.jv-job-list-name a
+    location_selector: td.jv-job-list-location
+    detail_link_selector: td.jv-job-list-name a
+    external_id_regex: /epcor/job/([^/?#]+)
+    allowed_apply_hosts: [jobs.jobvite.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: Parkland
+    platform: talentbrew
+    careers_url: https://www.parkland.ca/careers
+    listing_url: https://parkland-careers.ttcportals.com/search/parkland/jobs
+    endpoint_variant: search_results_data_job_id_v1
+    identity_regex: \bParkland\b
+    allowed_apply_hosts: [parkland-careers.ttcportals.com]
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+  - name: Cameco
+    platform: static_html
+    careers_url: https://www.cameco.com/careers
+    listing_url: https://jobs.jobvite.com/cameco/jobs
+    endpoint_variant: server_rendered_cards
+    slug: cameco
+    listing_selector: table.jv-job-list
+    job_card_selector: tr
+    title_selector: td.jv-job-list-name a
+    location_selector: td.jv-job-list-location
+    detail_link_selector: td.jv-job-list-name a
+    external_id_regex: /cameco/job/([^/?#]+)
+    allowed_apply_hosts: [jobs.jobvite.com]
+    max_pages: 1
+    max_jobs: 20
+  - name: WestJet
+    platform: dayforce
+    careers_url: https://www.westjet.com/en-ca/careers
+    search_url: https://jobs.dayforcehcm.com/en-CA/WestJet/CANDIDATEPORTAL
+    endpoint_url: https://jobs.dayforcehcm.com/api/geo/WestJet/jobposting/search
+    endpoint_variant: nextjs_jobposting_search
+    tenant: WestJet
+    site_id: CANDIDATEPORTAL
+    locale: en-CA
+    allowed_apply_hosts: [jobs.dayforcehcm.com]
+    page_size: 25
+    max_pages: 2
+    max_jobs: 50
+  - name: SMART Technologies
+    platform: dayforce
+    careers_url: https://www.smarttech.com/careers
+    search_url: https://jobs.dayforcehcm.com/en-US/smarttech/CANDIDATEPORTAL
+    endpoint_url: https://jobs.dayforcehcm.com/api/geo/smarttech/jobposting/search
+    endpoint_variant: nextjs_jobposting_search
+    tenant: smarttech
+    site_id: CANDIDATEPORTAL
+    locale: en-US
+    allowed_apply_hosts: [jobs.dayforcehcm.com]
+    page_size: 25
+    max_pages: 2
+    max_jobs: 50
+  - name: Ross Video
+    platform: dayforce
+    careers_url: https://www.rossvideo.com/careers
+    search_url: https://jobs.dayforcehcm.com/en-US/rossvideo/CANDIDATEPORTAL
+    endpoint_url: https://jobs.dayforcehcm.com/api/geo/rossvideo/jobposting/search
+    endpoint_variant: nextjs_jobposting_search
+    tenant: rossvideo
+    site_id: CANDIDATEPORTAL
+    locale: en-US
+    allowed_apply_hosts: [jobs.dayforcehcm.com]
+    page_size: 25
+    max_pages: 2
+    max_jobs: 50
+  - name: Payments Canada
+    platform: dayforce
+    careers_url: https://www.payments.ca/connect/payments-canada-careers
+    search_url: https://jobs.dayforcehcm.com/en-US/paymentscanada/CANDIDATEPORTAL
+    endpoint_url: https://jobs.dayforcehcm.com/api/geo/paymentscanada/jobposting/search
+    endpoint_variant: nextjs_jobposting_search
+    tenant: paymentscanada
+    site_id: CANDIDATEPORTAL
+    locale: en-US
+    allowed_apply_hosts: [jobs.dayforcehcm.com]
+    page_size: 25
+    max_pages: 2
+    max_jobs: 50
+  - name: Chemelex
+    platform: dayforce
+    careers_url: https://jobs.dayforcehcm.com/en-US/chemelex/CANDIDATEPORTAL
+    search_url: https://jobs.dayforcehcm.com/en-US/chemelex/CANDIDATEPORTAL
+    endpoint_url: https://jobs.dayforcehcm.com/api/geo/chemelex/jobposting/search
+    endpoint_variant: nextjs_jobposting_search
+    tenant: chemelex
+    site_id: CANDIDATEPORTAL
+    locale: en-US
+    allowed_apply_hosts: [jobs.dayforcehcm.com]
+    page_size: 25
+    max_pages: 2
+    max_jobs: 50
+  - name: Veeva Systems
+    platform: lever
+    slug: veeva
+    careers_url: https://careers.veeva.com/
+    search_url: https://jobs.lever.co/veeva
+    endpoint_variant: postings_api_v0
+    allowed_apply_hosts: [jobs.lever.co]
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000

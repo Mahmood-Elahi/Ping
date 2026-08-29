@@ -55,3 +55,17 @@ company_parent_source_mappings:
       validation_artifact: output/shared_api_validation.json
       evidence_source: bounded production-parent recheck
       validation_status: validated_parent_mapping_with_current_jobs
+  - child_company: Weights & Biases
+    parent_company: CoreWeave
+    enabled: true
+    match_field: raw_metadata.greenhouse_metadata.Acquisition Company
+    match_type: exact_normalized
+    accepted_values:
+      - Weights & Biases
+    canonical_source: greenhouse:coreweave
+    display_behavior: child_brand_metadata
+    confidence: high
+    evidence:
+      official_child_careers_url: https://site.wandb.ai/careers/
+      official_parent_search_url: https://www.coreweave.com/careers
+      validation_artifact: output/ml_infrastructure_data_systems_expansion_v1_batch_a_validation.json
