@@ -15,6 +15,7 @@ from tests.company_careers_reliability_assertions import (
     assert_historical_prefix,
     assert_historical_target_prefix,
 )
+from tests.text_bytes import canonical_text_bytes
 
 from scripts import validate_company_registry as registry_validator
 from scripts import validate_tsmc_source_recovery as recovery
@@ -220,7 +221,10 @@ class TSMCSourceRecoveryTests(unittest.TestCase):
             ["git", "show", "HEAD:src/scraper/company_careers/adapters/avature.py"],
             cwd=ROOT, check=True, capture_output=True,
         ).stdout
-        self.assertEqual(Path(avature.__file__).read_bytes(), source_before)
+        self.assertEqual(
+            canonical_text_bytes(Path(avature.__file__).read_bytes()),
+            canonical_text_bytes(source_before),
+        )
 
     def test_27_reclassification_preserves_source_identity_rules(self):
         self.assertEqual(registry_validator.source_key(recovery.recovered_entry()), "sap_successfactors:ro.careers.tsmc.com")

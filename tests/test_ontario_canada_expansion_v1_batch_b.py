@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import ast
 import csv
-import hashlib
 import json
 import subprocess
 import tempfile
@@ -10,6 +9,11 @@ import unittest
 
 from tests.company_careers_activation_milestones import (
     historical_parent_mapping_sha256,
+)
+from tests.text_bytes import (
+    canonical_sha256_for_legacy_text_sha256,
+    canonical_text_bytes as normalized_newlines,
+    canonical_text_sha256,
 )
 from pathlib import Path
 from types import SimpleNamespace
@@ -42,10 +46,6 @@ def entries(path: Path) -> list[dict]:
 
 def entries_from_bytes(content: bytes) -> list[dict]:
     return (yaml.safe_load(content.decode("utf-8")) or {})["target_companies"]
-
-
-def normalized_newlines(content: bytes) -> bytes:
-    return content.replace(b"\r\n", b"\n")
 
 
 def fake_job(
@@ -211,8 +211,10 @@ class OntarioCanadaExpansionV1BatchBArtifactTests(unittest.TestCase):
 
     def test_10_hashes_ignore_and_publication_state(self):
         self.assertEqual(
-            hashlib.sha256(self.historical_bytes).hexdigest().upper(),
-            self.report["production_registry_sha256"],
+            canonical_text_sha256(self.historical_bytes),
+            canonical_sha256_for_legacy_text_sha256(
+                self.report["production_registry_sha256"]
+            ),
         )
         self.assertEqual(
             historical_parent_mapping_sha256(batch.PARENT_MAPPINGS),

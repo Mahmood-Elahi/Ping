@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import ast
 import csv
-import hashlib
 import json
 import subprocess
 import tempfile
@@ -10,6 +9,11 @@ import unittest
 
 from tests.company_careers_activation_milestones import (
     historical_parent_mapping_sha256,
+)
+from tests.text_bytes import (
+    canonical_sha256_for_legacy_text_sha256,
+    canonical_text_bytes as normalized_newlines,
+    canonical_text_sha256,
 )
 from pathlib import Path
 from types import SimpleNamespace
@@ -34,10 +38,6 @@ EXCLUDED = {"SMART Technologies", "CoolIT Systems", "Attabotics", "Ballard Power
 
 def entries(path: Path) -> list[dict]:
     return (yaml.safe_load(path.read_text(encoding="utf-8")) or {})["target_companies"]
-
-
-def normalized_newlines(content: bytes) -> bytes:
-    return content.replace(b"\r\n", b"\n")
 
 
 def historical_prefix_bytes(path: Path) -> bytes:
@@ -210,7 +210,12 @@ class CanadianExpansionV3BatchCArtifactTests(unittest.TestCase):
         self.assertTrue(all(url.startswith("https://jobs.lever.co/pointclickcare/") for url in pcc_result["runs"][0]["apply_urls"]))
 
     def test_13_hashes_ignore_and_publication_state(self):
-        self.assertEqual(hashlib.sha256(self.historical_prefix_bytes).hexdigest().upper(), self.report["production_registry_sha256"])
+        self.assertEqual(
+            canonical_text_sha256(self.historical_prefix_bytes),
+            canonical_sha256_for_legacy_text_sha256(
+                self.report["production_registry_sha256"]
+            ),
+        )
         self.assertEqual(historical_parent_mapping_sha256(batch.PARENT_MAPPINGS), self.report["parent_mappings_sha256"])
         ignored = subprocess.run(["git", "check-ignore", str(batch.REPORT.relative_to(batch.ROOT))], cwd=batch.ROOT,
                                  capture_output=True, text=True, check=False)

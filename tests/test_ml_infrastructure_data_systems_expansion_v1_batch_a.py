@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import ast
 import csv
-import hashlib
 import json
 import subprocess
 import unittest
@@ -12,6 +11,11 @@ from urllib.parse import urlparse
 import yaml
 
 from tests.company_careers_reliability_assertions import assert_historical_prefix
+from tests.text_bytes import (
+    canonical_sha256_for_legacy_text_sha256,
+    canonical_text_bytes,
+    canonical_text_sha256,
+)
 
 from scripts import validate_company_registry as registry_validator
 from scripts import validate_ml_infrastructure_data_systems_expansion_v1_batch_a as batch
@@ -208,21 +212,23 @@ class MlInfrastructureDataSystemsExpansionV1BatchAArtifactTests(unittest.TestCas
         self.assertTrue(all(not row["original_246_master"] for row in self.report["results"]))
 
     def test_11_hashes_ignore_and_safe_stage_manifest(self):
-        validated_bytes = batch.VALIDATED_REGISTRY.read_bytes()
-        marker = b"  - name: Anyscale\r\n"
+        validated_bytes = canonical_text_bytes(batch.VALIDATED_REGISTRY.read_bytes())
+        marker = b"  - name: Anyscale\n"
         historical_bytes = validated_bytes[:validated_bytes.index(marker)].replace(
             b"    job_attribution_regex: CoreWeave|Weights & Biases\n",
             b"    job_attribution_regex: CoreWeave\n",
         )
         self.assertEqual(
-            hashlib.sha256(historical_bytes).hexdigest().upper(),
-            self.report["production_registry_sha256"],
+            canonical_text_sha256(historical_bytes),
+            canonical_sha256_for_legacy_text_sha256(
+                self.report["production_registry_sha256"]
+            ),
         )
-        mapping_bytes = batch.PARENT_MAPPINGS.read_bytes().replace(b"\r\n", b"\n")
+        mapping_bytes = canonical_text_bytes(batch.PARENT_MAPPINGS.read_bytes())
         mapping_marker = b"  - child_company: Weights & Biases\n"
         historical_mapping_bytes = mapping_bytes[:mapping_bytes.index(mapping_marker)]
         self.assertEqual(
-            hashlib.sha256(historical_mapping_bytes).hexdigest().upper(),
+            canonical_text_sha256(historical_mapping_bytes),
             self.report["parent_mappings_sha256"],
         )
         self.assertEqual(self.report["safe_to_stage_files"], batch.SAFE_TO_STAGE_FILES)

@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import csv
-import hashlib
 import inspect
 import sqlite3
 import unittest
 
 from tests.company_careers_activation_milestones import (
     historical_parent_mapping_sha256,
+)
+from tests.text_bytes import (
+    canonical_text_bytes as normalized_newlines,
+    canonical_text_sha256,
 )
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -62,10 +65,6 @@ def configured_source_identity(entry: dict) -> str:
     if entry["platform"] == "workday":
         return f"workday:{entry['tenant']}:{entry['site_id']}"
     return f"{entry['platform']}:{entry['slug']}"
-
-
-def normalized_newlines(content: bytes) -> bytes:
-    return content.replace(b"\r\n", b"\n")
 
 
 class FakeResponse:
@@ -192,7 +191,7 @@ class ExistingAdapterV4ArtifactTests(unittest.TestCase):
         self.assertEqual(len(registry_entries_from_bytes(candidate_prefix)), batch.HISTORICAL_PRODUCTION_COUNT)
         normalized_prefix = normalized_newlines(candidate_prefix)
         self.assertEqual(
-            hashlib.sha256(normalized_prefix).hexdigest().upper(),
+            canonical_text_sha256(normalized_prefix),
             HISTORICAL_PRODUCTION_SHA256,
         )
         assert_historical_prefix(

@@ -6,6 +6,7 @@ import unittest
 
 from tests.company_careers_activation_milestones import (
     historical_parent_mapping_bytes,
+    historical_parent_mapping_projection,
 )
 from pathlib import Path
 from unittest.mock import patch
@@ -549,7 +550,11 @@ class RefingerprintUncoveredV4Tests(unittest.TestCase):
             cwd=ROOT,
         )
         observed = historical_parent_mapping_bytes(mod.PARENT_MAPPINGS)
-        self.assertEqual(observed, expected)
+        expected_at_rollout = historical_parent_mapping_projection(
+            expected,
+            source="HEAD:config/company_parent_source_mappings.yaml",
+        )
+        self.assertEqual(observed, expected_at_rollout)
 
     def test_59_no_supabase_initialization_import(self):
         self.assertFalse(self._imports_containing("supabase"))

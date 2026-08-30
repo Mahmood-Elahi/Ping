@@ -12,6 +12,7 @@ from tests.company_careers_reliability_assertions import (
     assert_historical_prefix,
     with_reliability_repairs,
 )
+from tests.text_bytes import canonical_text_bytes as normalized_newlines
 
 from scripts import validate_company_registry as validator
 from scripts import validate_static_embedded_batch as rollout
@@ -109,10 +110,6 @@ EXPECTED_SAFE_PLATFORMS.update({"DRW": "javascript_embedded_data", "Bluesky": "j
 
 def entries(path: Path):
     return (yaml.safe_load(path.read_text(encoding="utf-8")) or {})["target_companies"]
-
-
-def normalized_newlines(content: bytes) -> bytes:
-    return content.replace(b"\r\n", b"\n")
 
 
 def historical_prefix_bytes(path: Path) -> bytes:

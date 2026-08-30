@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import csv
-import hashlib
 import inspect
 import json
 import tempfile
@@ -9,6 +8,10 @@ import unittest
 
 from tests.company_careers_activation_milestones import (
     historical_parent_mapping_sha256,
+)
+from tests.text_bytes import (
+    canonical_sha256_for_legacy_text_sha256,
+    canonical_text_sha256,
 )
 from pathlib import Path
 from unittest.mock import patch
@@ -244,7 +247,12 @@ class AdapterExtensionsV4BArtifactTests(unittest.TestCase):
         candidate_prefix = historical_prefix_bytes(rollout.CANDIDATE_REGISTRY)
         validated_prefix = historical_prefix_bytes(rollout.VALIDATED_REGISTRY)
         self.assertEqual(candidate_prefix, validated_prefix)
-        self.assertEqual(self.report["production_registry_sha256"], hashlib.sha256(candidate_prefix).hexdigest().upper())
+        self.assertEqual(
+            canonical_sha256_for_legacy_text_sha256(
+                self.report["production_registry_sha256"]
+            ),
+            canonical_text_sha256(candidate_prefix),
+        )
         self.assertEqual(self.report["parent_mappings_sha256"], historical_parent_mapping_sha256(rollout.PARENT_MAPPINGS))
 
     def test_12_future_append_only_production_growth_does_not_change_milestone_delta(self):

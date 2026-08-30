@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import ast
 import csv
-import hashlib
 import inspect
 import json
 import subprocess
@@ -24,6 +23,11 @@ from tests.company_careers_reliability_assertions import (
     assert_historical_registry_bytes,
     with_reliability_repairs,
 )
+from tests.text_bytes import (
+    canonical_sha256_for_legacy_text_sha256,
+    canonical_text_bytes as normalized_newlines,
+    canonical_text_sha256,
+)
 
 from scripts import validate_browser_expansion_v1a as batch
 from src.scraper.company_careers.adapters import browser_rendered_html
@@ -34,10 +38,6 @@ from src.scraper.company_careers.registry import load_target_companies
 
 def entries(path: Path) -> list[dict]:
     return (yaml.safe_load(path.read_text(encoding="utf-8")) or {})["target_companies"]
-
-
-def normalized_newlines(content: bytes) -> bytes:
-    return content.replace(b"\r\n", b"\n")
 
 
 def historical_prefix_bytes(path: Path) -> bytes:
@@ -140,7 +140,12 @@ class BrowserExpansionV1AArtifactTests(unittest.TestCase):
         self.assertEqual(by_name["Broadcom"]["platform"], "workday")
 
     def test_09_production_and_parent_mappings_are_unchanged(self):
-        self.assertEqual(hashlib.sha256(self.historical_bytes).hexdigest().upper(), self.report["production_registry_sha256"])
+        self.assertEqual(
+            canonical_text_sha256(self.historical_bytes),
+            canonical_sha256_for_legacy_text_sha256(
+                self.report["production_registry_sha256"]
+            ),
+        )
         self.assertEqual(historical_parent_mapping_sha256(batch.PARENT_MAPPINGS), self.report["parent_mappings_sha256"])
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 5)
 

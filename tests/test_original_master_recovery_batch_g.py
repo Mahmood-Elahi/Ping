@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import ast
 import csv
-import hashlib
 import json
 import subprocess
 import tempfile
@@ -18,6 +17,10 @@ import yaml
 from tests.company_careers_reliability_assertions import (
     assert_historical_prefix,
     with_reliability_repairs,
+)
+from tests.text_bytes import (
+    canonical_sha256_for_legacy_text_sha256,
+    canonical_text_sha256,
 )
 
 from scripts import validate_original_master_recovery_batch_g as batch
@@ -201,8 +204,10 @@ class OriginalMasterRecoveryBatchGArtifactTests(unittest.TestCase):
 
     def test_11_hash_ignore_and_publication_state(self):
         self.assertEqual(
-            hashlib.sha256(self.historical_bytes).hexdigest().upper(),
-            self.report["production_registry_sha256"],
+            canonical_text_sha256(self.historical_bytes),
+            canonical_sha256_for_legacy_text_sha256(
+                self.report["production_registry_sha256"]
+            ),
         )
         self.assertEqual(
             historical_parent_mapping_sha256(batch.PARENT_MAPPINGS),

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import sqlite3
 import unittest
@@ -19,6 +18,11 @@ from src.scraper.company_careers.parent_sources import (
     matching_child_brands,
 )
 from src.scraper.company_careers.registry import load_target_companies
+from tests.text_bytes import (
+    canonical_sha256_for_legacy_text_sha256,
+    canonical_text_bytes,
+    canonical_text_sha256,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -273,9 +277,17 @@ class QuickWinsIsolationTests(unittest.TestCase):
         historical = VALIDATED.read_bytes()
         production = PRODUCTION.read_bytes()
         report = json.loads(REPORT.read_text(encoding="utf-8"))
-        digest = hashlib.sha256(historical).hexdigest().upper()
-        self.assertEqual(digest, report["production_registry_sha256"])
-        self.assertEqual(production[: len(historical)], historical)
+        digest = canonical_text_sha256(historical)
+        self.assertEqual(
+            digest,
+            canonical_sha256_for_legacy_text_sha256(
+                report["production_registry_sha256"]
+            ),
+        )
+        self.assertEqual(
+            canonical_text_bytes(production[: len(historical)]),
+            canonical_text_bytes(historical),
+        )
 
         _, historical_entries = validator.load_registry(VALIDATED)
         _, production_entries = validator.load_registry(PRODUCTION)

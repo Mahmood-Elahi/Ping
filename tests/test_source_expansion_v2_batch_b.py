@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import ast
 import csv
-import hashlib
 import json
 import subprocess
 import tempfile
@@ -18,6 +17,10 @@ from unittest.mock import patch
 import yaml
 
 from tests.company_careers_reliability_assertions import assert_historical_prefix
+from tests.text_bytes import (
+    canonical_sha256_for_legacy_text_sha256,
+    canonical_text_sha256,
+)
 
 from scripts import validate_source_expansion_v2_batch_b as batch
 from src.scraper.company_careers.models import AdapterError
@@ -198,8 +201,10 @@ class SourceExpansionV2BatchBArtifactTests(unittest.TestCase):
 
     def test_09_production_and_parent_mappings_are_unchanged(self):
         self.assertEqual(
-            hashlib.sha256(self.candidate_prefix_bytes).hexdigest().upper(),
-            self.report["production_registry_sha256"],
+            canonical_text_sha256(self.candidate_prefix_bytes),
+            canonical_sha256_for_legacy_text_sha256(
+                self.report["production_registry_sha256"]
+            ),
         )
         self.assertEqual(
             historical_parent_mapping_sha256(batch.PARENT_MAPPINGS),

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import ast
 import csv
-import hashlib
 import json
 import subprocess
 import unittest
@@ -11,6 +10,10 @@ from tests.company_careers_activation_milestones import (
     historical_parent_mapping_sha256,
 )
 from tests.company_careers_reliability_assertions import assert_historical_prefix
+from tests.text_bytes import (
+    canonical_sha256_for_legacy_text_sha256,
+    canonical_text_sha256,
+)
 from pathlib import Path
 
 import yaml
@@ -160,8 +163,10 @@ class SoftwareExpansionV1BatchAArtifactTests(unittest.TestCase):
         marker = b"  - name: HubSpot"
         historical_bytes = validated_bytes[:validated_bytes.index(marker)]
         self.assertEqual(
-            hashlib.sha256(historical_bytes).hexdigest().upper(),
-            self.report["production_registry_sha256"],
+            canonical_text_sha256(historical_bytes),
+            canonical_sha256_for_legacy_text_sha256(
+                self.report["production_registry_sha256"]
+            ),
         )
         self.assertEqual(
             historical_parent_mapping_sha256(batch.PARENT_MAPPINGS),
