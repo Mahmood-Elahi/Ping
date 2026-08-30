@@ -2,6 +2,7 @@
 
 from . import (
     adp,
+    apple,
     bamboohr,
     browser_rendered_html,
     clearcompany,
@@ -23,6 +24,7 @@ from . import (
 
 __all__ = [
     "adp",
+    "apple",
     "bamboohr",
     "browser_rendered_html",
     "clearcompany",

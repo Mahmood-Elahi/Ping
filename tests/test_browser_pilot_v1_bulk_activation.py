@@ -13,7 +13,10 @@ from pathlib import Path
 
 import yaml
 
-from tests.company_careers_reliability_assertions import assert_historical_prefix
+from tests.company_careers_reliability_assertions import (
+    assert_historical_prefix,
+    with_reliability_repairs,
+)
 from tests.text_bytes import (
     canonical_sha256_for_legacy_text_sha256,
     canonical_text_sha256,
@@ -122,6 +125,7 @@ class BrowserPilotBulkActivationTests(unittest.TestCase):
         for company in pilot.REVIEWED_COMPANIES:
             name_key = pilot.registry_validator._name_key({"name": company})
             expected = [item for item in validated if pilot.registry_validator._name_key(item) == name_key]
+            expected = with_reliability_repairs(expected)
             observed = [item for item in production if pilot.registry_validator._name_key(item) == name_key]
             self.assertEqual(len(expected), 1)
             self.assertEqual(observed, expected)

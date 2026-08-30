@@ -1698,29 +1698,21 @@ target_companies:
     department_allowlist:
     - Match Group
   - name: Apple
-    platform: browser_rendered_html
+    platform: apple
     careers_url: https://www.apple.com/careers/us/
-    listing_url: https://jobs.apple.com/en-us/search?location=united-states-USA
-    endpoint_variant: browser_rendered_html_v1
-    browser_wait_selector: h3 a[href*='/details/']
-    browser_scroll_steps: 1
-    browser_static_variant: server_rendered_links
-    browser_identity_selector: title
-    browser_identity_regex: Careers at Apple|Jobs.*Apple
-    listing_selector: h3 a[href*=/details/]
-    job_card_selector: h3 a[href*=/details/]
-    title_selector: :self
-    location_selector: null
-    detail_link_selector: :self
-    external_id_regex: /details/([^/?#]+)
-    department_selector: null
-    date_selector: null
+    search_url: https://jobs.apple.com/en-us/search?location=united-states-USA
+    endpoint_url: https://jobs.apple.com/api/v1/search
+    endpoint_variant: apple_search_api_v1
+    locale: en-us
     allowed_apply_hosts:
     - jobs.apple.com
     original_workbook_rank: 3
-    max_pages: 1
+    max_pages: 3
     max_jobs: 20
     max_response_bytes: 3000000
+    evidence_source: https://jobs.apple.com/en-us/search?location=united-states-USA
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-30T00:00:00+00:00'
   - name: Figure AI
     platform: browser_rendered_html
     careers_url: https://www.figure.ai/careers

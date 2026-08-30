@@ -11,6 +11,7 @@ import requests
 from src.scraper.company_careers.adapters import (
     adp,
     amazon,
+    apple,
     avature,
     ashby,
     bamboohr,
@@ -76,6 +77,7 @@ SessionFactory = Callable[[], requests.Session]
 
 ADAPTERS: dict[str, AdapterFn] = {
     "adp": adp.fetch_jobs,
+    "apple": apple.fetch_jobs,
     "greenhouse": greenhouse.fetch_jobs,
     "lever": lever.fetch_jobs,
     "ashby": ashby.fetch_jobs,

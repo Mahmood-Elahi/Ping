@@ -25,6 +25,7 @@ if str(Path(__file__).resolve().parents[1]) not in sys.path:
 
 from src.scraper.company_careers.adapters import (
     adp,
+    apple,
     ashby,
     avature,
     bamboohr,
@@ -111,6 +112,7 @@ AdapterFn = Callable[[Any, CompanyTarget, int], list[JobRecord]]
 
 ADAPTERS: dict[str, AdapterFn] = {
     "adp": adp.fetch_jobs,
+    "apple": apple.fetch_jobs,
     "greenhouse": greenhouse.fetch_jobs,
     "lever": lever.fetch_jobs,
     "ashby": ashby.fetch_jobs,
@@ -170,6 +172,9 @@ def detect_additions(
 
 def source_key(entry: Mapping[str, Any]) -> Optional[str]:
     platform = str(entry.get("platform") or "").strip().casefold()
+    if platform == "apple":
+        endpoint = urlparse(str(entry.get("endpoint_url") or ""))
+        return f"apple:{(endpoint.hostname or '').casefold()}" if endpoint.hostname else None
     if platform in {"greenhouse", "lever", "ashby"}:
         slug = str(entry.get("slug") or "").strip().casefold()
         return f"{platform}:{slug}" if slug else None
@@ -263,6 +268,12 @@ def source_key(entry: Mapping[str, Any]) -> Optional[str]:
 
 def configured_identifiers(entry: Mapping[str, Any]) -> dict[str, Any]:
     platform = str(entry.get("platform") or "").strip().casefold()
+    if platform == "apple":
+        return {
+            "endpoint_url": entry.get("endpoint_url"),
+            "endpoint_variant": entry.get("endpoint_variant"),
+            "locale": entry.get("locale"),
+        }
     if platform in {"greenhouse", "lever", "ashby"}:
         return {"slug": entry.get("slug")}
     if platform == "workday":
@@ -401,6 +412,9 @@ def endpoint_for(entry: Mapping[str, Any]) -> Optional[str]:
                 f"https://{tenant}.{subdomain}.myworkdayjobs.com"
                 f"/wday/cxs/{tenant}/{site_id}/jobs"
             )
+    if platform == "apple":
+        endpoint = str(entry.get("endpoint_url") or "").strip()
+        return endpoint or None
     if platform == "oracle_recruiting":
         endpoint = str(entry.get("endpoint_url") or "").strip()
         return endpoint or None
@@ -476,6 +490,11 @@ def configuration_error(entry: Mapping[str, Any]) -> Optional[str]:
         target = CompanyTarget.from_dict(dict(entry))
     except (KeyError, TypeError, ValueError) as exc:
         return f"Invalid target fields: {exc}"
+    if platform == "apple":
+        try:
+            apple.validate_target(target)
+        except AdapterError as exc:
+            return str(exc)
     if platform == "oracle_recruiting":
         try:
             oracle_recruiting.validate_target(target)
@@ -666,6 +685,7 @@ class RecordingRetrySession:
 
 def _response_shape_error(platform: str, response: Any) -> Optional[str]:
     if platform in {
+        "apple",
         "sap_successfactors",
         "cornerstone_csod",
         "dayforce",
@@ -842,7 +862,7 @@ def _valid_job_error(
 def _reported_total(platform: str, response: Any) -> Optional[int]:
     try:
         payload = response.json()
-    except (AttributeError, ValueError, requests.RequestException):
+    except (AttributeError, RuntimeError, ValueError, requests.RequestException):
         return None
     candidate: Any = None
     if platform == "lever" and isinstance(payload, list):
@@ -1134,7 +1154,13 @@ def validate_company(
                 safe_to_activate=True,
             )
 
-    if platform == "oracle_recruiting":
+    if platform == "apple":
+        pagination = getattr(session, "apple_pagination", None)
+        if isinstance(pagination, Mapping):
+            result["pagination_result"] = dict(pagination)
+            result["pages_requested"] = int(pagination.get("pages_fetched") or 0)
+            result["total_available_jobs"] = pagination.get("total_records")
+    elif platform == "oracle_recruiting":
         result["pagination_result"] = _oracle_pagination_result(
             session,
             target,
