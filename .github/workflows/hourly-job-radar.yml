@@ -101,16 +101,16 @@ jobs:
 
           companies = load_target_companies()
           mappings = load_parent_source_mappings()
-          if len(companies) != 452:
+          if len(companies) != 533:
               raise SystemExit(
-                  f"Production registry count mismatch: expected 452, found {len(companies)}"
+                  f"Production registry count mismatch: expected 533, found {len(companies)}"
               )
           if len(mappings) != 5:
               raise SystemExit(
                   f"Parent mapping count mismatch: expected 5, found {len(mappings)}"
               )
 
-          print("Production preflight passed: 452 canonical sources and 5 parent mappings.")
+          print("Production preflight passed: 533 canonical sources and 5 parent mappings.")
           PY
 
       - name: Update student dashboard
@@ -134,4 +134,3 @@ jobs:
         if: ${{ always() }}
         shell: bash
         run: rm -f "${RUNNER_TEMP}/google-service-account.json"
-
