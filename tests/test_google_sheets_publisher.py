@@ -1,6 +1,11 @@
+import json
 import tempfile
 import unittest
 from datetime import datetime, timezone
+from unittest.mock import Mock
+
+from gspread.exceptions import APIError
+from requests import Response
 
 from src.integrations.google_sheets_publisher import (
     ACTIVE_JOBS_HEADERS,
@@ -86,6 +91,22 @@ class FakeSpreadsheet:
             if "setBasicFilter" in request:
                 self.basic_filters[sheet_id] = request["setBasicFilter"]["filter"]
         self.batch_update_calls.append(body)
+
+
+def google_api_error(status, message, *, error_status=None, reason=None):
+    response = Response()
+    response.status_code = status
+    error = {
+        "code": status,
+        "message": message,
+    }
+    if error_status is not None:
+        error["status"] = error_status
+    if reason is not None:
+        error["details"] = [{"reason": reason}]
+    response._content = json.dumps({"error": error}).encode("utf-8")
+    response.headers["Content-Type"] = "application/json"
+    return APIError(response)
 
 
 def request_sheet_id(request):
@@ -494,6 +515,187 @@ class GoogleSheetsPublisherTests(unittest.TestCase):
                         "GOOGLE_CREDENTIALS_PATH": directory,
                     }
                 )
+
+    def test_initialization_error_preserves_sanitized_root_cause_diagnostics(self):
+        client = Mock()
+        api_error = google_api_error(
+            403,
+            "The caller does not have permission",
+            error_status="PERMISSION_DENIED",
+            reason="ACCESS_TOKEN_SCOPE_INSUFFICIENT",
+        )
+        permission_error = PermissionError()
+        permission_error.__cause__ = api_error
+        client.open_by_key.side_effect = permission_error
+        with tempfile.NamedTemporaryFile(suffix=".json") as credentials_file:
+            with self.assertRaises(GoogleSheetsConfigurationError) as raised:
+                GoogleSheetsPublisher.from_env(
+                    environ={
+                        "GOOGLE_SHEET_ID": "sheet-id",
+                        "GOOGLE_CREDENTIALS_PATH": credentials_file.name,
+                    },
+                    credentials_factory=Mock(return_value=object()),
+                    authorize_factory=Mock(return_value=client),
+                    sleep_func=Mock(),
+                )
+
+        diagnostic = str(raised.exception)
+        self.assertIn("operation=open_by_key", diagnostic)
+        self.assertIn("exception=PermissionError", diagnostic)
+        self.assertIn("cause=APIError", diagnostic)
+        self.assertIn("http_status=403", diagnostic)
+        self.assertIn("google_code=403", diagnostic)
+        self.assertIn("google_error=PERMISSION_DENIED", diagnostic)
+        self.assertIn(
+            "google_reason=ACCESS_TOKEN_SCOPE_INSUFFICIENT",
+            diagnostic,
+        )
+        self.assertIn("message=The caller does not have permission", diagnostic)
+        self.assertIn("attempts=1", diagnostic)
+
+    def test_publication_error_identifies_failing_operation(self):
+        spreadsheet = FakeSpreadsheet((*MANAGED_TABS, "Applications"))
+        spreadsheet.sheets["Active Jobs"].update = Mock(
+            side_effect=google_api_error(
+                403,
+                "Permission denied for requested range",
+                error_status="PERMISSION_DENIED",
+            )
+        )
+        publisher = GoogleSheetsPublisher(
+            spreadsheet,
+            now_factory=lambda: self.now,
+            sleep_func=Mock(),
+        )
+
+        with self.assertRaises(GoogleSheetsAccessError) as raised:
+            publisher.publish(
+                active_jobs=[],
+                scan_run=None,
+                companies=[],
+            )
+
+        diagnostic = str(raised.exception)
+        self.assertIn("operation=update: Active Jobs", diagnostic)
+        self.assertIn("exception=APIError", diagnostic)
+        self.assertIn("http_status=403", diagnostic)
+        self.assertIn("google_error=PERMISSION_DENIED", diagnostic)
+        self.assertIn("attempts=1", diagnostic)
+
+    def test_transient_status_retries_with_bounded_attempt_count(self):
+        spreadsheet = FakeSpreadsheet()
+        spreadsheet.worksheets = Mock(
+            side_effect=google_api_error(
+                503,
+                "Backend temporarily unavailable",
+                error_status="UNAVAILABLE",
+                reason="backendError",
+            )
+        )
+        sleep_calls = []
+        publisher = GoogleSheetsPublisher(
+            spreadsheet,
+            sleep_func=sleep_calls.append,
+            retry_delays=(0.01, 0.02),
+        )
+
+        with self.assertLogs(
+            "src.integrations.google_sheets_publisher",
+            level="WARNING",
+        ) as logs:
+            with self.assertRaises(GoogleSheetsAccessError) as raised:
+                publisher.publish(
+                    active_jobs=[],
+                    scan_run=None,
+                    companies=[],
+                )
+
+        self.assertEqual(spreadsheet.worksheets.call_count, 3)
+        self.assertEqual(sleep_calls, [0.01, 0.02])
+        self.assertIn("operation=list_worksheets", str(raised.exception))
+        self.assertIn("http_status=503", str(raised.exception))
+        self.assertIn("attempts=3", str(raised.exception))
+        self.assertEqual(len(logs.output), 2)
+
+    def test_permanent_status_does_not_retry(self):
+        spreadsheet = FakeSpreadsheet()
+        spreadsheet.worksheets = Mock(
+            side_effect=google_api_error(
+                404,
+                "Requested spreadsheet was not found",
+                error_status="NOT_FOUND",
+            )
+        )
+        sleep_func = Mock()
+        publisher = GoogleSheetsPublisher(
+            spreadsheet,
+            sleep_func=sleep_func,
+            retry_delays=(0.01, 0.02),
+        )
+
+        with self.assertRaises(GoogleSheetsAccessError) as raised:
+            publisher.publish(
+                active_jobs=[],
+                scan_run=None,
+                companies=[],
+            )
+
+        self.assertEqual(spreadsheet.worksheets.call_count, 1)
+        sleep_func.assert_not_called()
+        self.assertIn("http_status=404", str(raised.exception))
+        self.assertIn("attempts=1", str(raised.exception))
+
+    def test_credentials_and_tokens_are_redacted_from_diagnostics_and_retry_logs(self):
+        private_key = (
+            "-----BEGIN PRIVATE KEY-----\n"
+            "PRIVATEKEYMATERIALSHOULDNEVERAPPEAR\n"
+            "-----END PRIVATE KEY-----"
+        )
+        bearer_token = "ya29." + "A" * 48
+        jwt_token = "eyJheader.eyJpayload.signaturevalue"
+        short_token = "short-access-token-secret"
+        opaque_value = "Z" * 48
+        secret_message = (
+            f"private_key={private_key} Bearer {bearer_token} jwt={jwt_token} "
+            f"access_token={short_token} opaque={opaque_value} "
+            "service-account@example.iam.gserviceaccount.com"
+        )
+        spreadsheet = FakeSpreadsheet()
+        spreadsheet.worksheets = Mock(
+            side_effect=google_api_error(
+                503,
+                secret_message,
+                error_status="UNAVAILABLE",
+            )
+        )
+        publisher = GoogleSheetsPublisher(
+            spreadsheet,
+            sleep_func=Mock(),
+            retry_delays=(0.0, 0.0),
+        )
+
+        with self.assertLogs(
+            "src.integrations.google_sheets_publisher",
+            level="WARNING",
+        ) as logs:
+            with self.assertRaises(GoogleSheetsAccessError) as raised:
+                publisher.publish(
+                    active_jobs=[],
+                    scan_run=None,
+                    companies=[],
+                )
+
+        emitted = "\n".join(logs.output + [str(raised.exception)])
+        for secret in (
+            "PRIVATEKEYMATERIALSHOULDNEVERAPPEAR",
+            bearer_token,
+            jwt_token,
+            short_token,
+            opaque_value,
+            "service-account@example.iam.gserviceaccount.com",
+        ):
+            self.assertNotIn(secret, emitted)
+        self.assertIn("[REDACTED", emitted)
 
     def test_failed_sheets_write_raises_safe_access_error(self):
         self.spreadsheet.sheets["New Jobs"].protected = True

@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from scripts import update_student_dashboard as dashboard
+from src.integrations.google_sheets_publisher import GoogleSheetsAccessError
 from src.integrations.supabase_job_store import DashboardData, SupabaseJobStore
 from src.scraper.company_careers.models import (
     CompanyCareersReport,
@@ -74,11 +75,14 @@ class FakeStore:
 
 
 class FakePublisher:
-    def __init__(self):
+    def __init__(self, *, publish_error=None):
         self.publish_calls = []
+        self.publish_error = publish_error
 
     def publish(self, **kwargs):
         self.publish_calls.append(kwargs)
+        if self.publish_error is not None:
+            raise self.publish_error
         return {"new_jobs": 1, "active_jobs": 1, "companies": 1}
 
 
@@ -284,6 +288,35 @@ class UpdateStudentDashboardTests(unittest.TestCase):
         self.assertEqual(exit_code, 1)
         self.assertEqual(len(store.failed_scan_calls), 1)
         self.assertIn("Supabase unavailable", error_output.getvalue())
+
+    def test_fatal_sheets_publication_error_returns_nonzero(self):
+        pipeline = FakePipeline(self.report, self.summary)
+        store = FakeStore()
+        publisher = FakePublisher(
+            publish_error=GoogleSheetsAccessError(
+                "Google Sheets publication failed; operation=batch_format; "
+                "exception=APIError; http_status=503; attempts=3"
+            )
+        )
+        error_output = io.StringIO()
+        with (
+            patch.object(dashboard, "load_target_companies", return_value=[self.target]),
+            patch.object(dashboard, "build_pipeline", return_value=pipeline),
+            patch.object(dashboard.SupabaseJobStore, "from_env", return_value=store),
+            patch.object(
+                dashboard.GoogleSheetsPublisher,
+                "from_env",
+                return_value=publisher,
+            ),
+            redirect_stdout(io.StringIO()),
+            redirect_stderr(error_output),
+        ):
+            exit_code = dashboard.main([])
+
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(len(publisher.publish_calls), 1)
+        self.assertIn("operation=batch_format", error_output.getvalue())
+        self.assertIn("attempts=3", error_output.getvalue())
 
     def test_partial_company_failure_advances_only_successful_company(self):
         failed_target = CompanyTarget(

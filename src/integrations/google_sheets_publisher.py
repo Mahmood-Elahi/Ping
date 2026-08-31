@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 import os
+import re
+import time
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -11,6 +14,38 @@ from typing import Any, Callable, Iterable, Mapping, Optional
 
 DEFAULT_NEW_JOB_WINDOW_DAYS = 7
 GOOGLE_SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets"
+GOOGLE_SHEETS_RETRY_DELAYS = (0.5, 1.0)
+TRANSIENT_HTTP_STATUSES = frozenset({429, 500, 502, 503, 504})
+
+LOGGER = logging.getLogger(__name__)
+
+_PEM_PRIVATE_KEY_PATTERN = re.compile(
+    r"-----BEGIN [^-\r\n]*PRIVATE KEY-----.*?-----END [^-\r\n]*PRIVATE KEY-----",
+    re.IGNORECASE | re.DOTALL,
+)
+_BEARER_TOKEN_PATTERN = re.compile(r"\bBearer\s+\S+", re.IGNORECASE)
+_JWT_PATTERN = re.compile(
+    r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b"
+)
+_SECRET_ASSIGNMENT_PATTERN = re.compile(
+    r"(?P<key>['\"]?(?:private[_ -]?key(?:[_ -]?id)?|client[_ -]?secret|"
+    r"access[_ -]?token|refresh[_ -]?token|id[_ -]?token|authorization|"
+    r"api[_ -]?key|password)['\"]?)\s*[:=]\s*"
+    r"(?P<value>['\"][^'\"]*['\"]|[^\s,;]+)",
+    re.IGNORECASE,
+)
+_SECRET_LIKE_TOKEN_PATTERN = re.compile(
+    r"\S*(?:private[-_]?key|access[-_]?token|refresh[-_]?token|"
+    r"client[-_]?secret|credential[-_]?secret|secret[-_]?credential)\S*",
+    re.IGNORECASE,
+)
+_OPAQUE_VALUE_PATTERN = re.compile(
+    r"(?<![A-Za-z0-9])[A-Za-z0-9_+/=-]{32,}(?![A-Za-z0-9])"
+)
+_EMAIL_PATTERN = re.compile(
+    r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b",
+    re.IGNORECASE,
+)
 
 NEW_JOBS_HEADERS = [
     "Score",
@@ -133,6 +168,10 @@ class GoogleSheetsAccessError(RuntimeError):
     """Raised when the configured spreadsheet cannot be updated."""
 
 
+class _GoogleSheetsOperationError(RuntimeError):
+    """Internal sanitized failure for one named Google Sheets operation."""
+
+
 class GoogleSheetsPublisher:
     """Replace managed dashboard tabs while leaving application data untouched."""
 
@@ -142,6 +181,8 @@ class GoogleSheetsPublisher:
         *,
         new_job_window_days: int = DEFAULT_NEW_JOB_WINDOW_DAYS,
         now_factory: Optional[Callable[[], datetime]] = None,
+        sleep_func: Optional[Callable[[float], None]] = None,
+        retry_delays: tuple[float, ...] = GOOGLE_SHEETS_RETRY_DELAYS,
     ) -> None:
         if new_job_window_days < 1:
             raise GoogleSheetsConfigurationError(
@@ -150,6 +191,8 @@ class GoogleSheetsPublisher:
         self.spreadsheet = spreadsheet
         self.new_job_window_days = new_job_window_days
         self._now_factory = now_factory or (lambda: datetime.now(timezone.utc))
+        self._sleep_func = sleep_func or time.sleep
+        self._retry_delays = retry_delays
 
     @classmethod
     def from_env(
@@ -159,6 +202,8 @@ class GoogleSheetsPublisher:
         authorize_factory: Optional[Callable[[Any], Any]] = None,
         credentials_factory: Optional[Callable[..., Any]] = None,
         now_factory: Optional[Callable[[], datetime]] = None,
+        sleep_func: Optional[Callable[[float], None]] = None,
+        retry_delays: tuple[float, ...] = GOOGLE_SHEETS_RETRY_DELAYS,
     ) -> "GoogleSheetsPublisher":
         """Create the publisher only when explicitly requested at runtime."""
         environment = environ if environ is not None else os.environ
@@ -218,23 +263,43 @@ class GoogleSheetsPublisher:
             )
             authorize_factory = authorize_factory or gspread.authorize
 
+        sleeper = sleep_func or time.sleep
         try:
-            credentials = credentials_factory(
-                str(credentials_path),
-                scopes=[GOOGLE_SHEETS_SCOPE],
+            credentials = _run_google_operation(
+                "load_credentials",
+                lambda: credentials_factory(
+                    str(credentials_path),
+                    scopes=[GOOGLE_SHEETS_SCOPE],
+                ),
+                sleep_func=sleeper,
+                retry_delays=retry_delays,
+                allow_retry=False,
             )
-            client = authorize_factory(credentials)
-            spreadsheet = client.open_by_key(sheet_id)
-        except Exception:
+            client = _run_google_operation(
+                "authorize",
+                lambda: authorize_factory(credentials),
+                sleep_func=sleeper,
+                retry_delays=retry_delays,
+                allow_retry=False,
+            )
+            spreadsheet = _run_google_operation(
+                "open_by_key",
+                lambda: client.open_by_key(sheet_id),
+                sleep_func=sleeper,
+                retry_delays=retry_delays,
+                allow_retry=True,
+            )
+        except _GoogleSheetsOperationError as exc:
             raise GoogleSheetsConfigurationError(
-                "Unable to initialize Google Sheets; verify the sheet ID, "
-                "service-account credentials, and sheet sharing"
+                "Unable to initialize Google Sheets; " + str(exc)
             ) from None
 
         return cls(
             spreadsheet,
             new_job_window_days=window_days,
             now_factory=now_factory,
+            sleep_func=sleeper,
+            retry_delays=retry_delays,
         )
 
     def publish(
@@ -269,37 +334,66 @@ class GoogleSheetsPublisher:
 
         try:
             worksheets = {
-                worksheet.title: worksheet for worksheet in self.spreadsheet.worksheets()
+                worksheet.title: worksheet
+                for worksheet in _run_google_operation(
+                    "list_worksheets",
+                    self.spreadsheet.worksheets,
+                    sleep_func=self._sleep_func,
+                    retry_delays=self._retry_delays,
+                    allow_retry=True,
+                )
             }
             managed_worksheets = {}
             for title in MANAGED_TABS:
                 values = tab_values[title]
                 worksheet = worksheets.get(title)
                 if worksheet is None:
-                    worksheet = self.spreadsheet.add_worksheet(
-                        title=title,
-                        rows=max(100, len(values) + 10),
-                        cols=len(values[0]),
+                    worksheet = _run_google_operation(
+                        f"add_worksheet: {title}",
+                        lambda title=title, values=values: self.spreadsheet.add_worksheet(
+                            title=title,
+                            rows=max(100, len(values) + 10),
+                            cols=len(values[0]),
+                        ),
+                        sleep_func=self._sleep_func,
+                        retry_delays=self._retry_delays,
+                        allow_retry=False,
                     )
                 managed_worksheets[title] = worksheet
-                worksheet.clear()
-                worksheet.update(
-                    range_name="A1",
-                    values=values,
-                    value_input_option="RAW",
+                _run_google_operation(
+                    f"clear: {title}",
+                    worksheet.clear,
+                    sleep_func=self._sleep_func,
+                    retry_delays=self._retry_delays,
+                    allow_retry=True,
                 )
-            self.spreadsheet.batch_update(
-                {
-                    "requests": _formatting_requests(
-                        managed_worksheets,
-                        tab_values,
-                    )
-                }
+                _run_google_operation(
+                    f"update: {title}",
+                    lambda worksheet=worksheet, values=values: worksheet.update(
+                        range_name="A1",
+                        values=values,
+                        value_input_option="RAW",
+                    ),
+                    sleep_func=self._sleep_func,
+                    retry_delays=self._retry_delays,
+                    allow_retry=True,
+                )
+            formatting_requests = _formatting_requests(
+                managed_worksheets,
+                tab_values,
             )
-        except Exception:
+            _run_google_operation(
+                "batch_format",
+                lambda: self.spreadsheet.batch_update(
+                    {"requests": formatting_requests}
+                ),
+                sleep_func=self._sleep_func,
+                retry_delays=self._retry_delays,
+                allow_retry=True,
+            )
+        except _GoogleSheetsOperationError as exc:
             raise GoogleSheetsAccessError(
-                "Google Sheets publication failed; verify spreadsheet access, "
-                "service-account Editor sharing, and the Google Sheets API"
+                "Google Sheets publication failed; " + str(exc)
             ) from None
 
         return {
@@ -317,6 +411,227 @@ class GoogleSheetsPublisher:
             if first_seen is not None and first_seen >= cutoff:
                 recent.append(job)
         return sorted(recent, key=_job_sort_key)
+
+
+def _run_google_operation(
+    operation: str,
+    callback: Callable[[], Any],
+    *,
+    sleep_func: Callable[[float], None],
+    retry_delays: tuple[float, ...],
+    allow_retry: bool,
+) -> Any:
+    total_attempts = len(retry_delays) + 1 if allow_retry else 1
+    for attempt in range(1, total_attempts + 1):
+        try:
+            return callback()
+        except Exception as exc:
+            diagnostic = _google_exception_diagnostic(operation, exc)
+            should_retry = (
+                allow_retry
+                and _is_transient_google_error(exc)
+                and attempt < total_attempts
+            )
+            if not should_retry:
+                raise _GoogleSheetsOperationError(
+                    f"{diagnostic}; attempts={attempt}"
+                ) from None
+
+            delay = retry_delays[attempt - 1]
+            LOGGER.warning(
+                "Retrying Google Sheets operation after transient failure: "
+                "%s; attempt=%d/%d; delay_seconds=%g",
+                diagnostic,
+                attempt,
+                total_attempts,
+                delay,
+            )
+            sleep_func(delay)
+
+    raise AssertionError("Google Sheets retry loop exited unexpectedly")
+
+
+def _google_exception_diagnostic(operation: str, exc: Exception) -> str:
+    chain = list(_exception_chain(exc))
+    parts = [
+        f"operation={operation}",
+        f"exception={exc.__class__.__name__}",
+    ]
+    cause_names = []
+    for cause in chain[1:]:
+        name = cause.__class__.__name__
+        if name not in cause_names:
+            cause_names.append(name)
+    if cause_names:
+        parts.append("cause=" + ",".join(cause_names))
+
+    payload = _google_error_payload(chain)
+    http_status = _http_status(chain, payload)
+    if http_status is not None:
+        parts.append(f"http_status={http_status}")
+
+    google_code = _safe_error_code(payload.get("code")) if payload else None
+    if google_code is not None:
+        parts.append(f"google_code={google_code}")
+
+    google_error = _safe_error_code(payload.get("status")) if payload else None
+    if google_error is None and payload:
+        google_error = _safe_error_code(payload.get("error"))
+    if google_error is not None:
+        parts.append(f"google_error={google_error}")
+
+    reasons = _google_error_reasons(payload)
+    if reasons:
+        parts.append("google_reason=" + ",".join(reasons))
+
+    parts.append(f"message={_safe_exception_message(operation, exc, chain, payload)}")
+    return "; ".join(parts)
+
+
+def _exception_chain(exc: Exception) -> Iterable[Exception]:
+    current: Optional[BaseException] = exc
+    seen: set[int] = set()
+    while isinstance(current, Exception) and id(current) not in seen:
+        seen.add(id(current))
+        yield current
+        current = current.__cause__ or current.__context__
+
+
+def _google_error_payload(chain: Iterable[Exception]) -> Mapping[str, Any]:
+    for current in chain:
+        error = getattr(current, "error", None)
+        if isinstance(error, Mapping):
+            return error
+        for argument in getattr(current, "args", ()):
+            if isinstance(argument, Mapping) and any(
+                key in argument
+                for key in ("code", "error", "error_description", "message", "status")
+            ):
+                nested = argument.get("error")
+                if isinstance(nested, Mapping):
+                    return nested
+                return argument
+    return {}
+
+
+def _http_status(
+    chain: Iterable[Exception],
+    payload: Optional[Mapping[str, Any]] = None,
+) -> Optional[int]:
+    for current in chain:
+        response = getattr(current, "response", None)
+        status = getattr(response, "status_code", None)
+        if isinstance(status, int):
+            return status
+    code = (payload or {}).get("code")
+    if isinstance(code, int) and 100 <= code <= 599:
+        return code
+    return None
+
+
+def _google_error_reasons(payload: Mapping[str, Any]) -> list[str]:
+    reasons = []
+    direct_reason = _safe_error_code(payload.get("reason"))
+    if direct_reason:
+        reasons.append(direct_reason)
+    for key in ("errors", "details"):
+        items = payload.get(key)
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, Mapping):
+                continue
+            for reason_key in ("reason", "errorCode"):
+                reason = _safe_error_code(item.get(reason_key))
+                if reason and reason not in reasons:
+                    reasons.append(reason)
+    return reasons
+
+
+def _safe_error_code(value: Any) -> Optional[str]:
+    if not isinstance(value, (str, int)):
+        return None
+    text = str(value).strip()
+    if not text or len(text) > 100:
+        return None
+    if not re.fullmatch(r"[A-Za-z0-9_.:-]+", text):
+        return None
+    return text
+
+
+def _safe_exception_message(
+    operation: str,
+    exc: Exception,
+    chain: Iterable[Exception],
+    payload: Mapping[str, Any],
+) -> str:
+    if operation == "load_credentials":
+        return "service-account credentials are invalid or malformed"
+
+    raw_message = payload.get("message") or payload.get("error_description")
+    if not isinstance(raw_message, str):
+        class_names = {current.__class__.__name__ for current in chain}
+        if any("Timeout" in name for name in class_names):
+            raw_message = "request timed out"
+        elif class_names & {"ConnectionError", "TransportError"}:
+            raw_message = "temporary connection or transport error"
+        elif "PermissionError" in class_names:
+            raw_message = "spreadsheet permission was denied"
+        elif "SpreadsheetNotFound" in class_names:
+            raw_message = "spreadsheet was not found or is not accessible"
+        elif operation == "authorize":
+            raw_message = "Google Sheets client authorization failed"
+        else:
+            raw_message = str(exc) or "details unavailable"
+    return _sanitize_message(raw_message)
+
+
+def _sanitize_message(message: str) -> str:
+    text = _PEM_PRIVATE_KEY_PATTERN.sub("[REDACTED_PRIVATE_KEY]", message)
+    text = _BEARER_TOKEN_PATTERN.sub("Bearer [REDACTED]", text)
+    text = _JWT_PATTERN.sub("[REDACTED_TOKEN]", text)
+    text = _SECRET_ASSIGNMENT_PATTERN.sub(
+        lambda match: f"{match.group('key')}=[REDACTED]",
+        text,
+    )
+    text = _SECRET_LIKE_TOKEN_PATTERN.sub("[REDACTED]", text)
+    text = _OPAQUE_VALUE_PATTERN.sub("[REDACTED_OPAQUE_VALUE]", text)
+    text = _EMAIL_PATTERN.sub("[REDACTED_EMAIL]", text)
+    text = " ".join(text.split())
+    if not text:
+        return "details unavailable"
+    if len(text) > 300:
+        return text[:297] + "..."
+    return text
+
+
+def _is_transient_google_error(exc: Exception) -> bool:
+    chain = list(_exception_chain(exc))
+    status = _http_status(chain, _google_error_payload(chain))
+    if status is not None:
+        return status in TRANSIENT_HTTP_STATUSES
+
+    class_names = {current.__class__.__name__ for current in chain}
+    if class_names & {"SSLError", "ProxyError"}:
+        return False
+    if any(getattr(current, "retryable", False) is True for current in chain):
+        return True
+    if any(isinstance(current, (TimeoutError, ConnectionError)) for current in chain):
+        return True
+    return bool(
+        class_names
+        & {
+            "Timeout",
+            "ConnectTimeout",
+            "ReadTimeout",
+            "TimeoutError",
+            "ConnectionError",
+            "ConnectionResetError",
+            "ConnectionAbortedError",
+            "ConnectionRefusedError",
+            "TransportError",
+        }
+    )
 
 
 def _formatting_requests(
