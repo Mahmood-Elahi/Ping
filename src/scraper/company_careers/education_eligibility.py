@@ -49,6 +49,9 @@ _ELIGIBILITY_CONTEXT = (
     r"(?:accept|allow|candidate|eligible|enroll|minimum|must|"
     r"plus|prefer|program|pursu|qualif|require|student|study)"
 )
+_PHD_ONLY_TITLE = (
+    rf"{_PHD}\s+(?:candidate\s+)?(?:intern(?:ship)?|student\s+researcher|research\s+intern)\b"
+)
 
 
 def classify_education_eligibility(job: JobRecord) -> dict[str, str]:
@@ -177,7 +180,13 @@ def _graduate_only_reason(text: str, source_kind: str, has_graduate: bool) -> st
     if source_kind == "education":
         return "graduate_education_field"
     if source_kind == "title":
-        academic_graduate = rf"(?:{_MASTERS}|{_PHD}|graduate\s+(?:students?|candidates?|fellowship)|post\s*[- ]?doctor(?:al|ate)|postdocs?)"
+        parenthetical_phd_program = (
+            bool(re.search(rf"\(\s*{_PHD}\s*\)", text, re.IGNORECASE))
+            and bool(re.search(r"\b(?:intern(?:ship)?|students?|researchers?)\b", text, re.IGNORECASE))
+        )
+        if parenthetical_phd_program or re.search(_PHD_ONLY_TITLE, text, re.IGNORECASE):
+            return "graduate_only_title"
+        academic_graduate = rf"(?:{_MASTERS}|graduate\s+(?:students?|candidates?|fellowship)|post\s*[- ]?doctor(?:al|ate)|postdocs?)"
         if re.search(
             rf"{academic_graduate}[^.;:]{{0,60}}(?:intern(?:ship)?|fellow(?:ship)?|student|co\s*[-/]?\s*op)|"
             rf"(?:intern(?:ship)?|fellow(?:ship)?|student)[^.;:]{{0,60}}{academic_graduate}",

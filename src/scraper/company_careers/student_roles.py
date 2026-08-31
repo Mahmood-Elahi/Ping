@@ -84,7 +84,30 @@ RESTRICTED_PROGRAM_PATTERNS = (
     (r"\bmilitary fellowship\b", "military_fellowship"),
     (r"\btransitioning service member\b", "transitioning_service_member"),
     (r"\bveteran fellowship\b", "veteran_fellowship"),
+    (
+        r"(?:\b(?:intern(?:ship)?|program)\b[^|]{0,60}\bmilitary veterans?\b|"
+        r"\bmilitary veterans?\b[^|]{0,60}\b(?:intern(?:ship)?|program)\b|"
+        r"\bveteran(?:\s*[-/]?\s*specific)?\s+(?:internship|program)\b|"
+        r"\bveterans?\s+only\b)",
+        "veteran_restricted_program",
+    ),
+    (
+        r"\bmilitary spouses?\b[^|]{0,60}\b(?:internship|program)\b|"
+        r"\bmilitary\s*[-/]?\s*affiliated\s+(?:internship|program)\b",
+        "military_affiliated_program",
+    ),
     (r"\bexperienced\s*[-/]?\s*(?:hires?|professionals?)\b", "experienced_hire"),
+)
+RESTRICTED_DESCRIPTION_PATTERNS = (
+    (
+        r"\b(?:eligibility|applicants?|candidates?|internship|program|role|position)\b"
+        r"[^.;]{0,100}\b(?:limited|restricted|exclusive(?:ly)?|only|must\s+be)\b"
+        r"[^.;]{0,100}\b(?:active\s+duty\s+transitioning\s+service\s+members?|"
+        r"military\s+veterans?|veterans?|military\s+spouses?)\b|"
+        r"\b(?:active\s+duty\s+transitioning\s+service\s+members?|military\s+veterans?|"
+        r"veterans?|military\s+spouses?)\b[^.;]{0,60}\bonly\b",
+        "military_veteran_eligibility_restriction",
+    ),
 )
 CANADIAN_PROVINCE_TERMS = (
     "alberta", "british columbia", "manitoba", "new brunswick",
@@ -138,22 +161,41 @@ OUTSIDE_COUNTRY_CODES = {
     "th", "tw", "ua", "uk", "vn", "za",
 }
 
+TECHNICAL_RESEARCH_CONTEXT_PATTERN = (
+    r"(?:machine learning|artificial intelligence|\bai\b|\bml\b|robotics?|software|hardware|"
+    r"electrical|embedded|firmware|fpga|asic|computer vision|perception|autonom(?:y|ous)|"
+    r"controls?|systems? engineering|computer science|compiler)"
+)
+TECHNICAL_RESEARCH_PATTERN = (
+    rf"\bresearch\s+(?:engineer|scientist)\b|\bapplied scientist\b|"
+    rf"(?:{TECHNICAL_RESEARCH_CONTEXT_PATTERN})[^,;:]{{0,50}}\bresearch(?:er)?\b|"
+    rf"\bresearch(?:er)?\b[^,;:]{{0,50}}(?:{TECHNICAL_RESEARCH_CONTEXT_PATTERN})"
+)
+
 STUDENT_CATEGORY_PATTERNS = (
     ("software_engineering", r"\bsoftware\b|\bswe\b|\bsde\b|\bdeveloper\b", 24),
     ("machine_learning_ai", r"\bmachine learning\b|\bml\b|\bartificial intelligence\b|\bai\b", 24),
     ("computer_vision", r"\bcomputer vision\b", 23),
     ("robotics_autonomous_systems", r"\brobot(?:ics)?\b|\bautonom(?:y|ous)\b", 23),
     ("embedded_software", r"\bembedded(?: software| systems?)?\b", 23),
-    ("firmware", r"\bfirmware\b", 23),
+    ("firmware", r"\bfirmware\b", 24),
     ("embedded_firmware", r"\bembedded\b|\bfirmware\b", 0),
     ("electrical_engineering", r"\belectrical(?: engineering| engineer)?\b|\bece\b", 22),
     ("hardware_engineering", r"\bhardware(?: engineering| engineer)?\b|\bcomputer engineering\b", 22),
     ("fpga_asic", r"\bfpga\b|\basic\b", 24),
     ("semiconductor_design_verification", r"\bsemiconductor\b|\bsilicon\b|\bdesign verification\b|\bverification engineer", 24),
-    ("controls", r"\bcontrols?\b", 21),
+    (
+        "controls",
+        r"\bcontrols?\s+(?:systems?\s+)?engineer(?:ing)?\b|"
+        r"\bcontrols?\s+systems?\b|"
+        r"\b(?:motion|motor|flight|robotics?|automation)\s+controls?\b|"
+        r"\b(?:intern(?:ship)?s?|co\s*(?:[-/]\s*)?ops?|students?)\b"
+        r"\s*[-,:/]\s*controls?\b",
+        21,
+    ),
     ("perception", r"\bperception\b", 23),
     ("systems_engineering", r"\bsystems? engineering\b|\bsystems? engineer", 21),
-    ("research_applied_science", r"\bresearch(?:er)?\b|\bapplied scien(?:ce|tist)\b", 14),
+    ("research_applied_science", TECHNICAL_RESEARCH_PATTERN, 14),
 )
 
 # Only these collectors search by role text. Complete-board collectors remain untouched.
@@ -180,6 +222,38 @@ TARGET_SEASONS = {
     "Fall 2026", "September 2026", "Winter 2027", "January 2027",
     "Summer 2027", "May 2027", "2027 internship",
 }
+
+STUDENT_ROLE_POINTS = {
+    "explicit_title": 28,
+    "contextual_title": 24,
+    "structured_metadata": 22,
+}
+LOCATION_RANKING_POINTS = {
+    "eligible_canada": 14,
+    "eligible_remote_canada": 14,
+    "eligible_north_america": 11,
+    "eligible_remote_north_america": 11,
+    "eligible_worldwide": 11,
+    "eligible_remote_unspecified": 10,
+    "eligible_remote_us": 9,
+    "eligible_us_hybrid": 7,
+    "eligible_us_onsite": 5,
+}
+DOMAIN_PRIORITY_CAP = 34
+UNDERGRADUATE_CONFIDENCE_POINTS = 4
+AMBIGUOUS_EDUCATION_PENALTY = 2
+NO_TARGET_DOMAIN_PENALTY = 5
+UNIVERSITY_PARTNER_PROGRAM_PENALTY = 3
+
+UNIVERSITY_PARTNER_TITLE_PATTERNS = (
+    r"\b(?:[Cc]o\s*(?:[-/]\s*)?[Oo]p|[Ii]nternship|[Pp]rogram)\s+[Ww]ith\s+(?:[Tt]he\s+)?"
+    r"(?:[A-Z][A-Za-z&.'-]*\s+){1,6}(?:University|College|Institute)\b",
+    r"\bUniversity\s+of\s+(?:[A-Z][A-Za-z&.'-]*\s*){1,6}"
+    r"(?:[Cc]o\s*(?:[-/]\s*)?[Oo]p|[Ii]nternship|[Pp]rogram|[Pp]artnership)\b",
+    r"\b(?:[A-Z][A-Za-z&.'-]*\s+){1,6}(?:University|College|Institute)\s+"
+    r"(?:[Cc]o\s*(?:[-/]\s*)?[Oo]p|[Ii]nternship|[Pp]artnership)\b",
+    r"\b[A-Z][A-Za-z&.'-]*\s+Tech\s+[Pp]artnership\s+[Ii]nternship\b",
+)
 
 
 def student_search_terms(include_new_grad: bool = False) -> list[str]:
@@ -388,12 +462,15 @@ def score_student_job(
     title = (job.title or "").casefold()
     education = annotate_education_eligibility(job)
     signal_info = student_job_signals(job)
-    score = 34 if signal_info["matching_rule"] else 0
+    student_role_confidence, student_role_points = _student_role_confidence(signal_info)
+    score = student_role_points
     positive_signals = _unique(
         signal_info["strong_title"]
         + signal_info["contextual_title"]
         + signal_info["structured_strong"]
     )
+    if student_role_confidence:
+        positive_signals.append(f"student_role:{student_role_confidence}")
     negative_signals: list[str] = []
     matched_categories: list[str] = []
     domain_priority = 0
@@ -401,15 +478,30 @@ def score_student_job(
         if re.search(pattern, title, flags=re.IGNORECASE):
             matched_categories.append(category)
             domain_priority += points
-    score += min(domain_priority, 38)
+    score += min(domain_priority, DOMAIN_PRIORITY_CAP)
+    if not matched_categories:
+        score -= NO_TARGET_DOMAIN_PENALTY
+        negative_signals.append("no_target_domain_match")
+
+    if _is_university_partner_program(job.title or ""):
+        score -= UNIVERSITY_PARTNER_PROGRAM_PENALTY
+        negative_signals.append("university_partner_program")
 
     location_status = classify_student_location(job, locations=locations)
-    if location_status.startswith("eligible_"):
-        score += 12
+    location_points = LOCATION_RANKING_POINTS.get(location_status, 0)
+    if location_points:
+        score += location_points
         positive_signals.append(location_status)
     elif location_status.startswith("excluded_"):
         score -= 25
         negative_signals.append("outside_canada_us_scope")
+
+    if education["education_eligibility"] == UNDERGRADUATE_ALLOWED:
+        score += UNDERGRADUATE_CONFIDENCE_POINTS
+        positive_signals.append("education:undergraduate_allowed")
+    elif education["education_eligibility"] == AMBIGUOUS:
+        score -= AMBIGUOUS_EDUCATION_PENALTY
+        negative_signals.append("education:ambiguous")
 
     seniority_signals = _seniority_signals(title)
     if seniority_signals:
@@ -458,7 +550,12 @@ def rank_student_jobs(
     locations: Optional[Iterable[str]] = None, limit: Optional[int] = None,
 ) -> list[dict[str, Any]]:
     ranked: list[dict[str, Any]] = []
+    seen_identities: set[tuple[str, ...]] = set()
     for job in jobs:
+        identity = _ranking_job_identity(job)
+        if identity in seen_identities:
+            continue
+        seen_identities.add(identity)
         relevance = score_student_job(job, include_new_grad=include_new_grad, locations=locations)
         item = job.to_dict()
         item.update({
@@ -628,6 +725,37 @@ def _matched_signals(text: str, patterns: Iterable[tuple[str, str]]) -> list[str
     return [signal for signal, pattern in patterns if re.search(pattern, text, flags=re.IGNORECASE)]
 
 
+def _student_role_confidence(signal_info: Mapping[str, Any]) -> tuple[str, int]:
+    if signal_info["strong_title"]:
+        confidence = "explicit_title"
+    elif str(signal_info["matching_rule"] or "").startswith("contextual_title+"):
+        confidence = "contextual_title"
+    elif signal_info["matching_rule"]:
+        confidence = "structured_metadata"
+    else:
+        return "", 0
+    return confidence, STUDENT_ROLE_POINTS[confidence]
+
+
+def _ranking_job_identity(job: JobRecord) -> tuple[str, ...]:
+    company = _normalize_identity_text(job.company)
+    source = _normalize_identity_text(job.source)
+    if job.job_id:
+        return "id", company, source, job.job_id.strip()
+    if job.url:
+        return "url", job.url.strip()
+    return (
+        "fallback",
+        company,
+        _normalize_identity_text(job.title),
+        _normalize_identity_text(job.location),
+    )
+
+
+def _normalize_identity_text(value: str) -> str:
+    return re.sub(r"\s+", " ", value).strip().casefold()
+
+
 def _restricted_program_signals(job: JobRecord) -> list[str]:
     text = " ".join(
         [job.title or ""]
@@ -637,7 +765,16 @@ def _restricted_program_signals(job: JobRecord) -> list[str]:
         signal for pattern, signal in RESTRICTED_PROGRAM_PATTERNS
         if re.search(pattern, text, flags=re.IGNORECASE)
     ]
+    description = job.description or ""
+    signals.extend(
+        signal for pattern, signal in RESTRICTED_DESCRIPTION_PATTERNS
+        if re.search(pattern, description, flags=re.IGNORECASE)
+    )
     return _unique(signals)
+
+
+def _is_university_partner_program(title: str) -> bool:
+    return any(re.search(pattern, title) for pattern in UNIVERSITY_PARTNER_TITLE_PATTERNS)
 
 
 def _student_job_exclusion_reason_before_education(job: JobRecord) -> Optional[str]:
