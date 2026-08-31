@@ -16,6 +16,10 @@ if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
 from src.scraper.company_careers.registry import load_target_companies
+from src.scraper.company_careers.candidate_profile import (
+    DEFAULT_CANDIDATE_PROFILE_PATH,
+    load_candidate_profile,
+)
 from src.scraper.company_careers.models import CoverageStatus
 from src.scraper.company_careers.scanner import CompanyCareersScanner
 from src.scraper.company_careers.student_roles import (
@@ -74,6 +78,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Deprecated compatibility flag; new-grad roles remain excluded",
     )
     parser.add_argument(
+        "--candidate-profile",
+        default=DEFAULT_CANDIDATE_PROFILE_PATH,
+        help="Candidate-preference YAML applied after role relevance",
+    )
+    parser.add_argument(
+        "--no-candidate-profile",
+        action="store_const",
+        const=None,
+        dest="candidate_profile",
+        help="Disable candidate preferences and preserve legacy ranking",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Print the scan plan without fetching, writing artifacts, or updating the database",
@@ -91,6 +107,7 @@ def print_plan(args: argparse.Namespace, company_count: int) -> None:
     print("  Include new-grad roles: no")
     print(f"  Title terms: {', '.join(student_search_terms(args.include_new_grad))}")
     print(f"  Configured companies: {company_count}")
+    print(f"  Candidate profile: {args.candidate_profile or 'disabled'}")
 
 
 def print_summary(summary: dict[str, Any] | None, *, dry_run: bool) -> None:
@@ -139,6 +156,10 @@ def print_summary(summary: dict[str, Any] | None, *, dry_run: bool) -> None:
 def main(argv: list[str] | None = None) -> int:
     configure_console()
     args = parse_args(argv)
+    candidate_profile = (
+        load_candidate_profile(args.candidate_profile)
+        if args.candidate_profile else None
+    )
     targets = configure_student_targets(
         load_target_companies(apply_reliability_repairs=True),
         include_new_grad=args.include_new_grad,
@@ -163,15 +184,23 @@ def main(argv: list[str] | None = None) -> int:
         company_careers_scanner=scanner,
         company_careers_job_filter=build_student_job_filter(
             include_new_grad=args.include_new_grad,
+            candidate_profile=candidate_profile,
         ),
         company_careers_location_filter=build_student_location_filter(
             locations=args.locations,
+            allow_international=bool(
+                candidate_profile and candidate_profile.allows_international
+            ),
         ),
         company_careers_ranked_writer=partial(
             write_student_ranked_jobs_artifacts,
             include_new_grad=args.include_new_grad,
+            candidate_profile=candidate_profile,
         ),
-        company_careers_diagnostics_builder=build_student_search_diagnostics,
+        company_careers_diagnostics_builder=partial(
+            build_student_search_diagnostics,
+            candidate_profile=candidate_profile,
+        ),
     )
     try:
         pipeline.search_jobs()
@@ -184,6 +213,7 @@ def main(argv: list[str] | None = None) -> int:
             report.jobs,
             include_new_grad=args.include_new_grad,
             locations=args.locations,
+            candidate_profile=candidate_profile,
         )
         successful_companies = [
             result.target.name

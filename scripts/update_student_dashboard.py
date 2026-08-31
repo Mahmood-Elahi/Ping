@@ -19,6 +19,11 @@ from src.integrations.google_sheets_publisher import GoogleSheetsPublisher
 from src.integrations.supabase_job_store import SupabaseJobStore
 from src.scraper.company_careers.models import CoverageStatus
 from src.scraper.company_careers.registry import load_target_companies
+from src.scraper.company_careers.candidate_profile import (
+    DEFAULT_CANDIDATE_PROFILE_PATH,
+    CandidateProfile,
+    load_candidate_profile,
+)
 from src.scraper.company_careers.scanner import CompanyCareersScanner
 from src.scraper.company_careers.student_roles import (
     build_student_job_filter,
@@ -75,6 +80,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Deprecated compatibility flag; new-grad roles remain excluded",
     )
     parser.add_argument(
+        "--candidate-profile",
+        default=DEFAULT_CANDIDATE_PROFILE_PATH,
+        help="Candidate-preference YAML applied after role relevance",
+    )
+    parser.add_argument(
+        "--no-candidate-profile",
+        action="store_const",
+        const=None,
+        dest="candidate_profile",
+        help="Disable candidate preferences and preserve legacy ranking",
+    )
+    parser.add_argument(
         "--audit",
         action="store_true",
         help="Run the live scan and diagnostics with Supabase, Sheets, and SQLite disabled",
@@ -102,6 +119,7 @@ def print_plan(args: argparse.Namespace, company_count: int) -> None:
     print("  Include new-grad roles: no")
     print(f"  Title terms: {', '.join(student_search_terms(args.include_new_grad))}")
     print(f"  Configured companies: {company_count}")
+    print(f"  Candidate profile: {args.candidate_profile or 'disabled'}")
     external_disabled = args.dry_run or args.audit
     print(f"  Supabase: {'disabled (read-only)' if external_disabled else 'enabled'}")
     sheets_status = (
@@ -126,7 +144,11 @@ def print_required_environment(*, skip_sheets: bool) -> None:
         print("  NEW_JOB_WINDOW_DAYS (optional; default 7)")
 
 
-def build_pipeline(args: argparse.Namespace, targets: list[Any]) -> JobSearchPipeline:
+def build_pipeline(
+    args: argparse.Namespace,
+    targets: list[Any],
+    candidate_profile: CandidateProfile | None,
+) -> JobSearchPipeline:
     scanner = CompanyCareersScanner(targets=targets)
     return JobSearchPipeline(
         keywords=student_search_query(args.include_new_grad),
@@ -139,19 +161,31 @@ def build_pipeline(args: argparse.Namespace, targets: list[Any]) -> JobSearchPip
         company_careers_scanner=scanner,
         company_careers_job_filter=build_student_job_filter(
             include_new_grad=args.include_new_grad,
+            candidate_profile=candidate_profile,
         ),
         company_careers_location_filter=build_student_location_filter(
             locations=args.locations,
+            allow_international=bool(
+                candidate_profile and candidate_profile.allows_international
+            ),
         ),
         company_careers_ranked_writer=partial(
             write_student_ranked_jobs_artifacts,
             include_new_grad=args.include_new_grad,
+            candidate_profile=candidate_profile,
         ),
-        company_careers_diagnostics_builder=build_student_search_diagnostics,
+        company_careers_diagnostics_builder=partial(
+            build_student_search_diagnostics,
+            candidate_profile=candidate_profile,
+        ),
     )
 
 
 def run_update(args: argparse.Namespace) -> int:
+    candidate_profile = (
+        load_candidate_profile(args.candidate_profile)
+        if args.candidate_profile else None
+    )
     targets = configure_student_targets(
         load_target_companies(apply_reliability_repairs=True),
         include_new_grad=args.include_new_grad,
@@ -164,7 +198,7 @@ def run_update(args: argparse.Namespace) -> int:
         return 0
 
     if args.audit:
-        pipeline = build_pipeline(args, targets)
+        pipeline = build_pipeline(args, targets, candidate_profile)
         pipeline.search_jobs()
         summary = pipeline.company_careers_summary
         if summary is None:
@@ -176,7 +210,7 @@ def run_update(args: argparse.Namespace) -> int:
     job_store = SupabaseJobStore.from_env()
     job_store.validate_setup()
     publisher = None if args.skip_sheets else GoogleSheetsPublisher.from_env()
-    pipeline = build_pipeline(args, targets)
+    pipeline = build_pipeline(args, targets, candidate_profile)
 
     try:
         pipeline.search_jobs()
@@ -189,6 +223,7 @@ def run_update(args: argparse.Namespace) -> int:
             report.jobs,
             include_new_grad=args.include_new_grad,
             locations=args.locations,
+            candidate_profile=candidate_profile,
         )
         successful_companies = [
             result.target.name

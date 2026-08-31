@@ -2,6 +2,8 @@
 
 RoleRadar separates source coverage from role relevance.
 
+The student workflow can optionally apply [Candidate Profile v1](CANDIDATE_PROFILE.md) after role relevance. Candidate preferences augment the relevance model; they do not replace it or assess resume qualifications.
+
 The scanner can fetch broad job records from company career systems. Relevance scoring decides which fetched jobs count as matches and how they should be ranked for review.
 
 ## Current Default

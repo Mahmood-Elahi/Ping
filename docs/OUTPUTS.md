@@ -30,6 +30,8 @@ Matched jobs with relevance metadata added:
 - `relevance_reasons`
 - `relevance_penalties`
 
+The profile-enabled student workflow also preserves the underlying role score and adds `candidate_preference_score`, `ranking_score`, term/duration/geography matches, bounded domain-cluster evidence, and concise `candidate_preference_reasons`. See [Candidate Profile v1](CANDIDATE_PROFILE.md).
+
 `company_careers_ranked_*.csv`
 
 Spreadsheet-friendly version of the ranked jobs. This is usually the easiest artifact to review manually.

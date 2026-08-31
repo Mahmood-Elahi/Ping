@@ -22,6 +22,7 @@ Most job-search workflows depend on LinkedIn alone or hide source failures. Role
 - Supports reusable adapters for common ATS and custom career systems.
 - Normalizes jobs into a consistent shape for downstream review.
 - Ranks roles with a deterministic relevance layer.
+- Optionally ranks student roles with a config-backed deterministic candidate-preference layer.
 - Exports ranked jobs, coverage reports, and failure reports as JSON, CSV, and Markdown.
 - Optionally generates CVs and cover letters from selected job data.
 

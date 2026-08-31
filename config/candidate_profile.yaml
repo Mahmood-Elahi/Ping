@@ -1,0 +1,128 @@
+candidate_profile:
+  name: summer_2027_technical_internships
+
+  target_term:
+    year: 2027
+    season: summer
+    preferred_start_month: 5
+    preferred_score: 1.00
+    unknown_score: 0.55
+    mismatch_score: 0.00
+    explicit_mismatch_penalty: 22
+
+  duration:
+    scores:
+      4: 1.00
+      5: 0.95
+      6: 0.95
+      8: 0.80
+      9: 0.65
+      10: 0.65
+      11: 0.65
+      12: 0.45
+      16: 0.30
+    unknown_score: 0.70
+    unlisted_score: 0.70
+
+  geography:
+    preferred:
+      - canada
+    acceptable:
+      - united_states
+      - international
+    willing_to_relocate: true
+    international_work_authorization_required: true
+    scores:
+      canada: 1.00
+      united_states: 0.82
+      international: 0.72
+      unknown: 0.75
+
+  work_arrangement:
+    onsite: acceptable
+    hybrid: acceptable
+    remote: acceptable
+
+  domains:
+    ai_ml:
+      label: AI / ML
+      weight: 1.00
+      patterns:
+        - "\\bartificial intelligence\\b|\\bmachine learning\\b|\\bdeep learning\\b"
+        - "\\bneural[- ]networks?\\b|\\bgenerative ai\\b|\\breinforcement learning\\b"
+        - "\\bml systems?\\b|\\bapplied ml\\b|\\bmlops\\b|\\blarge language models?\\b|\\bllms?\\b"
+        - "(?<![A-Za-z0-9])(?:AI|ML)(?![A-Za-z0-9])"
+    edge_ai:
+      label: Edge AI
+      weight: 1.00
+      patterns:
+        - "\\bedge ai\\b|\\bembedded ai\\b|\\btinyml\\b|\\bon-device (?:ai|ml|inference)\\b"
+        - "\\binference optimization\\b|\\bmodel compression\\b|\\bquantization\\b|\\btensorrt\\b"
+        - "\\bneural[- ]network acceleration\\b|\\bai accelerators?\\b"
+    embedded:
+      label: Embedded Systems
+      weight: 0.95
+      patterns:
+        - "\\bembedded (?:systems?|software|linux)\\b|\\bfirmware\\b|\\brtos\\b|\\breal[- ]time systems?\\b"
+        - "\\bmicrocontrollers?\\b|\\bdevice drivers?\\b|\\bbare[- ]metal\\b|\\bboard support package\\b|\\bbsp\\b"
+        - "\\bhardware/software integration\\b|\\bhardware-software integration\\b"
+    perception:
+      label: Computer Vision / Perception
+      weight: 0.95
+      patterns:
+        - "\\bcomputer vision\\b|\\bperception\\b|\\bimage processing\\b|\\bsensor fusion\\b"
+        - "\\blidar\\b|\\bradar\\b|\\bcamera pipelines?\\b|\\b3d perception\\b"
+    robotics_autonomy:
+      label: Robotics / Autonomy
+      weight: 0.95
+      patterns:
+        - "\\brobot(?:ics|ic)?\\b|\\bautonomous (?:systems?|vehicles?)\\b|\\bautonomy\\b"
+        - "\\bslam\\b|\\blocalization\\b|\\bmapping\\b|\\bmotion planning\\b|\\bnavigation\\b"
+        - "\\bintelligent control systems?\\b|\\brobotics software\\b"
+    hardware_compute:
+      label: Hardware Compute
+      weight: 0.85
+      patterns:
+        - "\\bfpga\\b|\\bgpu computing\\b|\\bcuda\\b|\\bsoc\\b|\\bai accelerators?\\b"
+        - "\\bcomputer architecture\\b|\\bdigital design\\b|\\bdsp\\b|\\bparallel hardware\\b"
+        - "\\bsemiconductor compute\\b|\\bneural processing units?\\b|\\bnpus?\\b"
+    systems:
+      label: Systems Programming
+      weight: 0.80
+      patterns:
+        - "\\bsystems programming\\b|\\blinux systems?\\b|\\bhigh[- ]performance computing\\b"
+        - "\\bparallel computing\\b|\\blow[- ]level software\\b|\\bhardware/software co-design\\b"
+        - "\\bperformance optimization\\b|\\bembedded linux\\b|(?<![A-Za-z0-9])C\\+\\+(?![A-Za-z0-9])"
+
+  defense_exclusion:
+    company_names:
+      - Anduril Industries
+      - BAE Systems
+      - General Atomics
+      - General Dynamics
+      - L3Harris Technologies
+      - Leidos
+      - Lockheed Martin
+      - Northrop Grumman
+      - RTX
+      - Raytheon
+      - Shield AI
+    decisive_work_patterns:
+      - "\\bweapons? systems?\\b|\\bmissile systems?\\b|\\bmunitions?\\b"
+      - "\\bmilitary systems?\\b|\\bcombat systems?\\b|\\bwarfare systems?\\b"
+    context_work_patterns:
+      - "\\bdefen[cs]e (?:contract|program|systems?|technolog(?:y|ies)|sector|industry|customers?)\\b"
+      - "\\bdepartment of defen[cs]e\\b|(?<![A-Za-z0-9])DoD(?![A-Za-z0-9])"
+      - "\\bsecurity clearance\\b|\\bclassified (?:program|systems?|work|information)\\b"
+
+  scoring:
+    component_weights:
+      domains: 0.55
+      term: 0.25
+      duration: 0.12
+      geography: 0.08
+    ranking_blend:
+      role_relevance: 0.60
+      candidate_preference: 0.40
+    multi_domain_points_per_weight: 5.0
+    multi_domain_bonus_cap: 20.0

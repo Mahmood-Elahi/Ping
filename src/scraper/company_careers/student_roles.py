@@ -19,6 +19,12 @@ from src.scraper.company_careers.education_eligibility import (
     annotate_education_eligibility,
     classify_education_eligibility,
 )
+from src.scraper.company_careers.candidate_profile import (
+    CandidateProfile,
+    candidate_profile_exclusion_reason,
+    combine_ranking_scores,
+    score_candidate_preferences,
+)
 from src.scraper.company_careers.models import CompanyTarget, JobRecord
 
 
@@ -333,15 +339,22 @@ def classify_student_location(
 
 def student_location_exclusion_reason(
     job: JobRecord, *, locations: Optional[Iterable[str]] = None,
+    allow_international: bool = False,
 ) -> Optional[str]:
     status = classify_student_location(job, locations=locations)
+    if allow_international and status == "excluded_other_location":
+        return None
     return "location" if status.startswith("excluded_") else None
 
 
 def build_student_location_filter(
-    *, locations: Optional[Iterable[str]] = None,
+    *, locations: Optional[Iterable[str]] = None, allow_international: bool = False,
 ) -> Callable[[JobRecord], Optional[str]]:
-    return partial(student_location_exclusion_reason, locations=list(locations or []))
+    return partial(
+        student_location_exclusion_reason,
+        locations=list(locations or []),
+        allow_international=allow_international,
+    )
 
 
 def student_job_signals(job: JobRecord) -> dict[str, Any]:
@@ -392,6 +405,7 @@ def student_job_signals(job: JobRecord) -> dict[str, Any]:
 
 def student_job_exclusion_reason(
     job: JobRecord, *, include_new_grad: bool = False,
+    candidate_profile: Optional[CandidateProfile] = None,
 ) -> Optional[str]:
     """Return an exclusion category; sponsorship is deliberately never a gate."""
     del include_new_grad
@@ -401,13 +415,20 @@ def student_job_exclusion_reason(
     education = annotate_education_eligibility(job)
     if education["education_eligibility"] == GRADUATE_ONLY:
         return "graduate_only"
+    if candidate_profile is not None:
+        return candidate_profile_exclusion_reason(job, candidate_profile)
     return None
 
 
 def build_student_job_filter(
     *, include_new_grad: bool = False,
+    candidate_profile: Optional[CandidateProfile] = None,
 ) -> Callable[[JobRecord], Optional[str]]:
-    return partial(student_job_exclusion_reason, include_new_grad=include_new_grad)
+    return partial(
+        student_job_exclusion_reason,
+        include_new_grad=include_new_grad,
+        candidate_profile=candidate_profile,
+    )
 
 
 def detect_student_seasons(job: JobRecord) -> list[str]:
@@ -456,6 +477,7 @@ def score_student_job(
     include_new_grad: bool = False,
     locations: Optional[Iterable[str]] = None,
     now: Optional[datetime] = None,
+    candidate_profile: Optional[CandidateProfile] = None,
 ) -> dict[str, Any]:
     """Return deterministic student relevance with domain and season annotations."""
     del include_new_grad
@@ -488,11 +510,16 @@ def score_student_job(
         negative_signals.append("university_partner_program")
 
     location_status = classify_student_location(job, locations=locations)
-    location_points = LOCATION_RANKING_POINTS.get(location_status, 0)
+    # Candidate-profile mode owns geography as a low-weight preference. The
+    # legacy location points remain byte-for-byte compatible when it is off.
+    location_points = (
+        0 if candidate_profile is not None
+        else LOCATION_RANKING_POINTS.get(location_status, 0)
+    )
     if location_points:
         score += location_points
         positive_signals.append(location_status)
-    elif location_status.startswith("excluded_"):
+    elif candidate_profile is None and location_status.startswith("excluded_"):
         score -= 25
         negative_signals.append("outside_canada_us_scope")
 
@@ -517,9 +544,13 @@ def score_student_job(
 
     seasons = detect_student_seasons(job)
     target_seasons = [season for season in seasons if season in TARGET_SEASONS]
-    season_boost = 8 if target_seasons else (3 if seasons else 0)
+    season_boost = (
+        0 if candidate_profile is not None
+        else (8 if target_seasons else (3 if seasons else 0))
+    )
     score += season_boost
-    positive_signals.extend(f"target_season:{season}" for season in target_seasons)
+    if candidate_profile is None:
+        positive_signals.extend(f"target_season:{season}" for season in target_seasons)
 
     recency_signal, recency_points = _recency_signal(job.updated_at, now=now)
     if recency_signal:
@@ -527,7 +558,7 @@ def score_student_job(
         positive_signals.append(recency_signal)
 
     score = max(0, min(100, score))
-    return {
+    result = {
         "score": score,
         "band": _student_relevance_band(score),
         "matched_categories": matched_categories,
@@ -543,20 +574,63 @@ def score_student_job(
         "education_eligibility": education["education_eligibility"],
         "education_evidence": education["education_evidence"],
     }
+    if candidate_profile is not None:
+        preference = score_candidate_preferences(
+            job,
+            candidate_profile,
+            location_status=location_status,
+        )
+        ranking_score = combine_ranking_scores(score, preference, candidate_profile)
+        result.update(
+            {
+                "role_relevance_score": score,
+                "role_relevance_band": _student_relevance_band(score),
+                "candidate_preference_score": preference["score"],
+                "ranking_score": ranking_score,
+                "score": ranking_score,
+                "band": _student_relevance_band(ranking_score),
+                "term_match": preference["term_match"],
+                "term_evidence": preference["term_evidence"],
+                "duration_months": preference["duration_months"],
+                "duration_match": preference["duration_match"],
+                "geography_match": preference["geography_match"],
+                "work_arrangement": preference["work_arrangement"],
+                "matched_domain_clusters": preference["matched_domain_clusters"],
+                "domain_match_score": preference["domain_match_score"],
+                "multi_domain_bonus": preference["multi_domain_bonus"],
+                "candidate_preference_reasons": preference["reasons"],
+                "international_work_authorization_required": preference[
+                    "international_work_authorization_required"
+                ],
+            }
+        )
+    return result
 
 
 def rank_student_jobs(
     jobs: Iterable[JobRecord], *, include_new_grad: bool = False,
     locations: Optional[Iterable[str]] = None, limit: Optional[int] = None,
+    candidate_profile: Optional[CandidateProfile] = None,
+    now: Optional[datetime] = None,
 ) -> list[dict[str, Any]]:
     ranked: list[dict[str, Any]] = []
     seen_identities: set[tuple[str, ...]] = set()
     for job in jobs:
+        if candidate_profile is not None and candidate_profile_exclusion_reason(
+            job, candidate_profile
+        ):
+            continue
         identity = _ranking_job_identity(job)
         if identity in seen_identities:
             continue
         seen_identities.add(identity)
-        relevance = score_student_job(job, include_new_grad=include_new_grad, locations=locations)
+        relevance = score_student_job(
+            job,
+            include_new_grad=include_new_grad,
+            locations=locations,
+            candidate_profile=candidate_profile,
+            now=now,
+        )
         item = job.to_dict()
         item.update({
             "score": relevance["score"],
@@ -575,17 +649,45 @@ def rank_student_jobs(
             "education_eligibility": relevance["education_eligibility"],
             "education_evidence": relevance["education_evidence"],
         })
+        if candidate_profile is not None:
+            item.update({
+                "role_relevance_score": relevance["role_relevance_score"],
+                "role_relevance_band": relevance["role_relevance_band"],
+                "candidate_preference_score": relevance["candidate_preference_score"],
+                "ranking_score": relevance["ranking_score"],
+                "term_match": relevance["term_match"],
+                "term_evidence": relevance["term_evidence"],
+                "duration_months": relevance["duration_months"],
+                "duration_match": relevance["duration_match"],
+                "geography_match": relevance["geography_match"],
+                "work_arrangement": relevance["work_arrangement"],
+                "matched_domain_clusters": relevance["matched_domain_clusters"],
+                "domain_match_score": relevance["domain_match_score"],
+                "multi_domain_bonus": relevance["multi_domain_bonus"],
+                "candidate_preference_reasons": relevance["candidate_preference_reasons"],
+                "international_work_authorization_required": relevance[
+                    "international_work_authorization_required"
+                ],
+            })
         ranked.append(item)
-    ranked.sort(key=lambda item: (
-        -item["relevance_score"], -item["domain_priority"], -item["season_boost"],
-        item["company"].casefold(), item["title"].casefold(), item["job_id"],
-    ))
+    if candidate_profile is not None:
+        ranked.sort(key=lambda item: (
+            -item["ranking_score"], -item["role_relevance_score"],
+            -item["candidate_preference_score"], -item["domain_match_score"],
+            item["company"].casefold(), item["title"].casefold(), item["job_id"],
+        ))
+    else:
+        ranked.sort(key=lambda item: (
+            -item["relevance_score"], -item["domain_priority"], -item["season_boost"],
+            item["company"].casefold(), item["title"].casefold(), item["job_id"],
+        ))
     return ranked[:limit] if limit else ranked
 
 
 def build_student_search_diagnostics(
     normalized_jobs: Iterable[JobRecord], *, locations: Optional[Iterable[str]] = None,
     example_limit: int = 10,
+    candidate_profile: Optional[CandidateProfile] = None,
 ) -> dict[str, Any]:
     """Compare retained jobs before and after the education gate."""
     jobs = list(normalized_jobs)
@@ -607,8 +709,16 @@ def build_student_search_diagnostics(
             annotate_education_eligibility(job)
             if base_reason is None else classify_education_eligibility(job)
         )
-        reason = student_job_exclusion_reason(job)
-        location_reason = student_location_exclusion_reason(job, locations=locations)
+        reason = student_job_exclusion_reason(
+            job, candidate_profile=candidate_profile
+        )
+        location_reason = student_location_exclusion_reason(
+            job,
+            locations=locations,
+            allow_international=bool(
+                candidate_profile and candidate_profile.allows_international
+            ),
+        )
         final_reason = reason or location_reason
         if base_reason is None and education["education_eligibility"] == GRADUATE_ONLY:
             graduate_only_removed.append(_education_diagnostic_example(job, education))
@@ -676,9 +786,16 @@ def write_student_ranked_jobs_artifacts(
     jobs: Iterable[JobRecord], *, json_path: str, csv_path: str,
     keywords: Optional[str] = None, locations: Optional[Iterable[str]] = None,
     limit: Optional[int] = None, include_new_grad: bool = False,
+    candidate_profile: Optional[CandidateProfile] = None,
 ) -> None:
     del keywords
-    ranked = rank_student_jobs(jobs, include_new_grad=include_new_grad, locations=locations, limit=limit)
+    ranked = rank_student_jobs(
+        jobs,
+        include_new_grad=include_new_grad,
+        locations=locations,
+        limit=limit,
+        candidate_profile=candidate_profile,
+    )
     Path(json_path).write_text(json.dumps(ranked, indent=2, ensure_ascii=False), encoding="utf-8")
     fieldnames = [
         "company", "title", "location", "relevance_score", "relevance_band",
@@ -686,6 +803,14 @@ def write_student_ranked_jobs_artifacts(
         "positive_signals", "negative_signals", "location_status", "education_eligibility",
         "education_evidence", "url", "source", "updated_at",
     ]
+    if candidate_profile is not None:
+        fieldnames[3:3] = [
+            "role_relevance_score", "candidate_preference_score", "ranking_score",
+            "term_match", "duration_months", "duration_match", "geography_match",
+            "work_arrangement", "matched_domain_clusters", "domain_match_score",
+            "multi_domain_bonus", "candidate_preference_reasons",
+            "international_work_authorization_required",
+        ]
     with Path(csv_path).open("w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
