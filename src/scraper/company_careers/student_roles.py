@@ -912,11 +912,11 @@ def _recency_signal(updated_at: str, *, now: Optional[datetime] = None) -> tuple
 
 
 def _student_relevance_band(score: int) -> str:
-    if score >= 80:
+    if score >= 57:
         return "high"
-    if score >= 65:
+    if score >= 55:
         return "good"
-    if score >= 50:
+    if score >= 54:
         return "possible"
     return "low"
 

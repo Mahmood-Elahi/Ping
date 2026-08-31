@@ -4,6 +4,7 @@ import unittest
 
 from src.scraper.company_careers.models import JobRecord
 from src.scraper.company_careers.student_roles import (
+    _student_relevance_band,
     rank_student_jobs,
     score_student_job,
     student_job_exclusion_reason,
@@ -33,6 +34,23 @@ def job(
 
 
 class JobRankingV2CharacterizationTests(unittest.TestCase):
+    def test_relevance_bands_use_v2_calibrated_score_boundaries(self):
+        expected_bands = {
+            100: "high",
+            57: "high",
+            56: "good",
+            55: "good",
+            54: "possible",
+            53: "low",
+            46: "low",
+            45: "low",
+            0: "low",
+        }
+
+        for score, expected_band in expected_bands.items():
+            with self.subTest(score=score):
+                self.assertEqual(_student_relevance_band(score), expected_band)
+
     def test_canadian_role_beats_equivalent_us_onsite_role(self):
         canada = job(
             "ca",
