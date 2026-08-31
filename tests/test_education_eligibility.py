@@ -84,6 +84,32 @@ class EducationEligibilityTests(unittest.TestCase):
                 self.assert_classification(GRADUATE_ONLY, title=title)
                 self.assertEqual(student_job_exclusion_reason(self.job(title=title)), "graduate_only")
 
+    def test_explicit_phd_only_student_and_research_titles_are_excluded(self):
+        titles = (
+            "Student Researcher (AI Foundation Models) - 2026 Start (PhD)",
+            "PhD Intern",
+            "PhD Internship",
+            "PhD Student Researcher",
+            "PhD Research Intern",
+            "PhD Candidate Intern",
+        )
+        for title in titles:
+            with self.subTest(title=title):
+                self.assert_classification(GRADUATE_ONLY, title=title)
+                self.assertEqual(student_job_exclusion_reason(self.job(title=title)), "graduate_only")
+
+    def test_phd_title_mentions_without_phd_only_candidate_targeting_are_retained(self):
+        cases = (
+            "Student Researcher, AI Infrastructure",
+            "Student Researcher (Bachelor's, Master's, or PhD)",
+            "Software Intern building tools for PhD researchers",
+        )
+        for title in cases:
+            with self.subTest(title=title):
+                result = classify_education_eligibility(self.job(title=title))
+                self.assertNotEqual(result["education_eligibility"], GRADUATE_ONLY)
+                self.assertIsNone(student_job_exclusion_reason(self.job(title=title)))
+
     def test_company_acronym_is_not_mistaken_for_juris_doctor(self):
         title = "JD Young Supply Chain Assistant Internship"
         self.assert_classification(NOT_STATED, title=title)
