@@ -150,9 +150,17 @@ class GoogleSheetsPublisherTests(unittest.TestCase):
                 "positive_signals": ["intern", "software"],
                 "location_status": "eligible_canada",
                 "source_updated_at": "2026-08-02T08:30:45-06:00",
+                "source_posted_at": "2026-08-02T14:30:45Z",
+                "source_closes_at": "2026-08-06",
                 "first_seen_at": "2026-08-03T10:00:00Z",
                 "last_seen_at": datetime(2026, 8, 3, 11, 0),
                 "status": "active",
+                "lifecycle_status": "active",
+                "freshness_band": "new",
+                "age_days": 1,
+                "first_seen_age_hours": 2,
+                "urgency_band": "high",
+                "urgency_reasons": ["deadline_in_3_days"],
             },
             {
                 "source_key": "job-higher-score",
@@ -235,10 +243,15 @@ class GoogleSheetsPublisherTests(unittest.TestCase):
         new_values = self.spreadsheet.sheets["New Jobs"].values
         active_values = self.spreadsheet.sheets["Active Jobs"].values
         self.assertEqual(new_values[0], NEW_JOBS_HEADERS)
-        self.assertEqual([row[12] for row in new_values[1:]], ["job-higher-score", "job-newer"])
-        self.assertEqual(active_values[0], ACTIVE_JOBS_HEADERS)
+        new_source_key = NEW_JOBS_HEADERS.index("Source Key")
         self.assertEqual(
-            [row[12] for row in active_values[1:]],
+            [row[new_source_key] for row in new_values[1:]],
+            ["job-higher-score", "job-newer"],
+        )
+        self.assertEqual(active_values[0], ACTIVE_JOBS_HEADERS)
+        active_source_key = ACTIVE_JOBS_HEADERS.index("Source Key")
+        self.assertEqual(
+            [row[active_source_key] for row in active_values[1:]],
             ["job-old", "job-higher-score", "job-newer"],
         )
         self.assertEqual(counts, {"new_jobs": 2, "active_jobs": 3, "companies": 2})
@@ -469,20 +482,98 @@ class GoogleSheetsPublisherTests(unittest.TestCase):
             ]
             self.assertEqual(len(filter_sheet_ids), len(set(filter_sheet_ids)))
 
+    def test_freshness_deadline_and_lifecycle_columns_are_visible(self):
+        self.publish()
+        values = self.spreadsheet.sheets["Active Jobs"].values
+        row = next(
+            item for item in values[1:]
+            if item[ACTIVE_JOBS_HEADERS.index("Source Key")] == "job-newer"
+        )
+        self.assertEqual(row[ACTIVE_JOBS_HEADERS.index("Freshness")], "new")
+        self.assertEqual(row[ACTIVE_JOBS_HEADERS.index("Age Days")], 1)
+        self.assertEqual(
+            row[ACTIVE_JOBS_HEADERS.index("Urgency")],
+            "high",
+        )
+        self.assertEqual(
+            row[ACTIVE_JOBS_HEADERS.index("Closes At")],
+            "2026-08-06T00:00:00Z",
+        )
+        self.assertEqual(row[ACTIVE_JOBS_HEADERS.index("Lifecycle")], "active")
+
     def test_lists_timestamps_and_nulls_serialize_consistently(self):
         self.publish()
 
         new_values = self.spreadsheet.sheets["New Jobs"].values
-        newer = next(row for row in new_values[1:] if row[12] == "job-newer")
-        self.assertEqual(newer[4], "")
-        self.assertEqual(newer[5], "software_engineering; embedded_firmware")
-        self.assertEqual(newer[6], "")
-        self.assertEqual(newer[8], "2026-08-03T10:00:00Z")
-        self.assertEqual(newer[9], "2026-08-02T14:30:45Z")
-        self.assertEqual(newer[10], "intern; software")
+        newer = next(
+            row for row in new_values[1:]
+            if row[NEW_JOBS_HEADERS.index("Source Key")] == "job-newer"
+        )
+        self.assertEqual(newer[NEW_JOBS_HEADERS.index("Primary Category")], "")
+        self.assertEqual(
+            newer[NEW_JOBS_HEADERS.index("Matched Categories")],
+            "software_engineering; embedded_firmware",
+        )
+        self.assertEqual(newer[NEW_JOBS_HEADERS.index("Location")], "")
+        self.assertEqual(
+            newer[NEW_JOBS_HEADERS.index("First Seen")],
+            "2026-08-03T10:00:00Z",
+        )
+        self.assertEqual(
+            newer[NEW_JOBS_HEADERS.index("Source Posted")],
+            "2026-08-02T14:30:45Z",
+        )
+        self.assertEqual(
+            newer[NEW_JOBS_HEADERS.index("Source Updated")],
+            "2026-08-02T14:30:45Z",
+        )
+        self.assertEqual(
+            newer[NEW_JOBS_HEADERS.index("Positive Signals")],
+            "intern; software",
+        )
         active = self.spreadsheet.sheets["Active Jobs"].values
-        active_newer = next(row for row in active[1:] if row[12] == "job-newer")
-        self.assertEqual(active_newer[9], "2026-08-03T11:00:00Z")
+        active_newer = next(
+            row for row in active[1:]
+            if row[ACTIVE_JOBS_HEADERS.index("Source Key")] == "job-newer"
+        )
+        self.assertEqual(
+            active_newer[ACTIVE_JOBS_HEADERS.index("Last Seen")],
+            "2026-08-03T11:00:00Z",
+        )
+
+    def test_source_posted_does_not_mislabel_source_updated_fallback(self):
+        self.publish()
+
+        values = self.spreadsheet.sheets["Active Jobs"].values
+        row = next(
+            item for item in values[1:]
+            if item[ACTIVE_JOBS_HEADERS.index("Source Key")] == "job-higher-score"
+        )
+        self.assertEqual(row[ACTIVE_JOBS_HEADERS.index("Source Posted")], "")
+        self.assertEqual(
+            row[ACTIVE_JOBS_HEADERS.index("Source Updated")],
+            "2026-08-01T00:00:00Z",
+        )
+
+    def test_human_and_malformed_source_dates_serialize_safely(self):
+        self.jobs[0]["source_updated_at"] = "December  3, 2025"
+        self.jobs[1]["source_updated_at"] = "not-a-date"
+
+        self.publish()
+
+        values = self.spreadsheet.sheets["Active Jobs"].values
+        rows = {
+            row[ACTIVE_JOBS_HEADERS.index("Source Key")]: row
+            for row in values[1:]
+        }
+        self.assertEqual(
+            rows["job-newer"][ACTIVE_JOBS_HEADERS.index("Source Updated")],
+            "2025-12-03T00:00:00Z",
+        )
+        self.assertEqual(
+            rows["job-higher-score"][ACTIVE_JOBS_HEADERS.index("Source Updated")],
+            "",
+        )
 
     def test_missing_google_credentials_raise_clear_runtime_error(self):
         with self.assertRaisesRegex(

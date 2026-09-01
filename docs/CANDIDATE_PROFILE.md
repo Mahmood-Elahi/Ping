@@ -9,6 +9,7 @@ The default profile is [`config/candidate_profile.yaml`](../config/candidate_pro
 - **Role Relevance** asks whether the posting is actually a relevant student role. Its score remains available as `role_relevance_score`.
 - **Candidate Profile** asks whether that relevant role aligns with configured term, technical-domain, duration, and geography preferences. It does not assess whether the candidate already has the required skills.
 - **Resume Match** is not part of v1. Qualification and resume evidence belong to a future, separate layer.
+- **Freshness / Urgency** is a later factual layer. It preserves Candidate Profile scores and ordering unchanged; see [Freshness / Urgency v1](FRESHNESS.md).
 
 When enabled, final ranking is a bounded blend of role relevance and `candidate_preference_score`. An explicit non-target start term receives an additional deterministic penalty. Domain matching counts each configured cluster once and caps the cross-domain bonus, so repeated keywords cannot inflate the result.
 

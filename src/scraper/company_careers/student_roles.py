@@ -25,6 +25,7 @@ from src.scraper.company_careers.candidate_profile import (
     combine_ranking_scores,
     score_candidate_preferences,
 )
+from src.scraper.company_careers.freshness import stable_job_key
 from src.scraper.company_careers.models import CompanyTarget, JobRecord
 
 
@@ -478,6 +479,7 @@ def score_student_job(
     locations: Optional[Iterable[str]] = None,
     now: Optional[datetime] = None,
     candidate_profile: Optional[CandidateProfile] = None,
+    include_legacy_recency: bool = True,
 ) -> dict[str, Any]:
     """Return deterministic student relevance with domain and season annotations."""
     del include_new_grad
@@ -552,10 +554,11 @@ def score_student_job(
     if candidate_profile is None:
         positive_signals.extend(f"target_season:{season}" for season in target_seasons)
 
-    recency_signal, recency_points = _recency_signal(job.updated_at, now=now)
-    if recency_signal:
-        score += recency_points
-        positive_signals.append(recency_signal)
+    if include_legacy_recency:
+        recency_signal, recency_points = _recency_signal(job.updated_at, now=now)
+        if recency_signal:
+            score += recency_points
+            positive_signals.append(recency_signal)
 
     score = max(0, min(100, score))
     result = {
@@ -612,7 +615,9 @@ def rank_student_jobs(
     locations: Optional[Iterable[str]] = None, limit: Optional[int] = None,
     candidate_profile: Optional[CandidateProfile] = None,
     now: Optional[datetime] = None,
+    freshness_by_key: Optional[Mapping[str, Mapping[str, Any]]] = None,
 ) -> list[dict[str, Any]]:
+    freshness_enabled = freshness_by_key is not None
     ranked: list[dict[str, Any]] = []
     seen_identities: set[tuple[str, ...]] = set()
     for job in jobs:
@@ -630,12 +635,29 @@ def rank_student_jobs(
             locations=locations,
             candidate_profile=candidate_profile,
             now=now,
+            # Freshness is an inspectable feature, not a relevance migration.
+            # Keep the pre-existing relevance/candidate-preference semantics.
+            include_legacy_recency=True,
         )
+        freshness = None
+        if freshness_enabled:
+            source_key = stable_job_key(job)
+            freshness = freshness_by_key.get(source_key)
+            if freshness is None:
+                raise ValueError(
+                    f"Freshness lifecycle annotation missing for stable job identity {source_key!r}"
+                )
+        base_ranking_score = int(
+            relevance["ranking_score"]
+            if candidate_profile is not None
+            else relevance["score"]
+        )
+        final_ranking_score = base_ranking_score
         item = job.to_dict()
         item.update({
-            "score": relevance["score"],
-            "relevance_score": relevance["score"],
-            "relevance_band": relevance["band"],
+            "score": final_ranking_score,
+            "relevance_score": final_ranking_score,
+            "relevance_band": _student_relevance_band(final_ranking_score),
             "matched_categories": relevance["matched_categories"],
             "domain_priority": relevance["domain_priority"],
             "positive_signals": relevance["positive_signals"],
@@ -654,7 +676,7 @@ def rank_student_jobs(
                 "role_relevance_score": relevance["role_relevance_score"],
                 "role_relevance_band": relevance["role_relevance_band"],
                 "candidate_preference_score": relevance["candidate_preference_score"],
-                "ranking_score": relevance["ranking_score"],
+                "ranking_score": final_ranking_score,
                 "term_match": relevance["term_match"],
                 "term_evidence": relevance["term_evidence"],
                 "duration_months": relevance["duration_months"],
@@ -669,6 +691,8 @@ def rank_student_jobs(
                     "international_work_authorization_required"
                 ],
             })
+        if freshness is not None:
+            item.update(dict(freshness))
         ranked.append(item)
     if candidate_profile is not None:
         ranked.sort(key=lambda item: (
@@ -787,6 +811,8 @@ def write_student_ranked_jobs_artifacts(
     keywords: Optional[str] = None, locations: Optional[Iterable[str]] = None,
     limit: Optional[int] = None, include_new_grad: bool = False,
     candidate_profile: Optional[CandidateProfile] = None,
+    freshness_by_key: Optional[Mapping[str, Mapping[str, Any]]] = None,
+    now: Optional[datetime] = None,
 ) -> None:
     del keywords
     ranked = rank_student_jobs(
@@ -795,6 +821,8 @@ def write_student_ranked_jobs_artifacts(
         locations=locations,
         limit=limit,
         candidate_profile=candidate_profile,
+        freshness_by_key=freshness_by_key,
+        now=now,
     )
     Path(json_path).write_text(json.dumps(ranked, indent=2, ensure_ascii=False), encoding="utf-8")
     fieldnames = [
@@ -811,6 +839,16 @@ def write_student_ranked_jobs_artifacts(
             "multi_domain_bonus", "candidate_preference_reasons",
             "international_work_authorization_required",
         ]
+    if freshness_by_key is not None:
+        freshness_fieldnames = [
+            "freshness_band", "age_days", "freshness_age_source",
+            "source_posted_at", "first_seen_at", "first_seen_age_hours",
+            "last_seen_at", "first_seen_basis", "source_closes_at",
+            "deadline_days_remaining", "urgency_band", "urgency_score",
+            "urgency_reasons", "lifecycle_status", "missing_scan_count",
+            "status", "is_active", "removed_at", "freshness_reasons", "date_parse_errors",
+        ]
+        fieldnames[3:3] = freshness_fieldnames
     with Path(csv_path).open("w", encoding="utf-8", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()

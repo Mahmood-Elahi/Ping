@@ -18,6 +18,13 @@ if str(REPOSITORY_ROOT) not in sys.path:
 from src.integrations.google_sheets_publisher import GoogleSheetsPublisher
 from src.integrations.supabase_job_store import SupabaseJobStore
 from src.scraper.company_careers.models import CoverageStatus
+from src.scraper.company_careers.freshness import (
+    DEFAULT_FRESHNESS_CONFIG_PATH,
+    FreshnessRuntime,
+    empty_freshness_state,
+    load_freshness_config,
+    parse_reference_time,
+)
 from src.scraper.company_careers.registry import load_target_companies
 from src.scraper.company_careers.candidate_profile import (
     DEFAULT_CANDIDATE_PROFILE_PATH,
@@ -92,6 +99,23 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Disable candidate preferences and preserve legacy ranking",
     )
     parser.add_argument(
+        "--freshness-config",
+        default=DEFAULT_FRESHNESS_CONFIG_PATH,
+        help="Freshness/lifecycle YAML applied before final ranking",
+    )
+    parser.add_argument(
+        "--no-freshness",
+        action="store_const",
+        const=None,
+        dest="freshness_config",
+        help="Disable Freshness v1 and preserve the previous ranking path",
+    )
+    parser.add_argument(
+        "--as-of",
+        type=parse_reference_time,
+        help="Deterministic ISO-8601 reference time for replay/testing",
+    )
+    parser.add_argument(
         "--audit",
         action="store_true",
         help="Run the live scan and diagnostics with Supabase, Sheets, and SQLite disabled",
@@ -120,6 +144,11 @@ def print_plan(args: argparse.Namespace, company_count: int) -> None:
     print(f"  Title terms: {', '.join(student_search_terms(args.include_new_grad))}")
     print(f"  Configured companies: {company_count}")
     print(f"  Candidate profile: {args.candidate_profile or 'disabled'}")
+    print(f"  Freshness: {args.freshness_config or 'disabled'}")
+    if args.freshness_config:
+        print("  Lifecycle state: Supabase tracked_jobs")
+    if args.as_of:
+        print(f"  Reference time: {args.as_of.isoformat()}")
     external_disabled = args.dry_run or args.audit
     print(f"  Supabase: {'disabled (read-only)' if external_disabled else 'enabled'}")
     sheets_status = (
@@ -135,7 +164,7 @@ def print_required_environment(*, skip_sheets: bool) -> None:
     print("\nRequired environment variables")
     print("  SUPABASE_URL")
     print("  SUPABASE_SERVICE_ROLE_KEY")
-    print("  CLOSE_AFTER_MISSING_RUNS (optional; default 2)")
+    print("  CLOSE_AFTER_MISSING_RUNS (legacy --no-freshness path only)")
     if skip_sheets:
         print("  Google Sheets variables: not required with --skip-sheets")
     else:
@@ -148,6 +177,8 @@ def build_pipeline(
     args: argparse.Namespace,
     targets: list[Any],
     candidate_profile: CandidateProfile | None,
+    freshness_runtime: FreshnessRuntime | None = None,
+    as_of: datetime | None = None,
 ) -> JobSearchPipeline:
     scanner = CompanyCareersScanner(targets=targets)
     return JobSearchPipeline(
@@ -173,6 +204,13 @@ def build_pipeline(
             write_student_ranked_jobs_artifacts,
             include_new_grad=args.include_new_grad,
             candidate_profile=candidate_profile,
+            freshness_by_key=(
+                freshness_runtime.annotations if freshness_runtime else None
+            ),
+            now=as_of,
+        ),
+        company_careers_report_processor=(
+            freshness_runtime.process_report if freshness_runtime else None
         ),
         company_careers_diagnostics_builder=partial(
             build_student_search_diagnostics,
@@ -186,6 +224,10 @@ def run_update(args: argparse.Namespace) -> int:
         load_candidate_profile(args.candidate_profile)
         if args.candidate_profile else None
     )
+    freshness_config = (
+        load_freshness_config(args.freshness_config)
+        if args.freshness_config else None
+    )
     targets = configure_student_targets(
         load_target_companies(apply_reliability_repairs=True),
         include_new_grad=args.include_new_grad,
@@ -197,8 +239,20 @@ def run_update(args: argparse.Namespace) -> int:
         print("\nNo scan, artifacts, SQLite writes, Supabase calls, or Google calls were made.")
         return 0
 
+    as_of = args.as_of or datetime.now(timezone.utc)
     if args.audit:
-        pipeline = build_pipeline(args, targets, candidate_profile)
+        freshness_runtime = (
+            FreshnessRuntime(
+                config=freshness_config,
+                previous_state=empty_freshness_state(),
+                as_of=as_of,
+                first_seen_basis="audit_reference_time",
+            )
+            if freshness_config is not None else None
+        )
+        pipeline = build_pipeline(
+            args, targets, candidate_profile, freshness_runtime, as_of
+        )
         pipeline.search_jobs()
         summary = pipeline.company_careers_summary
         if summary is None:
@@ -206,11 +260,27 @@ def run_update(args: argparse.Namespace) -> int:
         print_audit_summary(summary)
         return 0
 
-    started_at = datetime.now(timezone.utc)
-    job_store = SupabaseJobStore.from_env()
+    started_at = as_of
+    job_store = SupabaseJobStore.from_env(
+        now_factory=lambda: as_of,
+        close_after_missing_runs=(
+            freshness_config.removal.consecutive_complete_scans
+            if freshness_config is not None else None
+        ),
+    )
     job_store.validate_setup()
+    freshness_runtime = (
+        FreshnessRuntime(
+            config=freshness_config,
+            previous_state=job_store.fetch_lifecycle_state(),
+            as_of=as_of,
+        )
+        if freshness_config is not None else None
+    )
     publisher = None if args.skip_sheets else GoogleSheetsPublisher.from_env()
-    pipeline = build_pipeline(args, targets, candidate_profile)
+    pipeline = build_pipeline(
+        args, targets, candidate_profile, freshness_runtime, as_of
+    )
 
     try:
         pipeline.search_jobs()
@@ -218,18 +288,22 @@ def run_update(args: argparse.Namespace) -> int:
         summary = pipeline.company_careers_summary
         if report is None or summary is None:
             raise RuntimeError("The company-careers pipeline did not expose its scan report")
-
         ranked_jobs = rank_student_jobs(
             report.jobs,
             include_new_grad=args.include_new_grad,
             locations=args.locations,
             candidate_profile=candidate_profile,
+            freshness_by_key=(
+                freshness_runtime.annotations if freshness_runtime else None
+            ),
+            now=as_of,
         )
         successful_companies = [
             result.target.name
             for result in report.results
             if result.status
             in {CoverageStatus.FETCHED, CoverageStatus.FETCHED_NO_MATCHING_ROLES}
+            and (freshness_runtime is None or result.scan_complete)
         ]
         sync_result = job_store.sync_student_jobs(
             ranked_jobs,
@@ -237,6 +311,10 @@ def run_update(args: argparse.Namespace) -> int:
             started_at=started_at,
             companies_checked=summary["companies_checked"],
             jobs_fetched=summary["jobs_fetched"],
+            lifecycle_jobs=(
+                freshness_runtime.lifecycle_jobs(report.normalized_jobs)
+                if freshness_runtime else None
+            ),
             exclusion_counts=summary["exclusion_counts"],
             coverage_report_path=summary["coverage_report_path"],
             ranked_artifact_path=summary["ranked_results_path"],
@@ -312,6 +390,18 @@ def print_summary(
     print(f"  Jobs newly closed: {sync_result.closed}")
     print(f"  Coverage report path: {summary['coverage_report_path']}")
     print(f"  Ranked-results path: {summary['ranked_results_path']}")
+    freshness = summary.get("freshness")
+    if freshness:
+        print(f"  Freshness new/fresh: {freshness['new']}/{freshness['fresh']}")
+        print(
+            "  Possibly missing/removed: "
+            f"{freshness['possibly_missing']}/{freshness['removed']}"
+        )
+        print(
+            "  Apply now/high urgency: "
+            f"{freshness['urgency_apply_now']}/{freshness['urgency_high']}"
+        )
+        print("  Lifecycle state: Supabase tracked_jobs")
     if skip_sheets:
         print("  Google Sheets: skipped")
     elif sheet_counts is not None:
@@ -338,6 +428,18 @@ def print_audit_summary(summary: dict[str, Any]) -> None:
     print(f"  Location distribution: {diagnostics.get('location_distribution', {})}")
     print(f"  Title-signal distribution: {diagnostics.get('title_signal_distribution', {})}")
     print(f"  Season distribution: {diagnostics.get('season_distribution', {})}")
+    freshness = summary.get("freshness")
+    if freshness:
+        print(
+            "  Freshness new/fresh/normal/aging/stale: "
+            f"{freshness['new']}/{freshness['fresh']}/{freshness['normal']}/"
+            f"{freshness['aging']}/{freshness['stale']}"
+        )
+        print(
+            "  Lifecycle/date parse errors: "
+            f"{summary.get('date_parse_error_count', len(summary.get('date_parse_failures', [])))}"
+        )
+        print("  Lifecycle state: evaluated but not changed (audit)")
     removed = diagnostics.get("graduate_only_roles_removed", [])
     ambiguous = diagnostics.get("ambiguous_roles_retained", [])
     false_positive_samples = diagnostics.get("false_positive_review_samples", [])

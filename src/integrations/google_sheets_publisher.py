@@ -50,6 +50,13 @@ _EMAIL_PATTERN = re.compile(
 NEW_JOBS_HEADERS = [
     "Score",
     "Band",
+    "Freshness",
+    "Age Days",
+    "First Seen Age Hours",
+    "Urgency",
+    "Urgency Reasons",
+    "Closes At",
+    "Lifecycle",
     "Company",
     "Position",
     "Primary Category",
@@ -57,6 +64,7 @@ NEW_JOBS_HEADERS = [
     "Location",
     "Location Status",
     "First Seen",
+    "Source Posted",
     "Source Updated",
     "Positive Signals",
     "Apply URL",
@@ -67,6 +75,13 @@ NEW_JOBS_HEADERS = [
 ACTIVE_JOBS_HEADERS = [
     "Score",
     "Band",
+    "Freshness",
+    "Age Days",
+    "First Seen Age Hours",
+    "Urgency",
+    "Urgency Reasons",
+    "Closes At",
+    "Lifecycle",
     "Company",
     "Position",
     "Primary Category",
@@ -75,6 +90,7 @@ ACTIVE_JOBS_HEADERS = [
     "Location Status",
     "First Seen",
     "Last Seen",
+    "Source Posted",
     "Source Updated",
     "Apply URL",
     "Source Key",
@@ -99,6 +115,13 @@ TAB_FORMATS = {
         "widths": {
             "Score": 70,
             "Band": 90,
+            "Freshness": 100,
+            "Age Days": 80,
+            "First Seen Age Hours": 130,
+            "Urgency": 110,
+            "Urgency Reasons": 220,
+            "Closes At": 130,
+            "Lifecycle": 120,
             "Company": 150,
             "Position": 320,
             "Primary Category": 180,
@@ -106,6 +129,7 @@ TAB_FORMATS = {
             "Location": 240,
             "Location Status": 150,
             "First Seen": 160,
+            "Source Posted": 160,
             "Source Updated": 160,
             "Positive Signals": 300,
             "Apply URL": 240,
@@ -117,6 +141,7 @@ TAB_FORMATS = {
             "Matched Categories",
             "Location",
             "Positive Signals",
+            "Urgency Reasons",
             "Child Brands",
         },
     },
@@ -124,6 +149,13 @@ TAB_FORMATS = {
         "widths": {
             "Score": 70,
             "Band": 90,
+            "Freshness": 100,
+            "Age Days": 80,
+            "First Seen Age Hours": 130,
+            "Urgency": 110,
+            "Urgency Reasons": 220,
+            "Closes At": 130,
+            "Lifecycle": 120,
             "Company": 150,
             "Position": 320,
             "Primary Category": 180,
@@ -132,12 +164,15 @@ TAB_FORMATS = {
             "Location Status": 150,
             "First Seen": 160,
             "Last Seen": 160,
+            "Source Posted": 160,
             "Source Updated": 160,
             "Apply URL": 240,
             "Source Key": 220,
             "Child Brands": 180,
         },
-        "wrapped": {"Position", "Matched Categories", "Location", "Child Brands"},
+        "wrapped": {
+            "Position", "Matched Categories", "Location", "Urgency Reasons", "Child Brands"
+        },
     },
     "System Status": {
         "widths": {"Metric": 220, "Value": 320},
@@ -751,6 +786,13 @@ def _new_job_row(job: Mapping[str, Any]) -> list[Any]:
     return [
         _cell(job.get("relevance_score", job.get("score"))),
         _cell(job.get("relevance_band", job.get("band"))),
+        _cell(job.get("freshness_band")),
+        _cell(job.get("age_days")),
+        _cell(job.get("first_seen_age_hours")),
+        _cell(job.get("urgency_band")),
+        _cell(job.get("urgency_reasons")),
+        _timestamp_cell(job.get("source_closes_at")),
+        _cell(job.get("lifecycle_status", job.get("status"))),
         _cell(job.get("company")),
         _cell(job.get("title", job.get("position"))),
         _cell(job.get("primary_category")),
@@ -758,6 +800,7 @@ def _new_job_row(job: Mapping[str, Any]) -> list[Any]:
         _cell(job.get("location")),
         _cell(job.get("location_status")),
         _timestamp_cell(job.get("first_seen_at")),
+        _timestamp_cell(job.get("source_posted_at")),
         _timestamp_cell(job.get("source_updated_at", job.get("updated_at"))),
         _cell(job.get("positive_signals")),
         _cell(job.get("apply_url", job.get("url"))),
@@ -770,6 +813,13 @@ def _active_job_row(job: Mapping[str, Any]) -> list[Any]:
     return [
         _cell(job.get("relevance_score", job.get("score"))),
         _cell(job.get("relevance_band", job.get("band"))),
+        _cell(job.get("freshness_band")),
+        _cell(job.get("age_days")),
+        _cell(job.get("first_seen_age_hours")),
+        _cell(job.get("urgency_band")),
+        _cell(job.get("urgency_reasons")),
+        _timestamp_cell(job.get("source_closes_at")),
+        _cell(job.get("lifecycle_status", job.get("status"))),
         _cell(job.get("company")),
         _cell(job.get("title", job.get("position"))),
         _cell(job.get("primary_category")),
@@ -778,6 +828,7 @@ def _active_job_row(job: Mapping[str, Any]) -> list[Any]:
         _cell(job.get("location_status")),
         _timestamp_cell(job.get("first_seen_at")),
         _timestamp_cell(job.get("last_seen_at")),
+        _timestamp_cell(job.get("source_posted_at")),
         _timestamp_cell(job.get("source_updated_at", job.get("updated_at"))),
         _cell(job.get("apply_url", job.get("url"))),
         _cell(job.get("source_key")),
@@ -901,7 +952,7 @@ def _cell(value: Any) -> Any:
 def _timestamp_cell(value: Any) -> str:
     parsed = _parse_timestamp(value)
     if parsed is None:
-        return "" if value is None or value == "" else str(value).strip()
+        return ""
     return parsed.astimezone(timezone.utc).isoformat(timespec="seconds").replace(
         "+00:00", "Z"
     )
@@ -930,7 +981,17 @@ def _parse_timestamp(value: Any) -> Optional[datetime]:
         try:
             parsed_date = date.fromisoformat(text)
         except ValueError:
-            return None
+            normalized_text = " ".join(text.split())
+            for date_format in ("%B %d, %Y", "%b %d, %Y", "%m/%d/%Y"):
+                try:
+                    parsed_date = datetime.strptime(
+                        normalized_text, date_format
+                    ).date()
+                    break
+                except ValueError:
+                    continue
+            else:
+                return None
         parsed = datetime(
             parsed_date.year,
             parsed_date.month,

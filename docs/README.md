@@ -11,6 +11,7 @@ Start with the main [README](../README.md) for the project story and quick start
 - [Outputs](OUTPUTS.md): generated files, schemas, and coverage states
 - [Relevance](RELEVANCE.md): ranking behavior and how to adapt it beyond technical roles
 - [Candidate Profile v1](CANDIDATE_PROFILE.md): deterministic student-job preferences, output signals, and replay
+- [Freshness / Urgency v1](FRESHNESS.md): lifecycle state, source dates, separate urgency signals, and replay
 - [Attribution](ATTRIBUTION.md): upstream credit and what changed
 - [Publishing Notes](PUBLISHING.md): public-facing name, description, and topic guidance
 

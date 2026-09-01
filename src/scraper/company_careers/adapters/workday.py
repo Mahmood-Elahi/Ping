@@ -246,6 +246,7 @@ def _fetch_pages(
                     source=f"workday:{target.tenant}",
                     departments=[],
                     offices=[location] if location else [],
+                    raw_metadata={"source_posted_at": item.get("postedOn")},
                 )
             )
 

@@ -190,6 +190,18 @@ class UpdateStudentDashboardTests(unittest.TestCase):
     def test_audit_scans_without_supabase_sheets_or_sqlite(self):
         audit_summary = dict(
             self.summary,
+            freshness={
+                "new": 1,
+                "fresh": 0,
+                "normal": 0,
+                "aging": 0,
+                "stale": 0,
+            },
+            date_parse_error_count=2,
+            date_parse_failures=[
+                {"field": "source_posted_at", "reason": "unparseable"},
+                {"field": "source_closes_at", "reason": "unparseable"},
+            ],
             diagnostics={
                 "total_normalized_jobs": 2,
                 "before_retained_jobs": 1,
@@ -211,7 +223,7 @@ class UpdateStudentDashboardTests(unittest.TestCase):
             patch.object(dashboard.GoogleSheetsPublisher, "from_env") as publisher_factory,
             redirect_stdout(output),
         ):
-            exit_code = dashboard.main(["--audit"])
+            exit_code = dashboard.main(["--audit", "--no-freshness"])
 
         self.assertEqual(exit_code, 0)
         self.assertEqual(pipeline.search_calls, 1)
@@ -219,6 +231,7 @@ class UpdateStudentDashboardTests(unittest.TestCase):
         publisher_factory.assert_not_called()
         self.assertIn("Supabase: disabled", output.getvalue())
         self.assertIn("SQLite: disabled", output.getvalue())
+        self.assertIn("Lifecycle/date parse errors: 2", output.getvalue())
 
     def test_skip_sheets_updates_supabase_without_google_calls(self):
         pipeline = FakePipeline(self.report, self.summary)
@@ -231,7 +244,7 @@ class UpdateStudentDashboardTests(unittest.TestCase):
             patch.object(dashboard.GoogleSheetsPublisher, "from_env") as publisher_factory,
             redirect_stdout(output),
         ):
-            exit_code = dashboard.main(["--skip-sheets"])
+            exit_code = dashboard.main(["--skip-sheets", "--no-freshness"])
 
         self.assertEqual(exit_code, 0)
         self.assertEqual(store.validate_calls, 1)
@@ -256,7 +269,7 @@ class UpdateStudentDashboardTests(unittest.TestCase):
             ),
             redirect_stdout(io.StringIO()),
         ):
-            exit_code = dashboard.main([])
+            exit_code = dashboard.main(["--no-freshness"])
 
         self.assertEqual(exit_code, 0)
         self.assertEqual(store.validate_calls, 1)
@@ -283,7 +296,7 @@ class UpdateStudentDashboardTests(unittest.TestCase):
             redirect_stdout(io.StringIO()),
             redirect_stderr(error_output),
         ):
-            exit_code = dashboard.main(["--skip-sheets"])
+            exit_code = dashboard.main(["--skip-sheets", "--no-freshness"])
 
         self.assertEqual(exit_code, 1)
         self.assertEqual(len(store.failed_scan_calls), 1)
@@ -311,7 +324,7 @@ class UpdateStudentDashboardTests(unittest.TestCase):
             redirect_stdout(io.StringIO()),
             redirect_stderr(error_output),
         ):
-            exit_code = dashboard.main([])
+            exit_code = dashboard.main(["--no-freshness"])
 
         self.assertEqual(exit_code, 1)
         self.assertEqual(len(publisher.publish_calls), 1)
@@ -348,10 +361,30 @@ class UpdateStudentDashboardTests(unittest.TestCase):
             patch.object(dashboard.SupabaseJobStore, "from_env", return_value=store),
             redirect_stdout(io.StringIO()),
         ):
-            exit_code = dashboard.main(["--skip-sheets"])
+            exit_code = dashboard.main(["--skip-sheets", "--no-freshness"])
 
         self.assertEqual(exit_code, 0)
         self.assertEqual(store.sync_calls[0][1]["successful_companies"], ["Example"])
+
+    def test_real_pipeline_builder_routes_timing_to_ranked_writer_not_filter(self):
+        args = dashboard.parse_args(["--audit"])
+        as_of = datetime(2026, 8, 31, 12, 0, tzinfo=timezone.utc)
+        runtime = dashboard.FreshnessRuntime(
+            config=dashboard.load_freshness_config(),
+            previous_state=dashboard.empty_freshness_state(),
+            as_of=as_of,
+        )
+        pipeline = dashboard.build_pipeline(
+            args, [self.target], candidate_profile=None,
+            freshness_runtime=runtime, as_of=as_of,
+        )
+        self.assertIs(
+            pipeline.company_careers_ranked_writer.keywords["freshness_by_key"],
+            runtime.annotations,
+        )
+        self.assertEqual(
+            pipeline.company_careers_ranked_writer.keywords["now"], as_of
+        )
 
     def test_complete_fatal_scan_does_not_call_sync(self):
         pipeline = FakePipeline(
@@ -368,7 +401,7 @@ class UpdateStudentDashboardTests(unittest.TestCase):
             redirect_stdout(io.StringIO()),
             redirect_stderr(io.StringIO()),
         ):
-            exit_code = dashboard.main(["--skip-sheets"])
+            exit_code = dashboard.main(["--skip-sheets", "--no-freshness"])
 
         self.assertEqual(exit_code, 1)
         self.assertEqual(pipeline.search_calls, 1)
@@ -387,7 +420,7 @@ class UpdateStudentDashboardTests(unittest.TestCase):
             redirect_stdout(io.StringIO()),
             redirect_stderr(error_output),
         ):
-            exit_code = dashboard.main([])
+            exit_code = dashboard.main(["--no-freshness"])
 
         self.assertEqual(exit_code, 1)
         self.assertEqual(store.validate_calls, 1)

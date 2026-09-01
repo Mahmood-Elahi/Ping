@@ -3,6 +3,7 @@ import os
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from unittest.mock import patch
 
 from src.integrations.supabase_job_store import (
@@ -11,6 +12,7 @@ from src.integrations.supabase_job_store import (
     SupabaseJobStore,
     generate_source_key,
     normalize_url,
+    tracked_job_payload,
 )
 from src.utils.job_search_pipeline import JobSearchPipeline
 
@@ -57,6 +59,45 @@ class FakeTable:
     def __init__(self, client, name):
         self.client = client
         self.name = name
+        self.filters = []
+        self.row_limit = None
+        self.row_range = None
+
+    def select(self, _columns):
+        return self
+
+    def eq(self, field, value):
+        self.filters.append((field, value))
+        return self
+
+    def order(self, _field, desc=False):
+        return self
+
+    def limit(self, count):
+        self.row_limit = count
+        return self
+
+    def range(self, start, end):
+        self.row_range = (start, end)
+        return self
+
+    def execute(self):
+        if self.name == "tracked_jobs":
+            rows = [copy.deepcopy(row) for row in self.client.tracked_jobs.values()]
+        elif self.name == "scan_runs":
+            rows = copy.deepcopy(self.client.scan_runs)
+        elif self.name == "applications":
+            rows = [copy.deepcopy(row) for row in self.client.applications.values()]
+        else:
+            rows = []
+        for field, value in self.filters:
+            rows = [row for row in rows if row.get(field) == value]
+        if self.row_range is not None:
+            start, end = self.row_range
+            rows = rows[start : end + 1]
+        if self.row_limit is not None:
+            rows = rows[: self.row_limit]
+        return FakeResponse(rows)
 
     def insert(self, row):
         def perform_insert():
@@ -66,6 +107,22 @@ class FakeTable:
             return [copy.deepcopy(row)]
 
         return FakeRequest(perform_insert)
+
+    def upsert(self, row, on_conflict=None):
+        def perform_upsert():
+            if self.name != "scan_runs":
+                raise AssertionError(f"Unexpected upsert table: {self.name}")
+            existing = next(
+                (item for item in self.client.scan_runs if item.get("id") == row.get("id")),
+                None,
+            )
+            if existing is None:
+                self.client.scan_runs.append(copy.deepcopy(row))
+            else:
+                existing.update(copy.deepcopy(row))
+            return [copy.deepcopy(row)]
+
+        return FakeRequest(perform_upsert)
 
 
 class FakeSupabaseClient:
@@ -85,6 +142,19 @@ class FakeSupabaseClient:
         "negative_signals",
         "location_status",
         "source_updated_at",
+        "source_posted_at",
+        "source_closes_at",
+        "first_seen_basis",
+        "freshness_age_source",
+        "age_days",
+        "first_seen_age_hours",
+        "freshness_band",
+        "deadline_days_remaining",
+        "urgency_band",
+        "urgency_score",
+        "urgency_reasons",
+        "date_parse_errors",
+        "is_ranked_output",
         "raw_data",
     }
 
@@ -93,9 +163,10 @@ class FakeSupabaseClient:
         self.scan_runs = []
         self.applications = {}
         self.rpc_calls = []
+        self.source_syncs = {}
 
     def rpc(self, name, params):
-        if name != "sync_student_job_scan":
+        if name != "sync_student_job_source":
             raise AssertionError(f"Unexpected RPC: {name}")
         self.rpc_calls.append((name, copy.deepcopy(params)))
         return FakeRequest(lambda: self._sync(params))
@@ -104,6 +175,9 @@ class FakeSupabaseClient:
         return FakeTable(self, name)
 
     def _sync(self, params):
+        ledger_key = (params["p_scan_id"], params["p_company"])
+        if ledger_key in self.source_syncs:
+            return {**copy.deepcopy(self.source_syncs[ledger_key]), "replayed": True}
         incoming = {
             row["source_key"]: copy.deepcopy(row)
             for row in params["p_jobs"]
@@ -121,7 +195,10 @@ class FakeSupabaseClient:
                 continue
 
             changed = (
-                any(existing.get(field) != incoming_row.get(field) for field in self.MUTABLE_FIELDS)
+                any(
+                    existing.get(field) != incoming_row.get(field)
+                    for field in self.MUTABLE_FIELDS
+                )
                 or existing.get("status") != "active"
                 or existing.get("missing_successful_runs") != 0
             )
@@ -135,14 +212,14 @@ class FakeSupabaseClient:
             existing["first_seen_at"] = first_seen_at
             existing["id"] = row_id
             existing["status"] = "active"
+            existing["lifecycle_status"] = "active"
             existing["missing_successful_runs"] = 0
 
-        successful_companies = set(params["p_successful_companies"])
         missing_incremented = 0
         closed = 0
         threshold = params["p_close_after_missing_runs"]
         for source_key, row in self.tracked_jobs.items():
-            if row["company"] not in successful_companies:
+            if not params["p_reconcile_absence"] or row["company"] != params["p_company"]:
                 continue
             if row["status"] == "closed" or source_key in incoming:
                 continue
@@ -150,7 +227,11 @@ class FakeSupabaseClient:
             missing_incremented += 1
             if row["missing_successful_runs"] >= threshold:
                 row["status"] = "closed"
+                row["lifecycle_status"] = "removed"
+                row["removed_at"] = params["p_seen_at"]
                 closed += 1
+            else:
+                row["lifecycle_status"] = "possibly_missing"
 
         result = {
             "inserted": inserted,
@@ -158,19 +239,40 @@ class FakeSupabaseClient:
             "unchanged": unchanged,
             "missing_incremented": missing_incremented,
             "closed": closed,
+            "replayed": False,
         }
-        scan = copy.deepcopy(params["p_scan"])
-        scan.update(
-            {
-                "success": True,
-                "jobs_inserted": inserted,
-                "jobs_updated": updated,
-                "jobs_unchanged": unchanged,
-                "error_message": None,
-            }
-        )
-        self.scan_runs.append(scan)
+        self.source_syncs[ledger_key] = copy.deepcopy(result)
         return result
+
+
+class ProviderFailure(RuntimeError):
+    def __init__(self, message, *, code=None, details=None):
+        super().__init__(message)
+        self.message = message
+        self.code = code
+        self.details = details
+
+
+class SequencedSupabaseClient(FakeSupabaseClient):
+    def __init__(self, failures, *, commit_before_failure=False):
+        super().__init__()
+        self.failures = list(failures)
+        self.commit_before_failure = commit_before_failure
+
+    def rpc(self, name, params):
+        if name != "sync_student_job_source":
+            raise AssertionError(f"Unexpected RPC: {name}")
+        self.rpc_calls.append((name, copy.deepcopy(params)))
+
+        def execute():
+            failure = self.failures.pop(0) if self.failures else None
+            if failure is not None and self.commit_before_failure:
+                self._sync(params)
+            if failure is not None:
+                raise failure
+            return self._sync(params)
+
+        return FakeRequest(execute)
 
 
 class MutableClock:
@@ -185,6 +287,23 @@ class MutableClock:
 
 
 class SupabaseJobStoreTests(unittest.TestCase):
+    def test_schema_migration_preserves_legacy_lifecycle_evidence(self):
+        schema = (
+            Path(__file__).resolve().parents[1] / "sql" / "supabase_schema.sql"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("when status = 'closed' then 'removed'", schema)
+        self.assertIn(
+            "when missing_successful_runs > 0 then 'possibly_missing'",
+            schema,
+        )
+        self.assertIn("tracked_jobs_lifecycle_status_check", schema)
+        self.assertIn("tracked_jobs_urgency_reasons_array_check", schema)
+        self.assertIn("create table if not exists public.scan_source_syncs", schema)
+        self.assertIn("create or replace function public.sync_student_job_source", schema)
+        self.assertIn("pg_advisory_xact_lock", schema)
+        self.assertIn("where p_reconcile_absence", schema)
+
     def setUp(self):
         self.client = FakeSupabaseClient()
         self.clock = MutableClock()
@@ -214,10 +333,12 @@ class SupabaseJobStoreTests(unittest.TestCase):
         return job
 
     def sync(self, jobs, successful_companies=("Example",)):
+        started_at = self.started_at
+        self.started_at += timedelta(minutes=1)
         return self.store.sync_student_jobs(
             jobs,
             successful_companies=successful_companies,
-            started_at=self.started_at,
+            started_at=started_at,
             companies_checked=len(successful_companies),
             jobs_fetched=len(jobs),
             exclusion_counts={"seniority": 2},
@@ -264,6 +385,38 @@ class SupabaseJobStoreTests(unittest.TestCase):
         self.assertEqual(len(self.client.tracked_jobs), 1)
         self.assertTrue(self.client.scan_runs[-1]["success"])
 
+    def test_freshness_lifecycle_fields_are_mirrored_without_resetting_first_seen(self):
+        lifecycle_job = self.job(
+            first_seen_at="2026-07-01T12:00:00Z",
+            last_seen_at="2026-08-31T12:00:00Z",
+            source_posted_at="2026-06-30",
+            source_closes_at="2026-09-03",
+            first_seen_basis="observed_at_scan",
+            lifecycle_status="active",
+            missing_scan_count=0,
+            freshness_age_source="source_posted_at",
+            age_days=62,
+            freshness_band="stale",
+            deadline_days_remaining=3,
+            first_seen_age_hours=1476,
+            urgency_band="apply_now",
+            urgency_score=100,
+            urgency_reasons=["deadline_in_2_days"],
+        )
+        self.sync([lifecycle_job])
+        row = self.tracked(lifecycle_job)
+        self.assertEqual(row["first_seen_at"], "2026-07-01T12:00:00+00:00")
+        self.assertEqual(row["source_posted_at"], "2026-06-30")
+        self.assertEqual(row["source_closes_at"], "2026-09-03")
+        self.assertEqual(row["freshness_band"], "stale")
+        self.assertEqual(row["urgency_band"], "apply_now")
+
+        state = self.store.fetch_lifecycle_state()
+        entry = state["jobs"][generate_source_key(lifecycle_job)]
+        self.assertEqual(entry["first_seen_at"], "2026-07-01T12:00:00+00:00")
+        self.assertEqual(entry["source_closes_at"], "2026-09-03")
+        self.assertEqual(entry["first_seen_basis"], "observed_at_scan")
+
     def test_repeated_identical_discovery_is_unchanged_and_preserves_first_seen(self):
         self.sync([self.job()])
         original_first_seen = self.tracked()["first_seen_at"]
@@ -291,6 +444,7 @@ class SupabaseJobStoreTests(unittest.TestCase):
         self.assertEqual(result.updated, 1)
         self.assertEqual(self.tracked()["missing_successful_runs"], 0)
         self.assertEqual(self.tracked()["status"], "active")
+        self.assertEqual(self.tracked()["lifecycle_status"], "active")
 
     def test_one_missing_successful_run_does_not_close_job(self):
         self.sync([self.job()])
@@ -299,6 +453,7 @@ class SupabaseJobStoreTests(unittest.TestCase):
         self.assertEqual(result.closed, 0)
         self.assertEqual(self.tracked()["missing_successful_runs"], 1)
         self.assertEqual(self.tracked()["status"], "active")
+        self.assertEqual(self.tracked()["lifecycle_status"], "possibly_missing")
 
     def test_two_missing_successful_runs_close_job(self):
         self.sync([self.job()])
@@ -307,6 +462,8 @@ class SupabaseJobStoreTests(unittest.TestCase):
         self.assertEqual(result.closed, 1)
         self.assertEqual(self.tracked()["missing_successful_runs"], 2)
         self.assertEqual(self.tracked()["status"], "closed")
+        self.assertEqual(self.tracked()["lifecycle_status"], "removed")
+        self.assertIsNotNone(self.tracked()["removed_at"])
 
     def test_failed_company_scan_does_not_increment_missing_count(self):
         self.sync([self.job()])
@@ -382,6 +539,188 @@ class SupabaseJobStoreTests(unittest.TestCase):
 
         self.assertIn("Supabase access failed", str(raised.exception))
         self.assertNotIn("secret-value", str(raised.exception))
+
+    def test_production_scale_payload_is_partitioned_by_source(self):
+        jobs = [
+            self.job(
+                job_id=f"job-{index}",
+                company=f"Company {index % 533:03d}",
+                source=f"greenhouse:company-{index % 533:03d}",
+                url=f"https://jobs.example.com/{index}",
+            )
+            for index in range(11669)
+        ]
+        companies = {job["company"] for job in jobs}
+        result = self.store.sync_student_jobs(
+            [],
+            lifecycle_jobs=jobs,
+            successful_companies=companies,
+            started_at=self.started_at,
+            companies_checked=len(companies),
+            jobs_fetched=len(jobs),
+        )
+
+        self.assertEqual(result.inserted, 11669)
+        self.assertEqual(len(self.client.rpc_calls), 533)
+        self.assertLessEqual(
+            max(len(params["p_jobs"]) for _, params in self.client.rpc_calls),
+            22,
+        )
+        self.assertEqual(self.store.last_sync_diagnostics.payload_rows, 11669)
+
+    def test_lifecycle_state_read_paginates_past_supabase_row_cap(self):
+        for index in range(2501):
+            value = self.job(
+                job_id=f"persisted-{index}",
+                url=f"https://jobs.example.com/persisted/{index}",
+            )
+            payload = tracked_job_payload(value, seen_at=self.clock())
+            self.client.tracked_jobs[payload["source_key"]] = payload
+        state = self.store.fetch_lifecycle_state()
+        self.assertEqual(len(state["jobs"]), 2501)
+
+    def test_timeout_is_retried_with_same_idempotency_key(self):
+        client = SequencedSupabaseClient([TimeoutError("read timed out"), None])
+        delays = []
+        store = SupabaseJobStore(
+            client,
+            now_factory=self.clock,
+            sync_max_attempts=3,
+            sync_retry_delay_seconds=0.25,
+            sleep=delays.append,
+        )
+        result = store.sync_student_jobs(
+            [self.job()],
+            successful_companies=("Example",),
+            started_at=self.started_at,
+            companies_checked=1,
+            jobs_fetched=1,
+        )
+        self.assertEqual(result.inserted, 1)
+        self.assertEqual(len(client.rpc_calls), 2)
+        self.assertEqual(delays, [0.25])
+        self.assertEqual(
+            client.rpc_calls[0][1]["p_scan_id"],
+            client.rpc_calls[1][1]["p_scan_id"],
+        )
+
+    def test_permanent_provider_error_is_not_retried(self):
+        client = SequencedSupabaseClient(
+            [ProviderFailure("constraint violation", code="23505")]
+        )
+        store = SupabaseJobStore(client, now_factory=self.clock, sync_max_attempts=3)
+        with self.assertRaises(SupabaseAccessError) as raised:
+            store.sync_student_jobs(
+                [self.job()],
+                successful_companies=("Example",),
+                started_at=self.started_at,
+                companies_checked=1,
+                jobs_fetched=1,
+            )
+        self.assertEqual(len(client.rpc_calls), 1)
+        self.assertEqual(raised.exception.diagnostics["classification"], "permanent")
+        self.assertEqual(raised.exception.diagnostics["provider_code"], "23505")
+
+    def test_response_loss_retry_does_not_increment_missing_twice(self):
+        client = SequencedSupabaseClient([])
+        seed_store = SupabaseJobStore(client, now_factory=self.clock)
+        seed_store.sync_student_jobs(
+            [self.job()], successful_companies=("Example",),
+            started_at=self.started_at, companies_checked=1, jobs_fetched=1,
+        )
+        client.failures = [TimeoutError("response timed out"), None]
+        client.commit_before_failure = True
+        retry_store = SupabaseJobStore(
+            client, now_factory=self.clock, sync_retry_delay_seconds=0, sleep=lambda _: None
+        )
+        retry_store.sync_student_jobs(
+            [], successful_companies=("Example",),
+            started_at=self.started_at + timedelta(minutes=1),
+            companies_checked=1, jobs_fetched=0,
+        )
+        row = client.tracked_jobs[generate_source_key(self.job())]
+        self.assertEqual(row["missing_successful_runs"], 1)
+
+    def test_failed_source_transaction_cannot_mark_that_source_missing(self):
+        client = SequencedSupabaseClient([])
+        store = SupabaseJobStore(client, now_factory=self.clock, sync_max_attempts=1)
+        other = self.job(
+            job_id="other-1", company="Other", source="lever:other",
+            url="https://jobs.other.example/other-1",
+        )
+        store.sync_student_jobs(
+            [self.job(), other], successful_companies=("Example", "Other"),
+            started_at=self.started_at, companies_checked=2, jobs_fetched=2,
+        )
+        other_before = copy.deepcopy(client.tracked_jobs[generate_source_key(other)])
+        client.failures = [None, ProviderFailure("bad request", code="23514")]
+        with self.assertRaises(SupabaseAccessError):
+            store.sync_student_jobs(
+                [self.job(relevance_score=80)],
+                successful_companies=("Example", "Other"),
+                started_at=self.started_at + timedelta(minutes=1),
+                companies_checked=2, jobs_fetched=1,
+            )
+        self.assertEqual(client.tracked_jobs[generate_source_key(other)], other_before)
+
+    def test_diagnostics_redact_configured_secret_and_authorization(self):
+        secret = "eyJheader.payload.signature-secret"
+        failure = ProviderFailure(
+            f"Authorization: Bearer {secret}",
+            code="520",
+            details=f"apikey={secret}",
+        )
+        store = SupabaseJobStore(
+            SequencedSupabaseClient([failure]),
+            now_factory=self.clock,
+            sync_max_attempts=1,
+        )
+        with patch.dict(os.environ, {"SUPABASE_SERVICE_ROLE_KEY": secret}):
+            with self.assertRaises(SupabaseAccessError) as raised:
+                store.sync_student_jobs(
+                    [self.job()], successful_companies=("Example",),
+                    started_at=self.started_at, companies_checked=1, jobs_fetched=1,
+                )
+        rendered = str(raised.exception) + str(raised.exception.__cause__)
+        self.assertNotIn(secret, rendered)
+        self.assertIn("[REDACTED]", rendered)
+        self.assertEqual(raised.exception.diagnostics["http_status"], 520)
+
+    def test_custom_environment_service_key_is_always_redacted(self):
+        secret = "custom-environment-service-role-secret"
+        store = SupabaseJobStore.from_env(
+            environ={
+                "SUPABASE_URL": "https://example.supabase.co",
+                "SUPABASE_SERVICE_ROLE_KEY": secret,
+            },
+            client_factory=lambda _url, _key: FailingClient(
+                RuntimeError(f"request failed with apikey={secret}")
+            ),
+        )
+        with self.assertRaises(SupabaseAccessError) as raised:
+            store.sync_student_jobs(
+                [self.job()], successful_companies=("Example",),
+                started_at=self.started_at, companies_checked=1, jobs_fetched=1,
+            )
+        self.assertNotIn(secret, str(raised.exception))
+        self.assertNotIn(secret, str(raised.exception.__cause__))
+
+    def test_failed_scan_diagnostic_is_persisted_independently(self):
+        self.store.record_failed_scan(
+            started_at=self.started_at,
+            error_message="sync timed out",
+            stage="supabase_synchronization",
+            companies_checked=533,
+            jobs_fetched=12117,
+            jobs_retained=832,
+            normalized_jobs=11669,
+            source_summary={"complete": 156, "partial": 377},
+        )
+        row = self.client.scan_runs[-1]
+        self.assertFalse(row["success"])
+        self.assertEqual(row["failure_stage"], "supabase_synchronization")
+        self.assertEqual(row["diagnostics"]["normalized_jobs"], 11669)
+        self.assertEqual(row["diagnostics"]["ranked_jobs"], 832)
 
     def test_normal_non_student_pipeline_does_not_require_supabase_credentials(self):
         with tempfile.TemporaryDirectory() as tmpdir:

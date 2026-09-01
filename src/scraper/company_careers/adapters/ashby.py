@@ -283,6 +283,7 @@ def _listing_record(
         offices=locations,
         raw_metadata={
             "platform": "ashby",
+            "source_posted_at": item.get("publishedDate") or item.get("publishedAt"),
             "external_job_id": job_id,
             "employmentType": item.get("employmentType"),
             "workplaceType": item.get("workplaceType"),

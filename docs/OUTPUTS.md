@@ -32,6 +32,8 @@ Matched jobs with relevance metadata added:
 
 The profile-enabled student workflow also preserves the underlying role score and adds `candidate_preference_score`, `ranking_score`, term/duration/geography matches, bounded domain-cluster evidence, and concise `candidate_preference_reasons`. See [Candidate Profile v1](CANDIDATE_PROFILE.md).
 
+With Freshness v1 enabled, ranked JSON/CSV also include `first_seen_at`, `last_seen_at`, `first_seen_age_hours`, `source_posted_at`, `source_closes_at`, `age_days`, `freshness_band`, `freshness_age_source`, deadline days, `urgency_band`, `urgency_score`, deterministic reasons, lifecycle status, missing count, and date-parse errors. Existing ranking fields and order are unchanged. Lifecycle history uses the existing Supabase `tracked_jobs` table. See [Freshness / Urgency v1](FRESHNESS.md).
+
 `company_careers_ranked_*.csv`
 
 Spreadsheet-friendly version of the ranked jobs. This is usually the easiest artifact to review manually.

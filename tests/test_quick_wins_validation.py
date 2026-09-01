@@ -284,9 +284,10 @@ class QuickWinsIsolationTests(unittest.TestCase):
                 report["production_registry_sha256"]
             ),
         )
-        self.assertEqual(
-            canonical_text_bytes(production[: len(historical)]),
-            canonical_text_bytes(historical),
+        self.assertTrue(
+            canonical_text_bytes(production).startswith(
+                canonical_text_bytes(historical)
+            )
         )
 
         _, historical_entries = validator.load_registry(VALIDATED)

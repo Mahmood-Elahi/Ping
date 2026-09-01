@@ -245,6 +245,8 @@ class CompanyScanResult:
     error_type: Optional[str] = None
     remediation: Optional[str] = None
     fetched_count: int = 0
+    scan_complete: bool = False
+    scan_completeness_reason: str = "not_established"
     exclusion_counts: Dict[str, int] = field(default_factory=dict)
     mapped_child_brand_counts: Dict[str, int] = field(default_factory=dict)
 
@@ -262,6 +264,8 @@ class CompanyScanResult:
             "site_ids": self.target.site_ids,
             "status": self.status,
             "fetched_count": self.fetched_count,
+            "scan_complete": self.scan_complete,
+            "scan_completeness_reason": self.scan_completeness_reason,
             "matched_count": self.matched_count,
             "exclusion_counts": dict(self.exclusion_counts),
             "error": self.error,

@@ -23,6 +23,7 @@ Most job-search workflows depend on LinkedIn alone or hide source failures. Role
 - Normalizes jobs into a consistent shape for downstream review.
 - Ranks roles with a deterministic relevance layer.
 - Optionally ranks student roles with a config-backed deterministic candidate-preference layer.
+- Tracks deterministic first/last seen lifecycle state, source-posted freshness, and explicit deadline urgency across scans.
 - Exports ranked jobs, coverage reports, and failure reports as JSON, CSV, and Markdown.
 - Optionally generates CVs and cover letters from selected job data.
 
@@ -140,7 +141,7 @@ NEW_JOB_WINDOW_DAYS
 CLOSE_AFTER_MISSING_RUNS
 ```
 
-`NEW_JOB_WINDOW_DAYS` and `CLOSE_AFTER_MISSING_RUNS` have defaults of `7` and `2`; set them only when you need different behavior.
+`NEW_JOB_WINDOW_DAYS` and `CLOSE_AFTER_MISSING_RUNS` have defaults of `7` and `2`; set them only when you need different behavior. Supabase synchronization uses a 120-second request timeout, three bounded attempts for transient failures, and a 0.5-second exponential retry base; override these with `SUPABASE_REQUEST_TIMEOUT_SECONDS`, `SUPABASE_SYNC_MAX_ATTEMPTS`, and `SUPABASE_SYNC_RETRY_DELAY_SECONDS` when operational measurements require it.
 
 ### Commands
 
@@ -260,6 +261,8 @@ These are representative shapes. Actual output depends on configured companies, 
 - [Configuration](docs/CONFIGURATION.md): adding companies and tuning source behavior
 - [Outputs](docs/OUTPUTS.md): generated files and coverage states
 - [Relevance](docs/RELEVANCE.md): ranking behavior and how to adapt it beyond technical roles
+- [Candidate Profile v1](docs/CANDIDATE_PROFILE.md): optional deterministic student preferences
+- [Freshness / Urgency v1](docs/FRESHNESS.md): lifecycle state, source dates, deadlines, and replay
 - [Attribution](docs/ATTRIBUTION.md): upstream credit and what changed
 - [Publishing Notes](docs/PUBLISHING.md): public-name, description, and topic guidance
 - [LinkedIn Scraper Guide](docs/LINKEDIN_SCRAPER.md): LinkedIn-specific usage

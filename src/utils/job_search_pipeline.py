@@ -51,7 +51,8 @@ class JobSearchPipeline:
                      Callable[[Any], Optional[str]]
                  ] = None,
                  company_careers_ranked_writer: Optional[Callable[..., None]] = None,
-                 company_careers_diagnostics_builder: Optional[Callable[..., Dict[str, Any]]] = None):
+                 company_careers_diagnostics_builder: Optional[Callable[..., Dict[str, Any]]] = None,
+                 company_careers_report_processor: Optional[Callable[[Any], Any]] = None):
         """
         Initialize the job search pipeline.
         
@@ -70,6 +71,7 @@ class JobSearchPipeline:
             company_careers_location_filter: Optional opt-in location callback
             company_careers_ranked_writer: Optional opt-in ranked-artifact writer
             company_careers_diagnostics_builder: Optional normalized-job diagnostics callback
+            company_careers_report_processor: Optional report hook run before artifacts
         """
         self.keywords = keywords
         self.locations = locations or jobsearch_config.get('locations', ["remote"])
@@ -86,6 +88,8 @@ class JobSearchPipeline:
         self.company_careers_location_filter = company_careers_location_filter
         self.company_careers_ranked_writer = company_careers_ranked_writer
         self.company_careers_diagnostics_builder = company_careers_diagnostics_builder
+        self.company_careers_report_processor = company_careers_report_processor
+        self.company_careers_processing_result = None
         self.company_careers_report = None
         self.company_careers_summary = None
         
@@ -193,6 +197,10 @@ class JobSearchPipeline:
             location_filter=self.company_careers_location_filter,
         )
         self.company_careers_report = report
+        if self.company_careers_report_processor is not None:
+            self.company_careers_processing_result = (
+                self.company_careers_report_processor(report)
+            )
         output_paths = self._company_careers_output_paths()
         self.company_careers_output_paths = output_paths
         self._write_company_careers_report(report, output_paths)
@@ -244,12 +252,22 @@ class JobSearchPipeline:
         for scan_result in report.results:
             for reason, count in scan_result.exclusion_counts.items():
                 exclusion_counts[reason] = exclusion_counts.get(reason, 0) + count
+        processing_summary = getattr(
+            self.company_careers_processing_result, "summary", None
+        )
+        date_parse_failures = list(
+            getattr(self.company_careers_processing_result, "date_parse_failures", ())
+        )
         diagnostics = None
         if self.company_careers_diagnostics_builder is not None:
             diagnostics = self.company_careers_diagnostics_builder(
                 report.normalized_jobs,
                 locations=self.locations,
             )
+            if processing_summary is not None:
+                diagnostics["freshness"] = dict(processing_summary)
+                diagnostics["date_parse_error_count"] = len(date_parse_failures)
+                diagnostics["date_parse_failures"] = date_parse_failures
             with open(output_paths["diagnostics_json"], "w", encoding="utf-8") as file:
                 json.dump(diagnostics, file, indent=2, ensure_ascii=False)
 
@@ -274,6 +292,12 @@ class JobSearchPipeline:
             "diagnostics_path": output_paths["diagnostics_json"] if diagnostics is not None else None,
             "diagnostics": diagnostics,
         }
+        if processing_summary is not None:
+            self.company_careers_summary["freshness"] = dict(processing_summary)
+            self.company_careers_summary["date_parse_error_count"] = len(
+                date_parse_failures
+            )
+            self.company_careers_summary["date_parse_failures"] = date_parse_failures
 
         print(
             "  [SUMMARY] Company careers legacy local-DB persistence: "

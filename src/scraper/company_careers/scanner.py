@@ -251,6 +251,10 @@ class CompanyCareersScanner:
                     if matched_jobs
                     else CoverageStatus.FETCHED_NO_MATCHING_ROLES
                 )
+                # Every adapter is bounded by target.max_jobs. Reaching that
+                # bound means there may be an unseen next result, so absence
+                # cannot safely close a previously known job.
+                scan_complete = len(fetched_jobs) < target.max_jobs
                 results.append(
                     CompanyScanResult(
                         target=target,
@@ -258,6 +262,12 @@ class CompanyCareersScanner:
                         normalized_jobs=fetched_jobs,
                         status=status,
                         fetched_count=len(fetched_jobs),
+                        scan_complete=scan_complete,
+                        scan_completeness_reason=(
+                            "below_configured_source_cap"
+                            if scan_complete
+                            else "reached_configured_source_cap"
+                        ),
                         exclusion_counts=exclusion_counts,
                         mapped_child_brand_counts=mapped_child_brand_counts,
                     )

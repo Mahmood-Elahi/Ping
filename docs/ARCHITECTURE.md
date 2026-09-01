@@ -21,9 +21,12 @@ flowchart TD
     D --> I[Normalized job data]
     H --> I
     I --> J[Database and JSON outputs]
-    I --> K[Relevance ranking]
+    I --> K[Eligibility and role relevance]
+    K --> O[Candidate preferences]
+    I --> P[Lifecycle, freshness, urgency]
     E --> L[Coverage report]
-    K --> M[Ranked review artifacts]
+    O --> M[Ranked review artifacts]
+    P --> M
     L --> N[Coverage and failure artifacts]
 ```
 
@@ -44,6 +47,10 @@ Playwright-based LinkedIn scraper inherited from the upstream project and adapte
 `src/scraper/company_careers/`
 
 Direct company-careers scanner package. It loads target companies from YAML, calls the right adapter, filters/ranks relevant jobs, and emits coverage state.
+
+`src/scraper/company_careers/freshness.py`
+
+Config-backed deterministic lifecycle reconciliation. It reuses stable source identity, loads/persists history through the existing Supabase `tracked_jobs` store, advances missing evidence only for successful uncapped scans, parses bounded source dates, and supplies freshness/urgency annotations without changing ranking.
 
 `src/scraper/company_careers/adapters/`
 

@@ -2,6 +2,8 @@
 
 RoleRadar's direct company-careers scanner is configured through `config/target_companies.yaml`.
 
+Student-job freshness, urgency, and removal thresholds are configured separately in `config/freshness.yaml`. Production history uses the existing Supabase `tracked_jobs` table. Override thresholds with `--freshness-config`, or use `--no-freshness` for the legacy path. See [Freshness / Urgency v1](FRESHNESS.md).
+
 The goal is to keep source metadata in configuration instead of burying company-specific details in one-off scripts.
 
 ## Basic Shape

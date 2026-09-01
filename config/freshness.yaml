@@ -1,0 +1,20 @@
+freshness:
+  new_hours: 24
+  fresh_days: 3
+  normal_days: 10
+  aging_days: 21
+
+urgency:
+  apply_now_deadline_days: 2
+  high_deadline_days: 7
+  newly_seen_high_hours: 48
+  low_after_days: 21
+  scores:
+    apply_now: 100
+    high: 75
+    normal: 50
+    low: 25
+    closed: 0
+
+removal:
+  consecutive_complete_scans: 2

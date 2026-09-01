@@ -100,6 +100,7 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                 description=item.get("descriptionPlain") or item.get("description"),
                 raw_metadata={
                     "platform": "lever",
+                    "source_posted_at": item.get("createdAt"),
                     "endpoint_variant": target.endpoint_variant or ENDPOINT_VARIANT,
                     "external_job_id": job_id,
                     "lever_department": department,
