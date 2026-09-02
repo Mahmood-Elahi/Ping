@@ -47,55 +47,22 @@ _EMAIL_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-NEW_JOBS_HEADERS = [
+DASHBOARD_JOB_HEADERS = [
     "Score",
-    "Band",
-    "Freshness",
-    "Age Days",
-    "First Seen Age Hours",
-    "Urgency",
-    "Urgency Reasons",
-    "Closes At",
-    "Lifecycle",
     "Company",
     "Position",
-    "Primary Category",
-    "Matched Categories",
     "Location",
-    "Location Status",
-    "First Seen",
-    "Source Posted",
-    "Source Updated",
-    "Positive Signals",
-    "Apply URL",
-    "Source Key",
-    "Child Brands",
+    "Freshness",
+    "Urgency",
+    "Why",
+    "Apply",
 ]
 
-ACTIVE_JOBS_HEADERS = [
-    "Score",
-    "Band",
-    "Freshness",
-    "Age Days",
-    "First Seen Age Hours",
-    "Urgency",
-    "Urgency Reasons",
-    "Closes At",
-    "Lifecycle",
-    "Company",
-    "Position",
-    "Primary Category",
-    "Matched Categories",
-    "Location",
-    "Location Status",
-    "First Seen",
-    "Last Seen",
-    "Source Posted",
-    "Source Updated",
-    "Apply URL",
-    "Source Key",
-    "Child Brands",
-]
+# Compatibility aliases for callers that distinguish the two job tabs. Both tabs
+# intentionally use the same user-facing projection; these are not canonical job
+# model schemas.
+NEW_JOBS_HEADERS = DASHBOARD_JOB_HEADERS
+ACTIVE_JOBS_HEADERS = DASHBOARD_JOB_HEADERS
 
 SYSTEM_STATUS_HEADERS = ["Metric", "Value"]
 COMPANIES_HEADERS = [
@@ -114,65 +81,28 @@ TAB_FORMATS = {
     "New Jobs": {
         "widths": {
             "Score": 70,
-            "Band": 90,
-            "Freshness": 100,
-            "Age Days": 80,
-            "First Seen Age Hours": 130,
-            "Urgency": 110,
-            "Urgency Reasons": 220,
-            "Closes At": 130,
-            "Lifecycle": 120,
             "Company": 150,
             "Position": 320,
-            "Primary Category": 180,
-            "Matched Categories": 220,
             "Location": 240,
-            "Location Status": 150,
-            "First Seen": 160,
-            "Source Posted": 160,
-            "Source Updated": 160,
-            "Positive Signals": 300,
-            "Apply URL": 240,
-            "Source Key": 220,
-            "Child Brands": 180,
+            "Freshness": 100,
+            "Urgency": 110,
+            "Why": 300,
+            "Apply": 240,
         },
-        "wrapped": {
-            "Position",
-            "Matched Categories",
-            "Location",
-            "Positive Signals",
-            "Urgency Reasons",
-            "Child Brands",
-        },
+        "wrapped": {"Position", "Location", "Why"},
     },
     "Active Jobs": {
         "widths": {
             "Score": 70,
-            "Band": 90,
-            "Freshness": 100,
-            "Age Days": 80,
-            "First Seen Age Hours": 130,
-            "Urgency": 110,
-            "Urgency Reasons": 220,
-            "Closes At": 130,
-            "Lifecycle": 120,
             "Company": 150,
             "Position": 320,
-            "Primary Category": 180,
-            "Matched Categories": 220,
             "Location": 240,
-            "Location Status": 150,
-            "First Seen": 160,
-            "Last Seen": 160,
-            "Source Posted": 160,
-            "Source Updated": 160,
-            "Apply URL": 240,
-            "Source Key": 220,
-            "Child Brands": 180,
+            "Freshness": 100,
+            "Urgency": 110,
+            "Why": 300,
+            "Apply": 240,
         },
-        "wrapped": {
-            "Position", "Matched Categories", "Location", "Urgency Reasons", "Child Brands"
-        },
+        "wrapped": {"Position", "Location", "Why"},
     },
     "System Status": {
         "widths": {"Metric": 220, "Value": 320},
@@ -358,9 +288,9 @@ class GoogleSheetsPublisher:
         active_jobs_sorted = sorted(jobs, key=_job_sort_key)
         tab_values = {
             "New Jobs": [NEW_JOBS_HEADERS]
-            + [_new_job_row(job) for job in new_jobs],
+            + [_dashboard_job_row(job) for job in new_jobs],
             "Active Jobs": [ACTIVE_JOBS_HEADERS]
-            + [_active_job_row(job) for job in active_jobs_sorted],
+            + [_dashboard_job_row(job) for job in active_jobs_sorted],
             "System Status": [SYSTEM_STATUS_HEADERS]
             + _system_status_rows(scan_run or {}, statuses, coverage_summary or {}),
             "Companies": [COMPANIES_HEADERS]
@@ -782,57 +712,17 @@ def _formatting_requests(
     return requests
 
 
-def _new_job_row(job: Mapping[str, Any]) -> list[Any]:
+def _dashboard_job_row(job: Mapping[str, Any]) -> list[Any]:
+    """Project a canonical ranked job into the decision-focused Sheets view."""
     return [
         _cell(job.get("relevance_score", job.get("score"))),
-        _cell(job.get("relevance_band", job.get("band"))),
-        _cell(job.get("freshness_band")),
-        _cell(job.get("age_days")),
-        _cell(job.get("first_seen_age_hours")),
-        _cell(job.get("urgency_band")),
-        _cell(job.get("urgency_reasons")),
-        _timestamp_cell(job.get("source_closes_at")),
-        _cell(job.get("lifecycle_status", job.get("status"))),
         _cell(job.get("company")),
         _cell(job.get("title", job.get("position"))),
-        _cell(job.get("primary_category")),
-        _cell(job.get("matched_categories")),
         _cell(job.get("location")),
-        _cell(job.get("location_status")),
-        _timestamp_cell(job.get("first_seen_at")),
-        _timestamp_cell(job.get("source_posted_at")),
-        _timestamp_cell(job.get("source_updated_at", job.get("updated_at"))),
+        _cell(job.get("freshness_band")),
+        _cell(job.get("urgency_band")),
         _cell(job.get("positive_signals")),
         _cell(job.get("apply_url", job.get("url"))),
-        _cell(job.get("source_key")),
-        _cell(_child_brands(job)),
-    ]
-
-
-def _active_job_row(job: Mapping[str, Any]) -> list[Any]:
-    return [
-        _cell(job.get("relevance_score", job.get("score"))),
-        _cell(job.get("relevance_band", job.get("band"))),
-        _cell(job.get("freshness_band")),
-        _cell(job.get("age_days")),
-        _cell(job.get("first_seen_age_hours")),
-        _cell(job.get("urgency_band")),
-        _cell(job.get("urgency_reasons")),
-        _timestamp_cell(job.get("source_closes_at")),
-        _cell(job.get("lifecycle_status", job.get("status"))),
-        _cell(job.get("company")),
-        _cell(job.get("title", job.get("position"))),
-        _cell(job.get("primary_category")),
-        _cell(job.get("matched_categories")),
-        _cell(job.get("location")),
-        _cell(job.get("location_status")),
-        _timestamp_cell(job.get("first_seen_at")),
-        _timestamp_cell(job.get("last_seen_at")),
-        _timestamp_cell(job.get("source_posted_at")),
-        _timestamp_cell(job.get("source_updated_at", job.get("updated_at"))),
-        _cell(job.get("apply_url", job.get("url"))),
-        _cell(job.get("source_key")),
-        _cell(_child_brands(job)),
     ]
 
 
@@ -894,25 +784,6 @@ def _company_rows(
             ]
         )
     return sorted(rows, key=lambda row: str(row[0]).casefold())
-
-
-def _child_brands(job: Mapping[str, Any]) -> list[str]:
-    values = job.get("child_brands")
-    if not isinstance(values, list):
-        raw_data = job.get("raw_data")
-        if isinstance(raw_data, Mapping):
-            values = raw_data.get("child_brands")
-            if not isinstance(values, list):
-                metadata = raw_data.get("raw_metadata")
-                values = metadata.get("child_brands") if isinstance(metadata, Mapping) else []
-    if not isinstance(values, list):
-        return []
-    unique: dict[str, str] = {}
-    for value in values:
-        cleaned = str(value).strip()
-        if cleaned:
-            unique.setdefault(cleaned.casefold(), cleaned)
-    return [unique[key] for key in sorted(unique)]
 
 
 def _job_sort_key(job: Mapping[str, Any]) -> tuple[Any, ...]:

@@ -59,7 +59,9 @@ Rules are evaluated in this order, so an old posting with an imminent explicit d
 
 ## Outputs and dashboard
 
-Ranked JSON/CSV and the Supabase/Google Sheets dashboard retain all existing ranking columns and add lifecycle status, first/last seen, posting/closing dates, posting and discovery age, freshness, urgency, reason codes, removal time, and parse errors. The Sheets dashboard places urgency and its reasons near freshness for scanning. The dashboard continues to publish only active ranked rows; removed and non-ranked normalized jobs remain in `tracked_jobs` history.
+Ranked JSON/CSV, the canonical ranked-job model, and Supabase records retain the full metadata set: ranking bands and categories, eligibility/location status, lifecycle status, first/last-seen and source timestamps, posting/closing dates, posting and discovery age, freshness, urgency and reason codes, removal time, parse errors, and source diagnostics. This metadata remains available for ranking, filtering, deduplication, replay, diagnostics, and future product features.
+
+The production `New Jobs` and `Active Jobs` Sheets tabs intentionally project those rich records into eight decision-relevant columns: `Score`, `Company`, `Position`, `Location`, `Freshness`, `Urgency`, `Why`, and `Apply`. Freshness and urgency remain separate; deadline and lifecycle inputs remain in the urgency engine even though they are not displayed. The dashboard continues to publish only active ranked rows; removed and non-ranked normalized jobs remain in `tracked_jobs` history.
 
 ## Replay and backfill
 

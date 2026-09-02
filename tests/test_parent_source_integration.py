@@ -420,28 +420,28 @@ class ParentSourcePersistenceTests(unittest.TestCase):
 
 
 class ParentSourceSheetsAndRegistryTests(unittest.TestCase):
-    def test_27_sheets_expose_child_brands_on_one_job_row(self):
+    def test_27_sheets_hide_child_brands_without_removing_them_from_job(self):
         sheet = FakeSpreadsheet(("New Jobs", "Applications"))
         publisher = GoogleSheetsPublisher(
             sheet, now_factory=lambda: datetime(2026, 8, 4, tzinfo=timezone.utc)
         )
+        job = {
+            "source_key": "one",
+            "company": "Meta",
+            "title": "Intern",
+            "status": "active",
+            "first_seen_at": "2026-08-04T00:00:00Z",
+            "child_brands": ["Instagram", "WhatsApp"],
+        }
         publisher.publish(
-            active_jobs=[
-                {
-                    "source_key": "one",
-                    "company": "Meta",
-                    "title": "Intern",
-                    "status": "active",
-                    "first_seen_at": "2026-08-04T00:00:00Z",
-                    "child_brands": ["Instagram", "WhatsApp"],
-                }
-            ],
+            active_jobs=[job],
             scan_run={"success": True, "companies_checked": 1},
             companies=[],
         )
         active = sheet.sheets["Active Jobs"].values
         self.assertEqual(len(active), 2)
-        self.assertEqual(active[1][-1], "Instagram; WhatsApp")
+        self.assertNotIn("Child Brands", active[0])
+        self.assertEqual(job["child_brands"], ["Instagram", "WhatsApp"])
 
     def test_28_companies_tab_distinguishes_mapped_brands(self):
         sheet = FakeSpreadsheet(("Applications",))

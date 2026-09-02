@@ -160,6 +160,8 @@ Run the dashboard from Windows PowerShell:
 
 The publisher manages only `New Jobs`, `Active Jobs`, `System Status`, and `Companies`. The `Applications` tab is deliberately untouched so manually maintained application data remains under user control.
 
+`New Jobs` and `Active Jobs` are intentionally user-facing views. Both expose only `Score`, `Company`, `Position`, `Location`, `Freshness`, `Urgency`, `Why`, and `Apply`, in that order. `Why` summarizes the ranked job's positive signals, and `Apply` retains the direct application URL. The canonical ranked-job model and persisted Supabase records continue to retain relevance bands, categories, eligibility/location status, lifecycle and deadline data, timestamps, source identifiers, child-brand mappings, and other diagnostic metadata for ranking, filtering, deduplication, replay, diagnostics, and future product features.
+
 ## Supported Sources
 
 RoleRadar currently includes adapters for:
