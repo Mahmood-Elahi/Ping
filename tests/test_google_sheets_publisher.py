@@ -7,10 +7,15 @@ from unittest.mock import Mock
 from gspread.exceptions import APIError
 from requests import Response
 
+from src.integrations.company_industries import (
+    INDUSTRY_GROUP_NAMES,
+    CompanyIndustryConfigurationError,
+)
 from src.integrations.google_sheets_publisher import (
     ACTIVE_JOBS_HEADERS,
     COMPANIES_HEADERS,
     DASHBOARD_JOB_HEADERS,
+    INDUSTRY_TABS,
     MANAGED_TABS,
     NEW_JOBS_HEADERS,
     SYSTEM_STATUS_HEADERS,
@@ -136,6 +141,11 @@ class GoogleSheetsPublisherTests(unittest.TestCase):
             self.spreadsheet,
             new_job_window_days=7,
             now_factory=lambda: self.now,
+            industry_groups={
+                **{title: [] for title in INDUSTRY_GROUP_NAMES},
+                "Tech & AI": ["Alpha", "Beta"],
+                "Chips & Hardware": ["Old Co"],
+            },
         )
         self.jobs = [
             {
@@ -238,6 +248,23 @@ class GoogleSheetsPublisherTests(unittest.TestCase):
             set(MANAGED_TABS) - {"New Jobs"},
         )
 
+    def test_managed_tab_order_keeps_the_six_industry_views_adjacent(self):
+        self.assertEqual(
+            MANAGED_TABS,
+            (
+                "New Jobs",
+                "Active Jobs",
+                "Tech & AI",
+                "Chips & Hardware",
+                "Mobility & Robotics",
+                "Energy & Industrial",
+                "Finance & Fintech",
+                "Consumer & Health",
+                "Companies",
+                "System Status",
+            ),
+        )
+
     def test_writes_new_and_active_job_headers_and_rows(self):
         counts = self.publish()
 
@@ -269,6 +296,102 @@ class GoogleSheetsPublisherTests(unittest.TestCase):
         self.assertEqual(beta[expected_headers.index("Why")], "intern; software")
         self.assertEqual(beta[expected_headers.index("Apply")], "https://example.com/beta")
         self.assertEqual(counts, {"new_jobs": 2, "active_jobs": 3, "companies": 2})
+
+    def test_industry_tabs_route_jobs_sort_by_score_and_keep_duplicate_companies(self):
+        second_alpha_job = {
+            **self.jobs[1],
+            "source_key": "job-second-alpha",
+            "title": "Data Co-op",
+            "relevance_score": 80,
+            "first_seen_at": "2026-08-02T10:00:00Z",
+        }
+        self.jobs.append(second_alpha_job)
+
+        self.publish()
+
+        tech_values = self.spreadsheet.sheets["Tech & AI"].values
+        self.assertEqual(tech_values[0], DASHBOARD_JOB_HEADERS)
+        self.assertEqual(
+            [(row[0], row[1], row[2]) for row in tech_values[1:]],
+            [
+                (90, "Alpha", "ML Co-op"),
+                (80, "Alpha", "Data Co-op"),
+                (75, "Beta", "Software Intern"),
+            ],
+        )
+        self.assertEqual(
+            self.spreadsheet.sheets["Chips & Hardware"].values[1][1],
+            "Old Co",
+        )
+        for title in INDUSTRY_TABS[2:]:
+            self.assertEqual(
+                self.spreadsheet.sheets[title].values,
+                [DASHBOARD_JOB_HEADERS],
+                title,
+            )
+
+    def test_unmapped_job_company_fails_before_google_sheets_are_modified(self):
+        with self.assertRaisesRegex(
+            CompanyIndustryConfigurationError,
+            "Unmapped Co.*no industry assignment",
+        ):
+            self.publisher.publish(
+                active_jobs=[
+                    {
+                        "company": "Unmapped Co",
+                        "title": "Intern",
+                        "status": "active",
+                    }
+                ],
+                scan_run={},
+                companies=[],
+            )
+
+        self.assertEqual(self.spreadsheet.sheets["New Jobs"].clear_calls, 0)
+
+    def test_industry_ties_use_freshness_company_and_title_order(self):
+        tied_jobs = [
+            {
+                "company": "Beta",
+                "title": "Zeta Intern",
+                "relevance_score": 80,
+                "first_seen_at": "2026-08-03T10:00:00Z",
+            },
+            {
+                "company": "Alpha",
+                "title": "Beta Intern",
+                "relevance_score": 80,
+                "first_seen_at": "2026-08-03T10:00:00Z",
+            },
+            {
+                "company": "Alpha",
+                "title": "Alpha Intern",
+                "relevance_score": 80,
+                "first_seen_at": "2026-08-03T10:00:00Z",
+            },
+            {
+                "company": "Alpha",
+                "title": "Older Intern",
+                "relevance_score": 80,
+                "first_seen_at": "2026-08-02T10:00:00Z",
+            },
+        ]
+
+        self.publisher.publish(
+            active_jobs=tied_jobs,
+            scan_run={},
+            companies=[],
+        )
+
+        self.assertEqual(
+            [(row[1], row[2]) for row in self.spreadsheet.sheets["Tech & AI"].values[1:]],
+            [
+                ("Alpha", "Alpha Intern"),
+                ("Alpha", "Beta Intern"),
+                ("Beta", "Zeta Intern"),
+                ("Alpha", "Older Intern"),
+            ],
+        )
 
     def test_writes_system_status_and_company_rows(self):
         self.publish()
@@ -414,6 +537,7 @@ class GoogleSheetsPublisherTests(unittest.TestCase):
         headers_by_title = {
             "New Jobs": NEW_JOBS_HEADERS,
             "Active Jobs": ACTIVE_JOBS_HEADERS,
+            **{title: DASHBOARD_JOB_HEADERS for title in INDUSTRY_TABS},
             "System Status": SYSTEM_STATUS_HEADERS,
             "Companies": COMPANIES_HEADERS,
         }
@@ -444,6 +568,7 @@ class GoogleSheetsPublisherTests(unittest.TestCase):
         headers_by_title = {
             "New Jobs": NEW_JOBS_HEADERS,
             "Active Jobs": ACTIVE_JOBS_HEADERS,
+            **{title: DASHBOARD_JOB_HEADERS for title in INDUSTRY_TABS},
             "System Status": SYSTEM_STATUS_HEADERS,
             "Companies": COMPANIES_HEADERS,
         }
@@ -488,6 +613,7 @@ class GoogleSheetsPublisherTests(unittest.TestCase):
         self.assertEqual(self.spreadsheet.add_calls, first_add_calls)
         self.assertEqual(len(self.spreadsheet.sheets), len(MANAGED_TABS) + 1)
         self.assertEqual(len(self.spreadsheet.basic_filters), len(MANAGED_TABS))
+        self.assertEqual(len(self.spreadsheet.sheets["Tech & AI"].values), 3)
         for body in self.spreadsheet.batch_update_calls:
             filter_sheet_ids = [
                 request_sheet_id(request)

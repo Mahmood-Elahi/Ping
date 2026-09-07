@@ -158,9 +158,20 @@ Run the dashboard from Windows PowerShell:
 
 ### Managed Google Sheets Tabs
 
-The publisher manages only `New Jobs`, `Active Jobs`, `System Status`, and `Companies`. The `Applications` tab is deliberately untouched so manually maintained application data remains under user control.
+The publisher manages `New Jobs`, `Active Jobs`, `Companies`, `System Status`, and six adjacent company-industry job views:
 
-`New Jobs` and `Active Jobs` are intentionally user-facing views. Both expose only `Score`, `Company`, `Position`, `Location`, `Freshness`, `Urgency`, `Why`, and `Apply`, in that order. `Why` summarizes the ranked job's positive signals, and `Apply` retains the direct application URL. The canonical ranked-job model and persisted Supabase records continue to retain relevance bands, categories, eligibility/location status, lifecycle and deadline data, timestamps, source identifiers, child-brand mappings, and other diagnostic metadata for ranking, filtering, deduplication, replay, diagnostics, and future product features.
+- `Tech & AI`
+- `Chips & Hardware`
+- `Mobility & Robotics`
+- `Energy & Industrial`
+- `Finance & Fintech`
+- `Consumer & Health`
+
+The `Applications` tab is deliberately untouched so manually maintained application data remains under user control. All six industry tabs are generated from the same canonical active-job dataset; they are views, not independent stores or ranking pipelines. Industry is assigned from each job's canonical company name using `config/company_industries.yaml`, never from title keywords. Each view retains every eligible job, uses the same `Score`, `Company`, `Position`, `Location`, `Freshness`, `Urgency`, `Why`, and `Apply` projection as the core job tabs, and sorts by the existing relevance/ranking score from highest to lowest. Existing freshness and deterministic company/title ordering resolve ties.
+
+When adding a company to `config/target_companies.yaml`, add that exact canonical name to exactly one of the six lists in `config/company_industries.yaml`. Configuration validation rejects missing or additional industry groups, duplicate assignments, and target companies with no assignment. Publication also fails before modifying Google Sheets if a company or active job cannot be mapped, preventing jobs from silently disappearing.
+
+`New Jobs` and `Active Jobs` are intentionally user-facing views. `Why` summarizes the ranked job's positive signals, and `Apply` retains the direct application URL. The canonical ranked-job model and persisted Supabase records continue to retain relevance bands, categories, eligibility/location status, lifecycle and deadline data, timestamps, source identifiers, child-brand mappings, industry metadata, and other diagnostic metadata for ranking, filtering, deduplication, replay, diagnostics, and future product features.
 
 ## Supported Sources
 

@@ -11,6 +11,13 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Optional
 
+from src.integrations.company_industries import (
+    INDUSTRY_GROUP_NAMES,
+    build_company_industry_lookup,
+    industry_for_company,
+    load_company_industry_groups,
+)
+
 
 DEFAULT_NEW_JOB_WINDOW_DAYS = 7
 GOOGLE_SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets"
@@ -74,36 +81,32 @@ COMPANIES_HEADERS = [
     "Canonical Parent",
     "Mapped Jobs",
 ]
-MANAGED_TABS = ("New Jobs", "Active Jobs", "System Status", "Companies")
+INDUSTRY_TABS = INDUSTRY_GROUP_NAMES
+MANAGED_TABS = (
+    "New Jobs",
+    "Active Jobs",
+    *INDUSTRY_TABS,
+    "Companies",
+    "System Status",
+)
 PROTECTED_TABS = ("Applications",)
 
+JOB_TAB_FORMAT = {
+    "widths": {
+        "Score": 70,
+        "Company": 150,
+        "Position": 320,
+        "Location": 240,
+        "Freshness": 100,
+        "Urgency": 110,
+        "Why": 300,
+        "Apply": 240,
+    },
+    "wrapped": {"Position", "Location", "Why"},
+}
+
 TAB_FORMATS = {
-    "New Jobs": {
-        "widths": {
-            "Score": 70,
-            "Company": 150,
-            "Position": 320,
-            "Location": 240,
-            "Freshness": 100,
-            "Urgency": 110,
-            "Why": 300,
-            "Apply": 240,
-        },
-        "wrapped": {"Position", "Location", "Why"},
-    },
-    "Active Jobs": {
-        "widths": {
-            "Score": 70,
-            "Company": 150,
-            "Position": 320,
-            "Location": 240,
-            "Freshness": 100,
-            "Urgency": 110,
-            "Why": 300,
-            "Apply": 240,
-        },
-        "wrapped": {"Position", "Location", "Why"},
-    },
+    **{title: JOB_TAB_FORMAT for title in ("New Jobs", "Active Jobs", *INDUSTRY_TABS)},
     "System Status": {
         "widths": {"Metric": 220, "Value": 320},
         "wrapped": {"Metric", "Value"},
@@ -148,6 +151,7 @@ class GoogleSheetsPublisher:
         now_factory: Optional[Callable[[], datetime]] = None,
         sleep_func: Optional[Callable[[float], None]] = None,
         retry_delays: tuple[float, ...] = GOOGLE_SHEETS_RETRY_DELAYS,
+        industry_groups: Optional[Mapping[str, Iterable[str]]] = None,
     ) -> None:
         if new_job_window_days < 1:
             raise GoogleSheetsConfigurationError(
@@ -158,6 +162,14 @@ class GoogleSheetsPublisher:
         self._now_factory = now_factory or (lambda: datetime.now(timezone.utc))
         self._sleep_func = sleep_func or time.sleep
         self._retry_delays = retry_delays
+        self.industry_groups = dict(
+            load_company_industry_groups()
+            if industry_groups is None
+            else industry_groups
+        )
+        self._company_industry_lookup = build_company_industry_lookup(
+            self.industry_groups
+        )
 
     @classmethod
     def from_env(
@@ -279,6 +291,10 @@ class GoogleSheetsPublisher:
         """Replace all managed tabs and return the number of data rows written."""
         jobs = [_as_mapping(job) for job in active_jobs]
         jobs = [job for job in jobs if str(job.get("status") or "active") == "active"]
+        company_values = [_as_mapping(company) for company in companies]
+        for company in company_values:
+            company_name = company.get("name") or company.get("company")
+            industry_for_company(company_name, self._company_industry_lookup)
         statuses = {
             str(name): str(status)
             for name, status in (company_statuses or {}).items()
@@ -286,15 +302,28 @@ class GoogleSheetsPublisher:
 
         new_jobs = self._new_jobs(jobs)
         active_jobs_sorted = sorted(jobs, key=_job_sort_key)
+        industry_jobs = {title: [] for title in INDUSTRY_TABS}
+        for job in active_jobs_sorted:
+            industry = industry_for_company(
+                job.get("company"), self._company_industry_lookup
+            )
+            industry_job = dict(job)
+            industry_job["industry_group"] = industry
+            industry_jobs[industry].append(industry_job)
         tab_values = {
             "New Jobs": [NEW_JOBS_HEADERS]
             + [_dashboard_job_row(job) for job in new_jobs],
             "Active Jobs": [ACTIVE_JOBS_HEADERS]
             + [_dashboard_job_row(job) for job in active_jobs_sorted],
+            **{
+                title: [DASHBOARD_JOB_HEADERS]
+                + [_dashboard_job_row(job) for job in industry_jobs[title]]
+                for title in INDUSTRY_TABS
+            },
+            "Companies": [COMPANIES_HEADERS]
+            + _company_rows(company_values, statuses),
             "System Status": [SYSTEM_STATUS_HEADERS]
             + _system_status_rows(scan_run or {}, statuses, coverage_summary or {}),
-            "Companies": [COMPANIES_HEADERS]
-            + _company_rows(companies, statuses),
         }
 
         try:
@@ -790,7 +819,12 @@ def _job_sort_key(job: Mapping[str, Any]) -> tuple[Any, ...]:
     score = int(job.get("relevance_score", job.get("score", 0)) or 0)
     first_seen = _parse_timestamp(job.get("first_seen_at"))
     timestamp = first_seen.timestamp() if first_seen is not None else float("-inf")
-    return (-score, -timestamp, str(job.get("company") or "").casefold())
+    return (
+        -score,
+        -timestamp,
+        str(job.get("company") or "").casefold(),
+        str(job.get("title") or job.get("position") or "").casefold(),
+    )
 
 
 def _as_mapping(value: Mapping[str, Any] | Any) -> dict[str, Any]:
