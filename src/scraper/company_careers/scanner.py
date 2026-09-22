@@ -56,6 +56,8 @@ from src.scraper.company_careers.models import (
     CompanyTarget,
     CoverageStatus,
     JobRecord,
+    clear_source_scan_metadata,
+    source_scan_metadata,
 )
 from src.scraper.company_careers.registry import DEFAULT_REGISTRY_PATH, load_target_companies
 from src.scraper.company_careers.relevance import is_relevant_job
@@ -227,7 +229,9 @@ class CompanyCareersScanner:
                 close_adapter_session = True
 
             try:
+                clear_source_scan_metadata(adapter_session)
                 fetched_jobs = self._dedupe(adapter(adapter_session, target, self.timeout))
+                scan_metadata = source_scan_metadata(adapter_session)
                 fetched_jobs = [
                     annotate_child_brand_metadata(job, self.parent_source_mappings)
                     for job in fetched_jobs
@@ -244,6 +248,14 @@ class CompanyCareersScanner:
                     limited_count = max(0, len(matched_jobs) - max_jobs_per_company)
                     if limited_count:
                         exclusion_counts["limit"] = limited_count
+                        scan_metadata["scan_complete"] = False
+                        scan_metadata["scan_completeness_reason"] = (
+                            "post_filter_safety_limit_reached"
+                        )
+                        scan_metadata["stop_reason"] = (
+                            "post_filter_safety_limit_reached"
+                        )
+                        scan_metadata["safety_limit_reached"] = True
                     matched_jobs = matched_jobs[:max_jobs_per_company]
 
                 status = (
@@ -251,10 +263,6 @@ class CompanyCareersScanner:
                     if matched_jobs
                     else CoverageStatus.FETCHED_NO_MATCHING_ROLES
                 )
-                # Every adapter is bounded by target.max_jobs. Reaching that
-                # bound means there may be an unseen next result, so absence
-                # cannot safely close a previously known job.
-                scan_complete = len(fetched_jobs) < target.max_jobs
                 results.append(
                     CompanyScanResult(
                         target=target,
@@ -262,17 +270,23 @@ class CompanyCareersScanner:
                         normalized_jobs=fetched_jobs,
                         status=status,
                         fetched_count=len(fetched_jobs),
-                        scan_complete=scan_complete,
-                        scan_completeness_reason=(
-                            "below_configured_source_cap"
-                            if scan_complete
-                            else "reached_configured_source_cap"
+                        scan_complete=bool(scan_metadata["scan_complete"]),
+                        scan_completeness_reason=str(
+                            scan_metadata["scan_completeness_reason"]
+                        ),
+                        total_available=scan_metadata["total_available"],
+                        pages_requested=int(scan_metadata["pages_requested"]),
+                        pages_completed=int(scan_metadata["pages_completed"]),
+                        stop_reason=str(scan_metadata["stop_reason"]),
+                        safety_limit_reached=bool(
+                            scan_metadata["safety_limit_reached"]
                         ),
                         exclusion_counts=exclusion_counts,
                         mapped_child_brand_counts=mapped_child_brand_counts,
                     )
                 )
             except AdapterError as exc:
+                scan_metadata = source_scan_metadata(adapter_session)
                 error_type, remediation = self._adapter_failure_details(str(exc))
                 results.append(
                     CompanyScanResult(
@@ -281,9 +295,21 @@ class CompanyCareersScanner:
                         error=str(exc),
                         error_type=error_type,
                         remediation=remediation,
+                        scan_complete=False,
+                        scan_completeness_reason=str(
+                            scan_metadata["scan_completeness_reason"]
+                        ),
+                        total_available=scan_metadata["total_available"],
+                        pages_requested=int(scan_metadata["pages_requested"]),
+                        pages_completed=int(scan_metadata["pages_completed"]),
+                        stop_reason=str(scan_metadata["stop_reason"]),
+                        safety_limit_reached=bool(
+                            scan_metadata["safety_limit_reached"]
+                        ),
                     )
                 )
             except requests.RequestException as exc:
+                scan_metadata = source_scan_metadata(adapter_session)
                 results.append(
                     CompanyScanResult(
                         target=target,
@@ -291,6 +317,17 @@ class CompanyCareersScanner:
                         error=str(exc),
                         error_type="request_error",
                         remediation="Retry the scan and verify network access or upstream availability.",
+                        scan_complete=False,
+                        scan_completeness_reason=str(
+                            scan_metadata["scan_completeness_reason"]
+                        ),
+                        total_available=scan_metadata["total_available"],
+                        pages_requested=int(scan_metadata["pages_requested"]),
+                        pages_completed=int(scan_metadata["pages_completed"]),
+                        stop_reason=str(scan_metadata["stop_reason"]),
+                        safety_limit_reached=bool(
+                            scan_metadata["safety_limit_reached"]
+                        ),
                     )
                 )
             except Exception as exc:

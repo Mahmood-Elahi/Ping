@@ -8,7 +8,12 @@ from email.utils import format_datetime
 from unittest.mock import Mock, patch
 
 from src.scraper.company_careers.adapters import exalead, meta, uber
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, CoverageStatus
+from src.scraper.company_careers.models import (
+    ADAPTER_SAFETY_BUDGET_DEFAULTS,
+    AdapterError,
+    CompanyTarget,
+    CoverageStatus,
+)
 from src.scraper.company_careers.parent_sources import load_parent_source_mappings
 from src.scraper.company_careers.registry import load_target_companies
 from src.scraper.company_careers.scanner import CompanyCareersScanner
@@ -355,6 +360,26 @@ class CompanyCareersReliabilityRepairV1Tests(unittest.TestCase):
         self.assertEqual(by_name["Lattice Semiconductor"].site_id, "latticesemiconductorscareers")
         self.assertEqual(by_name["Dassault Systèmes"].platform, "exalead")
         self.assertEqual(len(load_parent_source_mappings()), 5)
+
+    def test_production_registry_uses_bounded_adapter_safety_defaults(self):
+        targets = load_target_companies(apply_reliability_repairs=True)
+        watched = set(ADAPTER_SAFETY_BUDGET_DEFAULTS)
+        by_platform = {
+            platform: [target for target in targets if target.platform == platform]
+            for platform in watched
+        }
+
+        for platform, expected in ADAPTER_SAFETY_BUDGET_DEFAULTS.items():
+            self.assertTrue(by_platform[platform], platform)
+            for target in by_platform[platform]:
+                if target.name == "ATCO":
+                    self.assertEqual((target.max_pages, target.max_jobs), (10, 100))
+                else:
+                    self.assertEqual(
+                        (target.max_pages, target.max_jobs),
+                        (expected["max_pages"], expected["max_jobs"]),
+                        target.name,
+                    )
 
     def test_production_reliability_overlay_uses_current_source_contracts(self):
         by_name = {

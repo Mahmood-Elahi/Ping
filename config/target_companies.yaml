@@ -2411,8 +2411,8 @@ target_companies:
     allowed_apply_hosts:
     - eezy.fa.ca2.oraclecloud.com
     original_workbook_rank: null
-    max_pages: 2
-    max_jobs: 20
+    max_pages: 10
+    max_jobs: 100
     max_response_bytes: 3000000
     identity_url: https://careers.atco.com/global/en/search-results
     search_url: https://careers.atco.com/global/en/search-results

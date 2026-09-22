@@ -24,17 +24,19 @@ _QUALIFICATION_KEYS = {
 }
 _DESCRIPTION_KEYS = {"description", "fulldescription", "jobdescription", "jobdetails"}
 
+_BACHELORS = r"\bbachelor(?:['\u2019]s|s)?(?:\s+(?:degree|program|students?|candidates?))?\b"
+_BS = r"(?<![A-Za-z])b\.?\s?s\.?(?![A-Za-z])"
+_BA = r"(?<![A-Za-z])b\.?\s?a\.?(?![A-Za-z])"
+_BSC = r"(?<![A-Za-z])b\.?\s?sc\.?(?![A-Za-z])"
 _UNDERGRADUATE = (
-    r"(?:undergraduate(?:s|\s+students?|\s+candidates?)?|"
-    r"bachelor(?:['\u2019]s|s)?(?:\s+degree|\s+students?|\s+candidates?)?|"
-    r"b\.?\s?s\.?\s+(?:degree|students?|candidates?)|"
-    r"b\.?\s?a\.?\s+(?:degree|students?|candidates?)|"
-    r"bsc(?:\s+degree|\s+students?|\s+candidates?)?)"
+    rf"(?:\bundergraduate(?:s|\s+students?|\s+candidates?)?\b|{_BACHELORS}|"
+    rf"{_BS}|{_BA}|{_BSC})"
 )
+_UNDERGRADUATE_STANDING = r"\b(?:juniors?|seniors?|third[- ]year|fourth[- ]year)\b"
 _MASTERS = (
     r"(?:\bmaster(?:['\u2019]s|s)(?:\s+(?:degree|program|students?))?\b|"
     r"\bmaster(?:\s+degree|\s+of\s+[A-Za-z]+)\b|"
-    r"\bm\.?\s?s\.?(?:\s+(?:degree|program|students?))\b)"
+    r"(?<![A-Za-z])m\.?\s?s\.?(?![A-Za-z]))"
 )
 _PHD = r"(?:\bph\.?\s?d\.?\b|\bdoctor(?:al|ate)(?:\s+degree|\s+students?)?\b)"
 _MBA = r"(?<![A-Za-z])m\.?\s?b\.?\s?a\.?(?![A-Za-z])"
@@ -49,48 +51,77 @@ _ELIGIBILITY_CONTEXT = (
     r"(?:accept|allow|candidate|eligible|enroll|minimum|must|"
     r"plus|prefer|program|pursu|qualif|require|student|study)"
 )
-_PHD_ONLY_TITLE = (
-    rf"{_PHD}\s+(?:candidate\s+)?(?:intern(?:ship)?|student\s+researcher|research\s+intern)\b"
-)
+_STRONG_UNDERGRADUATE_REASONS = {
+    "inclusive_degree_levels",
+    "undergraduate_academic_standing",
+    "undergraduate_enrollment_allowed",
+    "undergraduates_explicitly_eligible",
+    "graduate_requirement_not_required",
+}
 
 
 def classify_education_eligibility(job: JobRecord) -> dict[str, str]:
     """Classify degree-level eligibility using sentence- and clause-local evidence."""
-    undergraduate: list[str] = []
+    undergraduate: list[tuple[str, str]] = []
     graduate_only: list[tuple[str, str]] = []
-    ambiguous: list[str] = []
+    ambiguous: list[tuple[str, str]] = []
 
     for source_kind, sentence, clause in _evidence_units(job):
         normalized = _normalize_text(clause)
+        sentence_context = _normalize_text(sentence)
         if not normalized:
             continue
         has_undergraduate = bool(re.search(_UNDERGRADUATE, normalized, re.IGNORECASE))
         has_graduate = bool(re.search(_GRADUATE, normalized, re.IGNORECASE))
-        if _allows_undergraduates(normalized, source_kind, has_undergraduate):
-            undergraduate.append(sentence)
+        undergraduate_reason = _undergraduate_allowed_reason(
+            normalized,
+            sentence_context,
+            source_kind,
+            has_undergraduate,
+            has_graduate,
+        )
+        if undergraduate_reason:
+            undergraduate.append((sentence, undergraduate_reason))
         if _removes_graduate_requirement(normalized):
-            undergraduate.append(sentence)
-        reason = _graduate_only_reason(normalized, source_kind, has_graduate)
+            undergraduate.append((sentence, "graduate_requirement_not_required"))
+        reason = _graduate_only_reason(
+            normalized,
+            sentence_context,
+            source_kind,
+            has_graduate,
+        )
         if reason:
             graduate_only.append((sentence, reason))
-        elif has_graduate and _is_ambiguous_eligibility_mention(normalized, source_kind):
-            ambiguous.append(sentence)
+        elif has_graduate:
+            ambiguous_reason = _ambiguous_eligibility_reason(
+                normalized,
+                sentence_context,
+                source_kind,
+            )
+            if ambiguous_reason:
+                ambiguous.append((sentence, ambiguous_reason))
 
-    undergraduate = _unique(undergraduate)
+    undergraduate = _unique_pairs(undergraduate)
     graduate_only = _unique_pairs(graduate_only)
-    ambiguous = _unique(ambiguous)
+    ambiguous = _unique_pairs(ambiguous)
     if undergraduate and graduate_only:
         unavailable = [item for item in graduate_only if item[1] == "undergraduates_explicitly_unavailable"]
         if unavailable:
-            return _result(AMBIGUOUS, unavailable[0][0])
-        return _result(UNDERGRADUATE_ALLOWED, undergraduate[0])
+            return _result(AMBIGUOUS, unavailable[0][0], "contradictory_explicit_eligibility")
+        decisive_undergraduate = next(
+            (item for item in undergraduate if item[1] in _STRONG_UNDERGRADUATE_REASONS),
+            None,
+        )
+        if decisive_undergraduate:
+            return _result(UNDERGRADUATE_ALLOWED, *decisive_undergraduate)
+        return _result(GRADUATE_ONLY, *graduate_only[0], exclusion_reason="graduate_only")
     if undergraduate:
-        return _result(UNDERGRADUATE_ALLOWED, undergraduate[0])
+        return _result(UNDERGRADUATE_ALLOWED, *undergraduate[0])
     if graduate_only:
-        return _result(GRADUATE_ONLY, graduate_only[0][0], exclusion_reason="graduate_only")
+        return _result(GRADUATE_ONLY, *graduate_only[0], exclusion_reason="graduate_only")
     if ambiguous:
-        return _result(AMBIGUOUS, ambiguous[0])
-    return _result(NOT_STATED, "")
+        return _result(AMBIGUOUS, *ambiguous[0])
+    return _result(NOT_STATED, "", "no_graduate_restriction_detected")
 
 
 def annotate_education_eligibility(job: JobRecord) -> dict[str, str]:
@@ -98,6 +129,7 @@ def annotate_education_eligibility(job: JobRecord) -> dict[str, str]:
     classification = classify_education_eligibility(job)
     job.raw_metadata["education_eligibility"] = classification["education_eligibility"]
     job.raw_metadata["education_evidence"] = classification["education_evidence"]
+    job.raw_metadata["education_reason"] = classification["education_reason"]
     if classification["education_eligibility"] == GRADUATE_ONLY:
         job.raw_metadata["exclusion_reason"] = "graduate_only"
     elif job.raw_metadata.get("exclusion_reason") == "graduate_only":
@@ -105,25 +137,108 @@ def annotate_education_eligibility(job: JobRecord) -> dict[str, str]:
     return classification
 
 
-def _allows_undergraduates(text: str, source_kind: str, has_undergraduate: bool) -> bool:
-    if not has_undergraduate:
-        return False
+def _undergraduate_allowed_reason(
+    text: str,
+    sentence_context: str,
+    source_kind: str,
+    has_undergraduate: bool,
+    has_graduate: bool,
+) -> str | None:
     if re.search(
         rf"(?:not\s+(?:available|open|eligible)|ineligible|unavailable)[^.;:]{{0,60}}{_UNDERGRADUATE}",
         text, re.IGNORECASE,
     ):
-        return False
-    if source_kind == "title":
-        return True
-    if source_kind in {"education", "qualification"}:
-        return not re.search(rf"\b(?:not|ineligible|unavailable)\b[^.;:]*{_UNDERGRADUATE}", text, re.IGNORECASE)
+        return None
+    if re.search(_UNDERGRADUATE_STANDING, text, re.IGNORECASE):
+        return "undergraduate_academic_standing"
+    if not has_undergraduate:
+        return None
+    if re.search(
+        rf"\b(?:completed|earned|obtained|holds?|holding|already\s+has|have)\b[^.;:]{{0,45}}{_UNDERGRADUATE}",
+        sentence_context,
+        re.IGNORECASE,
+    ):
+        return None
+    if _is_preference_only(sentence_context):
+        return None
+    if has_graduate and _has_inclusive_degree_list(text):
+        return "inclusive_degree_levels"
     if re.search(rf"^graduat(?:e|ing)\s+from[^.;:]{{0,80}}{_UNDERGRADUATE}", text, re.IGNORECASE):
-        return True
-    return bool(re.search(
-        rf"(?:{_UNDERGRADUATE}[^.;:]{{0,100}}(?:accept|allow|candidates?|eligible|enroll|may\s+apply|minimum|must|pursu|qualif|require|students?)|"
-        rf"(?:accept|allow|eligible|enroll|look(?:ing)?|minimum|must|pursu|qualif|require|seek(?:ing)?)[^.;:]{{0,140}}{_UNDERGRADUATE})",
+        return "undergraduate_enrollment_allowed"
+    if re.search(
+        rf"(?:{_UNDERGRADUATE}[^.;:]{{0,100}}(?:accept(?:ed)?|allow(?:ed)?|candidates?|eligible|may\s+apply|students?)|"
+        rf"(?:accept(?:ed)?|allow(?:ed)?|eligible|open\s+to)[^.;:]{{0,140}}{_UNDERGRADUATE})",
         text, re.IGNORECASE,
-    ))
+    ):
+        return "undergraduates_explicitly_eligible"
+    if re.search(
+        rf"(?:currently\s+)?(?:enrolled|pursuing|studying(?:\s+towards?)?)[^.;:]{{0,100}}{_UNDERGRADUATE}|"
+        rf"{_UNDERGRADUATE}[^.;:]{{0,80}}(?:students?|candidates?)",
+        text,
+        re.IGNORECASE,
+    ):
+        return "undergraduate_enrollment_allowed"
+    if source_kind == "title":
+        return "undergraduate_enrollment_allowed"
+    if re.search(
+        rf"(?:minimum|requires?|required|must\s+(?:have|hold)|qualifications?)\s*:?[^.;:]{{0,100}}{_UNDERGRADUATE}|"
+        rf"{_UNDERGRADUATE}[^.;:]{{0,60}}(?:required|minimum|qualifications?)",
+        text,
+        re.IGNORECASE,
+    ):
+        return "bachelors_degree_sufficient"
+    if source_kind in {"education", "qualification"}:
+        return "bachelors_degree_sufficient"
+    return None
+
+
+def _has_inclusive_degree_list(text: str) -> bool:
+    undergraduate_matches = list(re.finditer(_UNDERGRADUATE, text, re.IGNORECASE))
+    graduate_matches = list(re.finditer(_GRADUATE, text, re.IGNORECASE))
+    for undergraduate in undergraduate_matches:
+        for graduate in graduate_matches:
+            left, right = sorted((undergraduate, graduate), key=lambda match: match.start())
+            between = text[left.end():right.start()]
+            if len(between) > 50:
+                continue
+            if re.search(
+                r"\b(?:completed|earned|obtained|preferred|required|currently|pursuing|enrolled|"
+                r"must|followed\s+by|in\s+progress)\b",
+                between,
+                re.IGNORECASE,
+            ):
+                continue
+            if re.search(r"(?:[,/]|\b(?:or|and)\b)", between, re.IGNORECASE):
+                return True
+    return False
+
+
+def _is_preference_only(text: str) -> bool:
+    return bool(
+        re.search(r"\b(?:preferred|preference|nice\s+to\s+have|desired|a\s+plus)\b", text, re.IGNORECASE)
+        and not re.search(
+            r"\b(?:accept(?:ed)?|allow(?:ed)?|eligible|enrolled|minimum|mandatory|must|"
+            r"pursuing|required?)\b",
+            text,
+            re.IGNORECASE,
+        )
+    )
+
+
+def _graduate_mentions_are_preferred(text: str) -> bool:
+    preferred_graduate = re.search(
+        rf"(?:{_GRADUATE}[^.;:]{{0,35}}(?:preferred|preference|desired|a\s+plus)|"
+        rf"(?:preferred|preference|desired)[^.;:]{{0,35}}{_GRADUATE})",
+        text,
+        re.IGNORECASE,
+    )
+    graduate_requirement = re.search(
+        rf"(?:{_GRADUATE}[^.;:]{{0,35}}(?:required|mandatory|must)|"
+        rf"(?:currently\s+)?(?:enrolled|pursuing|studying)[^.;:]{{0,60}}{_GRADUATE})",
+        text,
+        re.IGNORECASE,
+    )
+    return bool(preferred_graduate and not graduate_requirement)
 
 
 def _removes_graduate_requirement(text: str) -> bool:
@@ -134,7 +249,52 @@ def _removes_graduate_requirement(text: str) -> bool:
     ))
 
 
-def _graduate_only_reason(text: str, source_kind: str, has_graduate: bool) -> str | None:
+def _has_nonexclusive_graduate_eligibility(text: str) -> bool:
+    if re.search(r"\bonly\b", text, re.IGNORECASE):
+        return False
+    return bool(re.search(
+        rf"(?:{_GRADUATE}[^.;:]{{0,55}}\balso\s+(?:are\s+)?eligible\b|"
+        rf"\balso\s+eligible\b[^.;:]{{0,55}}{_GRADUATE})",
+        text,
+        re.IGNORECASE,
+    ))
+
+
+def _has_broadening_exception(text: str) -> bool:
+    return bool(re.search(
+        r"\b(?:(?:exceptional\s+)?candidates?\s+from\s+other\s+backgrounds?\s+"
+        r"(?:are\s+)?(?:welcome|encouraged\s+to\s+apply)|"
+        r"(?:we\s+)?welcome\s+(?:exceptional\s+)?candidates?\s+from\s+other\s+backgrounds?)\b",
+        text,
+        re.IGNORECASE,
+    ))
+
+
+def _has_generic_student_alternative(text: str) -> bool:
+    graduate_alternative = re.compile(
+        r"(?:post\s*[- ]?doctor(?:al|ate)(?:\s+fellows?)?|postdocs?|recent\s+graduates?)",
+        re.IGNORECASE,
+    )
+    for student in re.finditer(r"\bstudents?\b", text, re.IGNORECASE):
+        prefix = text[max(0, student.start() - 45):student.start()]
+        if re.search(
+            rf"(?:{_UNDERGRADUATE}|{_MASTERS}|{_PHD}|{_PROFESSIONAL}|\bgraduate)\s*$",
+            prefix,
+            re.IGNORECASE,
+        ):
+            continue
+        suffix = text[student.end():student.end() + 100]
+        if re.search(r"(?:\bor\b|\band\b|,)", suffix, re.IGNORECASE) and graduate_alternative.search(suffix):
+            return True
+    return False
+
+
+def _graduate_only_reason(
+    text: str,
+    sentence_context: str,
+    source_kind: str,
+    has_graduate: bool,
+) -> str | None:
     if re.search(
         rf"(?:not\s+(?:available|open|eligible)|ineligible|unavailable)\s+(?:to|for)\s+{_UNDERGRADUATE}|"
         rf"{_UNDERGRADUATE}[^.;:]{{0,60}}(?:may\s+not|cannot|can't|not\s+eligible)",
@@ -143,10 +303,9 @@ def _graduate_only_reason(text: str, source_kind: str, has_graduate: bool) -> st
         return "undergraduates_explicitly_unavailable"
     if not has_graduate or _is_negated(text):
         return None
-    if re.search(r"\b(?:preferred|preference|nice\s+to\s+have|desired|a\s+plus)\b", text, re.IGNORECASE) and not re.search(
-        r"\b(?:current(?:ly)?|enroll(?:ed|ment)?|mandatory|must|only|required?)\b",
-        text, re.IGNORECASE,
-    ):
+    if _has_broadening_exception(sentence_context):
+        return None
+    if _is_preference_only(text) or _graduate_mentions_are_preferred(text):
         return None
     if re.search(rf"(?:{_GRADUATE}[^.;:]{{0,45}}\bonly\b|\bonly\b[^.;:]{{0,45}}{_GRADUATE})", text, re.IGNORECASE):
         return "graduate_students_only"
@@ -154,10 +313,41 @@ def _graduate_only_reason(text: str, source_kind: str, has_graduate: bool) -> st
         return "graduate_enrollment_required"
     if re.search(
         rf"(?:currently\s+)?(?:enrolled|pursuing|studying)[^.;:]{{0,80}}{_GRADUATE}|"
-        rf"{_GRADUATE}[^.;:]{{0,80}}(?:enrollment|currently\s+enrolled)",
+        rf"{_GRADUATE}[^.;:]{{0,80}}(?:enrollment|currently\s+enrolled|in\s+progress)",
         text, re.IGNORECASE,
     ):
         return "graduate_enrollment_required"
+    nonexclusive_eligibility = _has_nonexclusive_graduate_eligibility(text)
+    generic_student_alternative = _has_generic_student_alternative(text)
+    if not nonexclusive_eligibility and (
+        re.search(
+            rf"{_PHD}[^.;:]{{0,20}}(?:students?|candidates?)\b",
+            text,
+            re.IGNORECASE,
+        )
+        or re.search(
+            rf"(?:{_MASTERS}|{_PROFESSIONAL})[^.;:]{{0,30}}(?:or|and)[^.;:]{{0,30}}"
+            rf"(?:{_MASTERS}|{_PHD}|{_PROFESSIONAL})[^.;:]{{0,25}}(?:students?|candidates?)\b",
+            text,
+            re.IGNORECASE,
+        )
+        or re.search(
+            r"\bgraduate\s+students?\b[^.;:]{0,60}(?:\bor\b|\band\b|,)"
+            r"[^.;:]{0,40}(?:post\s*[- ]?doctor(?:al|ate)(?:\s+fellows?)?|postdocs?|recent\s+graduates?)",
+            text,
+            re.IGNORECASE,
+        )
+        or (
+            re.fullmatch(rf"\s*graduate\s+(?:students?|candidates?)\s*\.?\s*", text, re.IGNORECASE)
+            or re.search(
+                r"\b(?:applicants?\s+must\s+be|eligible|open\s+to|seeking|internship\s+is\s+for)"
+                r"[^.;:]{0,35}\bgraduate\s+(?:students?|candidates?)\b",
+                text,
+                re.IGNORECASE,
+            )
+        )
+    ):
+        return "graduate_student_targeting"
     if re.search(
         rf"(?:minimum\s+(?:education|degree)|minimum\s+education\s+is)[^.;:]{{0,80}}{_GRADUATE}|"
         rf"(?:requires?|required|must\s+(?:have|hold|be)|needs?)\s*:?[^.;:]{{0,80}}{_GRADUATE}|"
@@ -170,7 +360,11 @@ def _graduate_only_reason(text: str, source_kind: str, has_graduate: bool) -> st
         text, re.IGNORECASE,
     ):
         return "graduate_program_graduation_required"
-    if re.search(r"\b(?:graduate\s+fellowship|post\s*[- ]?doctor(?:al|ate)|postdocs?|medical\s+residen(?:cy|t))\b", text, re.IGNORECASE):
+    if not nonexclusive_eligibility and not generic_student_alternative and re.search(
+        r"\b(?:graduate\s+fellowship|post\s*[- ]?doctor(?:al|ate)|postdocs?|medical\s+residen(?:cy|t))\b",
+        text,
+        re.IGNORECASE,
+    ):
         return "graduate_program_type"
     if re.search(
         rf"{_MBA}[^.;:]{{0,50}}(?:leadership\s+development\s+program|internship|fellowship)",
@@ -184,7 +378,17 @@ def _graduate_only_reason(text: str, source_kind: str, has_graduate: bool) -> st
             bool(re.search(rf"\(\s*{_PHD}\s*\)", text, re.IGNORECASE))
             and bool(re.search(r"\b(?:intern(?:ship)?|students?|researchers?)\b", text, re.IGNORECASE))
         )
-        if parenthetical_phd_program or re.search(_PHD_ONLY_TITLE, text, re.IGNORECASE):
+        phd_before_role = re.search(
+            rf"{_PHD}[^.;:]{{0,80}}\bintern(?:ship)?\b",
+            text,
+            re.IGNORECASE,
+        )
+        role_before_phd = re.search(
+            rf"(?:intern(?:ship)?|student\s+researcher|research\s+intern)\s*(?:[,(/-]\s*|\s+){_PHD}",
+            text,
+            re.IGNORECASE,
+        )
+        if parenthetical_phd_program or phd_before_role or role_before_phd:
             return "graduate_only_title"
         academic_graduate = rf"(?:{_MASTERS}|graduate\s+(?:students?|candidates?|fellowship)|post\s*[- ]?doctor(?:al|ate)|postdocs?)"
         if re.search(
@@ -193,7 +397,12 @@ def _graduate_only_reason(text: str, source_kind: str, has_graduate: bool) -> st
             text, re.IGNORECASE,
         ):
             return "graduate_only_title"
-        if re.search(rf"{_MBA}[^.;:]{{0,50}}(?:intern(?:ship)?|fellow(?:ship)?|program)", text, re.IGNORECASE):
+        if re.search(
+            rf"{_MBA}[^.;:]{{0,60}}(?:intern(?:ship)?|fellow(?:ship)?|program)|"
+            rf"\bintern(?:ship)?\b\s*(?:[,(/-]\s*|\s+){_MBA}",
+            text,
+            re.IGNORECASE,
+        ):
             return "graduate_only_title"
         if re.search(rf"{_JD}\s+(?:candidate\s+)?(?:intern|legal|law|student|fellow)", text, re.IGNORECASE):
             return "graduate_only_title"
@@ -210,18 +419,34 @@ def _is_negated(text: str) -> bool:
     ))
 
 
-def _is_ambiguous_eligibility_mention(text: str, source_kind: str) -> bool:
+def _ambiguous_eligibility_reason(
+    text: str,
+    sentence_context: str,
+    source_kind: str,
+) -> str | None:
+    if _has_broadening_exception(sentence_context):
+        return "graduate_requirement_broadened_by_exception"
+    if _has_nonexclusive_graduate_eligibility(text):
+        return "graduate_additional_eligibility"
+    if _has_generic_student_alternative(text):
+        return "mixed_student_graduate_categories"
+    if _is_preference_only(text):
+        return "graduate_preference_only"
     if source_kind in {"education", "qualification"}:
-        return True
+        return "graduate_terminology_ambiguous"
     if source_kind == "title":
         if re.search(rf"(?:{_MASTERS}|{_PHD}|{_MBA}|graduate\s+(?:degree|school|program|students?|candidates?)|postdocs?)", text, re.IGNORECASE):
-            return True
-        return bool(re.search(
+            return "graduate_title_ambiguous"
+        if re.search(
             rf"(?:{_JD}[^.;:]{{0,30}}(?:degree|legal|law|student|candidate)|"
             rf"{_MD}[^.;:]{{0,30}}(?:degree|clinical|medical|student|candidate|resident))",
             text, re.IGNORECASE,
-        ))
-    return bool(re.search(_ELIGIBILITY_CONTEXT, text, re.IGNORECASE))
+        ):
+            return "graduate_title_ambiguous"
+        return None
+    if re.search(_ELIGIBILITY_CONTEXT, text, re.IGNORECASE):
+        return "graduate_terminology_ambiguous"
+    return None
 
 
 def _evidence_units(job: JobRecord) -> Iterable[tuple[str, str, str]]:
@@ -246,14 +471,18 @@ def _evidence_units(job: JobRecord) -> Iterable[tuple[str, str, str]]:
         elif key in _DESCRIPTION_KEYS:
             sources.extend(("description", item) for item in values)
     for source_kind, value in sources:
-        for sentence in _sentences(value):
+        sentences = _sentences(value)
+        for sentence_index, sentence in enumerate(sentences):
             marker = (source_kind, _normalize_text(sentence))
             if marker in seen:
                 continue
             seen.add(marker)
+            evidence = sentence
+            if sentence_index + 1 < len(sentences) and _has_broadening_exception(sentences[sentence_index + 1]):
+                evidence = f"{sentence} {sentences[sentence_index + 1]}"
             clauses = [part.strip() for part in re.split(r"\s*;\s*", sentence) if part.strip()]
             for clause in clauses or [sentence]:
-                yield source_kind, sentence, clause
+                yield source_kind, evidence, clause
 
 
 def _sentences(value: str) -> list[str]:
@@ -283,8 +512,18 @@ def _normalize_key(value: str) -> str:
     return re.sub(r"[^a-z0-9]", "", value.casefold())
 
 
-def _result(eligibility: str, evidence: str, *, exclusion_reason: str = "") -> dict[str, str]:
-    result = {"education_eligibility": eligibility, "education_evidence": evidence}
+def _result(
+    eligibility: str,
+    evidence: str,
+    reason: str,
+    *,
+    exclusion_reason: str = "",
+) -> dict[str, str]:
+    result = {
+        "education_eligibility": eligibility,
+        "education_evidence": evidence,
+        "education_reason": reason,
+    }
     if exclusion_reason:
         result["exclusion_reason"] = exclusion_reason
     return result

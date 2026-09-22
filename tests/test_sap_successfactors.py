@@ -9,7 +9,11 @@ import requests
 
 from scripts import validate_company_registry as validator
 from src.scraper.company_careers.adapters import sap_successfactors as sf
-from src.scraper.company_careers.models import AdapterError, CompanyTarget
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    source_scan_metadata,
+)
 from src.scraper.company_careers.registry import load_target_companies
 
 
@@ -77,6 +81,42 @@ class ColumnizedSession:
                 url=url,
             )
         return FakeResponse(self.detail_html, url=url)
+
+
+class SequencedColumnizedSession:
+    def __init__(self, responses, *, identity="Example"):
+        self.responses = list(responses)
+        self.identity = identity
+        self.post_calls = []
+        self.get_calls = []
+
+    def post(self, url, **kwargs):
+        self.post_calls.append((url, kwargs))
+        if not self.responses:
+            raise AssertionError("Unexpected network request")
+        response = self.responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return FakeResponse("{}", payload=response, url=url)
+
+    def get(self, url, **kwargs):
+        self.get_calls.append((url, kwargs))
+        if url == "https://jobs.example.com/search/":
+            return FakeResponse(
+                f'<html>{self.identity} BS3ColumnizedSearch j2w.searchManager '
+                'var CSRFToken = "12345678-1234-1234-1234-123456789abc";</html>',
+                url=url,
+            )
+        external_id = url.rsplit("/", 1)[-1].split("-", 1)[0]
+        title = url.rsplit("/", 2)[-2]
+        return FakeResponse(
+            f'''<!doctype html><html><head>
+              <link rel="canonical" href="{url}">
+              <meta property="og:title" content="{title}">
+            </head><body>{self.identity}<div>Requisition ID: {external_id}</div>
+              <script>j2w.Apply.init({{jobID: {external_id}}});</script></body></html>''',
+            url=url,
+        )
 
 
 def target(variant=sf.TABLE_VARIANT, **overrides):
@@ -186,6 +226,19 @@ def tile_html(jobs, *, total=None, page_size=25):
       <ul id="job-tile-list" data-per-page="{page_size}" data-record-returned="{len(jobs)}">{tiles}</ul>
       <script>j2w.SearchResults.init({{apiEndpoint: "tile-search-results", searchQuery: "?q=&sortColumn=referencedate&sortDirection=desc", jobRecordsPerPage: parseInt("{page_size}"), jobRecordsFound: parseInt("{total}")}});</script>
     </body></html>'''
+
+
+def columnized_row(index):
+    return {
+        "response": {
+            "id": str(3000 + index),
+            "unifiedStandardTitle": f"Engineer-{index}",
+            "unifiedUrlTitle": f"Engineer-{index}",
+            "supportedLocales": ["en_US"],
+            "jobLocationShort": ["Calgary, AB, CAN"],
+            "unifiedStandardStart": "2026-08-28",
+        }
+    }
 
 
 class SapSuccessFactorsTests(unittest.TestCase):
@@ -416,8 +469,12 @@ class SapSuccessFactorsTests(unittest.TestCase):
             allowed_apply_hosts=["jobs.example.com"],
             max_jobs=10,
         )
-        jobs = sf.fetch_jobs(ColumnizedSession(duplicate_payload, detail_html), columnized_target)
+        duplicate_session = ColumnizedSession(duplicate_payload, detail_html)
+        jobs = sf.fetch_jobs(duplicate_session, columnized_target)
         self.assertEqual([job.raw_metadata["external_job_id"] for job in jobs], ["15004"])
+        duplicate_metadata = source_scan_metadata(duplicate_session)
+        self.assertFalse(duplicate_metadata["scan_complete"])
+        self.assertEqual(duplicate_metadata["stop_reason"], "repeated_job_id")
 
         conflicting = dict(row)
         conflicting["unifiedStandardTitle"] = "Different Engineer"
@@ -451,7 +508,42 @@ class SapSuccessFactorsTests(unittest.TestCase):
         self.assertEqual(len(jobs), 30)
         self.assertIn("startrow=25", session.calls[1][0])
         self.assertEqual(session.sap_successfactors_pagination["offsets"], [0, 25])
-        self.assertEqual(session.sap_successfactors_pagination["stop_reason"], "total_jobs_reached")
+        metadata = source_scan_metadata(session)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["scan_completeness_reason"], "reported_total_reached")
+        self.assertEqual(metadata["total_available"], 30)
+        self.assertEqual(metadata["pages_requested"], 2)
+        self.assertEqual(metadata["pages_completed"], 2)
+        self.assertEqual(metadata["stop_reason"], "reported_total_reached")
+
+    @patch.object(sf.time, "sleep", return_value=None)
+    def test_large_table_board_exceeding_legacy_page_budget_completes(self, _sleep):
+        total = 130
+        responses = []
+        for offset in range(0, total, sf.PAGE_SIZE):
+            count = min(sf.PAGE_SIZE, total - offset)
+            rows = [table_job(index) for index in range(offset + 1, offset + count + 1)]
+            next_offset = offset + sf.PAGE_SIZE if offset + count < total else None
+            responses.append(
+                FakeResponse(
+                    table_html(
+                        rows,
+                        total=total,
+                        offset=offset,
+                        next_offset=next_offset,
+                    )
+                )
+            )
+        session = FakeSession(responses)
+
+        jobs = sf.fetch_jobs(session, target(max_pages=sf.MAX_PAGES))
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(len(jobs), total)
+        self.assertEqual(len({job.job_id for job in jobs}), total)
+        self.assertEqual(metadata["pages_completed"], 6)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["stop_reason"], "reported_total_reached")
 
     @patch.object(sf.time, "sleep", return_value=None)
     def test_observed_twenty_result_table_page_size(self, _sleep):
@@ -502,21 +594,128 @@ class SapSuccessFactorsTests(unittest.TestCase):
             pages.append(FakeResponse(table_html(jobs, total=200, offset=page * 25, next_offset=(page + 1) * 25)))
         session = FakeSession(pages)
         jobs = sf.fetch_jobs(session, target(max_pages=5))
-        self.assertEqual(len(jobs), sf.MAX_RESULTS)
-        self.assertEqual(len(session.calls), sf.MAX_PAGES)
-        self.assertEqual(session.sap_successfactors_pagination["stop_reason"], "maximum_pages_reached")
+        self.assertEqual(len(jobs), 125)
+        self.assertEqual(len(session.calls), 5)
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertTrue(metadata["safety_limit_reached"])
+        self.assertEqual(metadata["stop_reason"], "maximum_pages_reached")
+
+    def test_columnized_job_limit_retains_partial_results_and_is_incomplete(self):
+        payload = {
+            "totalJobs": 11,
+            "jobSearchResult": [columnized_row(index) for index in range(1, 11)],
+        }
+        session = SequencedColumnizedSession([payload])
+        jobs = sf.fetch_jobs(
+            session,
+            target(
+                sf.COLUMNIZED_VARIANT,
+                endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
+                locale="en_US",
+                identity_regex=r"Example",
+                allowed_apply_hosts=["jobs.example.com"],
+                max_pages=2,
+                max_jobs=5,
+                page_size=10,
+            ),
+        )
+        metadata = source_scan_metadata(session)
+        self.assertEqual(len(jobs), 5)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertTrue(metadata["safety_limit_reached"])
+        self.assertEqual(metadata["stop_reason"], "maximum_results_reached")
+        self.assertEqual(metadata["total_available"], 11)
+        self.assertEqual(metadata["pages_requested"], 1)
+        self.assertEqual(metadata["pages_completed"], 1)
+
+    @patch.object(sf.time, "sleep", return_value=None)
+    def test_later_page_request_failure_preserves_failure_metadata(self, _sleep):
+        first = [table_job(index) for index in range(1, 26)]
+        session = FakeSession([
+            FakeResponse(table_html(first, total=30, next_offset=25)),
+            requests.ConnectionError("page two unavailable"),
+            requests.ConnectionError("page two unavailable"),
+        ])
+        with self.assertRaisesRegex(requests.ConnectionError, "page two unavailable"):
+            sf.fetch_jobs(session, target(max_pages=2))
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["pages_requested"], 2)
+        self.assertEqual(metadata["pages_completed"], 1)
+        self.assertEqual(metadata["stop_reason"], "request_failure")
+
+    @patch.object(sf.time, "sleep", return_value=None)
+    def test_repeated_page_fails_closed(self, _sleep):
+        first = [table_job(index) for index in range(1, 26)]
+        session = FakeSession([
+            FakeResponse(table_html(first, total=50, next_offset=25)),
+            FakeResponse(table_html(first, total=50, offset=25)),
+        ])
+        with self.assertRaisesRegex(AdapterError, "repeated a page"):
+            sf.fetch_jobs(session, target(max_pages=2))
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["stop_reason"], "repeated_page")
+        self.assertEqual(metadata["pages_requested"], 2)
+        self.assertEqual(metadata["pages_completed"], 1)
+
+    @patch.object(sf.time, "sleep", return_value=None)
+    def test_changing_positive_total_fails_closed(self, _sleep):
+        first = [table_job(index) for index in range(1, 26)]
+        second = [table_job(index) for index in range(26, 31)]
+        session = FakeSession([
+            FakeResponse(table_html(first, total=30, next_offset=25)),
+            FakeResponse(table_html(second, total=31, offset=25)),
+        ])
+        with self.assertRaisesRegex(AdapterError, "total job count changed"):
+            sf.fetch_jobs(session, target(max_pages=2))
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["stop_reason"], "inconsistent_total")
+
+    def test_short_page_before_reported_total_is_not_a_natural_terminal(self):
+        session = FakeSession([
+            FakeResponse(table_html([table_job(1)], total=2))
+        ])
+        with self.assertRaisesRegex(AdapterError, "next page contract"):
+            sf.fetch_jobs(session, target())
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["scan_completeness_reason"], "pagination_failure")
+
+    def test_malformed_total_metadata_fails_closed(self):
+        html = table_html([table_job(1)]).replace(
+            'class="paginationLabel"', 'class="removed-pagination-label"'
+        )
+        session = FakeSession([FakeResponse(html)])
+        with self.assertRaisesRegex(AdapterError, "missing total-result metadata"):
+            sf.fetch_jobs(session, target())
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["stop_reason"], "malformed_total")
 
     def test_max_pages_above_hard_limit_is_rejected_without_network(self):
         session = FakeSession([])
-        with self.assertRaisesRegex(AdapterError, "max_pages cannot exceed 5"):
-            sf.fetch_jobs(session, target(max_pages=6))
+        with self.assertRaisesRegex(AdapterError, "max_pages cannot exceed 20"):
+            sf.fetch_jobs(session, target(max_pages=sf.MAX_PAGES + 1))
         self.assertEqual(session.calls, [])
 
     def test_valid_zero_job_table_and_tile_responses(self):
-        table_jobs = sf.fetch_jobs(FakeSession([FakeResponse(table_html([], total=0))]), target())
-        tile_jobs = sf.fetch_jobs(FakeSession([FakeResponse(tile_html([], total=0))]), target(sf.TILE_VARIANT))
+        table_session = FakeSession([FakeResponse(table_html([], total=0))])
+        tile_session = FakeSession([FakeResponse(tile_html([], total=0))])
+        table_jobs = sf.fetch_jobs(table_session, target())
+        tile_jobs = sf.fetch_jobs(tile_session, target(sf.TILE_VARIANT))
         self.assertEqual(table_jobs, [])
         self.assertEqual(tile_jobs, [])
+        for session in (table_session, tile_session):
+            metadata = source_scan_metadata(session)
+            self.assertTrue(metadata["scan_complete"])
+            self.assertEqual(metadata["scan_completeness_reason"], "reported_total_reached")
+            self.assertEqual(metadata["total_available"], 0)
+            self.assertEqual(metadata["pages_requested"], 1)
+            self.assertEqual(metadata["pages_completed"], 1)
+            self.assertEqual(metadata["stop_reason"], "validated_zero_jobs")
 
     def test_explicit_zero_job_message_without_table_is_valid(self):
         html = '<html><body>There are no matches. The 0 most recent jobs posted are listed below.</body></html>'
@@ -533,6 +732,7 @@ class SapSuccessFactorsTests(unittest.TestCase):
         jobs = sf.fetch_jobs(session, target())
         self.assertEqual(len(jobs), 1)
         self.assertEqual(len(session.sap_successfactors_pagination["diagnostics"]), 1)
+        self.assertTrue(source_scan_metadata(session)["scan_complete"])
 
     def test_invalid_search_url_and_variant_are_rejected_without_network(self):
         session = FakeSession([])
@@ -554,6 +754,9 @@ class SapSuccessFactorsTests(unittest.TestCase):
         with self.assertRaisesRegex(AdapterError, "HTTP 404"):
             sf.fetch_jobs(session, target())
         self.assertEqual(len(session.calls), 1)
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["stop_reason"], "http_error")
 
     def test_validator_rejects_speculative_company_and_career_site_ids(self):
         for field in ("company_id", "career_site_id"):

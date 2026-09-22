@@ -576,6 +576,7 @@ def score_student_job(
         "work_authorization": sponsorship_metadata(job),
         "education_eligibility": education["education_eligibility"],
         "education_evidence": education["education_evidence"],
+        "education_reason": education["education_reason"],
     }
     if candidate_profile is not None:
         preference = score_candidate_preferences(
@@ -670,6 +671,7 @@ def rank_student_jobs(
             "work_authorization": relevance["work_authorization"],
             "education_eligibility": relevance["education_eligibility"],
             "education_evidence": relevance["education_evidence"],
+            "education_reason": relevance["education_reason"],
         })
         if candidate_profile is not None:
             item.update({
@@ -829,7 +831,7 @@ def write_student_ranked_jobs_artifacts(
         "company", "title", "location", "relevance_score", "relevance_band",
         "matched_categories", "title_signals", "matching_rule", "seasons",
         "positive_signals", "negative_signals", "location_status", "education_eligibility",
-        "education_evidence", "url", "source", "updated_at",
+        "education_reason", "education_evidence", "url", "source", "updated_at",
     ]
     if candidate_profile is not None:
         fieldnames[3:3] = [
@@ -1047,6 +1049,7 @@ def _education_diagnostic_example(
         "location": job.location,
         "education_eligibility": education["education_eligibility"],
         "education_evidence": education["education_evidence"],
+        "education_reason": education["education_reason"],
     }
 
 

@@ -5,6 +5,7 @@ from contextlib import redirect_stdout
 from datetime import datetime, timezone
 from io import StringIO
 from tempfile import TemporaryDirectory
+from pathlib import Path
 
 from src.scraper.company_careers.adapters import (
     amazon,
@@ -21,7 +22,13 @@ from src.scraper.company_careers.adapters import (
 )
 from src.scraper.company_careers import scanner as scanner_module
 from src.scraper.company_careers.coverage_report import coverage_markdown, failure_items
-from src.scraper.company_careers.models import CompanyTarget, CoverageStatus, JobRecord
+from src.scraper.company_careers.models import (
+    CompanyTarget,
+    CoverageStatus,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
 from src.scraper.company_careers.relevance import rank_jobs, score_job
 from src.scraper.company_careers.scanner import CompanyCareersScanner
 from src.scraper.company_careers.student_roles import (
@@ -900,6 +907,151 @@ class CompanyCareersTests(unittest.TestCase):
         self.assertIn("HTTP 404", report.results[0].error)
         self.assertEqual(report.results[0].error_type, "stale_company_configuration")
         self.assertIn("current official career board", report.results[0].remediation)
+
+    def test_scanner_does_not_infer_completeness_from_a_short_unproven_result(self):
+        def unproven_adapter(session, target, timeout):
+            return [self._student_job("Software Engineering Intern")]
+
+        old_adapter = scanner_module.ADAPTERS.get("unproven")
+        scanner_module.ADAPTERS["unproven"] = unproven_adapter
+        try:
+            target = CompanyTarget(
+                name="Unproven Co", platform="unproven", max_jobs=20
+            )
+            report = CompanyCareersScanner(
+                targets=[target], session=FakeSession()
+            ).scan()
+        finally:
+            if old_adapter is None:
+                scanner_module.ADAPTERS.pop("unproven", None)
+            else:
+                scanner_module.ADAPTERS["unproven"] = old_adapter
+
+        result = report.results[0]
+        self.assertFalse(result.scan_complete)
+        self.assertEqual(
+            result.scan_completeness_reason, "adapter_completeness_not_proven"
+        )
+        self.assertEqual(result.scan_health, "incomplete")
+
+    def test_adapter_natural_terminal_evidence_marks_scan_complete(self):
+        def terminal_adapter(session, target, timeout):
+            publish_source_scan_metadata(
+                session,
+                SourceScanMetadata(
+                    scan_complete=True,
+                    scan_completeness_reason="natural_terminal_page",
+                    total_available=None,
+                    pages_requested=2,
+                    pages_completed=2,
+                    stop_reason="natural_terminal_page",
+                    safety_limit_reached=False,
+                ),
+            )
+            return [self._student_job("Software Engineering Intern")]
+
+        old_adapter = scanner_module.ADAPTERS.get("terminal")
+        scanner_module.ADAPTERS["terminal"] = terminal_adapter
+        try:
+            report = CompanyCareersScanner(
+                targets=[CompanyTarget(name="Terminal Co", platform="terminal")],
+                session=FakeSession(),
+            ).scan()
+        finally:
+            if old_adapter is None:
+                scanner_module.ADAPTERS.pop("terminal", None)
+            else:
+                scanner_module.ADAPTERS["terminal"] = old_adapter
+
+        result = report.results[0]
+        self.assertTrue(result.scan_complete)
+        self.assertEqual(result.scan_health, "complete")
+        self.assertEqual(result.scan_completeness_reason, "natural_terminal_page")
+        self.assertEqual(result.pages_requested, 2)
+        self.assertEqual(result.pages_completed, 2)
+
+    def test_post_filter_limit_overrides_adapter_completion(self):
+        def complete_adapter(session, target, timeout):
+            publish_source_scan_metadata(
+                session,
+                SourceScanMetadata(
+                    scan_complete=True,
+                    scan_completeness_reason="complete_collection_response",
+                    total_available=2,
+                    pages_requested=1,
+                    pages_completed=1,
+                    stop_reason="complete_collection_response",
+                ),
+            )
+            return [
+                self._student_job("Software Engineering Intern"),
+                self._student_job(
+                    "Hardware Engineering Intern",
+                    url="https://example.com/job/2",
+                ),
+            ]
+
+        old_adapter = scanner_module.ADAPTERS.get("complete_for_limit")
+        scanner_module.ADAPTERS["complete_for_limit"] = complete_adapter
+        try:
+            report = CompanyCareersScanner(
+                targets=[
+                    CompanyTarget(name="Limited Co", platform="complete_for_limit")
+                ],
+                session=FakeSession(),
+            ).scan(max_jobs_per_company=1)
+        finally:
+            if old_adapter is None:
+                scanner_module.ADAPTERS.pop("complete_for_limit", None)
+            else:
+                scanner_module.ADAPTERS["complete_for_limit"] = old_adapter
+
+        result = report.results[0]
+        self.assertEqual(len(result.jobs), 1)
+        self.assertFalse(result.scan_complete)
+        self.assertTrue(result.safety_limit_reached)
+        self.assertEqual(
+            result.scan_completeness_reason,
+            "post_filter_safety_limit_reached",
+        )
+
+    def test_all_eligible_jobs_reach_ranking_when_best_job_is_after_twenty(self):
+        ordinary = [
+            JobRecord(
+                job_id=f"ordinary-{index}",
+                title="Engineering Intern",
+                company="Example",
+                location="Calgary, Canada",
+                url=f"https://example.com/jobs/{index}",
+                updated_at="2026-09-01",
+                source="test:example",
+                description="Support engineering projects.",
+            )
+            for index in range(20)
+        ]
+        strongest = JobRecord(
+            job_id="strongest-after-twenty",
+            title="Machine Learning Software Engineering Intern",
+            company="Example",
+            location="Calgary, Canada",
+            url="https://example.com/jobs/strongest",
+            updated_at="2026-09-01",
+            source="test:example",
+            description="Build Python machine learning infrastructure and distributed systems.",
+        )
+
+        ranked = rank_student_jobs(ordinary + [strongest])
+
+        self.assertEqual(len(ranked), 21)
+        self.assertEqual(ranked[0]["job_id"], "strongest-after-twenty")
+
+    def test_scheduled_dashboard_path_has_no_per_company_twenty_job_limit(self):
+        workflow = Path(".github/workflows/hourly-job-radar.yml").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("python scripts/update_student_dashboard.py", workflow)
+        self.assertNotIn("update_student_dashboard.py --max-jobs 20", workflow)
 
     def test_scanner_reports_not_implemented_with_remediation(self):
         target = CompanyTarget(name="UnknownCo", platform="unknown_platform")

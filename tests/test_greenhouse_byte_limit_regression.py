@@ -2,7 +2,11 @@ import json
 import unittest
 
 from src.scraper.company_careers.adapters import greenhouse
-from src.scraper.company_careers.models import AdapterError, CompanyTarget
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    source_scan_metadata,
+)
 
 
 class StreamingResponse:
@@ -63,11 +67,67 @@ class GreenhouseByteLimitRegressionTests(unittest.TestCase):
             "name": "Acme",
             "platform": "greenhouse",
             "slug": "acme",
-            "max_jobs": 20,
+            "max_jobs": greenhouse.MAX_RESULTS,
             "max_response_bytes": 50_000,
         }
         values.update(overrides)
         return CompanyTarget(**values)
+
+    def test_complete_collection_above_500_is_retained_with_bounded_enrichment(self):
+        listings = [summary(index) for index in range(1, 752)]
+        session = StreamingSession(
+            [StreamingResponse({"jobs": listings})]
+            + [StreamingResponse(detail(index)) for index in range(1, 21)]
+        )
+
+        jobs = greenhouse.fetch_jobs(
+            session,
+            self.target(max_response_bytes=1_000_000),
+        )
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(len(jobs), 751)
+        self.assertEqual(len({job.job_id for job in jobs}), 751)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertFalse(metadata["safety_limit_reached"])
+        self.assertEqual(metadata["stop_reason"], "complete_collection_response")
+        self.assertEqual(
+            session.greenhouse_pagination["detail_requests"],
+            greenhouse.MAX_DETAIL_REQUESTS,
+        )
+        self.assertEqual(len(session.get_calls), 1 + greenhouse.MAX_DETAIL_REQUESTS)
+        self.assertEqual(sum(job.description is not None for job in jobs), 20)
+
+    def test_tiny_collection_bound_retains_partial_jobs_and_is_incomplete(self):
+        listings = []
+        for index in range(1, 4):
+            item = summary(index)
+            item.update(content="Description", departments=[], offices=[])
+            listings.append(item)
+        session = StreamingSession([StreamingResponse({"jobs": listings})])
+
+        jobs = greenhouse.fetch_jobs(session, self.target(max_jobs=2))
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(len(jobs), 2)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertTrue(metadata["safety_limit_reached"])
+        self.assertEqual(metadata["stop_reason"], "maximum_results_reached")
+
+    def test_collection_equal_to_safety_ceiling_is_not_declared_complete(self):
+        listings = []
+        for index in range(1, 3):
+            item = summary(index)
+            item.update(content="Description", departments=[], offices=[])
+            listings.append(item)
+        session = StreamingSession([StreamingResponse({"jobs": listings})])
+
+        jobs = greenhouse.fetch_jobs(session, self.target(max_jobs=2))
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(len(jobs), 2)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertTrue(metadata["safety_limit_reached"])
 
     def test_large_board_uses_compact_listing_and_only_bounded_details(self):
         listings = [summary(index) for index in range(1, 41)]
@@ -102,6 +162,10 @@ class GreenhouseByteLimitRegressionTests(unittest.TestCase):
         self.assertEqual(session.greenhouse_pagination["candidate_jobs"], 2)
         self.assertEqual(session.greenhouse_pagination["detail_requests"], 2)
         self.assertEqual(session.greenhouse_pagination["stop_reason"], "maximum_results_reached")
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertTrue(metadata["safety_limit_reached"])
+        self.assertEqual(metadata["total_available"], 40)
 
     def test_small_board_is_enriched_and_preserves_listing_identity(self):
         original_url = "http://company.example/careers?gh_jid=901"
@@ -120,7 +184,37 @@ class GreenhouseByteLimitRegressionTests(unittest.TestCase):
         self.assertEqual(jobs[0].url, "https://company.example/careers?gh_jid=901")
         self.assertEqual(jobs[0].departments, ["Engineering"])
         self.assertEqual(jobs[0].offices, ["Remote Office"])
-        self.assertEqual(session.greenhouse_pagination["stop_reason"], "bounded_collection")
+        self.assertEqual(
+            session.greenhouse_pagination["stop_reason"],
+            "complete_collection_response",
+        )
+        metadata = source_scan_metadata(session)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["scan_completeness_reason"], "complete_collection_response")
+        self.assertEqual(metadata["pages_requested"], 1)
+        self.assertEqual(metadata["pages_completed"], 1)
+
+    def test_valid_empty_board_is_complete(self):
+        session = StreamingSession([StreamingResponse({"jobs": []})])
+
+        self.assertEqual(greenhouse.fetch_jobs(session, self.target()), [])
+
+        metadata = source_scan_metadata(session)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["total_available"], 0)
+        self.assertEqual(metadata["stop_reason"], "complete_collection_response")
+
+    def test_missing_board_is_failed_not_complete_zero(self):
+        session = StreamingSession([StreamingResponse({}, status_code=404)])
+
+        with self.assertRaisesRegex(AdapterError, "HTTP 404"):
+            greenhouse.fetch_jobs(session, self.target())
+
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["pages_requested"], 1)
+        self.assertEqual(metadata["pages_completed"], 0)
+        self.assertEqual(metadata["stop_reason"], "adapter_failure")
 
     def test_department_index_preselects_late_jobs_before_detail_fetches(self):
         listings = [summary(index) for index in range(1, 31)]

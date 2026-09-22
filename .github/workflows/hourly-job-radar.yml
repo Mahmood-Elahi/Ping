@@ -114,7 +114,7 @@ jobs:
           PY
 
       - name: Update student dashboard
-        run: python scripts/update_student_dashboard.py --max-jobs 20
+        run: python scripts/update_student_dashboard.py
 
       - name: Upload scan diagnostics
         if: ${{ always() }}

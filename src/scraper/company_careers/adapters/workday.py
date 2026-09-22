@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 import re
-from typing import Dict, List
+from typing import Any, Dict, List, Mapping
 
 import requests
 
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+    source_scan_metadata,
+)
 
 
 HEADERS = {
@@ -19,6 +26,9 @@ FACET_KEY_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
 FACET_VALUE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
 PATH_REQUISITION_RE = re.compile(r"(?:^|_)((?:[A-Z]{1,4})?R\d{4,})$", re.IGNORECASE)
 BULLET_REQUISITION_RE = re.compile(r"^[A-Za-z]{0,8}[-_]?\d{1,20}$")
+PAGE_SIZE = 20
+MAX_PAGES = 25
+MAX_RESULTS = PAGE_SIZE * MAX_PAGES
 
 
 def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 20) -> List[JobRecord]:
@@ -26,6 +36,8 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
         raise AdapterError("Workday target needs tenant, wd_subdomain, and site_id/site_ids")
 
     _validate_applied_facets(target)
+    if not 1 <= int(target.max_pages) <= MAX_PAGES:
+        raise AdapterError(f"Workday max_pages must be between 1 and {MAX_PAGES}")
     site_ids = _candidate_site_ids(target)
     last_error = None
 
@@ -40,6 +52,11 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                 return _fetch_pages(session, target, api_url, site_id, body_index, timeout)
             except AdapterError as exc:
                 last_error = exc
+                # Body variants and alternate site IDs are first-page
+                # compatibility fallbacks. Never restart an enumeration after
+                # a later page has already been accepted.
+                if source_scan_metadata(session)["pages_completed"]:
+                    raise
                 continue
 
     raise AdapterError(str(last_error) if last_error else f"Workday failed for {target.name}")
@@ -60,12 +77,12 @@ def _body_variants(
     return [
         {
             "appliedFacets": applied_facets,
-            "limit": 20,
+            "limit": PAGE_SIZE,
             "offset": offset,
             "searchText": "",
         },
-        {"limit": 20, "offset": offset},
-        {"limit": 20, "offset": offset, "searchText": ""},
+        {"limit": PAGE_SIZE, "offset": offset},
+        {"limit": PAGE_SIZE, "offset": offset, "searchText": ""},
     ]
 
 
@@ -209,24 +226,106 @@ def _fetch_pages(
 ) -> List[JobRecord]:
     base_url = f"https://{target.tenant}.{target.wd_subdomain}.myworkdayjobs.com"
     jobs: List[JobRecord] = []
+    metadata = SourceScanMetadata(
+        page_size=PAGE_SIZE,
+        maximum_pages=int(target.max_pages),
+        maximum_results=MAX_RESULTS,
+        stop_reason="not_started",
+    )
+    publish_source_scan_metadata(session, metadata)
+    expected_total: int | None = None
+    seen_page_signatures: set[tuple[str, ...]] = set()
+    seen_item_identities: set[str] = set()
 
     for page in range(max(1, target.max_pages)):
-        offset = page * 20
+        offset = page * PAGE_SIZE
         body = _body_variants(offset, target.applied_facets)[body_index]
-        response = session.post(api_url, json=body, headers=HEADERS, timeout=timeout)
+        metadata["pages_requested"] += 1
+        try:
+            response = session.post(
+                api_url, json=body, headers=HEADERS, timeout=timeout
+            )
+        except requests.RequestException:
+            metadata["stop_reason"] = "request_failure"
+            metadata["scan_completeness_reason"] = "pagination_failure"
+            raise
         if response.status_code != 200:
-            if page == 0:
-                raise AdapterError(
-                    f"Workday HTTP {response.status_code} for {target.name} site={site_id} body={body_index}"
-                )
-            break
+            metadata["stop_reason"] = "http_error"
+            metadata["scan_completeness_reason"] = "pagination_failure"
+            raise AdapterError(
+                f"Workday HTTP {response.status_code} for {target.name} "
+                f"site={site_id} body={body_index} offset={offset}"
+            )
 
-        payload = response.json()
+        try:
+            payload = response.json()
+        except (TypeError, ValueError) as exc:
+            metadata["stop_reason"] = "malformed_response"
+            metadata["scan_completeness_reason"] = "pagination_failure"
+            raise AdapterError(f"Workday returned malformed JSON: {exc}") from exc
+        if not isinstance(payload, Mapping):
+            metadata["stop_reason"] = "malformed_response"
+            metadata["scan_completeness_reason"] = "pagination_failure"
+            raise AdapterError("Workday response must be a JSON object")
         if page == 0:
             _verify_applied_facets(payload, target)
-        items = payload.get("jobPostings", [])
-        if not items:
-            break
+        items = payload.get("jobPostings")
+        if not isinstance(items, list) or any(
+            not isinstance(item, Mapping) for item in items
+        ):
+            metadata["stop_reason"] = "malformed_response"
+            metadata["scan_completeness_reason"] = "pagination_failure"
+            raise AdapterError("Workday response must contain a jobPostings list")
+        if len(items) > PAGE_SIZE:
+            metadata["stop_reason"] = "malformed_response"
+            metadata["scan_completeness_reason"] = "pagination_failure"
+            raise AdapterError("Workday response exceeded the requested page size")
+
+        try:
+            reported_total = _reported_total(payload)
+        except AdapterError:
+            metadata["stop_reason"] = "malformed_total"
+            metadata["scan_completeness_reason"] = "malformed_total"
+            raise
+        # Many Workday CXS tenants expose the board total only on offset zero
+        # and send a literal zero on subsequent pages. A zero alongside a
+        # positive first-page total is an observed "not repeated" sentinel,
+        # not a changed source total.
+        if offset and expected_total and reported_total == 0:
+            reported_total = None
+        if reported_total is not None:
+            if expected_total is None:
+                expected_total = reported_total
+                metadata["total_available"] = reported_total
+            elif reported_total != expected_total:
+                metadata["stop_reason"] = "inconsistent_total"
+                metadata["scan_completeness_reason"] = "inconsistent_total"
+                raise AdapterError("Workday reported a changing total job count")
+            if expected_total < offset + len(items):
+                metadata["stop_reason"] = "malformed_total"
+                metadata["scan_completeness_reason"] = "malformed_total"
+                raise AdapterError("Workday returned more jobs than its reported total")
+            if expected_total > offset and not items:
+                metadata["stop_reason"] = "malformed_total"
+                metadata["scan_completeness_reason"] = "malformed_total"
+                raise AdapterError("Workday ended before its reported total job count")
+
+        signature = tuple(_page_item_identity(item) for item in items)
+        signature_ids = {value.casefold() for value in signature if value}
+        if (
+            items
+            and (
+                signature in seen_page_signatures
+                or len(signature_ids) != len(signature)
+                or bool(signature_ids & seen_item_identities)
+            )
+        ):
+            metadata["stop_reason"] = "repeated_page"
+            metadata["scan_completeness_reason"] = "pagination_failure"
+            raise AdapterError("Workday pagination repeated a previously returned job or page")
+        if items:
+            seen_page_signatures.add(signature)
+            seen_item_identities.update(signature_ids)
 
         for item in items:
             external_path = item.get("externalPath", "") or ""
@@ -249,8 +348,47 @@ def _fetch_pages(
                     raw_metadata={"source_posted_at": item.get("postedOn")},
                 )
             )
+        metadata["pages_completed"] += 1
 
-        if len(items) < 20:
+        enumerated = offset + len(items)
+        if expected_total is not None and enumerated == expected_total:
+            metadata["scan_complete"] = True
+            metadata["scan_completeness_reason"] = "reported_total_reached"
+            metadata["stop_reason"] = "reported_total_reached"
             break
+        if len(items) < PAGE_SIZE:
+            if expected_total is not None:
+                metadata["stop_reason"] = "malformed_total"
+                metadata["scan_completeness_reason"] = "malformed_total"
+                raise AdapterError("Workday ended before its reported total job count")
+            metadata["total_available"] = enumerated
+            metadata["scan_complete"] = True
+            metadata["scan_completeness_reason"] = "natural_terminal_page"
+            metadata["stop_reason"] = "natural_terminal_page"
+            break
+    else:
+        metadata["stop_reason"] = "maximum_pages_reached"
+        metadata["scan_completeness_reason"] = "safety_limit_reached"
+        metadata["safety_limit_reached"] = True
 
     return jobs
+
+
+def _reported_total(payload: Mapping[str, Any]) -> int | None:
+    """Return a validated Workday total when the tenant exposes one."""
+    values = [payload.get(key) for key in ("total", "totalResults") if key in payload]
+    if not values:
+        return None
+    if any(isinstance(value, bool) or not isinstance(value, int) or value < 0 for value in values):
+        raise AdapterError("Workday total must be a non-negative integer")
+    if len(set(values)) != 1:
+        raise AdapterError("Workday response contains inconsistent total fields")
+    return values[0]
+
+
+def _page_item_identity(item: Mapping[str, Any]) -> str:
+    path = str(item.get("externalPath") or "").strip()
+    bullets = item.get("bulletFields") or []
+    if not isinstance(bullets, list):
+        bullets = []
+    return _stable_job_id(bullets, path) or path

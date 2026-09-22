@@ -237,7 +237,12 @@ class RoboticsExpansionV1BatchAAdapterTests(unittest.TestCase):
         self.assertEqual(session.greenhouse_pagination["maximum_results"], 1)
 
     def test_12_greenhouse_rejects_unbounded_configuration(self):
-        target = CompanyTarget(name="Example", platform="greenhouse", slug="example", max_jobs=21)
+        target = CompanyTarget(
+            name="Example",
+            platform="greenhouse",
+            slug="example",
+            max_jobs=greenhouse.MAX_RESULTS + 1,
+        )
         with self.assertRaisesRegex(AdapterError, "cannot exceed"):
             greenhouse.fetch_jobs(FakeSession({"jobs": []}), target)
 

@@ -330,6 +330,96 @@ class PhenomAdapterTests(unittest.TestCase):
         self.assertEqual(session.phenom_pagination["offsets"], [0, 10])
         self.assertEqual(session.phenom_pagination["stop_reason"], "total_jobs_reached")
 
+    def test_atco_style_pagination_retrieves_regressions_beyond_first_twenty(self):
+        postings = [job(index, reqId=f"ATCO-{index}", jobId=f"ATCO-{index}") for index in range(1, 72)]
+        postings[24].update(reqId="20646", jobId="20646")
+        postings[28].update(reqId="20626", jobId="20626")
+        responses = [
+            html_response(page(postings[offset : offset + 10], total=71))
+            for offset in range(0, 71, 10)
+        ]
+
+        jobs, session = self.fetch(responses, max_pages=10, max_jobs=100)
+
+        external_ids = {
+            record.raw_metadata["external_job_id"] for record in jobs
+        }
+        self.assertEqual(len(jobs), 71)
+        self.assertIn("20646", external_ids)
+        self.assertIn("20626", external_ids)
+        self.assertEqual(
+            [call[1]["params"] for call in session.calls],
+            [{}] + [{"from": str(offset), "s": "1"} for offset in range(10, 71, 10)],
+        )
+        self.assertEqual(session.phenom_pagination["total_available"], 71)
+        self.assertEqual(session.phenom_pagination["pages_requested"], 8)
+        self.assertEqual(session.phenom_pagination["pages_completed"], 8)
+        self.assertTrue(session.phenom_pagination["scan_complete"])
+        self.assertEqual(
+            session.phenom_pagination["scan_completeness_reason"],
+            "reported_total_reached",
+        )
+
+    def test_safety_budget_is_incomplete_but_reported_total_is_complete(self):
+        first = [job(index) for index in range(1, 11)]
+        capped_jobs, capped_session = self.fetch(
+            [html_response(page(first, total=30))], max_pages=1, max_jobs=100
+        )
+        self.assertEqual(len(capped_jobs), 10)
+        self.assertFalse(capped_session.phenom_pagination["scan_complete"])
+        self.assertTrue(capped_session.phenom_pagination["safety_limit_reached"])
+        self.assertEqual(
+            capped_session.phenom_pagination["scan_completeness_reason"],
+            "safety_limit_reached",
+        )
+
+        complete_jobs, complete_session = self.fetch(
+            [html_response(page(first, total=10))], max_pages=1, max_jobs=100
+        )
+        self.assertEqual(len(complete_jobs), 10)
+        self.assertTrue(complete_session.phenom_pagination["scan_complete"])
+        self.assertFalse(complete_session.phenom_pagination["safety_limit_reached"])
+
+    def test_pagination_error_records_failed_metadata(self):
+        session = FakeSession([requests.Timeout("timed out"), requests.Timeout("timed out")])
+
+        with patch.object(phenom.time, "sleep", return_value=None):
+            with self.assertRaises(requests.Timeout):
+                phenom.fetch_jobs(session, target(max_pages=2, max_jobs=100))
+
+        self.assertFalse(session.phenom_pagination["scan_complete"])
+        self.assertEqual(session.phenom_pagination["stop_reason"], "pagination_failure")
+        self.assertEqual(session.phenom_pagination["pages_requested"], 1)
+        self.assertEqual(session.phenom_pagination["pages_completed"], 0)
+
+    def test_malformed_and_inconsistent_totals_are_explicit_failures(self):
+        first = [job(index) for index in range(1, 11)]
+        second = [job(index) for index in range(11, 16)]
+        inconsistent_session = FakeSession(
+            [
+                html_response(page(first, total=20)),
+                html_response(page(second, total=21)),
+            ]
+        )
+        with patch.object(phenom.time, "sleep", return_value=None):
+            with self.assertRaisesRegex(AdapterError, "total job count changed"):
+                phenom.fetch_jobs(
+                    inconsistent_session, target(max_pages=2, max_jobs=100)
+                )
+        self.assertEqual(
+            inconsistent_session.phenom_pagination["stop_reason"],
+            "inconsistent_total",
+        )
+        self.assertFalse(inconsistent_session.phenom_pagination["scan_complete"])
+
+        malformed_session = FakeSession([html_response(page([], total=-1))])
+        with self.assertRaisesRegex(AdapterError, "totalHits"):
+            phenom.fetch_jobs(malformed_session, target(max_pages=1, max_jobs=100))
+        self.assertEqual(
+            malformed_session.phenom_pagination["stop_reason"], "malformed_total"
+        )
+        self.assertFalse(malformed_session.phenom_pagination["scan_complete"])
+
     def test_repeated_page_and_no_new_id_stops(self):
         first = [job(index) for index in range(1, 11)]
         for second, expected in (
@@ -357,9 +447,9 @@ class PhenomAdapterTests(unittest.TestCase):
             html_response(page([job(p * 10 + i) for i in range(1, 11)], total=100))
             for p in range(5)
         ]
-        jobs, session = self.fetch(responses, max_pages=5)
-        self.assertEqual(len(jobs), phenom.MAX_RESULTS)
-        self.assertEqual(len(session.calls), phenom.MAX_PAGES)
+        jobs, session = self.fetch(responses, max_pages=5, max_jobs=50)
+        self.assertEqual(len(jobs), 50)
+        self.assertEqual(len(session.calls), 5)
         self.assertEqual(session.phenom_pagination["stop_reason"], "maximum_results_reached")
         with self.assertRaisesRegex(AdapterError, "max_pages cannot exceed"):
             phenom.fetch_jobs(FakeSession([]), target(max_pages=phenom.MAX_PAGES + 1))

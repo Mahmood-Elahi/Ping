@@ -9,14 +9,22 @@ from urllib.parse import urlparse
 
 import requests
 
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    ADAPTER_SAFETY_BUDGET_DEFAULTS,
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
 from src.scraper.company_careers.student_roles import (
     classify_student_location,
     student_job_signals,
 )
 
 
-MAX_RESULTS = 20
+MAX_RESULTS = ADAPTER_SAFETY_BUDGET_DEFAULTS["ashby"]["max_jobs"]
+MAX_DETAIL_REQUESTS = 20
 MAX_RESPONSE_BYTES = 3_000_000
 MAX_DETAIL_RESPONSE_BYTES = 1_000_000
 MAX_TIMEOUT_SECONDS = 60
@@ -32,9 +40,51 @@ def fetch_jobs(
     target: CompanyTarget,
     timeout: int = 20,
 ) -> List[JobRecord]:
-    """Scan the compact full-board index and enrich at most ``max_jobs`` jobs."""
+    """Scan the compact full-board index and enrich at most 20 postings."""
+    metadata = SourceScanMetadata(stop_reason="not_started")
+    publish_source_scan_metadata(session, metadata)
+    try:
+        jobs = _fetch_jobs(session, target, timeout, metadata)
+    except requests.RequestException:
+        metadata["stop_reason"] = "request_failure"
+        metadata["scan_completeness_reason"] = "adapter_failure"
+        raise
+    except AdapterError:
+        metadata["stop_reason"] = "adapter_failure"
+        metadata["scan_completeness_reason"] = "adapter_failure"
+        raise
+
+    pagination = getattr(session, "ashby_pagination", {})
+    total_available = int(pagination.get("jobs_returned", len(jobs)))
+    safety_limit_reached = total_available >= int(target.max_jobs)
+    metadata.update(
+        scan_complete=not safety_limit_reached,
+        scan_completeness_reason=(
+            "safety_limit_reached"
+            if safety_limit_reached
+            else "complete_collection_response"
+        ),
+        total_available=total_available,
+        pages_completed=1,
+        stop_reason=(
+            "maximum_results_reached"
+            if safety_limit_reached
+            else "complete_collection_response"
+        ),
+        safety_limit_reached=safety_limit_reached,
+    )
+    return jobs
+
+
+def _fetch_jobs(
+    session: requests.Session,
+    target: CompanyTarget,
+    timeout: int,
+    metadata: SourceScanMetadata,
+) -> List[JobRecord]:
     _validate_target(target)
     board_url = f"https://jobs.ashbyhq.com/{target.slug}"
+    metadata["pages_requested"] = 1
     document, listing_bytes = _get_document(
         session,
         board_url,
@@ -68,12 +118,19 @@ def fetch_jobs(
     maximum_results = int(target.max_jobs)
     prioritized, candidate_count = _prioritized_pairs(summaries, maximum_results)
     selected = prioritized[:maximum_results]
+    detail_priority, _ = _prioritized_pairs(selected, MAX_DETAIL_REQUESTS)
+    detail_candidate_ids = {
+        summary.job_id for _item, summary in detail_priority[:MAX_DETAIL_REQUESTS]
+    }
     jobs: list[JobRecord] = []
     detail_bytes = 0
     detail_limit = min(
         int(target.max_response_bytes), MAX_DETAIL_RESPONSE_BYTES
     )
     for _item, summary in selected:
+        if summary.job_id not in detail_candidate_ids:
+            jobs.append(summary)
+            continue
         detail_document, response_bytes = _get_document(
             session,
             summary.url,
@@ -96,7 +153,7 @@ def fetch_jobs(
         candidates_selected=len(selected),
         listing_bytes=listing_bytes,
         detail_bytes=detail_bytes,
-        detail_requests=len(selected),
+        detail_requests=len(detail_candidate_ids),
         transport="hosted_compact_index",
     )
     return jobs
@@ -504,10 +561,11 @@ def _set_pagination(
                 if not jobs_returned
                 else "maximum_results_reached"
                 if jobs_returned > jobs_normalized
-                else "bounded_collection"
+                else "complete_collection_response"
             ),
             "listing_requests": 1,
             "detail_requests": detail_requests,
+            "maximum_detail_requests": MAX_DETAIL_REQUESTS,
             "requests_fetched": 1 + detail_requests,
             "listing_bytes": listing_bytes,
             "detail_bytes": detail_bytes,

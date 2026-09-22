@@ -7,7 +7,11 @@ from unittest.mock import patch
 import requests
 
 from src.scraper.company_careers.adapters import lever
-from src.scraper.company_careers.models import AdapterError, CompanyTarget
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    source_scan_metadata,
+)
 
 
 class Response:
@@ -65,9 +69,13 @@ def posting(job_id="abc", **overrides):
 
 class LeverAdapterTests(unittest.TestCase):
     def test_01_normalizes_stable_identity_and_official_url(self):
-        job = lever.fetch_jobs(Session(Response([posting()])), target())[0]
+        session = Session(Response([posting()]))
+        job = lever.fetch_jobs(session, target())[0]
         self.assertEqual((job.job_id, job.url, job.source),
                          ("abc", "https://jobs.lever.co/example/abc", "lever:example"))
+        metadata = source_scan_metadata(session)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["stop_reason"], "natural_terminal_page")
 
     def test_02_exact_department_allowlist(self):
         payload = [posting("one"), posting("two", categories={"department": "Tinder", "location": "Remote"})]
@@ -78,6 +86,7 @@ class LeverAdapterTests(unittest.TestCase):
         session = Session(Response([posting(categories={"department": "Brand"})]))
         self.assertEqual(lever.fetch_jobs(session, target(department_allowlist=["Corporate"])), [])
         self.assertTrue(session.lever_pagination["zero_job_contract"])
+        self.assertTrue(source_scan_metadata(session)["scan_complete"])
 
     def test_04_apply_host_board_and_id_are_validated(self):
         cases = [
@@ -125,6 +134,9 @@ class LeverAdapterTests(unittest.TestCase):
         session = Session(Response(payload))
         self.assertEqual(len(lever.fetch_jobs(session, target())), 20)
         self.assertEqual(session.lever_pagination["stop_reason"], "maximum_results_reached")
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertTrue(metadata["safety_limit_reached"])
 
     def test_12_duplicate_ids_are_skipped_deterministically(self):
         session = Session(Response([posting(), posting()]))
@@ -181,6 +193,77 @@ class LeverAdapterTests(unittest.TestCase):
                     allowed_apply_hosts=["jobs.lever.co"],
                 )
             )
+
+    def test_18_multi_page_scan_completes_on_short_terminal_page(self):
+        first = [
+            posting(str(index), hostedUrl=f"https://jobs.lever.co/example/{index}")
+            for index in range(20)
+        ]
+        second = [
+            posting(str(index), hostedUrl=f"https://jobs.lever.co/example/{index}")
+            for index in range(20, 40)
+        ]
+        third = [
+            posting(str(index), hostedUrl=f"https://jobs.lever.co/example/{index}")
+            for index in range(40, 45)
+        ]
+        session = Session(Response(first), Response(second), Response(third))
+
+        jobs = lever.fetch_jobs(session, target(max_jobs=60, max_pages=4))
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(len(jobs), 45)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["pages_requested"], 3)
+        self.assertEqual(metadata["pages_completed"], 3)
+        self.assertEqual(metadata["total_available"], 45)
+        self.assertIn("skip=20", session.calls[1][0])
+        self.assertIn("skip=40", session.calls[2][0])
+
+    def test_19_page_budget_is_incomplete(self):
+        page = [
+            posting(str(index), hostedUrl=f"https://jobs.lever.co/example/{index}")
+            for index in range(20)
+        ]
+        session = Session(Response(page))
+
+        jobs = lever.fetch_jobs(session, target(max_jobs=60, max_pages=1))
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(len(jobs), 20)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertTrue(metadata["safety_limit_reached"])
+        self.assertEqual(metadata["stop_reason"], "maximum_pages_reached")
+
+    def test_20_failure_after_first_page_is_not_complete(self):
+        page = [
+            posting(str(index), hostedUrl=f"https://jobs.lever.co/example/{index}")
+            for index in range(20)
+        ]
+        session = Session(Response(page), Response([], status=404))
+
+        with self.assertRaisesRegex(AdapterError, "HTTP 404"):
+            lever.fetch_jobs(session, target(max_jobs=60, max_pages=3))
+
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["pages_requested"], 2)
+        self.assertEqual(metadata["pages_completed"], 1)
+        self.assertEqual(metadata["stop_reason"], "pagination_failure")
+
+    def test_21_repeated_page_is_detected(self):
+        page = [
+            posting(str(index), hostedUrl=f"https://jobs.lever.co/example/{index}")
+            for index in range(20)
+        ]
+        session = Session(Response(page), Response(page))
+
+        with self.assertRaisesRegex(AdapterError, "repeated"):
+            lever.fetch_jobs(session, target(max_jobs=60, max_pages=3))
+
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["stop_reason"], "repeated_page")
 
 
 if __name__ == "__main__":

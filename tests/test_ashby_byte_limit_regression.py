@@ -2,7 +2,11 @@ import json
 import unittest
 
 from src.scraper.company_careers.adapters import ashby
-from src.scraper.company_careers.models import AdapterError, CompanyTarget
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    source_scan_metadata,
+)
 
 
 class StreamingResponse:
@@ -115,12 +119,75 @@ class AshbyByteLimitRegressionTests(unittest.TestCase):
             "name": "Example",
             "platform": "ashby",
             "slug": "example",
-            "max_jobs": 20,
+            "max_jobs": ashby.MAX_RESULTS,
             "max_response_bytes": 50_000,
             "allowed_apply_hosts": ["jobs.ashbyhq.com"],
         }
         values.update(overrides)
         return CompanyTarget(**values)
+
+    def test_complete_collection_above_500_is_retained_with_bounded_enrichment(self):
+        listings = [summary(f"id-{index:04}") for index in range(751)]
+        session = StreamingSession(
+            [StreamingResponse(board("example", listings))]
+            + [
+                StreamingResponse(detail("example", f"id-{index:04}"))
+                for index in range(20)
+            ]
+        )
+
+        jobs = ashby.fetch_jobs(
+            session,
+            self.target(max_response_bytes=1_000_000),
+        )
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(len(jobs), 751)
+        self.assertEqual(len({job.job_id for job in jobs}), 751)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertFalse(metadata["safety_limit_reached"])
+        self.assertEqual(metadata["stop_reason"], "complete_collection_response")
+        self.assertEqual(
+            session.ashby_pagination["detail_requests"],
+            ashby.MAX_DETAIL_REQUESTS,
+        )
+        self.assertEqual(len(session.get_calls), 1 + ashby.MAX_DETAIL_REQUESTS)
+        self.assertEqual(sum(job.description is not None for job in jobs), 20)
+
+    def test_tiny_collection_bound_retains_partial_jobs_and_is_incomplete(self):
+        listings = [summary(f"id-{index}") for index in range(3)]
+        session = StreamingSession(
+            [
+                StreamingResponse(board("example", listings)),
+                StreamingResponse(detail("example", "id-0")),
+                StreamingResponse(detail("example", "id-1")),
+            ]
+        )
+
+        jobs = ashby.fetch_jobs(session, self.target(max_jobs=2))
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(len(jobs), 2)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertTrue(metadata["safety_limit_reached"])
+        self.assertEqual(metadata["stop_reason"], "maximum_results_reached")
+
+    def test_collection_equal_to_safety_ceiling_is_not_declared_complete(self):
+        listings = [summary(f"id-{index}") for index in range(2)]
+        session = StreamingSession(
+            [StreamingResponse(board("example", listings))]
+            + [
+                StreamingResponse(detail("example", f"id-{index}"))
+                for index in range(2)
+            ]
+        )
+
+        jobs = ashby.fetch_jobs(session, self.target(max_jobs=2))
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(len(jobs), 2)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertTrue(metadata["safety_limit_reached"])
 
     def test_large_board_scans_compact_index_and_fetches_only_bounded_details(self):
         listings = [summary(f"id-{index:02}") for index in range(40)]
@@ -161,6 +228,10 @@ class AshbyByteLimitRegressionTests(unittest.TestCase):
         self.assertEqual(
             session.ashby_pagination["transport"], "hosted_compact_index"
         )
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertTrue(metadata["safety_limit_reached"])
+        self.assertEqual(metadata["total_available"], 40)
 
     def test_small_board_enriches_every_job_and_preserves_listing_identity(self):
         listings = [
@@ -189,7 +260,37 @@ class AshbyByteLimitRegressionTests(unittest.TestCase):
             jobs[0].location, "London, UK | Toronto, Canada"
         )
         self.assertEqual(jobs[0].url, "https://jobs.ashbyhq.com/example/stable-1")
-        self.assertEqual(session.ashby_pagination["stop_reason"], "bounded_collection")
+        self.assertEqual(
+            session.ashby_pagination["stop_reason"],
+            "complete_collection_response",
+        )
+        metadata = source_scan_metadata(session)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["scan_completeness_reason"], "complete_collection_response")
+        self.assertEqual(metadata["pages_requested"], 1)
+        self.assertEqual(metadata["pages_completed"], 1)
+
+    def test_valid_empty_board_is_complete(self):
+        session = StreamingSession([StreamingResponse(board("example", []))])
+
+        self.assertEqual(ashby.fetch_jobs(session, self.target()), [])
+
+        metadata = source_scan_metadata(session)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["total_available"], 0)
+        self.assertEqual(metadata["stop_reason"], "complete_collection_response")
+
+    def test_missing_board_is_failed_not_complete_zero(self):
+        session = StreamingSession([StreamingResponse("", status_code=404)])
+
+        with self.assertRaisesRegex(AdapterError, "HTTP 404"):
+            ashby.fetch_jobs(session, self.target())
+
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["pages_requested"], 1)
+        self.assertEqual(metadata["pages_completed"], 0)
+        self.assertEqual(metadata["stop_reason"], "adapter_failure")
 
     def test_entire_index_is_validated_before_any_detail_fetch(self):
         listings = [

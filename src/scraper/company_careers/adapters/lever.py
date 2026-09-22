@@ -9,11 +9,19 @@ from urllib.parse import urlencode, urlparse, urlunparse
 
 import requests
 
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
 
 
 ENDPOINT_VARIANT = "postings_api_v0"
-MAX_RESULTS = 20
+PAGE_SIZE = 20
+MAX_RESULTS = 500
+MAX_PAGES = 25
 MAX_RESPONSE_BYTES = 3_000_000
 MAX_ATTEMPTS = 2
 MAX_TIMEOUT_SECONDS = 60
@@ -34,93 +42,179 @@ ENDPOINT_HOSTS = {
 
 
 def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 20) -> List[JobRecord]:
-    """Fetch one public board response and normalize at most ``max_jobs`` records."""
+    """Enumerate the public board until Lever returns a terminal short page."""
     validate_target(target)
     timeout = min(max(1, int(timeout)), MAX_TIMEOUT_SECONDS)
-    maximum_results = min(MAX_RESULTS, max(1, int(target.max_jobs)))
-    query: list[tuple[str, str]] = [
-        ("mode", "json"),
-        ("limit", str(maximum_results)),
-    ]
-    # Lever applies repeated department parameters as an OR filter. Sending
-    # the reviewed allowlist to the server preserves shared-board attribution
-    # while keeping even very large public boards below the response cap.
-    query.extend(("department", value) for value in _clean(target.department_allowlist))
+    maximum_results = int(target.max_jobs)
+    maximum_pages = max(1, int(target.max_pages))
     endpoint = str(target.endpoint_url or f"{DEFAULT_ENDPOINT}/{target.slug}").rstrip("/")
-    url = f"{endpoint}?{urlencode(query)}"
-    response = _get(session, url, timeout)
-    payload = _payload(response, target)
-    metadata: dict[str, Any] = {
+    allowed_department_values = _clean(target.department_allowlist)
+    allowed_departments = {value.casefold() for value in allowed_department_values}
+    scan_metadata = SourceScanMetadata(stop_reason="not_started")
+    publish_source_scan_metadata(session, scan_metadata)
+    pagination: dict[str, Any] = {
         "endpoint_variant": target.endpoint_variant or ENDPOINT_VARIANT,
         "request_method": "GET",
-        "server_result_limit": maximum_results,
-        "pages_fetched": 1,
-        "maximum_pages": 1,
+        "server_result_limit": min(PAGE_SIZE, maximum_results),
+        "pages_fetched": 0,
+        "maximum_pages": maximum_pages,
         "maximum_results": maximum_results,
-        "jobs_returned": len(payload),
+        "jobs_returned": 0,
         "jobs_normalized": 0,
-        "zero_job_contract": not payload,
-        "stop_reason": "validated_zero_jobs" if not payload else "not_started",
+        "zero_job_contract": False,
+        "stop_reason": "not_started",
+        "offsets": [],
         "diagnostics": [],
     }
-    setattr(session, "lever_pagination", metadata)
-    allowed_departments = {value.casefold() for value in _clean(target.department_allowlist)}
+    setattr(session, "lever_pagination", pagination)
     jobs: list[JobRecord] = []
     seen_ids: set[str] = set()
-    for item in payload:
-        if not isinstance(item, Mapping):
-            raise AdapterError("Lever malformed HTTP 200 response: posting is not an object")
-        categories = item.get("categories", {}) or {}
-        if not isinstance(categories, Mapping):
-            raise AdapterError("Lever malformed HTTP 200 response: posting categories are not an object")
-        department = str(categories.get("department", "") or "").strip()
-        if allowed_departments and department.casefold() not in allowed_departments:
-            continue
-        job_id = str(item.get("id", "") or "").strip()
-        title = str(item.get("text", "") or "").strip()
-        if not ID_RE.fullmatch(job_id) or not title:
-            raise AdapterError("Lever posting has no stable job_id/source identifier or title")
-        hosted_url = _official_url(str(item.get("hostedUrl", "") or ""), target, job_id)
-        if job_id.casefold() in seen_ids:
-            metadata["diagnostics"].append(f"Duplicate Lever posting ID: {job_id}")
-            continue
-        seen_ids.add(job_id.casefold())
-        location = categories.get("location", "") or ""
-        jobs.append(
-            JobRecord(
-                job_id=job_id,
-                title=title,
-                company=target.name,
-                location=location,
-                url=hosted_url,
-                updated_at=str(item.get("createdAt", "")),
-                source=f"lever:{target.slug}",
-                departments=_clean([department, categories.get("team", "")]),
-                offices=[location] if location else [],
-                description=item.get("descriptionPlain") or item.get("description"),
-                raw_metadata={
-                    "platform": "lever",
-                    "source_posted_at": item.get("createdAt"),
-                    "endpoint_variant": target.endpoint_variant or ENDPOINT_VARIANT,
-                    "external_job_id": job_id,
-                    "lever_department": department,
-                },
-            )
-        )
-        if len(jobs) >= maximum_results:
-            metadata["stop_reason"] = "maximum_results_reached"
-            break
-    if payload and not jobs:
-        if allowed_departments:
-            metadata["stop_reason"] = "validated_zero_jobs"
-            metadata["zero_job_contract"] = True
+    seen_page_signatures: set[tuple[str, ...]] = set()
+    offset = 0
+
+    try:
+        for _page_index in range(maximum_pages):
+            remaining = maximum_results - len(jobs)
+            if remaining <= 0:
+                _mark_safety_limit(scan_metadata, pagination, "maximum_results_reached")
+                break
+            page_limit = min(PAGE_SIZE, remaining)
+            query: list[tuple[str, str]] = [
+                ("mode", "json"),
+                ("limit", str(page_limit)),
+            ]
+            if offset:
+                query.append(("skip", str(offset)))
+            # Lever applies repeated department parameters as an OR filter.
+            query.extend(("department", value) for value in allowed_department_values)
+            url = f"{endpoint}?{urlencode(query)}"
+            scan_metadata["pages_requested"] += 1
+            response = _get(session, url, timeout)
+            payload = _payload(response, target)
+            scan_metadata["pages_completed"] += 1
+            pagination["pages_fetched"] += 1
+            pagination["offsets"].append(offset)
+            pagination["jobs_returned"] += len(payload)
+
+            page_ids = tuple(_posting_id(item) for item in payload)
+            if payload and page_ids in seen_page_signatures:
+                scan_metadata["stop_reason"] = "repeated_page"
+                scan_metadata["scan_completeness_reason"] = "pagination_failure"
+                pagination["stop_reason"] = "repeated_page"
+                raise AdapterError("Lever pagination repeated a previously returned page")
+            if payload:
+                seen_page_signatures.add(page_ids)
+
+            for item in payload[:page_limit]:
+                categories = item.get("categories", {}) or {}
+                if not isinstance(categories, Mapping):
+                    raise AdapterError(
+                        "Lever malformed HTTP 200 response: posting categories are not an object"
+                    )
+                department = str(categories.get("department", "") or "").strip()
+                if allowed_departments and department.casefold() not in allowed_departments:
+                    continue
+                job_id = _posting_id(item)
+                title = str(item.get("text", "") or "").strip()
+                if not ID_RE.fullmatch(job_id) or not title:
+                    raise AdapterError(
+                        "Lever posting has no stable job_id/source identifier or title"
+                    )
+                hosted_url = _official_url(
+                    str(item.get("hostedUrl", "") or ""), target, job_id
+                )
+                folded_id = job_id.casefold()
+                if folded_id in seen_ids:
+                    pagination["diagnostics"].append(
+                        f"Duplicate Lever posting ID: {job_id}"
+                    )
+                    if offset:
+                        scan_metadata["stop_reason"] = "repeated_page"
+                        scan_metadata["scan_completeness_reason"] = "pagination_failure"
+                        pagination["stop_reason"] = "repeated_page"
+                        raise AdapterError(
+                            "Lever pagination returned a posting from an earlier page"
+                        )
+                    continue
+                seen_ids.add(folded_id)
+                location = categories.get("location", "") or ""
+                jobs.append(
+                    JobRecord(
+                        job_id=job_id,
+                        title=title,
+                        company=target.name,
+                        location=location,
+                        url=hosted_url,
+                        updated_at=str(item.get("createdAt", "")),
+                        source=f"lever:{target.slug}",
+                        departments=_clean([department, categories.get("team", "")]),
+                        offices=[location] if location else [],
+                        description=item.get("descriptionPlain") or item.get("description"),
+                        raw_metadata={
+                            "platform": "lever",
+                            "source_posted_at": item.get("createdAt"),
+                            "endpoint_variant": target.endpoint_variant or ENDPOINT_VARIANT,
+                            "external_job_id": job_id,
+                            "lever_department": department,
+                        },
+                    )
+                )
+
+            if len(payload) > page_limit:
+                _mark_safety_limit(scan_metadata, pagination, "maximum_results_reached")
+                break
+            offset += len(payload)
+            if len(payload) < page_limit:
+                scan_metadata.update(
+                    scan_complete=True,
+                    scan_completeness_reason="natural_terminal_page",
+                    total_available=offset,
+                    stop_reason="natural_terminal_page",
+                )
+                pagination["stop_reason"] = "natural_terminal_page"
+                pagination["zero_job_contract"] = offset == 0
+                break
+            if len(jobs) >= maximum_results:
+                _mark_safety_limit(scan_metadata, pagination, "maximum_results_reached")
+                break
         else:
-            first = metadata["diagnostics"][0] if metadata["diagnostics"] else "unsupported schema"
-            raise AdapterError(f"Lever page contained postings but none were valid: {first}")
-    elif jobs and metadata["stop_reason"] == "not_started":
-        metadata["stop_reason"] = "bounded_collection"
-    metadata["jobs_normalized"] = len(jobs)
+            _mark_safety_limit(scan_metadata, pagination, "maximum_pages_reached")
+    except requests.RequestException:
+        scan_metadata["stop_reason"] = "request_failure"
+        scan_metadata["scan_completeness_reason"] = "pagination_failure"
+        pagination["stop_reason"] = "request_failure"
+        raise
+    except AdapterError:
+        if scan_metadata["stop_reason"] == "not_started":
+            scan_metadata["stop_reason"] = "pagination_failure"
+            scan_metadata["scan_completeness_reason"] = "pagination_failure"
+            pagination["stop_reason"] = "pagination_failure"
+        raise
+
+    if pagination["jobs_returned"] and not jobs and not allowed_departments:
+        first = pagination["diagnostics"][0] if pagination["diagnostics"] else "unsupported schema"
+        raise AdapterError(f"Lever page contained postings but none were valid: {first}")
+    if not jobs and allowed_departments and scan_metadata["scan_complete"]:
+        pagination["zero_job_contract"] = True
+    pagination["jobs_normalized"] = len(jobs)
     return jobs
+
+
+def _posting_id(item: Any) -> str:
+    if not isinstance(item, Mapping):
+        raise AdapterError("Lever malformed HTTP 200 response: posting is not an object")
+    return str(item.get("id", "") or "").strip()
+
+
+def _mark_safety_limit(
+    scan_metadata: SourceScanMetadata,
+    pagination: dict[str, Any],
+    stop_reason: str,
+) -> None:
+    scan_metadata["stop_reason"] = stop_reason
+    scan_metadata["scan_completeness_reason"] = "safety_limit_reached"
+    scan_metadata["safety_limit_reached"] = True
+    pagination["stop_reason"] = stop_reason
 
 
 def validate_target(target: CompanyTarget) -> None:
@@ -130,6 +224,8 @@ def validate_target(target: CompanyTarget) -> None:
         raise AdapterError(f"Lever unsupported variant: {target.endpoint_variant}")
     if not 1 <= int(target.max_jobs) <= MAX_RESULTS:
         raise AdapterError("Lever result limit exceeds the hard maximum")
+    if not 1 <= int(target.max_pages) <= MAX_PAGES:
+        raise AdapterError(f"Lever max_pages must be between 1 and {MAX_PAGES}")
     if not 1 <= int(target.max_response_bytes) <= MAX_RESPONSE_BYTES:
         raise AdapterError("Lever response byte limit exceeds the hard maximum")
     hosts = target.allowed_apply_hosts or ["jobs.lever.co"]

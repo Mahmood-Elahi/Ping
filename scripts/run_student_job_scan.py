@@ -164,6 +164,7 @@ def print_summary(summary: dict[str, Any] | None, *, dry_run: bool) -> None:
     print(f"  Companies checked: {summary['companies_checked']}")
     print(f"  Jobs fetched: {summary['jobs_fetched']}")
     print(f"  Jobs retained: {summary['jobs_retained']}")
+    print(f"  Source health: {summary.get('scan_health_counts', {})}")
     print(f"  Jobs excluded by seniority: {exclusions.get('seniority', 0)}")
     print(f"  Jobs excluded by student job type: {exclusions.get('job_type', 0)}")
     print(f"  Jobs excluded by location: {exclusions.get('location', 0)}")
@@ -283,7 +284,7 @@ def main(argv: list[str] | None = None) -> int:
             for result in report.results
             if result.status
             in {CoverageStatus.FETCHED, CoverageStatus.FETCHED_NO_MATCHING_ROLES}
-            and (freshness_runtime is None or result.scan_complete)
+            and result.scan_complete
         ]
         sync_result = job_store.sync_student_jobs(
             ranked_jobs,

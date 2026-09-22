@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Mapping, Optional
 
 
 class CoverageStatus:
@@ -21,6 +21,89 @@ class CoverageStatus:
 
 class AdapterError(Exception):
     """Raised when a career-site adapter cannot fetch or parse a response."""
+
+
+ADAPTER_SCAN_METADATA_ATTRIBUTE = "job_radar_scan_metadata"
+
+
+# These are enumeration safety budgets, not API page sizes or presentation
+# limits.  Adapters with fixed/native page sizes validate those independently.
+# Historical registry artifacts intentionally retain the original limits.
+# The active-registry loader asks ``CompanyTarget.from_dict`` to migrate only
+# the exact legacy values below, avoiding append-only rollout-data rewrites.
+ADAPTER_SAFETY_BUDGET_DEFAULTS: Dict[str, Dict[str, int]] = {
+    "ashby": {"max_pages": 1, "max_jobs": 10_000},
+    "greenhouse": {"max_pages": 1, "max_jobs": 10_000},
+    "lever": {"max_pages": 25, "max_jobs": 500},
+    "phenom": {"max_pages": 50, "max_jobs": 500},
+    "sap_successfactors": {"max_pages": 20, "max_jobs": 500},
+    "workday": {"max_pages": 25, "max_jobs": 500},
+}
+
+LEGACY_ADAPTER_SAFETY_BUDGETS: Dict[str, Dict[str, set[int]]] = {
+    platform: {"max_pages": {1, 2}, "max_jobs": {20}}
+    for platform in ADAPTER_SAFETY_BUDGET_DEFAULTS
+}
+
+
+def _adapter_safety_budget(
+    data: Mapping[str, Any],
+    platform: str,
+    field_name: str,
+    fallback: int,
+    *,
+    migrate_legacy: bool,
+) -> int:
+    configured = data.get(field_name)
+    defaults = ADAPTER_SAFETY_BUDGET_DEFAULTS.get(platform)
+    if defaults is None:
+        return int(configured or fallback)
+    if configured is None and migrate_legacy:
+        return defaults[field_name]
+    if configured is None:
+        return fallback
+    value = int(configured)
+    legacy_values = LEGACY_ADAPTER_SAFETY_BUDGETS[platform][field_name]
+    return defaults[field_name] if migrate_legacy and value in legacy_values else value
+
+
+class SourceScanMetadata(dict[str, Any]):
+    """Serializable adapter evidence describing whether enumeration completed."""
+
+    def __init__(self, **values: Any) -> None:
+        super().__init__(
+            scan_complete=False,
+            scan_completeness_reason="adapter_completeness_not_proven",
+            total_available=None,
+            pages_requested=0,
+            pages_completed=0,
+            stop_reason="not_started",
+            safety_limit_reached=False,
+        )
+        self.update(values)
+
+    @classmethod
+    def from_value(cls, value: Any) -> "SourceScanMetadata":
+        if isinstance(value, cls):
+            return value
+        if isinstance(value, Mapping):
+            return cls(**dict(value))
+        return cls()
+
+
+def publish_source_scan_metadata(session: Any, metadata: SourceScanMetadata) -> None:
+    setattr(session, ADAPTER_SCAN_METADATA_ATTRIBUTE, metadata)
+
+
+def clear_source_scan_metadata(session: Any) -> None:
+    if hasattr(session, ADAPTER_SCAN_METADATA_ATTRIBUTE):
+        delattr(session, ADAPTER_SCAN_METADATA_ATTRIBUTE)
+
+
+def source_scan_metadata(session: Any) -> SourceScanMetadata:
+    return SourceScanMetadata.from_value(
+        getattr(session, ADAPTER_SCAN_METADATA_ATTRIBUTE, None)
+    )
 
 
 def _clean_list(values: Optional[List[Any]]) -> List[str]:
@@ -159,10 +242,16 @@ class CompanyTarget:
     page_size: int = 10
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "CompanyTarget":
+    def from_dict(
+        cls,
+        data: Dict[str, Any],
+        *,
+        apply_legacy_safety_defaults: bool = False,
+    ) -> "CompanyTarget":
+        platform = str(data["platform"])
         return cls(
             name=str(data["name"]),
-            platform=str(data["platform"]),
+            platform=platform,
             slug=data.get("slug"),
             tenant=data.get("tenant"),
             wd_subdomain=data.get("wd_subdomain"),
@@ -229,8 +318,20 @@ class CompanyTarget:
             apply_url_template=data.get("apply_url_template"),
             apply_url_id_query_param=data.get("apply_url_id_query_param"),
             search_terms=list(data.get("search_terms") or []),
-            max_pages=int(data.get("max_pages") or 5),
-            max_jobs=int(data.get("max_jobs") or 20),
+            max_pages=_adapter_safety_budget(
+                data,
+                platform,
+                "max_pages",
+                5,
+                migrate_legacy=apply_legacy_safety_defaults,
+            ),
+            max_jobs=_adapter_safety_budget(
+                data,
+                platform,
+                "max_jobs",
+                20,
+                migrate_legacy=apply_legacy_safety_defaults,
+            ),
             page_size=int(data.get("page_size") or 10),
         )
 
@@ -247,12 +348,26 @@ class CompanyScanResult:
     fetched_count: int = 0
     scan_complete: bool = False
     scan_completeness_reason: str = "not_established"
+    total_available: Optional[int] = None
+    pages_requested: int = 0
+    pages_completed: int = 0
+    stop_reason: str = "not_started"
+    safety_limit_reached: bool = False
     exclusion_counts: Dict[str, int] = field(default_factory=dict)
     mapped_child_brand_counts: Dict[str, int] = field(default_factory=dict)
 
     @property
     def matched_count(self) -> int:
         return len(self.jobs)
+
+    @property
+    def scan_health(self) -> str:
+        if self.status in {
+            CoverageStatus.FETCHED,
+            CoverageStatus.FETCHED_NO_MATCHING_ROLES,
+        }:
+            return "complete" if self.scan_complete else "incomplete"
+        return "failed"
 
     def to_coverage_dict(self) -> Dict[str, Any]:
         return {
@@ -265,7 +380,13 @@ class CompanyScanResult:
             "status": self.status,
             "fetched_count": self.fetched_count,
             "scan_complete": self.scan_complete,
+            "scan_health": self.scan_health,
             "scan_completeness_reason": self.scan_completeness_reason,
+            "total_available": self.total_available,
+            "pages_requested": self.pages_requested,
+            "pages_completed": self.pages_completed,
+            "stop_reason": self.stop_reason,
+            "safety_limit_reached": self.safety_limit_reached,
             "matched_count": self.matched_count,
             "exclusion_counts": dict(self.exclusion_counts),
             "error": self.error,

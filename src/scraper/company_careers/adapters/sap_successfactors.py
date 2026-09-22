@@ -19,12 +19,18 @@ from urllib.parse import parse_qsl, quote, unquote, urljoin, urlparse, urlunpars
 
 import requests
 
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
 
 
 PAGE_SIZE = 25
 MAX_TILE_PAGE_SIZE = 100
-MAX_PAGES = 5
+MAX_PAGES = 20
 MAX_RESULTS = PAGE_SIZE * MAX_PAGES
 MAX_TIMEOUT_SECONDS = 30
 MAX_ATTEMPTS = 2
@@ -100,31 +106,100 @@ def fetch_jobs(
     timeout: int = 20,
 ) -> List[JobRecord]:
     """Fetch a bounded, deterministically ordered public RMK job collection."""
-    validate_target(target)
-    timeout = max(1, min(int(timeout), MAX_TIMEOUT_SECONDS))
-    if target.endpoint_variant == COLUMNIZED_VARIANT:
-        return _fetch_columnized_jobs(session, target, timeout)
+    metadata = _new_scan_metadata(target)
+    publish_source_scan_metadata(session, metadata)
+    # Keep the adapter-specific diagnostics contract used by registry validation.
+    setattr(session, "sap_successfactors_pagination", metadata)
+    try:
+        validate_target(target)
+        timeout = max(1, min(int(timeout), MAX_TIMEOUT_SECONDS))
+        if target.endpoint_variant == COLUMNIZED_VARIANT:
+            return _fetch_columnized_jobs(session, target, timeout, metadata)
+        return _fetch_html_jobs(session, target, timeout, metadata)
+    except requests.RequestException:
+        metadata["stop_reason"] = "request_failure"
+        metadata["scan_completeness_reason"] = "pagination_failure"
+        raise
+    except AdapterError as exc:
+        _record_adapter_failure(metadata, exc)
+        raise
+
+
+def _new_scan_metadata(target: CompanyTarget) -> SourceScanMetadata:
+    page_size = (
+        COLUMNIZED_PAGE_SIZE
+        if target.endpoint_variant == COLUMNIZED_VARIANT
+        else PAGE_SIZE
+    )
+    maximum_results = (
+        int(target.max_jobs)
+        if target.endpoint_variant == COLUMNIZED_VARIANT
+        else min(MAX_RESULTS, max(1, int(target.max_pages)) * page_size)
+    )
+    return SourceScanMetadata(
+        endpoint_variant=target.endpoint_variant,
+        request_method="POST" if target.endpoint_variant == COLUMNIZED_VARIANT else "GET",
+        page_size=page_size,
+        maximum_pages=max(1, int(target.max_pages)),
+        maximum_results=maximum_results,
+        pages_fetched=0,
+        jobs_normalized=0,
+        offsets=[],
+        pages=[],
+        diagnostics=[],
+    )
+
+
+def _record_adapter_failure(
+    metadata: SourceScanMetadata, exc: AdapterError
+) -> None:
+    if metadata["stop_reason"] != "not_started":
+        return
+    message = str(exc).casefold()
+    if "total" in message or "result metadata" in message:
+        reason = "malformed_total"
+    elif "http " in message:
+        reason = "http_error"
+    elif any(
+        marker in message
+        for marker in ("malformed", "empty http", "missing searchresults", "was not html")
+    ):
+        reason = "malformed_response"
+    elif metadata["pages_completed"]:
+        reason = "pagination_failure"
+    else:
+        reason = "adapter_failure"
+    metadata["stop_reason"] = reason
+    metadata["scan_completeness_reason"] = reason
+
+
+def _mark_safety_limit(metadata: SourceScanMetadata, stop_reason: str) -> None:
+    metadata["stop_reason"] = stop_reason
+    metadata["scan_completeness_reason"] = "safety_limit_reached"
+    metadata["safety_limit_reached"] = True
+
+
+def _mark_complete(metadata: SourceScanMetadata, *, zero: bool = False) -> None:
+    metadata["scan_complete"] = True
+    metadata["scan_completeness_reason"] = "reported_total_reached"
+    metadata["stop_reason"] = "validated_zero_jobs" if zero else "reported_total_reached"
+
+
+def _fetch_html_jobs(
+    session: requests.Session,
+    target: CompanyTarget,
+    timeout: int,
+    metadata: SourceScanMetadata,
+) -> List[JobRecord]:
     max_pages = max(1, int(target.max_pages))
     if max_pages > MAX_PAGES:
         raise AdapterError(f"SAP SuccessFactors max_pages cannot exceed {MAX_PAGES}")
 
-    metadata: dict[str, Any] = {
-        "endpoint_variant": target.endpoint_variant,
-        "pages_fetched": 0,
-        "page_size": PAGE_SIZE,
-        "maximum_pages": max_pages,
-        "maximum_results": min(MAX_RESULTS, max_pages * PAGE_SIZE),
-        "total_available": None,
-        "jobs_normalized": 0,
-        "offsets": [],
-        "pages": [],
-        "stop_reason": "not_started",
-        "diagnostics": [],
-    }
-    setattr(session, "sap_successfactors_pagination", metadata)
-
     jobs: list[JobRecord] = []
     seen_ids: set[str] = set()
+    seen_source_ids: set[str] = set()
+    seen_page_signatures: set[tuple[str, ...]] = set()
+    duplicate_source_id = False
     current_offset = 0
     next_request: Optional[tuple[str, Optional[dict[str, str]]]] = (
         str(target.search_url),
@@ -136,6 +211,7 @@ def fetch_jobs(
             break
         offset = current_offset
         url, params = next_request
+        metadata["pages_requested"] += 1
         response = _get_page(session, target, url, params, offset, timeout)
         page = _parse_page(
             response,
@@ -144,9 +220,11 @@ def fetch_jobs(
             expected_page_size=(metadata["page_size"] if page_index else None),
         )
 
-        if metadata["total_available"] is None:
+        if page.total is not None and metadata["total_available"] is None:
             metadata["total_available"] = page.total
         elif page.total is not None and page.total != metadata["total_available"]:
+            metadata["stop_reason"] = "inconsistent_total"
+            metadata["scan_completeness_reason"] = "inconsistent_total"
             raise AdapterError("SAP SuccessFactors total job count changed during pagination")
         if page_index == 0:
             metadata["page_size"] = page.page_size
@@ -157,8 +235,28 @@ def fetch_jobs(
         elif page.page_size != metadata["page_size"]:
             raise AdapterError("SAP SuccessFactors page size changed during pagination")
 
+        source_ids = tuple(_source_item_identity(item) for item in page.items)
+        if page.items and (not all(source_ids) or source_ids in seen_page_signatures):
+            metadata["stop_reason"] = "repeated_page" if all(source_ids) else "missing_source_identity"
+            metadata["scan_completeness_reason"] = "pagination_failure"
+            raise AdapterError(
+                "SAP SuccessFactors pagination repeated a page"
+                if all(source_ids)
+                else "SAP SuccessFactors job row has no stable source identity"
+            )
+        if page.items:
+            seen_page_signatures.add(source_ids)
+
         normalized_count = 0
         for item in page.items:
+            source_id = _source_item_identity(item)
+            if source_id in seen_source_ids:
+                duplicate_source_id = True
+                metadata["diagnostics"].append(
+                    {"offset": offset, "error": f"Duplicate source job ID: {source_id}"}
+                )
+                continue
+            seen_source_ids.add(source_id)
             try:
                 job = _normalize_item(item, target)
             except AdapterError as exc:
@@ -177,7 +275,7 @@ def fetch_jobs(
             if len(jobs) >= metadata["maximum_results"]:
                 break
 
-        if page.items and normalized_count == 0:
+        if page.items and normalized_count == 0 and not duplicate_source_id:
             raise AdapterError("SAP SuccessFactors page contained jobs but none were valid")
         if page.total and offset < page.total and not page.items:
             raise AdapterError("SAP SuccessFactors response ended before its reported total job count")
@@ -191,19 +289,25 @@ def fetch_jobs(
             }
         )
         metadata["pages_fetched"] = len(metadata["pages"])
+        metadata["pages_completed"] += 1
         metadata["offsets"].append(offset)
         metadata["jobs_normalized"] = len(jobs)
 
         effective_total = metadata["total_available"]
         if effective_total == 0:
-            metadata["stop_reason"] = "validated_zero_jobs"
+            _mark_complete(metadata, zero=True)
             next_request = None
         elif effective_total is not None and offset + len(page.items) >= effective_total:
-            metadata["stop_reason"] = "total_jobs_reached"
+            if len(seen_source_ids) == effective_total and not duplicate_source_id:
+                _mark_complete(metadata)
+            else:
+                metadata["stop_reason"] = "repeated_job_id"
+                metadata["scan_completeness_reason"] = "pagination_failure"
             next_request = None
         elif len(page.items) < page.page_size:
-            metadata["stop_reason"] = "short_page"
-            next_request = None
+            metadata["stop_reason"] = "malformed_total"
+            metadata["scan_completeness_reason"] = "malformed_total"
+            raise AdapterError("SAP SuccessFactors response ended before its reported total job count")
         else:
             next_request = page.next_request
             if (
@@ -222,9 +326,9 @@ def fetch_jobs(
             time.sleep(PAGE_DELAY_SECONDS)
 
     if next_request is not None and metadata["pages_fetched"] >= max_pages:
-        metadata["stop_reason"] = "maximum_pages_reached"
+        _mark_safety_limit(metadata, "maximum_pages_reached")
     elif metadata["stop_reason"] == "not_started" and len(jobs) >= MAX_RESULTS:
-        metadata["stop_reason"] = "maximum_results_reached"
+        _mark_safety_limit(metadata, "maximum_results_reached")
     return jobs
 
 
@@ -289,6 +393,7 @@ def _fetch_columnized_jobs(
     session: requests.Session,
     target: CompanyTarget,
     timeout: int,
+    metadata: SourceScanMetadata,
 ) -> List[JobRecord]:
     """Use the public JSON service defined by the standard columnized RMK client."""
     identity_response = _get_page(
@@ -319,44 +424,72 @@ def _fetch_columnized_jobs(
     seen: set[str] = set()
     seen_fingerprints: dict[str, str] = {}
     observed_total: Optional[int] = None
-    metadata: dict[str, Any] = {
-        "endpoint_variant": COLUMNIZED_VARIANT,
-        "request_method": "POST",
-        "page_size": COLUMNIZED_PAGE_SIZE,
-        "maximum_pages": max_pages,
-        "maximum_results": limit,
-        "pages": [],
-        "jobs_normalized": 0,
-        "stop_reason": "not_started",
-    }
-    setattr(session, "sap_successfactors_pagination", metadata)
+    duplicate_source_id = False
+    seen_page_signatures: set[tuple[str, ...]] = set()
 
     for page_number in range(max_pages):
         if len(jobs) >= limit:
-            metadata["stop_reason"] = "maximum_results_reached"
+            _mark_safety_limit(metadata, "maximum_results_reached")
             break
-        response = session.post(
-            str(target.endpoint_url),
-            headers=headers,
-            json={
-                "keywords": "",
-                "locale": str(target.locale),
-                "location": "",
-                "pageNumber": page_number,
-                "sortBy": "recent",
-            },
-            timeout=timeout,
-        )
-        payload = _columnized_json(response, target, page_number)
+        metadata["pages_requested"] += 1
+        try:
+            response = session.post(
+                str(target.endpoint_url),
+                headers=headers,
+                json={
+                    "keywords": "",
+                    "locale": str(target.locale),
+                    "location": "",
+                    "pageNumber": page_number,
+                    "sortBy": "recent",
+                },
+                timeout=timeout,
+            )
+            payload = _columnized_json(response, target, page_number)
+        except requests.RequestException:
+            metadata["stop_reason"] = "request_failure"
+            metadata["scan_completeness_reason"] = "pagination_failure"
+            raise
+        except AdapterError as exc:
+            message = str(exc).casefold()
+            if "totaljobs" in message:
+                metadata["stop_reason"] = "malformed_total"
+            elif "http " in message:
+                metadata["stop_reason"] = "http_error"
+            else:
+                metadata["stop_reason"] = "malformed_response"
+            metadata["scan_completeness_reason"] = metadata["stop_reason"]
+            raise
         rows = payload["jobSearchResult"]
         total = payload["totalJobs"]
         if observed_total is None:
             observed_total = total
+            metadata["total_available"] = total
         elif total != observed_total:
+            metadata["stop_reason"] = "inconsistent_total"
+            metadata["scan_completeness_reason"] = "inconsistent_total"
             raise AdapterError("SAP SuccessFactors total job count changed during pagination")
         offset = page_number * COLUMNIZED_PAGE_SIZE
+        if total < offset + len(rows):
+            metadata["stop_reason"] = "malformed_total"
+            metadata["scan_completeness_reason"] = "malformed_total"
+            raise AdapterError("SAP SuccessFactors columnized page exceeded the reported total")
         if total > offset and not rows:
+            metadata["stop_reason"] = "malformed_total"
+            metadata["scan_completeness_reason"] = "malformed_total"
             raise AdapterError("SAP SuccessFactors columnized results ended before the reported total")
+
+        page_ids = tuple(_columnized_row_identity(envelope) for envelope in rows)
+        if rows and (not all(page_ids) or page_ids in seen_page_signatures):
+            metadata["stop_reason"] = "repeated_page" if all(page_ids) else "pagination_failure"
+            metadata["scan_completeness_reason"] = "pagination_failure"
+            raise AdapterError(
+                "SAP SuccessFactors columnized pagination repeated a complete page"
+                if all(page_ids)
+                else "SAP SuccessFactors columnized result envelope is malformed"
+            )
+        if rows:
+            seen_page_signatures.add(page_ids)
 
         page_new_ids = 0
         for envelope in rows:
@@ -370,6 +503,7 @@ def _fetch_columnized_jobs(
             if external_id in seen:
                 if seen_fingerprints.get(external_id) != fingerprint:
                     raise AdapterError(f"SAP SuccessFactors conflicting repeated stable job ID: {external_id}")
+                duplicate_source_id = True
                 metadata.setdefault("duplicate_ids_skipped", []).append(external_id)
                 continue
             title = _clean_text(row.get("unifiedStandardTitle"))
@@ -401,19 +535,42 @@ def _fetch_columnized_jobs(
             if len(jobs) >= limit:
                 break
         if rows and page_new_ids == 0:
+            metadata["stop_reason"] = "repeated_page"
+            metadata["scan_completeness_reason"] = "pagination_failure"
             raise AdapterError("SAP SuccessFactors columnized pagination repeated a complete page")
         metadata["pages"].append(
             {"page_number": page_number, "offset": offset, "jobs_returned": len(rows)}
         )
+        metadata["pages_fetched"] = len(metadata["pages"])
+        metadata["pages_completed"] += 1
+        metadata["offsets"].append(offset)
         metadata["jobs_normalized"] = len(jobs)
         if offset + len(rows) >= total:
-            metadata["stop_reason"] = "total_jobs_reached"
+            if len(seen) == total and not duplicate_source_id:
+                _mark_complete(metadata, zero=total == 0)
+            else:
+                metadata["stop_reason"] = "repeated_job_id"
+                metadata["scan_completeness_reason"] = "pagination_failure"
+            break
+        if len(rows) < COLUMNIZED_PAGE_SIZE:
+            metadata["stop_reason"] = "malformed_total"
+            metadata["scan_completeness_reason"] = "malformed_total"
+            raise AdapterError("SAP SuccessFactors columnized results ended before the reported total")
+        if len(jobs) >= limit:
+            _mark_safety_limit(metadata, "maximum_results_reached")
             break
     else:
-        metadata["stop_reason"] = "maximum_pages_reached"
-    metadata["total_available"] = observed_total
+        _mark_safety_limit(metadata, "maximum_pages_reached")
     jobs.sort(key=lambda job: (job.updated_at, job.job_id), reverse=True)
     return jobs
+
+
+def _columnized_row_identity(envelope: Any) -> str:
+    row = envelope.get("response") if isinstance(envelope, Mapping) else None
+    if not isinstance(row, Mapping):
+        return ""
+    value = str(row.get("id") or "").strip()
+    return value if re.fullmatch(r"[0-9]{1,18}", value) else ""
 
 
 def _columnized_json(response: Any, target: CompanyTarget, page_number: int) -> Mapping[str, Any]:
@@ -660,7 +817,15 @@ def _parse_table_page(
     result_range = _table_result_range(root)
     if result_range is None:
         raise AdapterError("SAP SuccessFactors table response is missing total-result metadata")
-    _, result_end, total = result_range
+    result_start, result_end, total = result_range
+    expected_start = 0 if total == 0 else offset + 1
+    if (
+        result_start != expected_start
+        or result_end != offset + len(items)
+        or result_end > total
+        or (total > offset and not items)
+    ):
+        raise AdapterError("SAP SuccessFactors table response has impossible result metadata")
     page_size = expected_page_size or (
         PAGE_SIZE
         if total == 0
@@ -707,6 +872,9 @@ def _parse_tile_page(
     size_match = re.search(r'jobRecordsPerPage\s*:\s*parseInt\("(\d+)"\)', raw_html)
     if not lists or not total_match or not size_match:
         raise AdapterError("SAP SuccessFactors tile response is missing result metadata")
+    returned_value = lists[0].attrs.get("data-record-returned", "")
+    if not returned_value.isdigit() or int(returned_value) != len(items):
+        raise AdapterError("SAP SuccessFactors tile response has impossible result metadata")
     page_size = int(size_match.group(1))
     if not 1 <= page_size <= MAX_TILE_PAGE_SIZE:
         raise AdapterError("SAP SuccessFactors tile response has an unsupported page size")
@@ -826,6 +994,24 @@ def _normalize_item(item: Mapping[str, Any], target: CompanyTarget) -> JobRecord
             "fields": normalized_fields,
         },
     )
+
+
+def _source_item_identity(item: Mapping[str, Any]) -> str:
+    """Return the source-level row identity independently of normalization."""
+    path = urlparse(unescape(str(item.get("href") or ""))).path
+    match = re.search(r"/([0-9]+)/?$", path)
+    if match:
+        return match.group(1)
+    fields = item.get("fields") if isinstance(item.get("fields"), Mapping) else {}
+    for label, values in fields.items():
+        if _clean_text(label).casefold() not in {"requisition id", "job id"}:
+            continue
+        candidates = values if isinstance(values, list) else [values]
+        for value in candidates:
+            candidate = _clean_text(value)
+            if candidate and len(candidate) <= 80:
+                return candidate.casefold()
+    return ""
 
 
 def _official_apply_url(search_url: str, href: Any) -> str:

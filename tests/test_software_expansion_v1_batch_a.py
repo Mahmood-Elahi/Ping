@@ -232,7 +232,8 @@ class SoftwareExpansionV1BatchAAdapterTests(unittest.TestCase):
             ashby.fetch_jobs(FakeSession(payload), target)
         with self.assertRaisesRegex(AdapterError, "cannot exceed"):
             ashby.fetch_jobs(FakeSession({"jobs": []}), CompanyTarget(
-                name="Example", platform="ashby", slug="example", max_jobs=21,
+                name="Example", platform="ashby", slug="example",
+                max_jobs=ashby.MAX_RESULTS + 1,
                 allowed_apply_hosts=["jobs.ashbyhq.com"],
             ))
 

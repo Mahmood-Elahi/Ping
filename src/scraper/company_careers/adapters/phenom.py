@@ -17,13 +17,19 @@ from urllib.parse import parse_qs, quote, urljoin, urlparse, urlunparse
 
 import requests
 
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
 
 
 EMBEDDED_REFINE_SEARCH_VARIANT = "embedded_refine_search"
 SUPPORTED_VARIANTS = {EMBEDDED_REFINE_SEARCH_VARIANT}
 PAGE_SIZE = 10
-MAX_PAGES = 5
+MAX_PAGES = 50
 MAX_RESULTS = PAGE_SIZE * MAX_PAGES
 MAX_TIMEOUT_SECONDS = 30
 CONNECT_TIMEOUT_SECONDS = 5
@@ -61,21 +67,22 @@ def fetch_jobs(
         raise AdapterError(f"Phenom max_pages cannot exceed {MAX_PAGES}")
     read_timeout = min(max(1, int(timeout)), MAX_TIMEOUT_SECONDS)
     request_timeout = (min(CONNECT_TIMEOUT_SECONDS, read_timeout), read_timeout)
-    maximum_results = min(MAX_RESULTS, max_pages * PAGE_SIZE)
-    metadata: dict[str, Any] = {
-        "endpoint_variant": target.endpoint_variant,
-        "request_method": "GET",
-        "page_size": PAGE_SIZE,
-        "maximum_pages": max_pages,
-        "maximum_results": maximum_results,
-        "total_available": None,
-        "jobs_normalized": 0,
-        "offsets": [],
-        "pages": [],
-        "stop_reason": "not_started",
-        "diagnostics": [],
-    }
+    maximum_results = min(MAX_RESULTS, int(target.max_jobs), max_pages * PAGE_SIZE)
+    metadata = SourceScanMetadata(
+        endpoint_variant=target.endpoint_variant,
+        request_method="GET",
+        page_size=PAGE_SIZE,
+        maximum_pages=max_pages,
+        maximum_results=maximum_results,
+        total_available=None,
+        jobs_normalized=0,
+        offsets=[],
+        pages=[],
+        stop_reason="not_started",
+        diagnostics=[],
+    )
     setattr(session, "phenom_pagination", metadata)
+    publish_source_scan_metadata(session, metadata)
 
     jobs: list[JobRecord] = []
     seen_job_ids: set[str] = set()
@@ -84,21 +91,37 @@ def fetch_jobs(
     for page_index in range(max_pages):
         if len(jobs) >= maximum_results:
             metadata["stop_reason"] = "maximum_results_reached"
+            metadata["scan_completeness_reason"] = "safety_limit_reached"
+            metadata["safety_limit_reached"] = True
             break
         offset = page_index * PAGE_SIZE
         params = {} if offset == 0 else {"from": str(offset), "s": "1"}
-        response = _get_page(session, target, params, request_timeout)
-        items, total, hits, response_config = _parse_page(response, target, offset)
+        metadata["pages_requested"] += 1
+        try:
+            response = _get_page(session, target, params, request_timeout)
+            items, total, hits, response_config = _parse_page(response, target, offset)
+        except Exception as exc:
+            message = str(exc).casefold()
+            if metadata["stop_reason"] == "not_started":
+                metadata["stop_reason"] = (
+                    "malformed_total" if "total" in message else "pagination_failure"
+                )
+            metadata["scan_completeness_reason"] = metadata["stop_reason"]
+            raise
 
         if metadata["total_available"] is None:
             metadata["total_available"] = total
         elif total != metadata["total_available"]:
+            metadata["stop_reason"] = "inconsistent_total"
+            metadata["scan_completeness_reason"] = "inconsistent_total"
             raise AdapterError("Phenom total job count changed during pagination")
 
         page_ids = tuple(_item_identity(item) for item in items)
         if items and page_ids in seen_page_ids:
             _record_page(metadata, response, offset, len(items), 0, hits, response_config)
+            metadata["pages_completed"] += 1
             metadata["stop_reason"] = "repeated_page"
+            metadata["scan_completeness_reason"] = "pagination_failure"
             break
         seen_page_ids.add(page_ids)
 
@@ -125,33 +148,48 @@ def fetch_jobs(
                 break
 
         if items and normalized_count == 0:
+            metadata["stop_reason"] = "pagination_failure"
+            metadata["scan_completeness_reason"] = "pagination_failure"
             raise AdapterError("Phenom page contained jobs but none were valid")
 
         _record_page(metadata, response, offset, len(items), new_id_count, hits, response_config)
+        metadata["pages_completed"] += 1
         metadata["jobs_normalized"] = len(jobs)
 
         if total == 0:
             metadata["stop_reason"] = "validated_zero_jobs"
+            metadata["scan_complete"] = True
+            metadata["scan_completeness_reason"] = "reported_total_reached"
             break
         if items and new_id_count == 0:
             metadata["stop_reason"] = "no_new_stable_ids"
+            metadata["scan_completeness_reason"] = "pagination_failure"
             break
         if offset + len(items) >= total:
             metadata["stop_reason"] = "total_jobs_reached"
+            metadata["scan_complete"] = True
+            metadata["scan_completeness_reason"] = "reported_total_reached"
             break
         if len(items) < PAGE_SIZE:
-            metadata["stop_reason"] = "short_page"
-            break
+            metadata["stop_reason"] = "malformed_total"
+            metadata["scan_completeness_reason"] = "malformed_total"
+            raise AdapterError("Phenom response ended before its reported total job count")
         if len(jobs) >= maximum_results:
             metadata["stop_reason"] = "maximum_results_reached"
+            metadata["scan_completeness_reason"] = "safety_limit_reached"
+            metadata["safety_limit_reached"] = True
             break
         if page_index + 1 < max_pages:
             time.sleep(PAGE_DELAY_SECONDS)
     else:
         metadata["stop_reason"] = "maximum_pages_reached"
+        metadata["scan_completeness_reason"] = "safety_limit_reached"
+        metadata["safety_limit_reached"] = True
 
     if metadata["stop_reason"] == "not_started":
         metadata["stop_reason"] = "maximum_pages_reached"
+        metadata["scan_completeness_reason"] = "safety_limit_reached"
+        metadata["safety_limit_reached"] = True
     return jobs
 
 

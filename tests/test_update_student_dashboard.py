@@ -87,8 +87,9 @@ class FakePublisher:
 
 
 class FakeResponse:
-    def __init__(self, data):
+    def __init__(self, data, *, count=None):
         self.data = data
+        self.count = count
 
 
 class FakeSelectQuery:
@@ -97,8 +98,8 @@ class FakeSelectQuery:
         self.data = data
         self.calls = []
 
-    def select(self, columns):
-        self.calls.append(("select", columns))
+    def select(self, columns, *, count=None):
+        self.calls.append(("select", columns, count))
         return self
 
     def eq(self, column, value):
@@ -113,9 +114,13 @@ class FakeSelectQuery:
         self.calls.append(("limit", count))
         return self
 
+    def range(self, start, end):
+        self.calls.append(("range", start, end))
+        return self
+
     def execute(self):
         self.calls.append(("execute",))
-        return FakeResponse(self.data)
+        return FakeResponse(self.data, count=len(self.data))
 
 
 class FakeDashboardClient:
@@ -154,6 +159,8 @@ class UpdateStudentDashboardTests(unittest.TestCase):
             jobs=[self.job],
             status=CoverageStatus.FETCHED,
             fetched_count=2,
+            scan_complete=True,
+            scan_completeness_reason="reported_total_reached",
             exclusion_counts={"job_type": 1},
         )
         self.report = CompanyCareersReport(results=[result])
@@ -365,6 +372,23 @@ class UpdateStudentDashboardTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         self.assertEqual(store.sync_calls[0][1]["successful_companies"], ["Example"])
+
+    def test_incomplete_company_never_advances_lifecycle_without_freshness(self):
+        self.report.results[0].scan_complete = False
+        self.report.results[0].scan_completeness_reason = "safety_limit_reached"
+        pipeline = FakePipeline(self.report, self.summary)
+        store = FakeStore()
+
+        with (
+            patch.object(dashboard, "load_target_companies", return_value=[self.target]),
+            patch.object(dashboard, "build_pipeline", return_value=pipeline),
+            patch.object(dashboard.SupabaseJobStore, "from_env", return_value=store),
+            redirect_stdout(io.StringIO()),
+        ):
+            exit_code = dashboard.main(["--skip-sheets", "--no-freshness"])
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(store.sync_calls[0][1]["successful_companies"], [])
 
     def test_real_pipeline_builder_routes_timing_to_ranked_writer_not_filter(self):
         args = dashboard.parse_args(["--audit"])

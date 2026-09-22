@@ -18,8 +18,9 @@ from src.utils.job_search_pipeline import JobSearchPipeline
 
 
 class FakeResponse:
-    def __init__(self, data):
+    def __init__(self, data, *, count=None):
         self.data = data
+        self.count = count
 
 
 class FakeRequest:
@@ -34,7 +35,16 @@ class FailingQuery:
     def __init__(self, error):
         self.error = error
 
-    def select(self, _columns):
+    def select(self, _columns, **_kwargs):
+        return self
+
+    def eq(self, _field, _value):
+        return self
+
+    def order(self, _field, desc=False):
+        return self
+
+    def range(self, _start, _end):
         return self
 
     def limit(self, _count):
@@ -62,15 +72,19 @@ class FakeTable:
         self.filters = []
         self.row_limit = None
         self.row_range = None
+        self.orderings = []
+        self.request_count = False
 
-    def select(self, _columns):
+    def select(self, _columns, *, count=None):
+        self.request_count = count == "exact"
         return self
 
     def eq(self, field, value):
         self.filters.append((field, value))
         return self
 
-    def order(self, _field, desc=False):
+    def order(self, field, desc=False):
+        self.orderings.append((field, desc))
         return self
 
     def limit(self, count):
@@ -79,6 +93,7 @@ class FakeTable:
 
     def range(self, start, end):
         self.row_range = (start, end)
+        self.client.range_calls.setdefault(self.name, []).append((start, end))
         return self
 
     def execute(self):
@@ -92,12 +107,20 @@ class FakeTable:
             rows = []
         for field, value in self.filters:
             rows = [row for row in rows if row.get(field) == value]
+        total_count = len(rows)
+        for field, desc in reversed(self.orderings):
+            rows.sort(
+                key=lambda row: (row.get(field) is not None, row.get(field)),
+                reverse=desc,
+            )
         if self.row_range is not None:
             start, end = self.row_range
             rows = rows[start : end + 1]
+        elif self.name == "tracked_jobs":
+            rows = rows[:1000]
         if self.row_limit is not None:
             rows = rows[: self.row_limit]
-        return FakeResponse(rows)
+        return FakeResponse(rows, count=total_count if self.request_count else None)
 
     def insert(self, row):
         def perform_insert():
@@ -162,8 +185,9 @@ class FakeSupabaseClient:
         self.tracked_jobs = {}
         self.scan_runs = []
         self.applications = {}
-        self.rpc_calls = []
         self.source_syncs = {}
+        self.rpc_calls = []
+        self.range_calls = {}
 
     def rpc(self, name, params):
         if name != "sync_student_job_source":
@@ -578,6 +602,44 @@ class SupabaseJobStoreTests(unittest.TestCase):
             self.client.tracked_jobs[payload["source_key"]] = payload
         state = self.store.fetch_lifecycle_state()
         self.assertEqual(len(state["jobs"]), 2501)
+
+    def test_dashboard_data_paginates_all_active_ranked_rows(self):
+        for row_count in (999, 1000, 1001, 3007):
+            with self.subTest(row_count=row_count):
+                client = FakeSupabaseClient()
+                store = SupabaseJobStore(client, now_factory=self.clock)
+                for index in range(row_count):
+                    client.tracked_jobs[f"key-{index:04d}"] = {
+                        "source_key": f"key-{index:04d}",
+                        "company": "Example",
+                        "title": f"Job {index}",
+                        "status": "active",
+                        "is_ranked_output": True,
+                        "relevance_score": 100 - (index % 5),
+                        "first_seen_at": f"2026-08-{(index % 28) + 1:02d}T00:00:00Z",
+                        "raw_data": {},
+                    }
+
+                dashboard = store.fetch_dashboard_data()
+
+                keys = [row["source_key"] for row in dashboard.active_jobs]
+                self.assertEqual(len(keys), row_count)
+                self.assertEqual(len(set(keys)), row_count)
+                expected = list(client.tracked_jobs.values())
+                expected.sort(key=lambda row: row["source_key"])
+                expected.sort(key=lambda row: row["first_seen_at"], reverse=True)
+                expected.sort(key=lambda row: row["relevance_score"], reverse=True)
+                self.assertEqual(
+                    keys,
+                    [row["source_key"] for row in expected],
+                )
+                self.assertEqual(
+                    client.range_calls["tracked_jobs"],
+                    [
+                        (offset, offset + 999)
+                        for offset in range(0, row_count + 1, 1000)
+                    ],
+                )
 
     def test_timeout_is_retried_with_same_idempotency_key(self):
         client = SequencedSupabaseClient([TimeoutError("read timed out"), None])

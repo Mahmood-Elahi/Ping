@@ -283,6 +283,10 @@ class JobSearchPipeline:
             "original_list_total": report.original_coverage.get("original_list_total", 0),
             "jobs_fetched": sum(item.fetched_count for item in report.results),
             "jobs_retained": len(report.jobs),
+            "scan_health_counts": {
+                state: sum(1 for item in report.results if item.scan_health == state)
+                for state in ("complete", "incomplete", "failed")
+            },
             "exclusion_counts": exclusion_counts,
             "database_inserts": successful_saves,
             "existing_duplicates": skipped_existing,

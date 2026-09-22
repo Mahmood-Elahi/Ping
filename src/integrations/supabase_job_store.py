@@ -20,6 +20,7 @@ DEFAULT_SYNC_MAX_ATTEMPTS = 3
 DEFAULT_SYNC_RETRY_DELAY_SECONDS = 0.5
 DEFAULT_SUPABASE_REQUEST_TIMEOUT_SECONDS = 120.0
 DEFAULT_LIFECYCLE_PAGE_SIZE = 1000
+DEFAULT_DASHBOARD_PAGE_SIZE = 1000
 SYNC_SCAN_NAMESPACE = uuid.UUID("fe27c6e0-e7a3-4d18-8e57-554e117f56c6")
 TRACKING_QUERY_PARAMETERS = frozenset(
     {
@@ -604,34 +605,48 @@ class SupabaseJobStore:
 
     def fetch_dashboard_data(self) -> DashboardData:
         """Read active jobs and the latest scan without touching applications."""
-        try:
-            jobs_response = (
-                self.client.table("tracked_jobs")
-                .select(
-                    "source_key,company,title,location,apply_url,primary_category,"
-                    "matched_categories,relevance_score,relevance_band,positive_signals,"
-                    "location_status,source_updated_at,source_posted_at,source_closes_at,"
-                    "first_seen_at,last_seen_at,first_seen_basis,first_seen_age_hours,"
-                    "removed_at,status,lifecycle_status,"
-                    "missing_successful_runs,freshness_age_source,age_days,freshness_band,"
-                    "deadline_days_remaining,urgency_band,urgency_score,urgency_reasons,"
-                    "date_parse_errors,is_ranked_output,raw_data"
+        columns = (
+            "source_key,company,title,location,apply_url,primary_category,"
+            "matched_categories,relevance_score,relevance_band,positive_signals,"
+            "location_status,source_updated_at,source_posted_at,source_closes_at,"
+            "first_seen_at,last_seen_at,first_seen_basis,first_seen_age_hours,"
+            "removed_at,status,lifecycle_status,"
+            "missing_successful_runs,freshness_age_source,age_days,freshness_band,"
+            "deadline_days_remaining,urgency_band,urgency_score,urgency_reasons,"
+            "date_parse_errors,is_ranked_output,raw_data"
+        )
+        jobs_data: list[Mapping[str, Any]] = []
+        offset = 0
+        while True:
+            try:
+                jobs_response = (
+                    self.client.table("tracked_jobs")
+                    .select(columns)
+                    .eq("status", "active")
+                    .eq("is_ranked_output", True)
+                    .order("relevance_score", desc=True)
+                    .order("first_seen_at", desc=True)
+                    .order("source_key", desc=False)
+                    .range(offset, offset + DEFAULT_DASHBOARD_PAGE_SIZE - 1)
+                    .execute()
                 )
-                .eq("status", "active")
-                .eq("is_ranked_output", True)
-                .order("relevance_score", desc=True)
-                .order("first_seen_at", desc=True)
-                .execute()
-            )
-        except Exception as exc:
-            raise _supabase_access_error(
-                exc, operation="active-jobs query", secrets=self._redaction_secrets
-            ) from None
-        jobs_data = getattr(jobs_response, "data", None)
-        if not isinstance(jobs_data, list) or not all(
-            isinstance(row, Mapping) for row in jobs_data
-        ):
-            raise RuntimeError("Supabase active-jobs query returned an invalid response")
+            except Exception as exc:
+                raise _supabase_access_error(
+                    exc, operation="active-jobs query", secrets=self._redaction_secrets
+                ) from None
+            page = getattr(jobs_response, "data", None)
+            if not isinstance(page, list) or not all(
+                isinstance(row, Mapping) for row in page
+            ):
+                raise RuntimeError("Supabase active-jobs query returned an invalid response")
+            jobs_data.extend(page)
+            if len(page) < DEFAULT_DASHBOARD_PAGE_SIZE:
+                break
+            offset += DEFAULT_DASHBOARD_PAGE_SIZE
+
+        source_keys = [str(row.get("source_key") or "") for row in jobs_data]
+        if len(source_keys) != len(set(source_keys)):
+            raise RuntimeError("Supabase active-jobs pagination returned duplicate rows")
 
         try:
             scan_response = (

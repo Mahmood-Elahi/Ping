@@ -303,7 +303,7 @@ def run_update(args: argparse.Namespace) -> int:
             for result in report.results
             if result.status
             in {CoverageStatus.FETCHED, CoverageStatus.FETCHED_NO_MATCHING_ROLES}
-            and (freshness_runtime is None or result.scan_complete)
+            and result.scan_complete
         ]
         sync_result = job_store.sync_student_jobs(
             ranked_jobs,
@@ -382,6 +382,7 @@ def print_summary(
     )
     print(f"  Jobs fetched: {summary['jobs_fetched']}")
     print(f"  Jobs retained: {summary['jobs_retained']}")
+    print(f"  Source health: {summary.get('scan_health_counts', {})}")
     print(f"  Exclusion counts: {exclusions}")
     print(f"  Supabase inserts: {sync_result.inserted}")
     print(f"  Supabase updates: {sync_result.updated}")
@@ -418,6 +419,7 @@ def print_audit_summary(summary: dict[str, Any]) -> None:
     print("  Google Sheets: disabled")
     print("  SQLite: disabled")
     print(f"  Total normalized jobs: {diagnostics.get('total_normalized_jobs', 0)}")
+    print(f"  Source health: {summary.get('scan_health_counts', {})}")
     print(f"  Before retained jobs: {diagnostics.get('before_retained_jobs', 0)}")
     print(f"  After retained jobs: {diagnostics.get('after_retained_jobs', 0)}")
     print(f"  Exclusions by reason: {diagnostics.get('exclusions_by_reason', {})}")
@@ -445,15 +447,22 @@ def print_audit_summary(summary: dict[str, Any]) -> None:
     false_positive_samples = diagnostics.get("false_positive_review_samples", [])
     print(f"  Graduate-only roles removed: {len(removed)}")
     for item in removed:
-        print(f"    - {item['company']} | {item['title']} | evidence: {item['education_evidence']}")
+        print(
+            f"    - {item['company']} | {item['title']} | {item['education_reason']} | "
+            f"evidence: {item['education_evidence']}"
+        )
     print(f"  Ambiguous roles retained for review: {len(ambiguous)}")
     for item in ambiguous:
-        print(f"    - {item['company']} | {item['title']} | evidence: {item['education_evidence']}")
+        print(
+            f"    - {item['company']} | {item['title']} | {item['education_reason']} | "
+            f"evidence: {item['education_evidence']}"
+        )
     print(f"  False-positive review samples: {len(false_positive_samples)}")
     for item in false_positive_samples:
         print(
             f"    - {item['company']} | {item['title']} | "
-            f"{item['education_eligibility']} | evidence: {item['education_evidence']}"
+            f"{item['education_eligibility']} | {item['education_reason']} | "
+            f"evidence: {item['education_evidence']}"
         )
     print(f"  Diagnostics path: {summary.get('diagnostics_path')}")
 

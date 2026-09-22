@@ -31,7 +31,14 @@ def load_target_companies(
         if not _is_default_registry(registry_path):
             raise ValueError("Reliability repairs may only be applied to the production registry")
         entries = _apply_reliability_repairs(entries, Path(DEFAULT_RELIABILITY_REPAIRS_PATH))
-    return [CompanyTarget.from_dict(entry) for entry in entries]
+    migrate_legacy_safety_defaults = _is_default_registry(registry_path)
+    return [
+        CompanyTarget.from_dict(
+            dict(entry),
+            apply_legacy_safety_defaults=migrate_legacy_safety_defaults,
+        )
+        for entry in entries
+    ]
 
 
 def _is_default_registry(path: Path) -> bool:

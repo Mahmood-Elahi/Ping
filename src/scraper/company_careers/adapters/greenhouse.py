@@ -9,14 +9,22 @@ from urllib.parse import urlparse, urlunparse
 
 import requests
 
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    ADAPTER_SAFETY_BUDGET_DEFAULTS,
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
 from src.scraper.company_careers.student_roles import (
     classify_student_location,
     student_job_signals,
 )
 
 
-MAX_RESULTS = 20
+MAX_RESULTS = ADAPTER_SAFETY_BUDGET_DEFAULTS["greenhouse"]["max_jobs"]
+MAX_DETAIL_REQUESTS = 20
 MAX_RESPONSE_BYTES = 5_000_000
 MAX_DETAIL_RESPONSE_BYTES = 1_000_000
 READ_CHUNK_BYTES = 64 * 1024
@@ -32,7 +40,28 @@ def _secure_apply_url(value: object) -> str:
 
 
 def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 20) -> List[JobRecord]:
-    """Fetch a compact board index and enrich at most ``max_jobs`` postings."""
+    """Fetch a compact board index and enrich at most 20 postings."""
+    metadata = SourceScanMetadata(stop_reason="not_started")
+    publish_source_scan_metadata(session, metadata)
+    try:
+        return _fetch_jobs(session, target, timeout, metadata)
+    except requests.RequestException:
+        metadata["stop_reason"] = "request_failure"
+        metadata["scan_completeness_reason"] = "adapter_failure"
+        raise
+    except AdapterError:
+        if metadata["stop_reason"] == "not_started":
+            metadata["stop_reason"] = "adapter_failure"
+        metadata["scan_completeness_reason"] = "adapter_failure"
+        raise
+
+
+def _fetch_jobs(
+    session: requests.Session,
+    target: CompanyTarget,
+    timeout: int,
+    metadata: SourceScanMetadata,
+) -> List[JobRecord]:
     if not target.slug:
         raise AdapterError("Greenhouse target is missing slug")
     if not 1 <= int(target.max_jobs) <= MAX_RESULTS:
@@ -61,6 +90,7 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
             ) from exc
 
     base_url = f"https://boards-api.greenhouse.io/v1/boards/{target.slug}"
+    metadata["pages_requested"] = 1
     data, listing_bytes, listing_streamed = _get_json(
         session,
         f"{base_url}/jobs",
@@ -110,6 +140,7 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
             attribution_filtered += 1
             continue
         summaries.append((item, summary))
+    metadata["pages_completed"] = 1
 
     prioritized_summaries, candidate_count = _prioritized_summaries(
         summaries, maximum_results
@@ -121,12 +152,20 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
             str(target.job_attribution_field),
         )
     selected_summaries = prioritized_summaries[:maximum_results]
+    safety_limit_reached = len(summaries) >= maximum_results
+    detail_priority, _ = _prioritized_summaries(
+        selected_summaries, MAX_DETAIL_REQUESTS
+    )
+    detail_candidate_ids = {
+        summary.job_id
+        for _item, summary in detail_priority[:MAX_DETAIL_REQUESTS]
+    }
     jobs: list[JobRecord] = []
     detail_requests = 0
     detail_bytes = 0
     for item, summary in selected_summaries:
         detail = _embedded_detail(item, assume_embedded=expanded_listing)
-        if detail is None:
+        if detail is None and summary.job_id in detail_candidate_ids:
             detail, response_bytes, _ = _get_json(
                 session,
                 f"{base_url}/jobs/{summary.job_id}",
@@ -138,6 +177,11 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
             detail_requests += 1
             requests_fetched += 1
             detail_bytes += response_bytes
+        if detail is None:
+            if allowed_departments:
+                summary.departments = list(target.department_allowlist)
+            jobs.append(summary)
+            continue
         if not isinstance(detail, Mapping):
             raise AdapterError("Greenhouse job detail must be a JSON object")
         detail_job_id = str(detail.get("id") or "").strip()
@@ -184,17 +228,33 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
             "zero_job_contract": not data["jobs"],
             "stop_reason": (
                 "maximum_results_reached"
-                if len(jobs) >= maximum_results
-                else "bounded_collection"
+                if safety_limit_reached
+                else "complete_collection_response"
             ),
             "listing_requests": 1,
             "department_requests": int(bool(allowed_departments) and not expanded_listing),
             "detail_requests": detail_requests,
+            "maximum_detail_requests": MAX_DETAIL_REQUESTS,
             "requests_fetched": requests_fetched,
             "listing_bytes": listing_bytes,
             "department_bytes": department_bytes,
             "detail_bytes": detail_bytes,
         },
+    )
+    metadata.update(
+        scan_complete=not safety_limit_reached,
+        scan_completeness_reason=(
+            "safety_limit_reached"
+            if safety_limit_reached
+            else "complete_collection_response"
+        ),
+        total_available=len(summaries),
+        stop_reason=(
+            "maximum_results_reached"
+            if safety_limit_reached
+            else "complete_collection_response"
+        ),
+        safety_limit_reached=safety_limit_reached,
     )
     return jobs
 

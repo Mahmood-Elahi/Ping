@@ -6,7 +6,10 @@ from typing import Any, Mapping, Sequence
 
 import yaml
 
-from src.scraper.company_careers.models import CompanyTarget
+from src.scraper.company_careers.models import (
+    ADAPTER_SAFETY_BUDGET_DEFAULTS,
+    CompanyTarget,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -53,8 +56,13 @@ def assert_historical_target_prefix(
     production: Sequence[CompanyTarget],
     historical: Sequence[CompanyTarget],
 ) -> None:
-    repaired = [CompanyTarget.from_dict(item) for item in with_reliability_repairs(
+    repaired_items = with_reliability_repairs(
         [vars(target) for target in historical]
-    )]
+    )
+    for item in repaired_items:
+        defaults = ADAPTER_SAFETY_BUDGET_DEFAULTS.get(str(item.get("platform")))
+        if defaults and item.get("name") != "ATCO":
+            item.update(defaults)
+    repaired = [CompanyTarget.from_dict(item) for item in repaired_items]
     testcase.assertGreaterEqual(len(production), len(historical))
     testcase.assertEqual(list(production[: len(historical)]), repaired)
