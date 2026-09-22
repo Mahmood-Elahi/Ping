@@ -427,10 +427,18 @@ def _fetch_columnized_jobs(
     duplicate_source_id = False
     seen_page_signatures: set[tuple[str, ...]] = set()
 
-    for page_number in range(max_pages):
+    for page_index in range(max_pages):
         if len(jobs) >= limit:
             _mark_safety_limit(metadata, "maximum_results_reached")
             break
+        offset = page_index * COLUMNIZED_PAGE_SIZE
+        # The columnized RMK client bootstraps with pageNumber=0.  Subsequent
+        # requests use the one-based number shown by the paginator: the second
+        # result page is 2, the third is 3, and so on.  Values 0 and 1 both
+        # address the first result page, so a conventional zero-based sequence
+        # repeats page one; using result offsets (0, 10, 20, ...) skips pages
+        # and eventually produces the service's bounded error response.
+        request_page_number = 0 if page_index == 0 else page_index + 1
         metadata["pages_requested"] += 1
         try:
             response = session.post(
@@ -440,19 +448,38 @@ def _fetch_columnized_jobs(
                     "keywords": "",
                     "locale": str(target.locale),
                     "location": "",
-                    "pageNumber": page_number,
+                    "pageNumber": request_page_number,
                     "sortBy": "recent",
                 },
                 timeout=timeout,
             )
-            payload = _columnized_json(response, target, page_number)
-        except requests.RequestException:
+            payload = _columnized_json(
+                response,
+                target,
+                offset=offset,
+                page_number=request_page_number,
+            )
+        except requests.RequestException as exc:
+            metadata["diagnostics"].append(
+                {
+                    "offset": offset,
+                    "page_number": request_page_number,
+                    "error": f"{type(exc).__name__}: {str(exc)[:240]}",
+                }
+            )
             metadata["stop_reason"] = "request_failure"
             metadata["scan_completeness_reason"] = "pagination_failure"
             raise
         except AdapterError as exc:
+            metadata["diagnostics"].append(
+                {
+                    "offset": offset,
+                    "page_number": request_page_number,
+                    "error": str(exc),
+                }
+            )
             message = str(exc).casefold()
-            if "totaljobs" in message:
+            if "response component totaljobs" in message:
                 metadata["stop_reason"] = "malformed_total"
             elif "http " in message:
                 metadata["stop_reason"] = "http_error"
@@ -469,7 +496,6 @@ def _fetch_columnized_jobs(
             metadata["stop_reason"] = "inconsistent_total"
             metadata["scan_completeness_reason"] = "inconsistent_total"
             raise AdapterError("SAP SuccessFactors total job count changed during pagination")
-        offset = page_number * COLUMNIZED_PAGE_SIZE
         if total < offset + len(rows):
             metadata["stop_reason"] = "malformed_total"
             metadata["scan_completeness_reason"] = "malformed_total"
@@ -525,9 +551,20 @@ def _fetch_columnized_jobs(
             detail_response = _get_page(
                 session, target, detail_url, None, offset, timeout
             )
-            job = _normalize_columnized_detail(
-                row, detail_response, target, external_id, title, detail_url
-            )
+            try:
+                job = _normalize_columnized_detail(
+                    row, detail_response, target, external_id, title, detail_url
+                )
+            except AdapterError as exc:
+                metadata["diagnostics"].append(
+                    {
+                        "offset": offset,
+                        "page_number": request_page_number,
+                        "job_id": external_id,
+                        "error": str(exc),
+                    }
+                )
+                raise
             jobs.append(job)
             seen.add(external_id)
             seen_fingerprints[external_id] = fingerprint
@@ -539,7 +576,11 @@ def _fetch_columnized_jobs(
             metadata["scan_completeness_reason"] = "pagination_failure"
             raise AdapterError("SAP SuccessFactors columnized pagination repeated a complete page")
         metadata["pages"].append(
-            {"page_number": page_number, "offset": offset, "jobs_returned": len(rows)}
+            {
+                "page_number": request_page_number,
+                "offset": offset,
+                "jobs_returned": len(rows),
+            }
         )
         metadata["pages_fetched"] = len(metadata["pages"])
         metadata["pages_completed"] += 1
@@ -573,27 +614,58 @@ def _columnized_row_identity(envelope: Any) -> str:
     return value if re.fullmatch(r"[0-9]{1,18}", value) else ""
 
 
-def _columnized_json(response: Any, target: CompanyTarget, page_number: int) -> Mapping[str, Any]:
+def _columnized_json(
+    response: Any,
+    target: CompanyTarget,
+    *,
+    offset: int,
+    page_number: int,
+) -> Mapping[str, Any]:
+    request_label = f"offset={offset}, pageNumber={page_number}"
     if response.status_code != 200:
         raise AdapterError(
-            f"SAP SuccessFactors HTTP {response.status_code} for {target.name} page={page_number}"
+            f"SAP SuccessFactors HTTP {response.status_code} for {target.name} ({request_label})"
         )
     if len(bytes(getattr(response, "content", b"") or b"")) > int(target.max_response_bytes):
-        raise AdapterError("SAP SuccessFactors columnized response exceeded max_response_bytes")
+        raise AdapterError(
+            "SAP SuccessFactors columnized response exceeded max_response_bytes "
+            f"({request_label})"
+        )
     content_type = str(getattr(response, "headers", {}).get("content-type", ""))
     if content_type and "json" not in content_type.casefold():
-        raise AdapterError("SAP SuccessFactors columnized response was not JSON")
+        raise AdapterError(
+            f"SAP SuccessFactors columnized response was not JSON ({request_label})"
+        )
     try:
         payload = response.json()
     except (ValueError, requests.RequestException) as exc:
-        raise AdapterError("SAP SuccessFactors columnized response was not valid JSON") from exc
-    if not isinstance(payload, Mapping) or not isinstance(payload.get("jobSearchResult"), list):
-        raise AdapterError("SAP SuccessFactors columnized response is malformed")
+        raise AdapterError(
+            f"SAP SuccessFactors columnized response was not valid JSON ({request_label})"
+        ) from exc
+    if not isinstance(payload, Mapping):
+        raise AdapterError(
+            "SAP SuccessFactors columnized response is missing the top-level object "
+            f"({request_label}; observed={type(payload).__name__})"
+        )
+    rows = payload.get("jobSearchResult")
+    if not isinstance(rows, list):
+        components = ", ".join(sorted(str(key) for key in payload)[:12]) or "none"
+        raise AdapterError(
+            "SAP SuccessFactors columnized response component jobSearchResult is missing "
+            f"or malformed ({request_label}; observed={type(rows).__name__}; "
+            f"components={components})"
+        )
     total = payload.get("totalJobs")
     if isinstance(total, bool) or not isinstance(total, int) or total < 0:
-        raise AdapterError("SAP SuccessFactors columnized totalJobs must be non-negative")
-    if len(payload["jobSearchResult"]) > COLUMNIZED_PAGE_SIZE:
-        raise AdapterError("SAP SuccessFactors columnized page exceeded the observed page size")
+        raise AdapterError(
+            "SAP SuccessFactors columnized response component totalJobs must be a "
+            f"non-negative integer ({request_label}; observed={type(total).__name__})"
+        )
+    if len(rows) > COLUMNIZED_PAGE_SIZE:
+        raise AdapterError(
+            "SAP SuccessFactors columnized page exceeded the observed page size "
+            f"({request_label}; rows={len(rows)})"
+        )
     return payload
 
 
@@ -659,11 +731,41 @@ def _normalize_columnized_detail(
     # when a requisition field is present it remains an additional strict check.
     if req_ids and req_ids != [external_id]:
         raise AdapterError("SAP SuccessFactors detail requisition ID did not match the listing")
-    api_locations = _columnized_locations(row.get("jobLocationShort"))
+    api_locations: list[str] = []
+    # These are all explicit RMK location projections.  Keep the concise
+    # normalized field first, followed by the full job-location projection and
+    # then the standard structured location field used as a displayed search
+    # column by some tenants.
+    for field_name in ("jobLocationShort", "jobLocation", "location"):
+        api_locations = _columnized_locations(row.get(field_name), field_name)
+        if api_locations:
+            break
+    # In the Unified Data Model row contract, primLocation is the scalar
+    # primary-location display projection.  Accept it only when it has the
+    # documented combined-location shape; a non-empty field name alone is not
+    # enough to distinguish a display location from an internal identifier.
+    primary_locations = (
+        [] if api_locations else _columnized_primary_location(row.get("primLocation"))
+    )
+    # RMK also publishes Google Jobs microdata on the already-validated detail
+    # page.  Some tenants, including the Seagate-style contract, omit every
+    # named location projection from the search row but expose the same stable
+    # value as an explicit ``meta[itemprop=jobLocation][content]`` field.
+    structured_detail_locations = (
+        [] if api_locations or primary_locations else _detail_job_locations(parser.root)
+    )
     detail_locations = _unique_strings(detail_fields.get("location", []))
-    locations = api_locations or detail_locations
+    locations = (
+        api_locations
+        or primary_locations
+        or structured_detail_locations
+        or detail_locations
+    )
     if not locations:
-        raise AdapterError("SAP SuccessFactors columnized job is missing a stable location")
+        raise AdapterError(
+            "SAP SuccessFactors columnized job is missing a stable location "
+            f"({_columnized_location_diagnostic(row, detail_fields, parser.root)})"
+        )
     departments = _unique_strings(detail_fields.get("department", []))
     description_nodes = [
         node for node in _walk(parser.root)
@@ -694,20 +796,204 @@ def _normalize_columnized_detail(
     )
 
 
-def _columnized_locations(value: Any) -> list[str]:
+def _columnized_locations(value: Any, field_name: str = "location") -> list[str]:
     if value is None:
         return []
     if not isinstance(value, list):
-        raise AdapterError("SAP SuccessFactors columnized location field is malformed")
+        raise AdapterError(
+            f"SAP SuccessFactors columnized location field {field_name} is malformed "
+            f"(observed={type(value).__name__})"
+        )
     locations: list[str] = []
     for item in value:
-        raw = item if isinstance(item, str) else item.get("value") if isinstance(item, Mapping) else None
+        if not isinstance(item, (str, Mapping)):
+            raise AdapterError(
+                f"SAP SuccessFactors columnized location field {field_name} contains "
+                f"a malformed entry (observed={type(item).__name__})"
+            )
+        raw = item if isinstance(item, str) else item.get("value")
         if raw is None:
             continue
+        if not isinstance(raw, str):
+            raise AdapterError(
+                f"SAP SuccessFactors columnized location field {field_name} contains "
+                f"a malformed value (observed={type(raw).__name__})"
+            )
         text = _clean_text(_html_to_text(raw))
         if text:
             locations.append(text)
     return _unique_strings(locations)
+
+
+def _columnized_primary_location(value: Any) -> list[str]:
+    """Validate RMK's scalar primary-location display projection."""
+    reason = _primary_location_rejection(value)
+    if reason is None:
+        return [_clean_text(_html_to_text(value))]
+    if value is not None and not isinstance(value, str):
+        raise AdapterError(
+            "SAP SuccessFactors columnized location field primLocation is unusable "
+            f"(observed={_diagnostic_shape(value)}; reason={reason})"
+        )
+    return []
+
+
+def _primary_location_rejection(value: Any) -> Optional[str]:
+    if value is None:
+        return "missing"
+    if not isinstance(value, str):
+        return "expected scalar string"
+    text = _clean_text(_html_to_text(value))
+    if not text:
+        return "empty"
+    if len(text) > 240:
+        return "exceeds display length"
+    if re.match(r"^[A-Za-z][A-Za-z0-9+.-]*://", text):
+        return "URL is not a display location"
+    if text[0] in "[{" or text[-1] in "]}":
+        return "serialized structure is not a display location"
+    components = [component.strip() for component in text.split(",") if component.strip()]
+    if len(components) < 2:
+        return "not a combined display location"
+    allowed_punctuation = frozenset(" .'-’()/&")
+    for component in components:
+        if not any(character.isalpha() for character in component):
+            return "display component has no letters"
+        if any(
+            not character.isalnum() and character not in allowed_punctuation
+            for character in component
+        ):
+            return "display component has identifier punctuation"
+    return None
+
+
+def _detail_job_locations(root: _Node) -> list[str]:
+    """Read only SAP RMK's explicit JobPosting location microdata."""
+    nodes = [
+        node
+        for node in _walk(root)
+        if node.tag == "meta"
+        and "joblocation"
+        in {token.casefold() for token in node.attrs.get("itemprop", "").split()}
+    ]
+    if not nodes:
+        return []
+    locations: list[str] = []
+    for node in nodes:
+        raw = node.attrs.get("content")
+        text = _clean_text(_html_to_text(raw)) if raw is not None else ""
+        if not text:
+            raise AdapterError(
+                "SAP SuccessFactors detail structured jobLocation metadata is malformed"
+            )
+        locations.append(text)
+    return _unique_strings(locations)
+
+
+def _columnized_location_diagnostic(
+    row: Mapping[str, Any],
+    detail_fields: Mapping[str, list[str]],
+    detail_root: _Node,
+) -> str:
+    """Describe bounded field identities and shapes, never whole job data."""
+    shapes: list[str] = []
+    for field_name in (
+        "jobLocationShort",
+        "jobLocation",
+        "location",
+        "primLocation",
+        "city",
+        "state",
+        "country",
+        "facility",
+    ):
+        if field_name not in row:
+            continue
+        value = row[field_name]
+        shape = _diagnostic_shape(value)
+        if field_name == "primLocation":
+            reason = _primary_location_rejection(value)
+            shape += "(usable)" if reason is None else f"(rejected={reason})"
+        shapes.append(f"{field_name}={shape}")
+    fields = ", ".join(shapes) if shapes else "none"
+    row_shapes = ", ".join(
+        f"{_diagnostic_token(key)}={_diagnostic_shape(value)}"
+        for key, value in sorted(row.items(), key=lambda item: str(item[0]).casefold())[:20]
+    ) or "none"
+    descriptors = ", ".join(_columnized_descriptors(row)) or "none"
+    itemprops = _unique_strings(
+        token.casefold()
+        for node in _walk(detail_root)
+        for token in node.attrs.get("itemprop", "").split()
+        if token
+    )[:12]
+    return (
+        f"location fields present: {fields}; "
+        f"detail location entries={len(detail_fields.get('location', []))}; "
+        f"row fields: {row_shapes}; descriptors: {descriptors}; "
+        f"detail itemprops: {', '.join(itemprops) if itemprops else 'none'}"
+    )
+
+
+def _columnized_descriptors(row: Mapping[str, Any]) -> list[str]:
+    """Return bounded identifier/label pairs from shallow structured fields."""
+    identifier_keys = ("fieldid", "fieldname", "columnid", "columnname", "key")
+    label_keys = ("label", "fieldlabel", "columnlabel", "displaylabel")
+    descriptors: list[str] = []
+    candidates: list[Mapping[str, Any]] = []
+    for value in row.values():
+        if isinstance(value, Mapping):
+            candidates.append(value)
+        elif isinstance(value, list):
+            candidates.extend(item for item in value if isinstance(item, Mapping))
+    for candidate in candidates[:24]:
+        normalized = {str(key).casefold(): value for key, value in candidate.items()}
+        identifier = next(
+            (
+                _diagnostic_token(normalized[key])
+                for key in identifier_keys
+                if isinstance(normalized.get(key), str) and normalized[key].strip()
+            ),
+            "",
+        )
+        label = next(
+            (
+                _diagnostic_label(normalized[key])
+                for key in label_keys
+                if isinstance(normalized.get(key), str) and normalized[key].strip()
+            ),
+            "",
+        )
+        if identifier or label:
+            descriptors.append(
+                "/".join(
+                    part
+                    for part in (
+                        f"id={identifier}" if identifier else "",
+                        f"label={label}" if label else "",
+                    )
+                    if part
+                )
+            )
+    return _unique_strings(descriptors)[:12]
+
+
+def _diagnostic_token(value: Any) -> str:
+    token = re.sub(r"[^A-Za-z0-9_.:-]+", "?", str(value or "").strip())
+    return token[:48] or "?"
+
+
+def _diagnostic_label(value: Any) -> str:
+    label = _clean_text(value)
+    return re.sub(r"[^A-Za-z0-9 #&/().,_-]+", "?", label)[:60] or "?"
+
+
+def _diagnostic_shape(value: Any) -> str:
+    if isinstance(value, list):
+        return f"list[{len(value)}]"
+    if isinstance(value, Mapping):
+        return f"object[{len(value)}]"
+    return type(value).__name__
 
 
 def _exact_numeric_ids(values: Iterable[Any]) -> list[str]:

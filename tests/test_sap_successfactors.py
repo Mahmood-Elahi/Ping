@@ -84,9 +84,10 @@ class ColumnizedSession:
 
 
 class SequencedColumnizedSession:
-    def __init__(self, responses, *, identity="Example"):
+    def __init__(self, responses, *, identity="Example", detail_body=None):
         self.responses = list(responses)
         self.identity = identity
+        self.detail_body = detail_body
         self.post_calls = []
         self.get_calls = []
 
@@ -109,11 +110,16 @@ class SequencedColumnizedSession:
             )
         external_id = url.rsplit("/", 1)[-1].split("-", 1)[0]
         title = url.rsplit("/", 2)[-2]
+        body = (
+            self.detail_body(external_id)
+            if self.detail_body is not None
+            else f"<div>Requisition ID: {external_id}</div>"
+        )
         return FakeResponse(
             f'''<!doctype html><html><head>
               <link rel="canonical" href="{url}">
               <meta property="og:title" content="{title}">
-            </head><body>{self.identity}<div>Requisition ID: {external_id}</div>
+            </head><body>{self.identity}{body}
               <script>j2w.Apply.init({{jobID: {external_id}}});</script></body></html>''',
             url=url,
         )
@@ -485,6 +491,294 @@ class SapSuccessFactorsTests(unittest.TestCase):
         with self.assertRaisesRegex(AdapterError, "conflicting repeated stable job ID"):
             sf.fetch_jobs(ColumnizedSession(conflict_payload, detail_html), columnized_target)
 
+    def test_columnized_location_precedence_is_deterministic(self):
+        row = columnized_row(1)
+        row["response"]["jobLocation"] = [{"value": "Longmont, CO, USA"}]
+        row["response"]["location"] = [{"value": "Shakopee, MN, USA"}]
+        row["response"]["primLocation"] = "Bloomington, MN, USA"
+        session = SequencedColumnizedSession(
+            [{"totalJobs": 1, "jobSearchResult": [row]}],
+            detail_body=lambda external_id: (
+                '<meta itemprop="jobLocation">'
+                f"<ul><li>Requisition ID: {external_id}</li>"
+                "<li>Location: Bloomington, MN, USA</li></ul>"
+            ),
+        )
+
+        job = sf.fetch_jobs(
+            session,
+            target(
+                sf.COLUMNIZED_VARIANT,
+                endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
+                locale="en_US",
+                identity_regex=r"Example",
+                allowed_apply_hosts=["jobs.example.com"],
+                max_jobs=10,
+                page_size=10,
+            ),
+        )[0]
+
+        self.assertEqual(job.location, "Calgary, AB, CAN")
+
+    def test_columnized_full_job_location_field_is_a_stable_fallback(self):
+        row = columnized_row(1)
+        row["response"].pop("jobLocationShort")
+        row["response"]["jobLocation"] = [{"value": "Longmont, CO, USA"}]
+        row["response"]["primLocation"] = "Bloomington, MN, USA"
+        session = SequencedColumnizedSession([
+            {"totalJobs": 1, "jobSearchResult": [row]}
+        ])
+
+        job = sf.fetch_jobs(
+            session,
+            target(
+                sf.COLUMNIZED_VARIANT,
+                endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
+                locale="en_US",
+                identity_regex=r"Example",
+                allowed_apply_hosts=["jobs.example.com"],
+                max_jobs=10,
+                page_size=10,
+            ),
+        )[0]
+
+        self.assertEqual(job.location, "Longmont, CO, USA")
+        self.assertEqual(job.offices, ["Longmont, CO, USA"])
+
+    def test_columnized_structured_location_field_is_a_stable_fallback(self):
+        row = columnized_row(1)
+        row["response"].pop("jobLocationShort")
+        row["response"]["location"] = [
+            {"label": "Location", "value": "Shakopee, MN, USA"}
+        ]
+        row["response"]["primLocation"] = "Bloomington, MN, USA"
+        session = SequencedColumnizedSession([
+            {"totalJobs": 1, "jobSearchResult": [row]}
+        ])
+
+        job = sf.fetch_jobs(
+            session,
+            target(
+                sf.COLUMNIZED_VARIANT,
+                endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
+                locale="en_US",
+                identity_regex=r"Example",
+                allowed_apply_hosts=["jobs.example.com"],
+                max_jobs=10,
+                page_size=10,
+            ),
+        )[0]
+
+        self.assertEqual(job.location, "Shakopee, MN, USA")
+        self.assertEqual(job.offices, ["Shakopee, MN, USA"])
+
+    def test_columnized_primary_location_is_a_validated_scalar_fallback(self):
+        row = columnized_row(1)
+        row["response"].pop("jobLocationShort")
+        row["response"]["primLocation"] = "Nakhon Ratchasima, THA,"
+        row["response"]["region"] = "Asia Pacific"
+        session = SequencedColumnizedSession(
+            [{"totalJobs": 1, "jobSearchResult": [row]}],
+            detail_body=lambda external_id: (
+                '<meta itemprop="jobLocation" content="Shakopee, MN, USA">'
+                f"<ul><li>Requisition ID: {external_id}</li>"
+                "<li>Location: Bloomington, MN, USA</li></ul>"
+            ),
+        )
+
+        job = sf.fetch_jobs(
+            session,
+            target(
+                sf.COLUMNIZED_VARIANT,
+                endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
+                locale="en_US",
+                identity_regex=r"Example",
+                allowed_apply_hosts=["jobs.example.com"],
+                max_jobs=10,
+                page_size=10,
+            ),
+        )[0]
+
+        self.assertEqual(job.location, "Nakhon Ratchasima, THA,")
+        self.assertEqual(job.offices, ["Nakhon Ratchasima, THA,"])
+        self.assertNotIn("Asia Pacific", job.location)
+
+    def test_columnized_primary_location_rejects_empty_and_opaque_values(self):
+        for value, reason in (
+            ("", "empty"),
+            ("   ", "empty"),
+            ("LOC-14987", "not a combined display location"),
+            ("https://example.test/location/14987", "URL is not a display location"),
+            ('{"id":"LOC-14987","region":"NA"}', "serialized structure"),
+        ):
+            with self.subTest(value=value):
+                row = columnized_row(1)
+                row["response"].pop("jobLocationShort")
+                row["response"]["primLocation"] = value
+                session = SequencedColumnizedSession([
+                    {"totalJobs": 1, "jobSearchResult": [row]}
+                ])
+
+                with self.assertRaisesRegex(
+                    AdapterError,
+                    rf"primLocation=str\(rejected=.*{reason}",
+                ):
+                    sf.fetch_jobs(
+                        session,
+                        target(
+                            sf.COLUMNIZED_VARIANT,
+                            endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
+                            locale="en_US",
+                            identity_regex=r"Example",
+                            allowed_apply_hosts=["jobs.example.com"],
+                            max_jobs=10,
+                            page_size=10,
+                        ),
+                    )
+                diagnostic = source_scan_metadata(session)["diagnostics"][-1]["error"]
+                self.assertIn("primLocation=str(rejected=", diagnostic)
+                if value.strip():
+                    self.assertNotIn(value, diagnostic)
+
+    def test_columnized_primary_location_rejects_malformed_structures(self):
+        cases = (
+            (["Calgary, AB, CAN"], r"list\[1\]"),
+            ({"value": "Calgary, AB, CAN"}, r"object\[1\]"),
+            (42, "int"),
+        )
+        for value, shape in cases:
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(
+                    AdapterError,
+                    rf"primLocation is unusable \(observed={shape}; "
+                    r"reason=expected scalar string\)",
+                ):
+                    sf._columnized_primary_location(value)
+
+        row = columnized_row(1)
+        row["response"].pop("jobLocationShort")
+        row["response"]["primLocation"] = ["Calgary, AB, CAN"]
+        session = SequencedColumnizedSession([
+            {"totalJobs": 1, "jobSearchResult": [row]}
+        ])
+        with self.assertRaisesRegex(AdapterError, r"observed=list\[1\]"):
+            sf.fetch_jobs(
+                session,
+                target(
+                    sf.COLUMNIZED_VARIANT,
+                    endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
+                    locale="en_US",
+                    identity_regex=r"Example",
+                    allowed_apply_hosts=["jobs.example.com"],
+                    max_jobs=10,
+                    page_size=10,
+                ),
+            )
+        diagnostic = source_scan_metadata(session)["diagnostics"][-1]["error"]
+        self.assertIn(
+            "observed=list[1]; reason=expected scalar string",
+            diagnostic,
+        )
+        self.assertNotIn("Calgary", diagnostic)
+
+    def test_columnized_seagate_style_detail_microdata_is_a_stable_fallback(self):
+        row = columnized_row(1)
+        row["response"].pop("jobLocationShort")
+        session = SequencedColumnizedSession(
+            [{"totalJobs": 1, "jobSearchResult": [row]}],
+            detail_body=lambda external_id: (
+                '<meta itemprop="jobLocation" content="Shakopee, MN, USA">'
+                f"<ul><li>Requisition ID: {external_id}</li>"
+                "<li>Location: Bloomington, MN, USA</li></ul>"
+            ),
+        )
+
+        job = sf.fetch_jobs(
+            session,
+            target(
+                sf.COLUMNIZED_VARIANT,
+                endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
+                locale="en_US",
+                identity_regex=r"Example",
+                allowed_apply_hosts=["jobs.example.com"],
+                max_jobs=10,
+                page_size=10,
+            ),
+        )[0]
+
+        self.assertEqual(job.location, "Shakopee, MN, USA")
+        self.assertEqual(job.offices, ["Shakopee, MN, USA"])
+
+    def test_columnized_malformed_location_structures_fail_closed(self):
+        cases = (
+            ({"value": "Shakopee, MN, USA"}, "field jobLocationShort is malformed"),
+            ([42], "contains a malformed entry"),
+            ([{"value": 42}], "contains a malformed value"),
+        )
+        for value, message in cases:
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(AdapterError, message):
+                    sf._columnized_locations(value, "jobLocationShort")
+
+        row = columnized_row(1)
+        row["response"].pop("jobLocationShort")
+        session = SequencedColumnizedSession(
+            [{"totalJobs": 1, "jobSearchResult": [row]}],
+            detail_body=lambda external_id: (
+                '<meta itemprop="jobLocation">'
+                f"<ul><li>Requisition ID: {external_id}</li>"
+                "<li>Location: Bloomington, MN, USA</li></ul>"
+            ),
+        )
+        with self.assertRaisesRegex(
+            AdapterError, "structured jobLocation metadata is malformed"
+        ):
+            sf.fetch_jobs(
+                session,
+                target(
+                    sf.COLUMNIZED_VARIANT,
+                    endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
+                    locale="en_US",
+                    identity_regex=r"Example",
+                    allowed_apply_hosts=["jobs.example.com"],
+                    max_jobs=10,
+                    page_size=10,
+                ),
+            )
+
+    def test_columnized_genuinely_missing_location_still_fails(self):
+        row = columnized_row(1)
+        row["response"].pop("jobLocationShort")
+        row["response"]["displayColumns"] = [
+            {
+                "fieldId": "department",
+                "label": "Department",
+                "value": ["Engineering"],
+            }
+        ]
+        session = SequencedColumnizedSession([
+            {"totalJobs": 1, "jobSearchResult": [row]}
+        ])
+
+        with self.assertRaisesRegex(
+            AdapterError,
+            r"missing a stable location \(location fields present: none; "
+            r"detail location entries=0; row fields: .*displayColumns=list\[1\].*; "
+            r"descriptors: id=department/label=Department; detail itemprops: none\)",
+        ):
+            sf.fetch_jobs(
+                session,
+                target(
+                    sf.COLUMNIZED_VARIANT,
+                    endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
+                    locale="en_US",
+                    identity_regex=r"Example",
+                    allowed_apply_hosts=["jobs.example.com"],
+                    max_jobs=10,
+                    page_size=10,
+                ),
+            )
+
     def test_html_description_uses_readable_text(self):
         self.assertEqual(sf._html_to_text("<p>Build <b>safe</b> robots.</p><ul><li>Test</li></ul>"), "Build safe robots.\nTest")
 
@@ -627,6 +921,176 @@ class SapSuccessFactorsTests(unittest.TestCase):
         self.assertEqual(metadata["stop_reason"], "maximum_results_reached")
         self.assertEqual(metadata["total_available"], 11)
         self.assertEqual(metadata["pages_requested"], 1)
+        self.assertEqual(metadata["pages_completed"], 1)
+
+    def test_columnized_pagination_maps_offsets_to_rmk_page_numbers_and_completes(self):
+        first = [columnized_row(index) for index in range(1, 11)]
+        second = [columnized_row(index) for index in range(11, 21)]
+        third = [columnized_row(index) for index in range(21, 26)]
+        session = SequencedColumnizedSession(
+            [
+                {"totalJobs": 25, "jobSearchResult": first},
+                {"totalJobs": 25, "jobSearchResult": second},
+                {"totalJobs": 25, "jobSearchResult": third},
+            ],
+            detail_body=lambda external_id: (
+                f"<ul><li>Req ID: {external_id}<ul>"
+                f"<li>Req ID: {external_id}</li><li>Department: Engineering</li>"
+                "</ul></li></ul>"
+            ),
+        )
+
+        jobs = sf.fetch_jobs(
+            session,
+            target(
+                sf.COLUMNIZED_VARIANT,
+                endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
+                locale="en_US",
+                identity_regex=r"Example",
+                allowed_apply_hosts=["jobs.example.com"],
+                max_pages=3,
+                max_jobs=30,
+                page_size=10,
+            ),
+        )
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(len(jobs), 25)
+        self.assertEqual(
+            [call[1]["json"]["pageNumber"] for call in session.post_calls],
+            [0, 2, 3],
+        )
+        self.assertEqual(metadata["offsets"], [0, 10, 20])
+        self.assertEqual(metadata["pages_completed"], 3)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["stop_reason"], "reported_total_reached")
+
+    def test_columnized_second_page_uses_page_two_not_result_offset(self):
+        first = [columnized_row(index) for index in range(1, 11)]
+        second = [columnized_row(index) for index in range(11, 13)]
+        session = SequencedColumnizedSession(
+            [
+                {"totalJobs": 12, "jobSearchResult": first},
+                {"totalJobs": 12, "jobSearchResult": second},
+            ]
+        )
+
+        jobs = sf.fetch_jobs(
+            session,
+            target(
+                sf.COLUMNIZED_VARIANT,
+                endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
+                locale="en_US",
+                identity_regex=r"Example",
+                allowed_apply_hosts=["jobs.example.com"],
+                max_pages=2,
+                max_jobs=20,
+                page_size=10,
+            ),
+        )
+
+        self.assertEqual(len(jobs), 12)
+        self.assertEqual(
+            [call[1]["json"]["pageNumber"] for call in session.post_calls],
+            [0, 2],
+        )
+        self.assertEqual(source_scan_metadata(session)["offsets"], [0, 10])
+
+    def test_columnized_malformed_later_page_reports_component_and_request(self):
+        first = [columnized_row(index) for index in range(1, 11)]
+        session = SequencedColumnizedSession(
+            [
+                {"totalJobs": 11, "jobSearchResult": first},
+                {"totalJobs": 11, "error": "bounded fixture"},
+            ]
+        )
+
+        with self.assertRaisesRegex(
+            AdapterError,
+            r"jobSearchResult is missing or malformed \(offset=10, pageNumber=2;",
+        ):
+            sf.fetch_jobs(
+                session,
+                target(
+                    sf.COLUMNIZED_VARIANT,
+                    endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
+                    locale="en_US",
+                    identity_regex=r"Example",
+                    allowed_apply_hosts=["jobs.example.com"],
+                    max_pages=2,
+                    max_jobs=20,
+                    page_size=10,
+                ),
+            )
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(metadata["pages_requested"], 2)
+        self.assertEqual(metadata["pages_completed"], 1)
+        self.assertEqual(metadata["stop_reason"], "malformed_response")
+        self.assertEqual(metadata["diagnostics"][0]["offset"], 10)
+        self.assertEqual(metadata["diagnostics"][0]["page_number"], 2)
+
+    def test_columnized_reported_total_stops_before_repeated_terminal_request(self):
+        complete_page = [columnized_row(index) for index in range(1, 11)]
+        session = SequencedColumnizedSession(
+            [
+                {"totalJobs": 10, "jobSearchResult": complete_page},
+                {"totalJobs": 10, "jobSearchResult": complete_page},
+            ]
+        )
+
+        jobs = sf.fetch_jobs(
+            session,
+            target(
+                sf.COLUMNIZED_VARIANT,
+                endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
+                locale="en_US",
+                identity_regex=r"Example",
+                allowed_apply_hosts=["jobs.example.com"],
+                max_pages=2,
+                max_jobs=20,
+                page_size=10,
+            ),
+        )
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(len(jobs), 10)
+        self.assertEqual(len(session.post_calls), 1)
+        self.assertEqual(len(session.responses), 1)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["total_available"], 10)
+
+    def test_columnized_endpoint_ignoring_offset_still_fails_repeated_page(self):
+        first = [columnized_row(index) for index in range(1, 11)]
+        session = SequencedColumnizedSession(
+            [
+                {"totalJobs": 20, "jobSearchResult": first},
+                {"totalJobs": 20, "jobSearchResult": first},
+            ]
+        )
+
+        with self.assertRaisesRegex(AdapterError, "repeated a complete page"):
+            sf.fetch_jobs(
+                session,
+                target(
+                    sf.COLUMNIZED_VARIANT,
+                    endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
+                    locale="en_US",
+                    identity_regex=r"Example",
+                    allowed_apply_hosts=["jobs.example.com"],
+                    max_pages=2,
+                    max_jobs=20,
+                    page_size=10,
+                ),
+            )
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(
+            [call[1]["json"]["pageNumber"] for call in session.post_calls],
+            [0, 2],
+        )
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["stop_reason"], "repeated_page")
         self.assertEqual(metadata["pages_completed"], 1)
 
     @patch.object(sf.time, "sleep", return_value=None)
