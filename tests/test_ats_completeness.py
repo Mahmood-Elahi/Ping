@@ -194,6 +194,55 @@ class WorkdayCompletenessTests(unittest.TestCase):
         self.assertFalse(metadata["scan_complete"])
         self.assertEqual(metadata["stop_reason"], "repeated_page")
 
+    def test_long_pagination_deduplicates_overlaps_and_keeps_advancing(self):
+        pages = [postings(0, 20)]
+        pages.extend(postings(19 * page, 20) for page in range(1, 7))
+        pages.append(postings(133, 15))
+        session = Session(
+            *[
+                Response({"total": 155, "jobPostings": page})
+                for page in pages
+            ]
+        )
+
+        jobs = workday.fetch_jobs(session, target(max_pages=8))
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(len(jobs), 148)
+        self.assertEqual(len({job.job_id for job in jobs}), 148)
+        self.assertEqual(metadata["overlapping_jobs_skipped"], 7)
+        self.assertEqual(metadata["pages_requested"], 8)
+        self.assertEqual(metadata["pages_completed"], 8)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["stop_reason"], "reported_total_reached")
+
+    def test_reordered_complete_page_is_still_non_advancing(self):
+        first_page = postings(0, 20)
+        session = Session(
+            Response({"jobPostings": first_page}),
+            Response({"jobPostings": list(reversed(first_page))}),
+        )
+
+        with self.assertRaisesRegex(AdapterError, "repeated a complete page"):
+            workday.fetch_jobs(session, target())
+
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["stop_reason"], "repeated_page")
+
+    def test_different_page_with_no_new_identities_is_still_non_advancing(self):
+        first_page = postings(0, 20)
+        second_page = first_page[:19] + [first_page[0]]
+        session = Session(
+            Response({"jobPostings": first_page}),
+            Response({"jobPostings": second_page}),
+        )
+
+        with self.assertRaisesRegex(AdapterError, "no new stable jobs"):
+            workday.fetch_jobs(session, target())
+
+        self.assertEqual(source_scan_metadata(session)["stop_reason"], "repeated_page")
+
     def test_reported_zero_is_complete_but_http_error_is_not(self):
         complete_session = Session(Response({"total": 0, "jobPostings": []}))
         self.assertEqual(workday.fetch_jobs(complete_session, target()), [])

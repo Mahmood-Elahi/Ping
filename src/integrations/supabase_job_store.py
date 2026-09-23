@@ -244,6 +244,8 @@ class SupabaseJobStore:
         self._sleep = sleep
         self._redaction_secrets = tuple(str(value) for value in redaction_secrets if value)
         self.last_sync_diagnostics: Optional[SyncDiagnostics] = None
+        self._last_scan_id: Optional[str] = None
+        self._last_scan_diagnostics: dict[str, Any] = {}
         if self.request_timeout_seconds <= 0:
             raise SupabaseConfigurationError("SUPABASE_REQUEST_TIMEOUT_SECONDS must be positive")
         if self.sync_max_attempts < 1:
@@ -388,6 +390,9 @@ class SupabaseJobStore:
         exclusion_counts: Optional[Mapping[str, int]] = None,
         coverage_report_path: Optional[str] = None,
         ranked_artifact_path: Optional[str] = None,
+        normalized_jobs: int = 0,
+        source_summary: Optional[Mapping[str, Any]] = None,
+        scan_runtime_seconds: Optional[float] = None,
     ) -> SyncResult:
         """Synchronize each source atomically, then record the successful scan."""
         seen_at = _ensure_aware(self._now_factory())
@@ -397,7 +402,7 @@ class SupabaseJobStore:
             payload = tracked_job_payload(
                 {**values, "is_ranked_output": False}, seen_at=seen_at
             )
-            jobs_by_key.setdefault(payload["source_key"], payload)
+            self._merge_job_payload(jobs_by_key, payload, ranked=False)
         ranked_count = 0
         for job in jobs:
             values = _job_mapping(job)
@@ -406,7 +411,7 @@ class SupabaseJobStore:
             )
             if not jobs_by_key.get(payload["source_key"], {}).get("is_ranked_output"):
                 ranked_count += 1
-            jobs_by_key[payload["source_key"]] = payload
+            self._merge_job_payload(jobs_by_key, payload, ranked=True)
 
         scan = {
             "started_at": _iso_timestamp(started_at),
@@ -469,8 +474,56 @@ class SupabaseJobStore:
             elapsed_seconds=round(elapsed, 3),
             request_timeout_seconds=self.request_timeout_seconds,
         )
-        self._record_scan_run(scan_id=scan_id, scan=scan, result=totals, success=True)
+        run_diagnostics = {
+            "scan_success": True,
+            "publication_status": "pending",
+            "normalized_jobs": int(normalized_jobs),
+            "ranked_jobs": int(ranked_count),
+            "source_summary": _json_safe(dict(source_summary or {})),
+            "scan_runtime_seconds": (
+                round(float(scan_runtime_seconds), 3)
+                if scan_runtime_seconds is not None else None
+            ),
+            "missing_incremented": totals.missing_incremented,
+            "closed": totals.closed,
+        }
+        self._record_scan_run(
+            scan_id=scan_id,
+            scan=scan,
+            result=totals,
+            success=True,
+            diagnostics=run_diagnostics,
+        )
+        self._last_scan_id = scan_id
+        self._last_scan_diagnostics = run_diagnostics
         return totals
+
+    @staticmethod
+    def _merge_job_payload(
+        jobs_by_key: MutableMapping[str, dict[str, Any]],
+        payload: dict[str, Any],
+        *,
+        ranked: bool,
+    ) -> None:
+        """Merge lifecycle/ranked views while rejecting ambiguous identities."""
+        source_key = str(payload["source_key"])
+        existing = jobs_by_key.get(source_key)
+        if existing is not None:
+            identity_fields = ("company", "title", "source_url")
+            existing_identity = tuple(existing.get(field) for field in identity_fields)
+            incoming_identity = tuple(payload.get(field) for field in identity_fields)
+            if existing_identity != incoming_identity:
+                raise ValueError(
+                    "Conflicting jobs resolved to the same source identity: "
+                    f"{source_key}"
+                )
+            if ranked and existing.get("is_ranked_output") and existing != payload:
+                raise ValueError(
+                    "Duplicate ranked jobs have inconsistent payloads for source identity: "
+                    f"{source_key}"
+                )
+        if existing is None or ranked:
+            jobs_by_key[source_key] = payload
 
     def _execute_source_sync(
         self,
@@ -578,6 +631,7 @@ class SupabaseJobStore:
         scan: Mapping[str, Any],
         result: SyncResult,
         success: bool,
+        diagnostics: Optional[Mapping[str, Any]] = None,
     ) -> None:
         row = {
             "id": scan_id,
@@ -587,10 +641,12 @@ class SupabaseJobStore:
             "jobs_updated": result.updated,
             "jobs_unchanged": result.unchanged,
             "failure_stage": None,
-            "diagnostics": {
-                "missing_incremented": result.missing_incremented,
-                "closed": result.closed,
-            },
+            "diagnostics": _json_safe(
+                dict(diagnostics or {
+                    "missing_incremented": result.missing_incremented,
+                    "closed": result.closed,
+                })
+            ),
             "error_message": None,
         }
         try:
@@ -602,6 +658,62 @@ class SupabaseJobStore:
                 secrets=self._redaction_secrets,
             )
             raise error from SupabaseProviderError(error.diagnostics)
+
+    def record_publication_result(
+        self,
+        *,
+        started_at: datetime,
+        status: str,
+        success: bool,
+        runtime_seconds: Optional[float] = None,
+        error_message: Optional[str] = None,
+    ) -> None:
+        """Finalize publication state without overwriting successful scan counts."""
+        scan_id = str(uuid.uuid5(SYNC_SCAN_NAMESPACE, _iso_timestamp(started_at)))
+        diagnostics = dict(self._last_scan_diagnostics)
+        diagnostics.update(
+            {
+                "scan_success": True,
+                "publication_status": str(status),
+                "runtime_seconds": (
+                    round(float(runtime_seconds), 3)
+                    if runtime_seconds is not None else None
+                ),
+            }
+        )
+        safe_message = (
+            _sanitize_text(
+                error_message,
+                secrets=(*_configured_secrets(), *self._redaction_secrets),
+            )[:4000]
+            if error_message else None
+        )
+        values = {
+            "completed_at": _iso_timestamp(_ensure_aware(self._now_factory())),
+            "success": bool(success),
+            "failure_stage": None if success else "google_sheets_publication",
+            "diagnostics": _json_safe(diagnostics),
+            "error_message": safe_message,
+        }
+        try:
+            response = (
+                self.client.table("scan_runs")
+                .update(values)
+                .eq("id", scan_id)
+                .execute()
+            )
+            data = getattr(response, "data", None)
+            if not isinstance(data, list) or len(data) != 1:
+                raise RuntimeError("Supabase publication status update matched no scan run")
+        except Exception as exc:
+            error = _supabase_access_error(
+                exc,
+                operation="publication status recording",
+                secrets=self._redaction_secrets,
+            )
+            raise error from SupabaseProviderError(error.diagnostics)
+        self._last_scan_id = scan_id
+        self._last_scan_diagnostics = diagnostics
 
     def fetch_dashboard_data(self) -> DashboardData:
         """Read active jobs and the latest scan without touching applications."""

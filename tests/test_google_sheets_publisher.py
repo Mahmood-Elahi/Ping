@@ -401,6 +401,7 @@ class GoogleSheetsPublisherTests(unittest.TestCase):
         self.assertEqual(status_values[0], SYSTEM_STATUS_HEADERS)
         status = dict(status_values[1:])
         self.assertEqual(status["Most Recent Scan Status"], "success")
+        self.assertEqual(status["Publication Status"], "published")
         self.assertEqual(status["Companies Checked"], 2)
         self.assertEqual(status["Exclusion Counts"], "location=2; seniority=1")
         self.assertEqual(status["Collector Status: Beta"], "failed_technical")

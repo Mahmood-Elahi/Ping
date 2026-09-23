@@ -237,6 +237,7 @@ class CompanyTarget:
     apply_url_template: Optional[str] = None
     apply_url_id_query_param: Optional[str] = None
     search_terms: List[str] = field(default_factory=list)
+    selective_detail_enrichment: bool = False
     max_pages: int = 5
     max_jobs: int = 20
     page_size: int = 10
@@ -318,6 +319,9 @@ class CompanyTarget:
             apply_url_template=data.get("apply_url_template"),
             apply_url_id_query_param=data.get("apply_url_id_query_param"),
             search_terms=list(data.get("search_terms") or []),
+            selective_detail_enrichment=bool(
+                data.get("selective_detail_enrichment", False)
+            ),
             max_pages=_adapter_safety_budget(
                 data,
                 platform,

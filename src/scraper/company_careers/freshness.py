@@ -85,6 +85,7 @@ class ReconciliationResult:
     transitions: tuple[dict[str, Any], ...]
     summary: dict[str, int]
     date_parse_failures: tuple[dict[str, str], ...]
+    date_diagnostic_counts: dict[str, int]
 
 
 def load_freshness_config(path: str = DEFAULT_FRESHNESS_CONFIG_PATH) -> FreshnessConfig:
@@ -194,6 +195,13 @@ def parse_source_date(value: Any, *, as_of: datetime) -> Optional[str]:
         lowered = text.casefold()
         days = 0 if lowered == "today" else 1 if lowered == "yesterday" else int(relative.group(1))
         return (reference.date() - timedelta(days=days)).isoformat()
+    bounded_days = _bounded_relative_days(text)
+    if bounded_days is not None:
+        # Workday's "30+" label is a lower bound, not an exact timestamp.
+        # Using the boundary date conservatively prevents an old posting from
+        # being treated as newly seen while never making it appear older than
+        # the source proves.
+        return (reference.date() - timedelta(days=bounded_days)).isoformat()
     if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
         try:
             return date.fromisoformat(text).isoformat()
@@ -213,6 +221,18 @@ def parse_source_date(value: Any, *, as_of: datetime) -> Optional[str]:
         except ValueError:
             continue
     return None
+
+
+def _bounded_relative_days(value: Any) -> Optional[int]:
+    text = " ".join(str(value or "").strip().split())
+    text = re.sub(
+        r"^(?:date\s+posted|posted(?:\s+on)?|published)\s*:?\s*",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+    match = re.fullmatch(r"(\d{1,4})\+\s+days?\s+ago", text, re.IGNORECASE)
+    return int(match.group(1)) if match else None
 
 
 def stable_job_key(job: Mapping[str, Any] | Any) -> str:
@@ -252,17 +272,20 @@ def reconcile_lifecycle(
     state_jobs: dict[str, dict[str, Any]] = {}
     transitions: list[dict[str, Any]] = []
     failures: list[dict[str, str]] = []
+    date_diagnostics: Counter[str] = Counter()
 
     for source_key in sorted(incoming):
         values = incoming[source_key]
-        posted_at, posted_failures = _extract_source_date(
+        posted_at, posted_failures, posted_status = _extract_source_date(
             values, direct_fields=("source_posted_at", "date_posted"),
             metadata_keys=POSTED_METADATA_KEYS, as_of=reference, kind="source_posted_at",
         )
-        closes_at, close_failures = _extract_source_date(
+        closes_at, close_failures, close_status = _extract_source_date(
             values, direct_fields=("source_closes_at", "source_deadline_at"),
             metadata_keys=CLOSE_METADATA_KEYS, as_of=reference, kind="source_closes_at",
         )
+        date_diagnostics[f"source_posted_at_{posted_status}"] += 1
+        date_diagnostics[f"source_closes_at_{close_status}"] += 1
         if closes_at is None:
             closes_at = _description_deadline(values.get("description"), as_of=reference)
         failures.extend(
@@ -348,6 +371,18 @@ def reconcile_lifecycle(
         date_parse_failures=tuple(
             sorted(failures, key=lambda item: (item["source_key"], item["field"], item["value"]))
         ),
+        date_diagnostic_counts={
+            key: date_diagnostics[key]
+            for key in (
+                "source_posted_at_missing",
+                "source_posted_at_malformed",
+                "source_posted_at_approximate",
+                "source_closes_at_missing",
+                "source_closes_at_malformed",
+                "source_closes_at_approximate",
+            )
+        }
+        | {"lifecycle_failures": 0},
     )
 
 
@@ -500,12 +535,14 @@ class FreshnessRuntime:
 def _extract_source_date(
     values: Mapping[str, Any], *, direct_fields: tuple[str, ...],
     metadata_keys: frozenset[str], as_of: datetime, kind: str,
-) -> tuple[Optional[str], list[dict[str, str]]]:
+) -> tuple[Optional[str], list[dict[str, str]], str]:
     candidates: list[tuple[str, Any]] = []
     for field in direct_fields:
         if values.get(field) not in (None, ""):
             candidates.append((field, values[field]))
     candidates.extend(_metadata_date_candidates(values.get("raw_metadata"), metadata_keys))
+    if not candidates:
+        return None, [], "missing"
     failures: list[dict[str, str]] = []
     for _field, value in candidates:
         parsed = parse_source_date(value, as_of=as_of)
@@ -515,8 +552,9 @@ def _extract_source_date(
         if kind == "source_posted_at" and _date_is_future(parsed, as_of):
             failures.append({"field": kind, "reason": "future_date", "value": _safe_value(value)})
             continue
-        return parsed, failures
-    return None, failures
+        status = "approximate" if _bounded_relative_days(value) is not None else "parsed"
+        return parsed, failures, status
+    return None, failures, "malformed"
 
 
 def _metadata_date_candidates(

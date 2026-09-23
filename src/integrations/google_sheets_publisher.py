@@ -385,6 +385,31 @@ class GoogleSheetsPublisher:
                 retry_delays=self._retry_delays,
                 allow_retry=True,
             )
+            final_scan_run = dict(scan_run or {})
+            final_diagnostics = final_scan_run.get("diagnostics")
+            final_diagnostics = (
+                dict(final_diagnostics)
+                if isinstance(final_diagnostics, Mapping) else {}
+            )
+            final_diagnostics["scan_success"] = True
+            final_diagnostics["publication_status"] = "published"
+            final_scan_run["diagnostics"] = final_diagnostics
+            final_status_values = [SYSTEM_STATUS_HEADERS] + _system_status_rows(
+                final_scan_run,
+                statuses,
+                coverage_summary or {},
+            )
+            _run_google_operation(
+                "finalize_system_status",
+                lambda: managed_worksheets["System Status"].update(
+                    range_name="A1",
+                    values=final_status_values,
+                    value_input_option="RAW",
+                ),
+                sleep_func=self._sleep_func,
+                retry_delays=self._retry_delays,
+                allow_retry=True,
+            )
         except _GoogleSheetsOperationError as exc:
             raise GoogleSheetsAccessError(
                 "Google Sheets publication failed; " + str(exc)
@@ -762,12 +787,24 @@ def _system_status_rows(
 ) -> list[list[Any]]:
     success = scan_run.get("success")
     status = "success" if success is True else "failed" if success is False else "unknown"
+    diagnostics = scan_run.get("diagnostics")
+    diagnostics = dict(diagnostics) if isinstance(diagnostics, Mapping) else {}
+    source_summary = diagnostics.get("source_summary")
+    source_summary = (
+        dict(source_summary) if isinstance(source_summary, Mapping) else {}
+    )
     rows = [
         ["Most Recent Scan Status", status],
+        ["Scan Success", _cell(diagnostics.get("scan_success", success))],
+        ["Publication Status", _cell(diagnostics.get("publication_status", "unknown"))],
         ["Start Time", _timestamp_cell(scan_run.get("started_at"))],
         ["Completion Time", _timestamp_cell(scan_run.get("completed_at"))],
+        ["Runtime Seconds", _cell(diagnostics.get("runtime_seconds"))],
         ["Companies Checked", _cell(scan_run.get("companies_checked"))],
         ["Canonical Sources Checked", _cell(scan_run.get("companies_checked"))],
+        ["Complete Sources", _cell(source_summary.get("complete"))],
+        ["Incomplete Sources", _cell(source_summary.get("incomplete"))],
+        ["Failed Sources", _cell(source_summary.get("failed"))],
         [
             "Mapped Child Brands Covered",
             _cell(coverage_summary.get("mapped_child_brands_covered")),
@@ -777,10 +814,14 @@ def _system_status_rows(
             _cell(coverage_summary.get("total_original_companies_covered")),
         ],
         ["Jobs Fetched", _cell(scan_run.get("jobs_fetched"))],
+        ["Normalized Jobs", _cell(diagnostics.get("normalized_jobs"))],
         ["Jobs Retained", _cell(scan_run.get("jobs_retained"))],
+        ["Final Ranked Jobs", _cell(diagnostics.get("ranked_jobs"))],
         ["Inserted Count", _cell(scan_run.get("jobs_inserted"))],
         ["Updated Count", _cell(scan_run.get("jobs_updated"))],
         ["Unchanged Count", _cell(scan_run.get("jobs_unchanged"))],
+        ["Missing Counts Advanced", _cell(diagnostics.get("missing_incremented"))],
+        ["Jobs Closed", _cell(diagnostics.get("closed"))],
         ["Exclusion Counts", _cell(scan_run.get("exclusion_counts"))],
         ["Coverage Report Path", _cell(scan_run.get("coverage_report_path"))],
         ["Ranked Artifact Path", _cell(scan_run.get("ranked_artifact_path"))],

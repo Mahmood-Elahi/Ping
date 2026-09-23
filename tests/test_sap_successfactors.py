@@ -607,7 +607,8 @@ class SapSuccessFactorsTests(unittest.TestCase):
         for value, reason in (
             ("", "empty"),
             ("   ", "empty"),
-            ("LOC-14987", "not a combined display location"),
+            ("LOC-14987", "not a recognized country-only or combined display location"),
+            ("Warehouse", "not a recognized country-only or combined display location"),
             ("https://example.test/location/14987", "URL is not a display location"),
             ('{"id":"LOC-14987","region":"NA"}', "serialized structure"),
         ):
@@ -639,6 +640,11 @@ class SapSuccessFactorsTests(unittest.TestCase):
                 self.assertIn("primLocation=str(rejected=", diagnostic)
                 if value.strip():
                     self.assertNotIn(value, diagnostic)
+
+    def test_columnized_primary_location_accepts_country_only_display_forms(self):
+        for value in ("Thailand", "India", "United States", "THA", "SG"):
+            with self.subTest(value=value):
+                self.assertEqual(sf._columnized_primary_location(value), [value])
 
     def test_columnized_primary_location_rejects_malformed_structures(self):
         cases = (
@@ -923,6 +929,45 @@ class SapSuccessFactorsTests(unittest.TestCase):
         self.assertEqual(metadata["pages_requested"], 1)
         self.assertEqual(metadata["pages_completed"], 1)
 
+    def test_columnized_selective_detail_enrichment_keeps_full_listing_recall(self):
+        ordinary = columnized_row(1)
+        ordinary["response"]["unifiedStandardTitle"] = "Senior-Engineer"
+        ordinary["response"]["unifiedUrlTitle"] = "Senior-Engineer"
+        student = columnized_row(2)
+        student["response"]["unifiedStandardTitle"] = "Software-Intern"
+        student["response"]["unifiedUrlTitle"] = "Software-Intern"
+        session = SequencedColumnizedSession(
+            [{"totalJobs": 2, "jobSearchResult": [ordinary, student]}]
+        )
+
+        jobs = sf.fetch_jobs(
+            session,
+            target(
+                sf.COLUMNIZED_VARIANT,
+                endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
+                locale="en_US",
+                identity_regex=r"Example",
+                allowed_apply_hosts=["jobs.example.com"],
+                max_pages=1,
+                max_jobs=10,
+                page_size=10,
+                selective_detail_enrichment=True,
+            ),
+        )
+
+        metadata = source_scan_metadata(session)
+        self.assertEqual(len(jobs), 2)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["detail_requests"], 1)
+        self.assertEqual(metadata["detail_requests_skipped"], 1)
+        detail_urls = [url for url, _kwargs in session.get_calls if "/job/" in url]
+        self.assertEqual(len(detail_urls), 1)
+        self.assertIn("Software-Intern", detail_urls[0])
+        ordinary_job = next(job for job in jobs if job.title == "Senior-Engineer")
+        self.assertEqual(
+            ordinary_job.raw_metadata["detail_enrichment"], "not_requested"
+        )
+
     def test_columnized_pagination_maps_offsets_to_rmk_page_numbers_and_completes(self):
         first = [columnized_row(index) for index in range(1, 11)]
         second = [columnized_row(index) for index in range(11, 21)]
@@ -1092,6 +1137,110 @@ class SapSuccessFactorsTests(unittest.TestCase):
         self.assertFalse(metadata["scan_complete"])
         self.assertEqual(metadata["stop_reason"], "repeated_page")
         self.assertEqual(metadata["pages_completed"], 1)
+
+    def test_columnized_long_collection_accepts_immediate_terminal_page_clamp(self):
+        pages = [
+            [columnized_row(page * 10 + index) for index in range(1, 11)]
+            for page in range(7)
+        ]
+        session = SequencedColumnizedSession(
+            [
+                {"totalJobs": 198, "jobSearchResult": page}
+                for page in pages
+            ]
+            + [{"totalJobs": 198, "jobSearchResult": pages[-1]}]
+        )
+
+        jobs = sf.fetch_jobs(
+            session,
+            target(
+                sf.COLUMNIZED_VARIANT,
+                endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
+                locale="en_US",
+                identity_regex=r"Example",
+                allowed_apply_hosts=["jobs.example.com"],
+                max_pages=8,
+                max_jobs=100,
+                page_size=10,
+                selective_detail_enrichment=True,
+            ),
+        )
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(len(jobs), 70)
+        self.assertEqual(metadata["pages_requested"], 8)
+        self.assertEqual(metadata["pages_completed"], 7)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["stop_reason"], "terminal_page_clamped")
+        self.assertEqual(metadata["reported_total"], 198)
+        self.assertEqual(metadata["total_available"], 70)
+        self.assertEqual(
+            [call[1]["json"]["pageNumber"] for call in session.post_calls],
+            [0, 2, 3, 4, 5, 6, 7, 8],
+        )
+
+    def test_columnized_long_collection_accepts_short_locale_terminal_page(self):
+        pages = [
+            [columnized_row(page * 10 + index) for index in range(1, 11)]
+            for page in range(6)
+        ]
+        pages.append([columnized_row(60 + index) for index in range(1, 9)])
+        session = SequencedColumnizedSession(
+            [{"totalJobs": 78, "jobSearchResult": page} for page in pages]
+        )
+
+        jobs = sf.fetch_jobs(
+            session,
+            target(
+                sf.COLUMNIZED_VARIANT,
+                endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
+                locale="en_US",
+                identity_regex=r"Example",
+                allowed_apply_hosts=["jobs.example.com"],
+                max_pages=7,
+                max_jobs=100,
+                page_size=10,
+                selective_detail_enrichment=True,
+            ),
+        )
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(len(jobs), 68)
+        self.assertEqual(metadata["pages_completed"], 7)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["stop_reason"], "natural_terminal_page")
+        self.assertEqual(metadata["reported_total"], 78)
+        self.assertEqual(metadata["total_available"], 68)
+
+    def test_columnized_long_collection_still_rejects_nonterminal_page_rewind(self):
+        first = [columnized_row(index) for index in range(1, 11)]
+        second = [columnized_row(index) for index in range(11, 21)]
+        third = [columnized_row(index) for index in range(21, 31)]
+        session = SequencedColumnizedSession(
+            [
+                {"totalJobs": 100, "jobSearchResult": first},
+                {"totalJobs": 100, "jobSearchResult": second},
+                {"totalJobs": 100, "jobSearchResult": third},
+                {"totalJobs": 100, "jobSearchResult": first},
+            ]
+        )
+
+        with self.assertRaisesRegex(AdapterError, "repeated a complete page"):
+            sf.fetch_jobs(
+                session,
+                target(
+                    sf.COLUMNIZED_VARIANT,
+                    endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
+                    locale="en_US",
+                    identity_regex=r"Example",
+                    allowed_apply_hosts=["jobs.example.com"],
+                    max_pages=4,
+                    max_jobs=100,
+                    page_size=10,
+                    selective_detail_enrichment=True,
+                ),
+            )
+        self.assertFalse(source_scan_metadata(session)["scan_complete"])
 
     @patch.object(sf.time, "sleep", return_value=None)
     def test_later_page_request_failure_preserves_failure_metadata(self, _sleep):

@@ -209,6 +209,7 @@ STUDENT_CATEGORY_PATTERNS = (
 ROLE_QUERY_PLATFORMS = {
     "amazon", "custom:amazon", "google", "custom:google", "meta", "custom:meta",
 }
+SELECTIVE_DETAIL_ENRICHMENT_PLATFORMS = {"sap_successfactors"}
 STRUCTURED_JOB_TYPE_KEYS = {
     "employmenttype", "employmenttypes", "jobtype", "jobtypes", "positiontype",
     "positiontypes", "workertype", "workertypes", "timetype", "schedule",
@@ -279,11 +280,15 @@ def configure_student_targets(
 ) -> list[CompanyTarget]:
     """Apply role queries only to collectors that do not enumerate the full board."""
     queries = student_search_terms(include_new_grad)
-    return [
-        replace(target, search_terms=list(queries))
-        if target.platform in ROLE_QUERY_PLATFORMS else target
-        for target in targets
-    ]
+    configured = []
+    for target in targets:
+        changes: dict[str, Any] = {}
+        if target.platform in ROLE_QUERY_PLATFORMS:
+            changes["search_terms"] = list(queries)
+        if target.platform in SELECTIVE_DETAIL_ENRICHMENT_PLATFORMS:
+            changes["selective_detail_enrichment"] = True
+        configured.append(replace(target, **changes) if changes else target)
+    return configured
 
 
 def classify_student_location(

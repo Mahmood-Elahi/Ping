@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 from datetime import datetime, timezone
 from functools import partial
 from pathlib import Path
@@ -220,6 +221,7 @@ def build_pipeline(
 
 
 def run_update(args: argparse.Namespace) -> int:
+    run_started = time.monotonic()
     candidate_profile = (
         load_candidate_profile(args.candidate_profile)
         if args.candidate_profile else None
@@ -298,6 +300,7 @@ def run_update(args: argparse.Namespace) -> int:
             ),
             now=as_of,
         )
+        summary["final_ranked_jobs"] = len(ranked_jobs)
         successful_companies = [
             result.target.name
             for result in report.results
@@ -318,6 +321,9 @@ def run_update(args: argparse.Namespace) -> int:
             exclusion_counts=summary["exclusion_counts"],
             coverage_report_path=summary["coverage_report_path"],
             ranked_artifact_path=summary["ranked_results_path"],
+            normalized_jobs=summary.get("normalized_jobs", len(report.normalized_jobs)),
+            source_summary=summary.get("scan_health_counts", {}),
+            scan_runtime_seconds=summary.get("scan_runtime_seconds"),
         )
     except Exception as exc:
         _record_failed_scan(job_store, pipeline, started_at, exc)
@@ -328,17 +334,78 @@ def run_update(args: argparse.Namespace) -> int:
     }
     sheet_counts: dict[str, int] | None = None
     if publisher is not None:
-        dashboard_data = job_store.fetch_dashboard_data()
-        sheet_counts = publisher.publish(
-            active_jobs=dashboard_data.active_jobs,
-            scan_run=dashboard_data.latest_scan,
-            companies=report.coverage(),
-            company_statuses=company_statuses,
-            coverage_summary=report.original_coverage,
+        try:
+            dashboard_data = job_store.fetch_dashboard_data()
+            sheet_scan_run = _publication_preview(
+                dashboard_data.latest_scan,
+                status="publishing",
+                runtime_seconds=time.monotonic() - run_started,
+            )
+            sheet_counts = publisher.publish(
+                active_jobs=dashboard_data.active_jobs,
+                scan_run=sheet_scan_run,
+                companies=report.coverage(),
+                company_statuses=company_statuses,
+                coverage_summary=report.original_coverage,
+            )
+            job_store.record_publication_result(
+                started_at=started_at,
+                status="published",
+                success=True,
+                runtime_seconds=time.monotonic() - run_started,
+            )
+        except Exception as exc:
+            try:
+                job_store.record_publication_result(
+                    started_at=started_at,
+                    status="failed",
+                    success=False,
+                    runtime_seconds=time.monotonic() - run_started,
+                    error_message=f"{exc.__class__.__name__}: {exc}",
+                )
+            except Exception as record_exc:
+                if hasattr(exc, "add_note"):
+                    exc.add_note(
+                        "Publication failure status could not be persisted safely: "
+                        f"{record_exc}"
+                    )
+            raise
+    else:
+        job_store.record_publication_result(
+            started_at=started_at,
+            status="skipped",
+            success=True,
+            runtime_seconds=time.monotonic() - run_started,
         )
 
-    print_summary(summary, sync_result, sheet_counts, skip_sheets=args.skip_sheets)
+    runtime_seconds = round(time.monotonic() - run_started, 3)
+    print_summary(
+        summary,
+        sync_result,
+        sheet_counts,
+        skip_sheets=args.skip_sheets,
+        runtime_seconds=runtime_seconds,
+    )
     return 0
+
+
+def _publication_preview(
+    scan_run: dict[str, Any] | None,
+    *,
+    status: str,
+    runtime_seconds: float,
+) -> dict[str, Any]:
+    values = dict(scan_run or {})
+    diagnostics = dict(values.get("diagnostics") or {})
+    diagnostics.update(
+        {
+            "scan_success": True,
+            "publication_status": status,
+            "runtime_seconds": round(runtime_seconds, 3),
+        }
+    )
+    values["diagnostics"] = diagnostics
+    return values
 
 
 def _record_failed_scan(
@@ -369,6 +436,7 @@ def print_summary(
     sheet_counts: dict[str, int] | None,
     *,
     skip_sheets: bool,
+    runtime_seconds: float,
 ) -> None:
     exclusions = summary["exclusion_counts"]
     print("\nDashboard update summary")
@@ -381,8 +449,15 @@ def print_summary(
         f"{summary.get('original_list_total', 0)}"
     )
     print(f"  Jobs fetched: {summary['jobs_fetched']}")
+    print(f"  Normalized jobs: {summary.get('normalized_jobs', summary['jobs_fetched'])}")
     print(f"  Jobs retained: {summary['jobs_retained']}")
-    print(f"  Source health: {summary.get('scan_health_counts', {})}")
+    print(f"  Eligible/student jobs: {summary.get('eligible_student_jobs', summary['jobs_retained'])}")
+    print(f"  Final ranked jobs: {summary.get('final_ranked_jobs', summary['jobs_retained'])}")
+    health = summary.get("scan_health_counts", {})
+    print(f"  Sources attempted: {summary['companies_checked']}")
+    print(f"  Complete sources: {health.get('complete', 0)}")
+    print(f"  Incomplete sources: {health.get('incomplete', 0)}")
+    print(f"  Failed sources: {health.get('failed', 0)}")
     print(f"  Exclusion counts: {exclusions}")
     print(f"  Supabase inserts: {sync_result.inserted}")
     print(f"  Supabase updates: {sync_result.updated}")
@@ -410,6 +485,7 @@ def print_summary(
         print(f"  New Jobs rows: {sheet_counts['new_jobs']}")
         print(f"  Active Jobs rows: {sheet_counts['active_jobs']}")
         print(f"  Companies rows: {sheet_counts['companies']}")
+    print(f"  Runtime seconds: {runtime_seconds}")
 
 
 def print_audit_summary(summary: dict[str, Any]) -> None:
@@ -440,6 +516,10 @@ def print_audit_summary(summary: dict[str, Any]) -> None:
         print(
             "  Lifecycle/date parse errors: "
             f"{summary.get('date_parse_error_count', len(summary.get('date_parse_failures', [])))}"
+        )
+        print(
+            "  Lifecycle/date diagnostics: "
+            f"{summary.get('date_diagnostic_counts', {})}"
         )
         print("  Lifecycle state: evaluated but not changed (audit)")
     removed = diagnostics.get("graduate_only_roles_removed", [])

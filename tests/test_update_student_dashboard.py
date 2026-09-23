@@ -38,6 +38,7 @@ class FakeStore:
         self.validate_calls = 0
         self.fetch_calls = 0
         self.failed_scan_calls = []
+        self.publication_calls = []
         self.dashboard_data = DashboardData(
             active_jobs=[
                 {
@@ -72,6 +73,9 @@ class FakeStore:
 
     def record_failed_scan(self, **kwargs):
         self.failed_scan_calls.append(kwargs)
+
+    def record_publication_result(self, **kwargs):
+        self.publication_calls.append(kwargs)
 
 
 class FakePublisher:
@@ -209,6 +213,11 @@ class UpdateStudentDashboardTests(unittest.TestCase):
                 {"field": "source_posted_at", "reason": "unparseable"},
                 {"field": "source_closes_at", "reason": "unparseable"},
             ],
+            date_diagnostic_counts={
+                "source_posted_at_missing": 3,
+                "source_posted_at_malformed": 1,
+                "lifecycle_failures": 0,
+            },
             diagnostics={
                 "total_normalized_jobs": 2,
                 "before_retained_jobs": 1,
@@ -239,6 +248,8 @@ class UpdateStudentDashboardTests(unittest.TestCase):
         self.assertIn("Supabase: disabled", output.getvalue())
         self.assertIn("SQLite: disabled", output.getvalue())
         self.assertIn("Lifecycle/date parse errors: 2", output.getvalue())
+        self.assertIn("source_posted_at_missing", output.getvalue())
+        self.assertIn("lifecycle_failures", output.getvalue())
 
     def test_skip_sheets_updates_supabase_without_google_calls(self):
         pipeline = FakePipeline(self.report, self.summary)
@@ -258,6 +269,8 @@ class UpdateStudentDashboardTests(unittest.TestCase):
         self.assertEqual(pipeline.search_calls, 1)
         self.assertEqual(len(store.sync_calls), 1)
         self.assertEqual(store.fetch_calls, 0)
+        self.assertEqual(store.publication_calls[0]["status"], "skipped")
+        self.assertTrue(store.publication_calls[0]["success"])
         publisher_factory.assert_not_called()
         self.assertIn("Google Sheets: skipped", output.getvalue())
 
@@ -287,6 +300,8 @@ class UpdateStudentDashboardTests(unittest.TestCase):
         self.assertEqual(sync_options["successful_companies"], ["Example"])
         self.assertEqual(store.fetch_calls, 1)
         self.assertEqual(len(publisher.publish_calls), 1)
+        self.assertEqual(store.publication_calls[0]["status"], "published")
+        self.assertTrue(store.publication_calls[0]["success"])
         self.assertIs(
             publisher.publish_calls[0]["active_jobs"],
             store.dashboard_data.active_jobs,
@@ -335,6 +350,8 @@ class UpdateStudentDashboardTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 1)
         self.assertEqual(len(publisher.publish_calls), 1)
+        self.assertEqual(store.publication_calls[0]["status"], "failed")
+        self.assertFalse(store.publication_calls[0]["success"])
         self.assertIn("operation=batch_format", error_output.getvalue())
         self.assertIn("attempts=3", error_output.getvalue())
 

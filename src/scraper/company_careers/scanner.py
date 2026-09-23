@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 import re
 from typing import Any, Callable, Iterable, List, Optional, Sequence
@@ -75,6 +76,7 @@ AdapterFn = Callable[[requests.Session, CompanyTarget, int], List[JobRecord]]
 JobFilterFn = Callable[[JobRecord], Optional[str]]
 LocationFilterFn = Callable[[JobRecord], Optional[str]]
 SessionFactory = Callable[[], requests.Session]
+DEFAULT_SCAN_WORKERS = 6
 
 
 ADAPTERS: dict[str, AdapterFn] = {
@@ -134,6 +136,7 @@ class CompanyCareersScanner:
         config_path: str = DEFAULT_REGISTRY_PATH,
         session: Optional[requests.Session] = None,
         session_factory: SessionFactory = requests.Session,
+        max_workers: int = DEFAULT_SCAN_WORKERS,
         timeout: int = 60,
         parent_source_mappings: Optional[Sequence[ParentSourceMapping]] = None,
         parent_mapping_path: str = DEFAULT_PARENT_MAPPING_PATH,
@@ -149,9 +152,13 @@ class CompanyCareersScanner:
                 ),
             )
         )
-        self.session = session or requests.Session()
-        self._isolate_adp_sessions = session is None
+        if int(max_workers) < 1:
+            raise ValueError("max_workers must be at least 1")
+        self.session = session
         self._session_factory = session_factory
+        # Injected sessions are normally deterministic test doubles and may not
+        # be thread-safe. Production callers get one isolated Session per source.
+        self.max_workers = 1 if session is not None else int(max_workers)
         self.timeout = timeout
         self.original_company_inventory_path = original_company_inventory_path
         self.parent_source_mappings = list(
@@ -178,8 +185,20 @@ class CompanyCareersScanner:
         )
         if not any(target.platform == "browser_rendered_html" for target in self.targets):
             return self._scan(**options)
-        with browser_rendered_html.BrowserBatch(timeout=self.timeout) as browser_batch:
+        browser_batch = browser_rendered_html.BrowserBatch(timeout=self.timeout)
+        try:
+            browser_batch.__enter__()
+        except Exception as exc:
+            return self._scan(browser_batch_error=exc, **options)
+        try:
             return self._scan(browser_batch=browser_batch, **options)
+        finally:
+            try:
+                browser_batch.close()
+            except Exception:
+                # Browser cleanup cannot invalidate already-contained source
+                # results or prevent publication of independent HTTP sources.
+                pass
 
     def _scan(
         self,
@@ -189,46 +208,135 @@ class CompanyCareersScanner:
         job_filter: Optional[JobFilterFn] = None,
         location_filter: Optional[LocationFilterFn] = None,
         browser_batch: Optional[browser_rendered_html.BrowserBatch] = None,
+        browser_batch_error: Optional[Exception] = None,
     ) -> CompanyCareersReport:
-        results: List[CompanyScanResult] = []
+        results: list[Optional[CompanyScanResult]] = [None] * len(self.targets)
+        indexed_targets = list(enumerate(self.targets))
 
-        for target in self.targets:
-            adapter = ADAPTERS.get(target.platform)
-            if target.platform == "browser_rendered_html" and browser_batch is not None:
-                adapter = lambda _session, current, timeout: browser_batch.fetch_jobs(current, timeout)
-            if target.platform in {"manual", "manual_review"}:
-                results.append(
-                    CompanyScanResult(
-                        target=target,
-                        status=CoverageStatus.MANUAL_REVIEW_REQUIRED,
-                        error=f"Manual review required for platform: {target.platform}",
-                        error_type="manual_review_required",
-                        remediation="Add a reusable adapter or verify this company manually.",
-                    )
+        if self.max_workers == 1:
+            for index, target in indexed_targets:
+                results[index] = self._scan_target(
+                    target,
+                    keywords=keywords,
+                    locations=locations,
+                    max_jobs_per_company=max_jobs_per_company,
+                    job_filter=job_filter,
+                    location_filter=location_filter,
+                    browser_batch=browser_batch,
+                    browser_batch_error=browser_batch_error,
                 )
-                continue
-            if adapter is None:
-                results.append(
-                    CompanyScanResult(
-                        target=target,
-                        status=CoverageStatus.NOT_IMPLEMENTED,
-                        error=f"No adapter registered for platform: {target.platform}",
-                        error_type="not_implemented",
-                        remediation="Register an adapter for this platform or mark the company manual_review.",
+        else:
+            browser_targets = [
+                pair for pair in indexed_targets
+                if pair[1].platform == "browser_rendered_html"
+            ]
+            worker_targets = [
+                pair for pair in indexed_targets
+                if pair[1].platform != "browser_rendered_html"
+            ]
+            worker_count = min(self.max_workers, max(1, len(worker_targets)))
+            with ThreadPoolExecutor(
+                max_workers=worker_count,
+                thread_name_prefix="job-radar-source",
+            ) as executor:
+                futures: dict[Future[CompanyScanResult], int] = {
+                    executor.submit(
+                        self._scan_target,
+                        target,
+                        keywords=keywords,
+                        locations=locations,
+                        max_jobs_per_company=max_jobs_per_company,
+                        job_filter=job_filter,
+                        location_filter=location_filter,
+                        browser_batch=None,
+                        browser_batch_error=None,
+                    ): index
+                    for index, target in worker_targets
+                }
+                # Playwright's sync API stays on the owning thread and reuses a
+                # single Chromium process, while ordinary HTTP sources progress.
+                for index, target in browser_targets:
+                    results[index] = self._scan_target(
+                        target,
+                        keywords=keywords,
+                        locations=locations,
+                        max_jobs_per_company=max_jobs_per_company,
+                        job_filter=job_filter,
+                        location_filter=location_filter,
+                        browser_batch=browser_batch,
+                        browser_batch_error=browser_batch_error,
                     )
+                for future, index in futures.items():
+                    results[index] = future.result()
+
+        ordered_results = [result for result in results if result is not None]
+        if len(ordered_results) != len(self.targets):
+            raise RuntimeError("Company scan aggregation lost a source result")
+        return CompanyCareersReport(
+            results=ordered_results,
+            mapped_coverage=self._mapped_coverage(ordered_results),
+            original_coverage=original_company_coverage(
+                self.targets,
+                self.parent_source_mappings,
+                inventory_path=self.original_company_inventory_path,
+            ),
+        )
+
+    def _scan_target(
+        self,
+        target: CompanyTarget,
+        *,
+        keywords: Optional[str],
+        locations: Optional[Iterable[str]],
+        max_jobs_per_company: Optional[int],
+        job_filter: Optional[JobFilterFn],
+        location_filter: Optional[LocationFilterFn],
+        browser_batch: Optional[browser_rendered_html.BrowserBatch],
+        browser_batch_error: Optional[Exception],
+    ) -> CompanyScanResult:
+        """Scan one source and contain every adapter/session failure to it."""
+        adapter = ADAPTERS.get(target.platform)
+        if target.platform == "browser_rendered_html" and browser_batch is not None:
+            adapter = (
+                lambda _session, current, timeout:
+                browser_batch.fetch_jobs(current, timeout)
+            )
+        if target.platform == "browser_rendered_html" and browser_batch_error is not None:
+            message = f"{browser_batch_error.__class__.__name__}: {browser_batch_error}"
+            error_type, remediation = self._adapter_failure_details(message)
+            return CompanyScanResult(
+                target=target,
+                status=CoverageStatus.FAILED_TECHNICAL,
+                error=message,
+                error_type=error_type,
+                remediation=remediation,
+                scan_complete=False,
+                scan_completeness_reason="browser_batch_startup_failure",
+                stop_reason="browser_batch_startup_failure",
+            )
+        if target.platform in {"manual", "manual_review"}:
+            return CompanyScanResult(
+                target=target,
+                status=CoverageStatus.MANUAL_REVIEW_REQUIRED,
+                error=f"Manual review required for platform: {target.platform}",
+                error_type="manual_review_required",
+                remediation="Add a reusable adapter or verify this company manually.",
+            )
+        if adapter is None:
+            return CompanyScanResult(
+                target=target,
+                status=CoverageStatus.NOT_IMPLEMENTED,
+                error=f"No adapter registered for platform: {target.platform}",
+                error_type="not_implemented",
+                remediation="Register an adapter for this platform or mark the company manual_review.",
+            )
+
+        adapter_session: Optional[requests.Session] = None
+        close_adapter_session = self.session is None
+        try:
+                adapter_session = (
+                    self.session if self.session is not None else self._session_factory()
                 )
-                continue
-
-            adapter_session = self.session
-            close_adapter_session = False
-            if target.platform == "adp" and self._isolate_adp_sessions:
-                # Workforce Now can set tenant cookies for the parent .adp.com
-                # domain. Keep anonymous tenants isolated so one source cannot
-                # change the request contract observed by the next source.
-                adapter_session = self._session_factory()
-                close_adapter_session = True
-
-            try:
                 clear_source_scan_metadata(adapter_session)
                 fetched_jobs = self._dedupe(adapter(adapter_session, target, self.timeout))
                 scan_metadata = source_scan_metadata(adapter_session)
@@ -263,8 +371,7 @@ class CompanyCareersScanner:
                     if matched_jobs
                     else CoverageStatus.FETCHED_NO_MATCHING_ROLES
                 )
-                results.append(
-                    CompanyScanResult(
+                return CompanyScanResult(
                         target=target,
                         jobs=matched_jobs,
                         normalized_jobs=fetched_jobs,
@@ -283,13 +390,11 @@ class CompanyCareersScanner:
                         ),
                         exclusion_counts=exclusion_counts,
                         mapped_child_brand_counts=mapped_child_brand_counts,
-                    )
                 )
-            except AdapterError as exc:
+        except AdapterError as exc:
                 scan_metadata = source_scan_metadata(adapter_session)
                 error_type, remediation = self._adapter_failure_details(str(exc))
-                results.append(
-                    CompanyScanResult(
+                return CompanyScanResult(
                         target=target,
                         status=CoverageStatus.FAILED_TECHNICAL,
                         error=str(exc),
@@ -306,12 +411,10 @@ class CompanyCareersScanner:
                         safety_limit_reached=bool(
                             scan_metadata["safety_limit_reached"]
                         ),
-                    )
                 )
-            except requests.RequestException as exc:
+        except requests.RequestException as exc:
                 scan_metadata = source_scan_metadata(adapter_session)
-                results.append(
-                    CompanyScanResult(
+                return CompanyScanResult(
                         target=target,
                         status=CoverageStatus.FAILED_TECHNICAL,
                         error=str(exc),
@@ -328,33 +431,25 @@ class CompanyCareersScanner:
                         safety_limit_reached=bool(
                             scan_metadata["safety_limit_reached"]
                         ),
-                    )
                 )
-            except Exception as exc:
-                results.append(
-                    CompanyScanResult(
+        except Exception as exc:
+                return CompanyScanResult(
                         target=target,
                         status=CoverageStatus.FAILED_TECHNICAL,
                         error=f"{exc.__class__.__name__}: {exc}",
                         error_type="unexpected_error",
                         remediation="Inspect the adapter stack locally; the scanner contained the failure to this company.",
-                    )
                 )
-            finally:
-                if close_adapter_session:
-                    close = getattr(adapter_session, "close", None)
-                    if callable(close):
+        finally:
+            if close_adapter_session and adapter_session is not None:
+                close = getattr(adapter_session, "close", None)
+                if callable(close):
+                    try:
                         close()
-
-        return CompanyCareersReport(
-            results=results,
-            mapped_coverage=self._mapped_coverage(results),
-            original_coverage=original_company_coverage(
-                self.targets,
-                self.parent_source_mappings,
-                inventory_path=self.original_company_inventory_path,
-            ),
-        )
+                    except Exception:
+                        # Session cleanup is source-local and cannot invalidate
+                        # a completed result or abort aggregation.
+                        pass
 
     @staticmethod
     def _mapped_brand_counts(jobs: Iterable[JobRecord]) -> dict[str, int]:

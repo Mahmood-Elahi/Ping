@@ -310,24 +310,38 @@ def _fetch_pages(
                 metadata["scan_completeness_reason"] = "malformed_total"
                 raise AdapterError("Workday ended before its reported total job count")
 
-        signature = tuple(_page_item_identity(item) for item in items)
-        signature_ids = {value.casefold() for value in signature if value}
-        if (
-            items
-            and (
-                signature in seen_page_signatures
-                or len(signature_ids) != len(signature)
-                or bool(signature_ids & seen_item_identities)
-            )
-        ):
+        identities = tuple(_page_item_identity(item) for item in items)
+        if items and not all(identities):
+            metadata["stop_reason"] = "malformed_response"
+            metadata["scan_completeness_reason"] = "pagination_failure"
+            raise AdapterError("Workday job posting has no stable identity")
+        # Fingerprint the identity set rather than presentation order. A page
+        # containing exactly the same jobs in a different order is still
+        # non-advancing, while a partially overlapping page can legitimately
+        # arise from Workday's moving, recently-sorted result set.
+        signature = tuple(sorted({value.casefold() for value in identities}))
+        if items and signature in seen_page_signatures:
             metadata["stop_reason"] = "repeated_page"
             metadata["scan_completeness_reason"] = "pagination_failure"
-            raise AdapterError("Workday pagination repeated a previously returned job or page")
+            raise AdapterError("Workday pagination repeated a complete page")
+        new_identities = {
+            value.casefold() for value in identities
+            if value.casefold() not in seen_item_identities
+        }
+        if items and not new_identities:
+            metadata["stop_reason"] = "repeated_page"
+            metadata["scan_completeness_reason"] = "pagination_failure"
+            raise AdapterError("Workday pagination returned no new stable jobs")
         if items:
             seen_page_signatures.add(signature)
-            seen_item_identities.update(signature_ids)
 
-        for item in items:
+        page_duplicates = 0
+        for item, identity in zip(items, identities):
+            identity_key = identity.casefold()
+            if identity_key in seen_item_identities:
+                page_duplicates += 1
+                continue
+            seen_item_identities.add(identity_key)
             external_path = item.get("externalPath", "") or ""
             bullet_fields = item.get("bulletFields") or []
             job_id = _stable_job_id(bullet_fields, external_path)
@@ -347,6 +361,17 @@ def _fetch_pages(
                     offices=[location] if location else [],
                     raw_metadata={"source_posted_at": item.get("postedOn")},
                 )
+            )
+        if page_duplicates:
+            metadata["overlapping_jobs_skipped"] = int(
+                metadata.get("overlapping_jobs_skipped", 0)
+            ) + page_duplicates
+            metadata.setdefault("diagnostics", []).append(
+                {
+                    "offset": offset,
+                    "overlapping_jobs_skipped": page_duplicates,
+                    "new_jobs": len(new_identities),
+                }
             )
         metadata["pages_completed"] += 1
 

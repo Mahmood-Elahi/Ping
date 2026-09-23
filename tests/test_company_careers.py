@@ -1,11 +1,13 @@
 import json
 import os
+import threading
 import unittest
 from contextlib import redirect_stdout
 from datetime import datetime, timezone
 from io import StringIO
 from tempfile import TemporaryDirectory
 from pathlib import Path
+from unittest.mock import patch
 
 from src.scraper.company_careers.adapters import (
     amazon,
@@ -23,6 +25,7 @@ from src.scraper.company_careers.adapters import (
 from src.scraper.company_careers import scanner as scanner_module
 from src.scraper.company_careers.coverage_report import coverage_markdown, failure_items
 from src.scraper.company_careers.models import (
+    AdapterError,
     CompanyTarget,
     CoverageStatus,
     JobRecord,
@@ -1052,6 +1055,7 @@ class CompanyCareersTests(unittest.TestCase):
 
         self.assertIn("python scripts/update_student_dashboard.py", workflow)
         self.assertNotIn("update_student_dashboard.py --max-jobs 20", workflow)
+        self.assertIn("timeout-minutes: 45", workflow)
 
     def test_scanner_reports_not_implemented_with_remediation(self):
         target = CompanyTarget(name="UnknownCo", platform="unknown_platform")
@@ -1083,6 +1087,139 @@ class CompanyCareersTests(unittest.TestCase):
         self.assertEqual(report.results[0].status, CoverageStatus.FAILED_TECHNICAL)
         self.assertEqual(report.results[0].error_type, "unexpected_error")
         self.assertIn("ValueError: bad parser state", report.results[0].error)
+
+    def test_bounded_concurrency_isolates_failures_sessions_and_output_order(self):
+        lock = threading.Lock()
+        two_workers_started = threading.Event()
+        release_workers = threading.Event()
+        active = 0
+        maximum_active = 0
+        sessions = []
+
+        class IsolatedSession:
+            def __init__(self):
+                self.closed = False
+
+            def close(self):
+                self.closed = True
+
+        def session_factory():
+            session = IsolatedSession()
+            sessions.append(session)
+            return session
+
+        def bounded_adapter(session, target, timeout):
+            nonlocal active, maximum_active
+            with lock:
+                active += 1
+                maximum_active = max(maximum_active, active)
+                if active == 2:
+                    two_workers_started.set()
+                    release_workers.set()
+            self.assertTrue(release_workers.wait(timeout=1))
+            try:
+                if target.name == "Second":
+                    raise ValueError("malformed adapter response")
+                publish_source_scan_metadata(
+                    session,
+                    SourceScanMetadata(
+                        scan_complete=True,
+                        scan_completeness_reason="natural_terminal_page",
+                        stop_reason="natural_terminal_page",
+                    ),
+                )
+                return [
+                    JobRecord(
+                        job_id=target.name,
+                        title=f"{target.name} Engineer",
+                        company=target.name,
+                        location="Remote",
+                        url=f"https://example.com/{target.name}",
+                        updated_at="2026-09-01",
+                        source="bounded:test",
+                    )
+                ]
+            finally:
+                with lock:
+                    active -= 1
+
+        previous = scanner_module.ADAPTERS.get("bounded_test")
+        scanner_module.ADAPTERS["bounded_test"] = bounded_adapter
+        try:
+            report = CompanyCareersScanner(
+                targets=[
+                    CompanyTarget(name="First", platform="bounded_test"),
+                    CompanyTarget(name="Second", platform="bounded_test"),
+                    CompanyTarget(name="Third", platform="bounded_test"),
+                ],
+                session_factory=session_factory,
+                max_workers=2,
+            ).scan()
+        finally:
+            if previous is None:
+                scanner_module.ADAPTERS.pop("bounded_test", None)
+            else:
+                scanner_module.ADAPTERS["bounded_test"] = previous
+
+        self.assertTrue(two_workers_started.is_set())
+        self.assertEqual(maximum_active, 2)
+        self.assertEqual([item.target.name for item in report.results], ["First", "Second", "Third"])
+        self.assertEqual(report.results[1].status, CoverageStatus.FAILED_TECHNICAL)
+        self.assertEqual(report.results[1].error_type, "unexpected_error")
+        self.assertEqual(report.results[0].scan_health, "complete")
+        self.assertEqual(report.results[2].scan_health, "complete")
+        self.assertEqual(len({id(session) for session in sessions}), 3)
+        self.assertTrue(all(session.closed for session in sessions))
+
+    def test_browser_startup_failure_does_not_abort_http_sources(self):
+        def healthy_adapter(session, target, timeout):
+            publish_source_scan_metadata(
+                session,
+                SourceScanMetadata(
+                    scan_complete=True,
+                    scan_completeness_reason="natural_terminal_page",
+                    stop_reason="natural_terminal_page",
+                ),
+            )
+            return [
+                JobRecord(
+                    job_id="healthy",
+                    title="Healthy Engineer",
+                    company=target.name,
+                    location="Remote",
+                    url="https://example.com/healthy",
+                    updated_at="2026-09-01",
+                    source="healthy:test",
+                )
+            ]
+
+        previous = scanner_module.ADAPTERS.get("healthy_test")
+        scanner_module.ADAPTERS["healthy_test"] = healthy_adapter
+        try:
+            with patch.object(
+                scanner_module.browser_rendered_html.BrowserBatch,
+                "__enter__",
+                side_effect=AdapterError("Browser collector could not start Chromium"),
+            ):
+                report = CompanyCareersScanner(
+                    targets=[
+                        CompanyTarget(name="HTTP", platform="healthy_test"),
+                        CompanyTarget(name="Browser", platform="browser_rendered_html"),
+                    ],
+                    max_workers=2,
+                ).scan()
+        finally:
+            if previous is None:
+                scanner_module.ADAPTERS.pop("healthy_test", None)
+            else:
+                scanner_module.ADAPTERS["healthy_test"] = previous
+
+        self.assertEqual(report.results[0].scan_health, "complete")
+        self.assertEqual(report.results[1].status, CoverageStatus.FAILED_TECHNICAL)
+        self.assertEqual(
+            report.results[1].scan_completeness_reason,
+            "browser_batch_startup_failure",
+        )
 
     def test_scanner_reports_fetched_no_matching_roles(self):
         session = FakeSession(

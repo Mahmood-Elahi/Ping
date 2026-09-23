@@ -74,6 +74,7 @@ class FakeTable:
         self.row_range = None
         self.orderings = []
         self.request_count = False
+        self.updated_values = None
 
     def select(self, _columns, *, count=None):
         self.request_count = count == "exact"
@@ -97,6 +98,15 @@ class FakeTable:
         return self
 
     def execute(self):
+        if self.updated_values is not None:
+            if self.name != "scan_runs":
+                raise AssertionError(f"Unexpected update table: {self.name}")
+            rows = []
+            for row in self.client.scan_runs:
+                if all(row.get(field) == value for field, value in self.filters):
+                    row.update(copy.deepcopy(self.updated_values))
+                    rows.append(copy.deepcopy(row))
+            return FakeResponse(rows)
         if self.name == "tracked_jobs":
             rows = [copy.deepcopy(row) for row in self.client.tracked_jobs.values()]
         elif self.name == "scan_runs":
@@ -146,6 +156,10 @@ class FakeTable:
             return [copy.deepcopy(row)]
 
         return FakeRequest(perform_upsert)
+
+    def update(self, values):
+        self.updated_values = copy.deepcopy(values)
+        return self
 
 
 class FakeSupabaseClient:
@@ -408,6 +422,50 @@ class SupabaseJobStoreTests(unittest.TestCase):
         self.assertEqual((result.inserted, result.updated, result.unchanged), (1, 0, 0))
         self.assertEqual(len(self.client.tracked_jobs), 1)
         self.assertTrue(self.client.scan_runs[-1]["success"])
+
+    def test_conflicting_duplicate_source_identity_is_rejected_before_sync(self):
+        first = self.job()
+        conflicting = self.job(title="Different role with reused external ID")
+
+        with self.assertRaisesRegex(ValueError, "same source identity"):
+            self.store.sync_student_jobs(
+                [first, conflicting],
+                successful_companies=("Example",),
+                started_at=self.started_at,
+                companies_checked=1,
+                jobs_fetched=2,
+            )
+
+        self.assertEqual(self.client.rpc_calls, [])
+        self.assertEqual(self.client.scan_runs, [])
+
+    def test_publication_failure_preserves_scan_counts_and_marks_run_failed(self):
+        self.store.sync_student_jobs(
+            [self.job()],
+            successful_companies=("Example",),
+            started_at=self.started_at,
+            companies_checked=1,
+            jobs_fetched=1,
+            normalized_jobs=4,
+            source_summary={"complete": 1, "incomplete": 0, "failed": 0},
+            scan_runtime_seconds=12.5,
+        )
+
+        self.store.record_publication_result(
+            started_at=self.started_at,
+            status="failed",
+            success=False,
+            runtime_seconds=13.0,
+            error_message="Sheets unavailable",
+        )
+
+        row = self.client.scan_runs[-1]
+        self.assertFalse(row["success"])
+        self.assertEqual(row["jobs_inserted"], 1)
+        self.assertEqual(row["failure_stage"], "google_sheets_publication")
+        self.assertTrue(row["diagnostics"]["scan_success"])
+        self.assertEqual(row["diagnostics"]["publication_status"], "failed")
+        self.assertEqual(row["diagnostics"]["normalized_jobs"], 4)
 
     def test_freshness_lifecycle_fields_are_mirrored_without_resetting_first_seen(self):
         lifecycle_job = self.job(

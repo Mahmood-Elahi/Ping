@@ -26,6 +26,7 @@ from src.scraper.company_careers.models import (
     SourceScanMetadata,
     publish_source_scan_metadata,
 )
+from src.scraper.company_careers.student_roles import student_job_signals
 
 
 PAGE_SIZE = 25
@@ -45,6 +46,34 @@ SEARCH_PATH_SUFFIX = "/search/"
 TILE_ENDPOINT = "tile-search-results"
 COLUMNIZED_ENDPOINT = "/services/recruiting/v1/jobs"
 COLUMNIZED_PAGE_SIZE = 10
+
+# RMK's ``primLocation`` is a display projection, not an opaque location ID.
+# Most values are comma-separated city/region/country displays, but tenants also
+# legitimately publish country-only values. Keep that scalar exception bounded
+# to known country labels/codes so identifiers and arbitrary single tokens do
+# not become locations merely because they contain letters.
+RMK_COUNTRY_ONLY_LOCATIONS = frozenset(
+    value.casefold()
+    for value in (
+        "Argentina", "Australia", "Austria", "Belgium", "Brazil", "Canada",
+        "Chile", "China", "Colombia", "Costa Rica", "Czech Republic", "Denmark",
+        "Finland", "France", "Germany", "Hong Kong", "Hungary", "India",
+        "Indonesia", "Ireland", "Israel", "Italy", "Japan", "Malaysia", "Mexico",
+        "Netherlands", "New Zealand", "Norway", "Philippines", "Poland", "Portugal",
+        "Romania", "Singapore", "South Africa", "South Korea", "Spain", "Sweden",
+        "Switzerland", "Taiwan", "Thailand", "Turkey", "Ukraine", "United Arab Emirates",
+        "United Kingdom", "United States", "United States of America", "Vietnam",
+        "AR", "ARG", "AT", "AUT", "AU", "AUS", "BE", "BEL", "BR", "BRA",
+        "CA", "CAN", "CH", "CHE", "CL", "CHL", "CN", "CHN", "CO", "COL",
+        "CR", "CRI", "CZ", "CZE", "DE", "DEU", "DK", "DNK", "ES", "ESP",
+        "FI", "FIN", "FR", "FRA", "GB", "GBR", "HK", "HKG", "HU", "HUN",
+        "ID", "IDN", "IE", "IRL", "IL", "ISR", "IN", "IND", "IT", "ITA",
+        "JP", "JPN", "KR", "KOR", "MY", "MYS", "MX", "MEX", "NL", "NLD",
+        "NO", "NOR", "NZ", "NZL", "PH", "PHL", "PL", "POL", "PT", "PRT",
+        "RO", "ROU", "SE", "SWE", "SG", "SGP", "TH", "THA", "TR", "TUR",
+        "TW", "TWN", "UA", "UK", "UKR", "US", "USA", "VN", "VNM", "ZA", "ZAF",
+    )
+)
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0",
@@ -147,6 +176,8 @@ def _new_scan_metadata(target: CompanyTarget) -> SourceScanMetadata:
         offsets=[],
         pages=[],
         diagnostics=[],
+        detail_requests=0,
+        detail_requests_skipped=0,
     )
 
 
@@ -183,6 +214,29 @@ def _mark_complete(metadata: SourceScanMetadata, *, zero: bool = False) -> None:
     metadata["scan_complete"] = True
     metadata["scan_completeness_reason"] = "reported_total_reached"
     metadata["stop_reason"] = "validated_zero_jobs" if zero else "reported_total_reached"
+
+
+def _mark_columnized_terminal(
+    metadata: SourceScanMetadata,
+    *,
+    actual_total: int,
+    stop_reason: str,
+) -> None:
+    """Record stronger RMK terminal evidence when totalJobs is broader."""
+    reported_total = metadata.get("total_available")
+    metadata["reported_total"] = reported_total
+    metadata["total_available"] = actual_total
+    metadata["scan_complete"] = True
+    metadata["scan_completeness_reason"] = "natural_terminal_page"
+    metadata["stop_reason"] = stop_reason
+    metadata["diagnostics"].append(
+        {
+            "warning": "columnized totalJobs exceeded the locale-specific terminal collection",
+            "reported_total": reported_total,
+            "collected_total": actual_total,
+            "terminal_evidence": stop_reason,
+        }
+    )
 
 
 def _fetch_html_jobs(
@@ -426,6 +480,7 @@ def _fetch_columnized_jobs(
     observed_total: Optional[int] = None
     duplicate_source_id = False
     seen_page_signatures: set[tuple[str, ...]] = set()
+    previous_page_ids: tuple[str, ...] = ()
 
     for page_index in range(max_pages):
         if len(jobs) >= limit:
@@ -500,20 +555,27 @@ def _fetch_columnized_jobs(
             metadata["stop_reason"] = "malformed_total"
             metadata["scan_completeness_reason"] = "malformed_total"
             raise AdapterError("SAP SuccessFactors columnized page exceeded the reported total")
-        if total > offset and not rows:
-            metadata["stop_reason"] = "malformed_total"
-            metadata["scan_completeness_reason"] = "malformed_total"
-            raise AdapterError("SAP SuccessFactors columnized results ended before the reported total")
-
         page_ids = tuple(_columnized_row_identity(envelope) for envelope in rows)
-        if rows and (not all(page_ids) or page_ids in seen_page_signatures):
-            metadata["stop_reason"] = "repeated_page" if all(page_ids) else "pagination_failure"
+        if rows and not all(page_ids):
+            metadata["stop_reason"] = "pagination_failure"
             metadata["scan_completeness_reason"] = "pagination_failure"
-            raise AdapterError(
-                "SAP SuccessFactors columnized pagination repeated a complete page"
-                if all(page_ids)
-                else "SAP SuccessFactors columnized result envelope is malformed"
-            )
+            raise AdapterError("SAP SuccessFactors columnized result envelope is malformed")
+        if rows and page_ids in seen_page_signatures:
+            # The supported RMK client clamps requests beyond its locale-specific
+            # terminal page to the last page. That is terminal evidence only
+            # after multiple advancing pages and only for an immediate repeat.
+            # A first-page repeat, or a jump back to any older page, remains a
+            # genuine non-advancing pagination failure.
+            if metadata["pages_completed"] >= 2 and page_ids == previous_page_ids:
+                _mark_columnized_terminal(
+                    metadata,
+                    actual_total=len(seen),
+                    stop_reason="terminal_page_clamped",
+                )
+                break
+            metadata["stop_reason"] = "repeated_page"
+            metadata["scan_completeness_reason"] = "pagination_failure"
+            raise AdapterError("SAP SuccessFactors columnized pagination repeated a complete page")
         if rows:
             seen_page_signatures.add(page_ids)
 
@@ -548,13 +610,24 @@ def _fetch_columnized_jobs(
                 f"{origin}/job/{quote(unquote(url_title), safe='._~-')}/"
                 f"{external_id}-{target.locale}"
             )
-            detail_response = _get_page(
-                session, target, detail_url, None, offset, timeout
-            )
             try:
-                job = _normalize_columnized_detail(
-                    row, detail_response, target, external_id, title, detail_url
+                listing_job = _normalize_columnized_listing(
+                    row, target, external_id, title, detail_url
                 )
+                if (
+                    target.selective_detail_enrichment
+                    and not student_job_signals(listing_job)["matching_rule"]
+                ):
+                    job = listing_job
+                    metadata["detail_requests_skipped"] += 1
+                else:
+                    detail_response = _get_page(
+                        session, target, detail_url, None, offset, timeout
+                    )
+                    metadata["detail_requests"] += 1
+                    job = _normalize_columnized_detail(
+                        row, detail_response, target, external_id, title, detail_url
+                    )
             except AdapterError as exc:
                 metadata["diagnostics"].append(
                     {
@@ -586,6 +659,7 @@ def _fetch_columnized_jobs(
         metadata["pages_completed"] += 1
         metadata["offsets"].append(offset)
         metadata["jobs_normalized"] = len(jobs)
+        previous_page_ids = page_ids
         if offset + len(rows) >= total:
             if len(seen) == total and not duplicate_source_id:
                 _mark_complete(metadata, zero=total == 0)
@@ -594,9 +668,12 @@ def _fetch_columnized_jobs(
                 metadata["scan_completeness_reason"] = "pagination_failure"
             break
         if len(rows) < COLUMNIZED_PAGE_SIZE:
-            metadata["stop_reason"] = "malformed_total"
-            metadata["scan_completeness_reason"] = "malformed_total"
-            raise AdapterError("SAP SuccessFactors columnized results ended before the reported total")
+            _mark_columnized_terminal(
+                metadata,
+                actual_total=len(seen),
+                stop_reason="natural_terminal_page",
+            )
+            break
         if len(jobs) >= limit:
             _mark_safety_limit(metadata, "maximum_results_reached")
             break
@@ -853,9 +930,9 @@ def _primary_location_rejection(value: Any) -> Optional[str]:
     if text[0] in "[{" or text[-1] in "]}":
         return "serialized structure is not a display location"
     components = [component.strip() for component in text.split(",") if component.strip()]
-    if len(components) < 2:
-        return "not a combined display location"
-    allowed_punctuation = frozenset(" .'-’()/&")
+    if len(components) == 1 and text.casefold() not in RMK_COUNTRY_ONLY_LOCATIONS:
+        return "not a recognized country-only or combined display location"
+    allowed_punctuation = frozenset(" .'-\u2019()/&")
     for component in components:
         if not any(character.isalpha() for character in component):
             return "display component has no letters"
@@ -932,6 +1009,43 @@ def _columnized_location_diagnostic(
         f"detail location entries={len(detail_fields.get('location', []))}; "
         f"row fields: {row_shapes}; descriptors: {descriptors}; "
         f"detail itemprops: {', '.join(itemprops) if itemprops else 'none'}"
+    )
+
+
+def _normalize_columnized_listing(
+    row: Mapping[str, Any],
+    target: CompanyTarget,
+    external_id: str,
+    title: str,
+    detail_url: str,
+) -> JobRecord:
+    """Normalize listing metadata before deciding whether detail is useful."""
+    locations: list[str] = []
+    for field_name in ("jobLocationShort", "jobLocation", "location"):
+        locations = _columnized_locations(row.get(field_name), field_name)
+        if locations:
+            break
+    if not locations:
+        locations = _columnized_primary_location(row.get("primLocation"))
+    host = (urlparse(str(target.search_url)).hostname or "").casefold()
+    return JobRecord(
+        job_id=f"sap_successfactors:{host}:{external_id}",
+        title=title,
+        company=target.name,
+        location=" | ".join(locations),
+        url=detail_url,
+        updated_at=_normalize_posting_date(row.get("unifiedStandardStart")),
+        source=f"sap_successfactors:{host}",
+        offices=locations,
+        raw_metadata={
+            "platform": "sap_successfactors",
+            "endpoint_variant": COLUMNIZED_VARIANT,
+            "external_job_id": external_id,
+            "detail_url": detail_url,
+            "apply_url": detail_url,
+            "listing": dict(row),
+            "detail_enrichment": "not_requested",
+        },
     )
 
 

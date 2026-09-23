@@ -189,6 +189,7 @@ class JobSearchPipeline:
             return []
 
         scanner = self.company_careers_scanner or CompanyCareersScanner()
+        scan_started = time.monotonic()
         report = scanner.scan(
             keywords=self.keywords,
             locations=self.locations,
@@ -258,6 +259,13 @@ class JobSearchPipeline:
         date_parse_failures = list(
             getattr(self.company_careers_processing_result, "date_parse_failures", ())
         )
+        date_diagnostic_counts = dict(
+            getattr(
+                self.company_careers_processing_result,
+                "date_diagnostic_counts",
+                {},
+            )
+        )
         diagnostics = None
         if self.company_careers_diagnostics_builder is not None:
             diagnostics = self.company_careers_diagnostics_builder(
@@ -268,6 +276,7 @@ class JobSearchPipeline:
                 diagnostics["freshness"] = dict(processing_summary)
                 diagnostics["date_parse_error_count"] = len(date_parse_failures)
                 diagnostics["date_parse_failures"] = date_parse_failures
+                diagnostics["date_diagnostic_counts"] = date_diagnostic_counts
             with open(output_paths["diagnostics_json"], "w", encoding="utf-8") as file:
                 json.dump(diagnostics, file, indent=2, ensure_ascii=False)
 
@@ -282,7 +291,9 @@ class JobSearchPipeline:
             ),
             "original_list_total": report.original_coverage.get("original_list_total", 0),
             "jobs_fetched": sum(item.fetched_count for item in report.results),
+            "normalized_jobs": len(report.normalized_jobs),
             "jobs_retained": len(report.jobs),
+            "eligible_student_jobs": len(report.jobs),
             "scan_health_counts": {
                 state: sum(1 for item in report.results if item.scan_health == state)
                 for state in ("complete", "incomplete", "failed")
@@ -295,6 +306,7 @@ class JobSearchPipeline:
             "ranked_results_path": output_paths["ranked_json"],
             "diagnostics_path": output_paths["diagnostics_json"] if diagnostics is not None else None,
             "diagnostics": diagnostics,
+            "scan_runtime_seconds": round(time.monotonic() - scan_started, 3),
         }
         if processing_summary is not None:
             self.company_careers_summary["freshness"] = dict(processing_summary)
@@ -302,6 +314,9 @@ class JobSearchPipeline:
                 date_parse_failures
             )
             self.company_careers_summary["date_parse_failures"] = date_parse_failures
+            self.company_careers_summary["date_diagnostic_counts"] = (
+                date_diagnostic_counts
+            )
 
         print(
             "  [SUMMARY] Company careers legacy local-DB persistence: "

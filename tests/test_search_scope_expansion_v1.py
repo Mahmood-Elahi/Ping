@@ -182,10 +182,13 @@ class SearchScopeExpansionV1Tests(unittest.TestCase):
         targets = [
             CompanyTarget(name="Google", platform="google", search_terms=["Staff"]),
             CompanyTarget(name="Board", platform="greenhouse", search_terms=["keep-me"]),
+            CompanyTarget(name="SAP", platform="sap_successfactors"),
         ]
         configured = configure_student_targets(targets)
         self.assertEqual(configured[0].search_terms, expected)
         self.assertEqual(configured[1].search_terms, ["keep-me"])
+        self.assertTrue(configured[2].selective_detail_enrichment)
+        self.assertEqual(configured[2].search_terms, [])
         self.assertEqual(targets[0].search_terms, ["Staff"])
 
     def test_dedupe_uses_canonical_source_and_stable_job_id(self):

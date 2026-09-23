@@ -180,6 +180,58 @@ class FreshnessTests(unittest.TestCase):
             annotation["date_parse_errors"],
             ["source_closes_at:unparseable", "source_posted_at:unparseable"],
         )
+        self.assertEqual(
+            result.date_diagnostic_counts,
+            {
+                "source_posted_at_missing": 0,
+                "source_posted_at_malformed": 1,
+                "source_posted_at_approximate": 0,
+                "source_closes_at_missing": 0,
+                "source_closes_at_malformed": 1,
+                "source_closes_at_approximate": 0,
+                "lifecycle_failures": 0,
+            },
+        )
+
+    def test_workday_thirty_plus_days_is_a_conservative_age_lower_bound(self):
+        current = job("bounded", posted="Posted 30+ Days Ago")
+        result = self.reconcile([current])
+        annotation = result.annotations_by_key[stable_job_key(current)]
+
+        self.assertEqual(
+            parse_source_date("Posted 30+ Days Ago", as_of=AS_OF),
+            "2026-08-01",
+        )
+        self.assertEqual(annotation["source_posted_at"], "2026-08-01")
+        self.assertEqual(annotation["age_days"], 30.5)
+        self.assertEqual(annotation["freshness_band"], "stale")
+        self.assertEqual(result.date_parse_failures, ())
+        self.assertEqual(
+            result.date_diagnostic_counts["source_posted_at_approximate"],
+            1,
+        )
+        self.assertEqual(
+            result.date_diagnostic_counts["source_closes_at_missing"],
+            1,
+        )
+
+    def test_missing_and_malformed_dates_never_remove_a_present_job(self):
+        jobs = [
+            job("missing"),
+            job("malformed", posted="late summer-ish", closes="whenever"),
+        ]
+        result = self.reconcile(jobs)
+
+        self.assertTrue(
+            all(
+                annotation["lifecycle_status"] == ACTIVE
+                for annotation in result.annotations_by_key.values()
+            )
+        )
+        self.assertEqual(result.date_diagnostic_counts["source_posted_at_missing"], 1)
+        self.assertEqual(result.date_diagnostic_counts["source_posted_at_malformed"], 1)
+        self.assertEqual(result.date_diagnostic_counts["source_closes_at_missing"], 1)
+        self.assertEqual(result.date_diagnostic_counts["source_closes_at_malformed"], 1)
 
     def test_failed_or_partial_scan_does_not_advance_missing_evidence(self):
         initial = self.reconcile([job("123")])
