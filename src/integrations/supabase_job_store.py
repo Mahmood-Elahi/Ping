@@ -19,8 +19,14 @@ DEFAULT_CLOSE_AFTER_MISSING_RUNS = 2
 DEFAULT_SYNC_MAX_ATTEMPTS = 3
 DEFAULT_SYNC_RETRY_DELAY_SECONDS = 0.5
 DEFAULT_SUPABASE_REQUEST_TIMEOUT_SECONDS = 120.0
-DEFAULT_LIFECYCLE_PAGE_SIZE = 1000
+DEFAULT_LIFECYCLE_PAGE_SIZE = 500
+MIN_LIFECYCLE_PAGE_SIZE = 100
 DEFAULT_DASHBOARD_PAGE_SIZE = 1000
+LIFECYCLE_STATE_COLUMNS = (
+    "source_key,company,title,location,apply_url,source_url,source_platform,"
+    "first_seen_at,last_seen_at,first_seen_basis,source_posted_at,source_closes_at,"
+    "removed_at,lifecycle_status,missing_successful_runs,date_parse_errors"
+)
 SYNC_SCAN_NAMESPACE = uuid.UUID("fe27c6e0-e7a3-4d18-8e57-554e117f56c6")
 TRACKING_QUERY_PARAMETERS = frozenset(
     {
@@ -788,54 +794,101 @@ class SupabaseJobStore:
 
     def fetch_lifecycle_state(self) -> dict[str, Any]:
         """Load canonical lifecycle history from the existing tracked_jobs store."""
-        columns = (
-            "source_key,company,title,location,apply_url,source_url,source_platform,"
-            "first_seen_at,last_seen_at,first_seen_basis,source_posted_at,source_closes_at,"
-            "removed_at,lifecycle_status,missing_successful_runs,raw_data"
-        )
-        data: list[Mapping[str, Any]] = []
-        offset = 0
+        jobs: dict[str, dict[str, Any]] = {}
+        latest: Optional[str] = None
+        cursor: Optional[str] = None
+        page_size = DEFAULT_LIFECYCLE_PAGE_SIZE
         while True:
-            try:
-                response = (
-                    self.client.table("tracked_jobs")
-                    .select(columns)
-                    .range(offset, offset + DEFAULT_LIFECYCLE_PAGE_SIZE - 1)
-                    .execute()
-                )
-            except Exception as exc:
-                raise _supabase_access_error(
-                    exc,
-                    operation="lifecycle-state query",
-                    secrets=self._redaction_secrets,
-                ) from None
+            response, page_size = self._fetch_lifecycle_page(
+                cursor=cursor,
+                page_size=page_size,
+            )
             page = getattr(response, "data", None)
             if not isinstance(page, list) or not all(
                 isinstance(row, Mapping) for row in page
             ):
                 raise RuntimeError("Supabase lifecycle-state query returned an invalid response")
-            data.extend(page)
-            if len(page) < DEFAULT_LIFECYCLE_PAGE_SIZE:
+            for raw_row in page:
+                row = dict(raw_row)
+                source_key = str(row.get("source_key") or "")
+                if not source_key:
+                    continue
+                if source_key in jobs:
+                    raise RuntimeError(
+                        "Supabase lifecycle-state pagination returned duplicate rows"
+                    )
+                values = dict(row)
+                values["source"] = (
+                    values.get("source") or values.get("source_platform") or ""
+                )
+                values["url"] = (
+                    values.get("source_url") or values.get("apply_url") or ""
+                )
+                values["missing_scan_count"] = int(
+                    row.get("missing_successful_runs", 0) or 0
+                )
+                values["reappearance_count"] = int(
+                    values.get("reappearance_count", 0) or 0
+                )
+                values["date_parse_errors"] = list(
+                    values.get("date_parse_errors") or []
+                )
+                jobs[source_key] = values
+                last_seen = str(row.get("last_seen_at") or "")
+                latest = max(latest or last_seen, last_seen) if last_seen else latest
+            if len(page) < page_size:
                 break
-            offset += DEFAULT_LIFECYCLE_PAGE_SIZE
-        jobs: dict[str, dict[str, Any]] = {}
-        latest: Optional[str] = None
-        for raw_row in data:
-            row = dict(raw_row)
-            raw_data = row.get("raw_data")
-            values = {**(dict(raw_data) if isinstance(raw_data, Mapping) else {}), **row}
-            source_key = str(row.get("source_key") or "")
-            if not source_key:
-                continue
-            values["source"] = values.get("source") or values.get("source_platform") or ""
-            values["url"] = values.get("source_url") or values.get("apply_url") or ""
-            values["missing_scan_count"] = int(row.get("missing_successful_runs", 0) or 0)
-            values["reappearance_count"] = int(values.get("reappearance_count", 0) or 0)
-            values["date_parse_errors"] = list(values.get("date_parse_errors") or [])
-            jobs[source_key] = values
-            last_seen = str(row.get("last_seen_at") or "")
-            latest = max(latest or last_seen, last_seen) if last_seen else latest
+            next_cursor = str(page[-1].get("source_key") or "")
+            if not next_cursor or (cursor is not None and next_cursor <= cursor):
+                raise RuntimeError(
+                    "Supabase lifecycle-state keyset pagination did not advance"
+                )
+            cursor = next_cursor
         return {"schema_version": 1, "updated_at": latest, "jobs": jobs}
+
+    def _fetch_lifecycle_page(
+        self,
+        *,
+        cursor: Optional[str],
+        page_size: int,
+    ) -> tuple[Any, int]:
+        """Fetch one keyset page, retrying only that page on transient failures."""
+        requested_size = page_size
+        operation = "lifecycle-state query"
+        for attempt in range(1, self.sync_max_attempts + 1):
+            started = time.perf_counter()
+            try:
+                query = (
+                    self.client.table("tracked_jobs")
+                    .select(LIFECYCLE_STATE_COLUMNS)
+                    .order("source_key", desc=False)
+                )
+                if cursor is not None:
+                    query = query.gt("source_key", cursor)
+                return query.limit(requested_size).execute(), requested_size
+            except Exception as exc:
+                elapsed = time.perf_counter() - started
+                error = _supabase_access_error(
+                    exc,
+                    operation=operation,
+                    payload_rows=requested_size,
+                    elapsed_seconds=elapsed,
+                    request_timeout_seconds=self.request_timeout_seconds,
+                    attempt=attempt,
+                    secrets=self._redaction_secrets,
+                )
+                if (
+                    not error.diagnostics.get("transient")
+                    or attempt >= self.sync_max_attempts
+                ):
+                    raise error from SupabaseProviderError(error.diagnostics)
+                if error.diagnostics.get("classification") == "timeout":
+                    requested_size = max(
+                        MIN_LIFECYCLE_PAGE_SIZE,
+                        requested_size // 2,
+                    )
+                self._sleep(self.sync_retry_delay_seconds * (2 ** (attempt - 1)))
+        raise AssertionError("unreachable")
 
 
 def _job_mapping(job: Mapping[str, Any] | Any) -> dict[str, Any]:

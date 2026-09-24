@@ -75,13 +75,19 @@ class FakeTable:
         self.orderings = []
         self.request_count = False
         self.updated_values = None
+        self.selected_columns = None
 
-    def select(self, _columns, *, count=None):
+    def select(self, columns, *, count=None):
+        self.selected_columns = columns
         self.request_count = count == "exact"
         return self
 
     def eq(self, field, value):
         self.filters.append((field, value))
+        return self
+
+    def gt(self, field, value):
+        self.filters.append((f"{field}__gt", value))
         return self
 
     def order(self, field, desc=False):
@@ -98,6 +104,21 @@ class FakeTable:
         return self
 
     def execute(self):
+        self.client.select_calls.append(
+            {
+                "table": self.name,
+                "columns": self.selected_columns,
+                "count_exact": self.request_count,
+                "filters": list(self.filters),
+                "orderings": list(self.orderings),
+                "limit": self.row_limit,
+                "range": self.row_range,
+            }
+        )
+        if self.name == "tracked_jobs" and self.client.tracked_query_failures:
+            failure = self.client.tracked_query_failures.pop(0)
+            if failure is not None:
+                raise failure
         if self.updated_values is not None:
             if self.name != "scan_runs":
                 raise AssertionError(f"Unexpected update table: {self.name}")
@@ -116,7 +137,11 @@ class FakeTable:
         else:
             rows = []
         for field, value in self.filters:
-            rows = [row for row in rows if row.get(field) == value]
+            if field.endswith("__gt"):
+                actual_field = field.removesuffix("__gt")
+                rows = [row for row in rows if row.get(actual_field) > value]
+            else:
+                rows = [row for row in rows if row.get(field) == value]
         total_count = len(rows)
         for field, desc in reversed(self.orderings):
             rows.sort(
@@ -202,6 +227,8 @@ class FakeSupabaseClient:
         self.source_syncs = {}
         self.rpc_calls = []
         self.range_calls = {}
+        self.select_calls = []
+        self.tracked_query_failures = []
 
     def rpc(self, name, params):
         if name != "sync_student_job_source":
@@ -650,16 +677,122 @@ class SupabaseJobStoreTests(unittest.TestCase):
         )
         self.assertEqual(self.store.last_sync_diagnostics.payload_rows, 11669)
 
-    def test_lifecycle_state_read_paginates_past_supabase_row_cap(self):
-        for index in range(2501):
-            value = self.job(
-                job_id=f"persisted-{index}",
-                url=f"https://jobs.example.com/persisted/{index}",
-            )
-            payload = tracked_job_payload(value, seen_at=self.clock())
-            self.client.tracked_jobs[payload["source_key"]] = payload
+    def test_lifecycle_state_read_uses_deterministic_keyset_pages_without_gaps(self):
+        expected_keys = []
+        for index in range(3507):
+            source_key = f"key-{index:05d}"
+            expected_keys.append(source_key)
+            self.client.tracked_jobs[source_key] = {
+                **tracked_job_payload(self.job(), seen_at=self.clock()),
+                "source_key": source_key,
+            }
         state = self.store.fetch_lifecycle_state()
-        self.assertEqual(len(state["jobs"]), 2501)
+        actual_keys = list(state["jobs"])
+        self.assertEqual(actual_keys, expected_keys)
+        self.assertEqual(len(actual_keys), len(set(actual_keys)))
+        calls = [
+            call for call in self.client.select_calls
+            if call["table"] == "tracked_jobs"
+        ]
+        self.assertEqual(len(calls), 8)
+        self.assertEqual(calls[0]["filters"], [])
+        self.assertEqual(calls[1]["filters"], [("source_key__gt", "key-00499")])
+        self.assertTrue(
+            all(call["orderings"] == [("source_key", False)] for call in calls)
+        )
+        self.assertTrue(all(call["limit"] == 500 for call in calls))
+        self.assertTrue(all(call["range"] is None for call in calls))
+
+    def test_lifecycle_state_read_requests_only_required_columns_without_count(self):
+        self.client.tracked_jobs["key-00000"] = {
+            **tracked_job_payload(self.job(), seen_at=self.clock()),
+            "source_key": "key-00000",
+            "raw_data": {"description": "x" * 100_000},
+        }
+
+        self.store.fetch_lifecycle_state()
+
+        call = self.client.select_calls[-1]
+        self.assertEqual(
+            call["columns"],
+            "source_key,company,title,location,apply_url,source_url,source_platform,"
+            "first_seen_at,last_seen_at,first_seen_basis,source_posted_at,"
+            "source_closes_at,removed_at,lifecycle_status,missing_successful_runs,"
+            "date_parse_errors",
+        )
+        self.assertNotIn("raw_data", call["columns"])
+        self.assertNotIn("description", call["columns"])
+        self.assertFalse(call["count_exact"])
+        self.assertIsNone(call["range"])
+
+    def test_lifecycle_middle_page_timeout_retries_same_cursor_at_smaller_size(self):
+        for index in range(1201):
+            source_key = f"key-{index:05d}"
+            self.client.tracked_jobs[source_key] = {
+                **tracked_job_payload(self.job(), seen_at=self.clock()),
+                "source_key": source_key,
+            }
+        self.client.tracked_query_failures = [
+            None,
+            ProviderFailure("canceling statement due to statement timeout", code="57014"),
+            None,
+        ]
+        delays = []
+        self.store._sleep = delays.append
+
+        state = self.store.fetch_lifecycle_state()
+
+        self.assertEqual(len(state["jobs"]), 1201)
+        self.assertEqual(len(state["jobs"]), len(set(state["jobs"])))
+        calls = [
+            call for call in self.client.select_calls
+            if call["table"] == "tracked_jobs"
+        ]
+        self.assertEqual(
+            [(call["filters"], call["limit"]) for call in calls[:3]],
+            [
+                ([], 500),
+                ([("source_key__gt", "key-00499")], 500),
+                ([("source_key__gt", "key-00499")], 250),
+            ],
+        )
+        self.assertTrue(all(call["limit"] == 250 for call in calls[2:]))
+        self.assertEqual(delays, [0.5])
+
+    def test_lifecycle_page_timeout_exhaustion_is_actionable(self):
+        for index in range(501):
+            source_key = f"key-{index:05d}"
+            self.client.tracked_jobs[source_key] = {
+                **tracked_job_payload(self.job(), seen_at=self.clock()),
+                "source_key": source_key,
+            }
+        timeouts = [
+            ProviderFailure(
+                "canceling statement due to statement timeout", code="57014"
+            )
+            for _ in range(3)
+        ]
+        self.client.tracked_query_failures = [None, *timeouts]
+        self.store._sleep = lambda _delay: None
+
+        with self.assertRaises(SupabaseAccessError) as raised:
+            self.store.fetch_lifecycle_state()
+
+        error = raised.exception
+        self.assertIn("lifecycle-state query", str(error))
+        self.assertEqual(error.diagnostics["classification"], "timeout")
+        self.assertEqual(error.diagnostics["provider_code"], "57014")
+        self.assertEqual(error.diagnostics["attempt"], 3)
+        self.assertEqual(error.diagnostics["payload_rows"], 125)
+        calls = [
+            call for call in self.client.select_calls
+            if call["table"] == "tracked_jobs"
+        ]
+        self.assertEqual([call["limit"] for call in calls], [500, 500, 250, 125])
+        self.assertEqual(
+            [call["filters"] for call in calls[1:]],
+            [[("source_key__gt", "key-00499")]] * 3,
+        )
 
     def test_dashboard_data_paginates_all_active_ranked_rows(self):
         for row_count in (999, 1000, 1001, 3007):
