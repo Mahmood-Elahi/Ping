@@ -113,9 +113,10 @@ Google Sheets dashboard
 1. Create a Supabase project.
 2. Open the SQL editor.
 3. Run `sql/supabase_schema.sql`.
-4. Copy the project URL.
-5. Copy the service-role key.
-6. Keep the service-role key private; it must never be exposed in client-side code or committed files.
+4. Run every file in `sql/migrations` in filename order.
+5. Copy the project URL.
+6. Copy the service-role key.
+7. Keep the service-role key private; it must never be exposed in client-side code or committed files.
 
 ### Google Sheets Setup
 
@@ -141,7 +142,7 @@ NEW_JOB_WINDOW_DAYS
 CLOSE_AFTER_MISSING_RUNS
 ```
 
-`NEW_JOB_WINDOW_DAYS` and `CLOSE_AFTER_MISSING_RUNS` have defaults of `7` and `2`; set them only when you need different behavior. Supabase synchronization uses a 120-second request timeout, three bounded attempts for transient failures, and a 0.5-second exponential retry base; override these with `SUPABASE_REQUEST_TIMEOUT_SECONDS`, `SUPABASE_SYNC_MAX_ATTEMPTS`, and `SUPABASE_SYNC_RETRY_DELAY_SECONDS` when operational measurements require it.
+`NEW_JOB_WINDOW_DAYS` and `CLOSE_AFTER_MISSING_RUNS` have defaults of `7` and `2`; set them only when you need different behavior. Supabase synchronization uses a 120-second request timeout, three bounded attempts for transient failures, and a 0.5-second exponential retry base; override these with `SUPABASE_REQUEST_TIMEOUT_SECONDS`, `SUPABASE_SYNC_MAX_ATTEMPTS`, and `SUPABASE_SYNC_RETRY_DELAY_SECONDS` when operational measurements require it. Source rows are durably staged in chunks capped at 200 rows and 524,288 serialized bytes. `SUPABASE_SYNC_CHUNK_ROWS` and `SUPABASE_SYNC_CHUNK_BYTES` may lower, but not raise, those server-enforced ceilings.
 
 ### Commands
 

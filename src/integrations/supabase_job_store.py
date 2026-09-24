@@ -22,6 +22,8 @@ DEFAULT_SUPABASE_REQUEST_TIMEOUT_SECONDS = 120.0
 DEFAULT_LIFECYCLE_PAGE_SIZE = 500
 MIN_LIFECYCLE_PAGE_SIZE = 100
 DEFAULT_DASHBOARD_PAGE_SIZE = 1000
+DEFAULT_SYNC_CHUNK_ROWS = 200
+DEFAULT_SYNC_CHUNK_BYTES = 512 * 1024
 LIFECYCLE_STATE_COLUMNS = (
     "source_key,company,title,location,apply_url,source_url,source_platform,"
     "first_seen_at,last_seen_at,first_seen_basis,source_posted_at,source_closes_at,"
@@ -218,9 +220,9 @@ def tracked_job_payload(
         # last_seen_at advances on every successful rediscovery and has a
         # dedicated column. Excluding it keeps otherwise identical jobs in the
         # RPC's unchanged count while the database still advances last_seen_at.
-        "raw_data": _json_safe(
-            {key: value for key, value in values.items() if key != "last_seen_at"}
-        ),
+        # Every other consumed value has a dedicated tracked_jobs column. The
+        # dashboard only reads child-brand attribution from raw_data.
+        "raw_data": _tracked_raw_data(values),
     }
 
 
@@ -236,6 +238,8 @@ class SupabaseJobStore:
         request_timeout_seconds: float = DEFAULT_SUPABASE_REQUEST_TIMEOUT_SECONDS,
         sync_max_attempts: int = DEFAULT_SYNC_MAX_ATTEMPTS,
         sync_retry_delay_seconds: float = DEFAULT_SYNC_RETRY_DELAY_SECONDS,
+        sync_chunk_rows: int = DEFAULT_SYNC_CHUNK_ROWS,
+        sync_chunk_bytes: int = DEFAULT_SYNC_CHUNK_BYTES,
         sleep: Callable[[float], None] = time.sleep,
         redaction_secrets: Iterable[str] = (),
     ) -> None:
@@ -247,6 +251,8 @@ class SupabaseJobStore:
         self.request_timeout_seconds = float(request_timeout_seconds)
         self.sync_max_attempts = int(sync_max_attempts)
         self.sync_retry_delay_seconds = float(sync_retry_delay_seconds)
+        self.sync_chunk_rows = int(sync_chunk_rows)
+        self.sync_chunk_bytes = int(sync_chunk_bytes)
         self._sleep = sleep
         self._redaction_secrets = tuple(str(value) for value in redaction_secrets if value)
         self.last_sync_diagnostics: Optional[SyncDiagnostics] = None
@@ -259,6 +265,18 @@ class SupabaseJobStore:
         if self.sync_retry_delay_seconds < 0:
             raise SupabaseConfigurationError(
                 "SUPABASE_SYNC_RETRY_DELAY_SECONDS cannot be negative"
+            )
+        if self.sync_chunk_rows < 1:
+            raise SupabaseConfigurationError("SUPABASE_SYNC_CHUNK_ROWS must be at least 1")
+        if self.sync_chunk_rows > DEFAULT_SYNC_CHUNK_ROWS:
+            raise SupabaseConfigurationError(
+                f"SUPABASE_SYNC_CHUNK_ROWS cannot exceed {DEFAULT_SYNC_CHUNK_ROWS}"
+            )
+        if self.sync_chunk_bytes < 1:
+            raise SupabaseConfigurationError("SUPABASE_SYNC_CHUNK_BYTES must be at least 1")
+        if self.sync_chunk_bytes > DEFAULT_SYNC_CHUNK_BYTES:
+            raise SupabaseConfigurationError(
+                f"SUPABASE_SYNC_CHUNK_BYTES cannot exceed {DEFAULT_SYNC_CHUNK_BYTES}"
             )
 
     @classmethod
@@ -358,6 +376,12 @@ class SupabaseJobStore:
                 "SUPABASE_SYNC_RETRY_DELAY_SECONDS",
                 DEFAULT_SYNC_RETRY_DELAY_SECONDS,
             ),
+            sync_chunk_rows=_positive_integer_setting(
+                environment, "SUPABASE_SYNC_CHUNK_ROWS", DEFAULT_SYNC_CHUNK_ROWS
+            ),
+            sync_chunk_bytes=_positive_integer_setting(
+                environment, "SUPABASE_SYNC_CHUNK_BYTES", DEFAULT_SYNC_CHUNK_BYTES
+            ),
             redaction_secrets=(service_role_key,),
         )
 
@@ -367,6 +391,9 @@ class SupabaseJobStore:
             ("tracked_jobs", "id"),
             ("scan_runs", "id,failure_stage,diagnostics"),
             ("scan_source_syncs", "scan_id"),
+            ("job_sync_sessions", "sync_id,status"),
+            ("job_sync_chunks", "sync_id,chunk_number"),
+            ("job_sync_stage", "sync_id,source_key"),
             ("applications", "job_id"),
         )
         try:
@@ -446,20 +473,18 @@ class SupabaseJobStore:
         total_bytes = 0
         sync_started = time.perf_counter()
         for company in companies:
-            params = {
-                "p_scan_id": scan_id,
-                "p_company": company,
-                "p_jobs": rows_by_company.get(company, []),
-                "p_reconcile_absence": company in complete_companies,
-                "p_close_after_missing_runs": self.close_after_missing_runs,
-                "p_seen_at": _iso_timestamp(seen_at),
-            }
-            payload_bytes = _serialized_bytes(params)
+            source_rows = sorted(
+                rows_by_company.get(company, []),
+                key=lambda row: str(row["source_key"]),
+            )
+            payload_bytes = _serialized_bytes(source_rows)
             total_bytes += payload_bytes
             data = self._execute_source_sync(
-                params,
+                scan_id=scan_id,
                 company=company,
-                row_count=len(params["p_jobs"]),
+                rows=source_rows,
+                reconcile_absence=company in complete_companies,
+                seen_at=seen_at,
                 payload_bytes=payload_bytes,
             )
             totals = SyncResult(
@@ -492,6 +517,14 @@ class SupabaseJobStore:
             ),
             "missing_incremented": totals.missing_incremented,
             "closed": totals.closed,
+            "source_sync": {
+                "source_count": len(companies),
+                "payload_rows": len(jobs_by_key),
+                "payload_bytes": total_bytes,
+                "chunk_row_limit": self.sync_chunk_rows,
+                "chunk_byte_limit": self.sync_chunk_bytes,
+                "elapsed_seconds": round(elapsed, 3),
+            },
         }
         self._record_scan_run(
             scan_id=scan_id,
@@ -533,23 +566,124 @@ class SupabaseJobStore:
 
     def _execute_source_sync(
         self,
-        params: Mapping[str, Any],
         *,
+        scan_id: str,
         company: str,
-        row_count: int,
+        rows: list[dict[str, Any]],
+        reconcile_absence: bool,
+        seen_at: datetime,
         payload_bytes: int,
     ) -> Mapping[str, Any]:
-        operation = "source-scoped job synchronization"
+        """Stage bounded chunks, then atomically finalize one company."""
+        sync_id = str(uuid.uuid4())
+        chunks = _bounded_payload_chunks(
+            rows,
+            max_rows=self.sync_chunk_rows,
+            max_bytes=self.sync_chunk_bytes,
+            source=company,
+            sync_id=sync_id,
+        )
+        total_rows = len(rows)
+        begin_params = {
+            "p_sync_id": sync_id,
+            "p_scan_id": scan_id,
+            "p_company": company,
+            "p_expected_chunks": len(chunks),
+            "p_expected_rows": total_rows,
+            "p_expected_bytes": sum(chunk_bytes for _, chunk_bytes in chunks),
+            "p_reconcile_absence": bool(reconcile_absence),
+            "p_close_after_missing_runs": self.close_after_missing_runs,
+            "p_seen_at": _iso_timestamp(seen_at),
+        }
+        try:
+            begun = self._execute_sync_rpc(
+                "begin_student_job_source_sync",
+                begin_params,
+                operation="source synchronization staging setup",
+                phase="staging",
+                company=company,
+                sync_id=sync_id,
+                row_count=0,
+                payload_bytes=_serialized_bytes(begin_params),
+                total_rows=total_rows,
+                total_bytes=payload_bytes,
+            )
+            if begun.get("status") == "finalized" and isinstance(
+                begun.get("result"), Mapping
+            ):
+                return dict(begun["result"])
+
+            for chunk_number, (chunk_rows, chunk_bytes) in enumerate(chunks):
+                chunk_params = {
+                    "p_sync_id": sync_id,
+                    "p_chunk_number": chunk_number,
+                    "p_chunk_rows": len(chunk_rows),
+                    "p_chunk_bytes": chunk_bytes,
+                    "p_payload_hash": _payload_hash(chunk_rows),
+                    "p_jobs": chunk_rows,
+                }
+                self._execute_sync_rpc(
+                    "stage_student_job_source_chunk",
+                    chunk_params,
+                    operation="source synchronization staging",
+                    phase="staging",
+                    company=company,
+                    sync_id=sync_id,
+                    chunk_number=chunk_number,
+                    row_count=len(chunk_rows),
+                    payload_bytes=chunk_bytes,
+                    total_rows=total_rows,
+                    total_bytes=payload_bytes,
+                )
+
+            return self._execute_sync_rpc(
+                "finalize_student_job_source_sync",
+                {"p_sync_id": sync_id},
+                operation="source synchronization finalize",
+                phase="finalize",
+                company=company,
+                sync_id=sync_id,
+                row_count=total_rows,
+                payload_bytes=_serialized_bytes({"p_sync_id": sync_id}),
+                total_rows=total_rows,
+                total_bytes=payload_bytes,
+            )
+        except Exception:
+            self._best_effort_abort_source_sync(sync_id)
+            raise
+
+    def _execute_sync_rpc(
+        self,
+        rpc_name: str,
+        params: Mapping[str, Any],
+        *,
+        operation: str,
+        phase: str,
+        company: str,
+        sync_id: str,
+        row_count: int,
+        payload_bytes: int,
+        total_rows: int,
+        total_bytes: int,
+        chunk_number: Optional[int] = None,
+    ) -> Mapping[str, Any]:
         for attempt in range(1, self.sync_max_attempts + 1):
             started = time.perf_counter()
             try:
-                response = self.client.rpc("sync_student_job_source", dict(params)).execute()
+                response = self.client.rpc(rpc_name, dict(params)).execute()
             except Exception as exc:
                 elapsed = time.perf_counter() - started
                 error = _supabase_access_error(
                     exc,
                     operation=operation,
                     source=company,
+                    sync_id=sync_id,
+                    sync_phase=phase,
+                    chunk_number=chunk_number,
+                    chunk_rows=row_count if chunk_number is not None else None,
+                    chunk_bytes=payload_bytes if chunk_number is not None else None,
+                    total_rows=total_rows,
+                    total_bytes=total_bytes,
                     payload_rows=row_count,
                     payload_bytes=payload_bytes,
                     elapsed_seconds=elapsed,
@@ -565,9 +699,18 @@ class SupabaseJobStore:
             if isinstance(data, list) and len(data) == 1 and isinstance(data[0], Mapping):
                 data = data[0]
             if not isinstance(data, Mapping):
-                raise RuntimeError("Supabase source sync returned an invalid response")
+                raise RuntimeError(f"Supabase {phase} RPC returned an invalid response")
             return data
         raise AssertionError("unreachable")
+
+    def _best_effort_abort_source_sync(self, sync_id: str) -> None:
+        """Discard an unfinalized session; TTL cleanup covers abort failures."""
+        try:
+            self.client.rpc(
+                "abort_student_job_source_sync", {"p_sync_id": sync_id}
+            ).execute()
+        except Exception:
+            pass
 
     def record_failed_scan(
         self,
@@ -912,6 +1055,13 @@ def _supabase_access_error(
     *,
     operation: str,
     source: Optional[str] = None,
+    sync_id: Optional[str] = None,
+    sync_phase: Optional[str] = None,
+    chunk_number: Optional[int] = None,
+    chunk_rows: Optional[int] = None,
+    chunk_bytes: Optional[int] = None,
+    total_rows: Optional[int] = None,
+    total_bytes: Optional[int] = None,
     payload_rows: Optional[int] = None,
     payload_bytes: Optional[int] = None,
     elapsed_seconds: Optional[float] = None,
@@ -939,7 +1089,7 @@ def _supabase_access_error(
         except Exception:
             response_body = None
     excerpt = _sanitize_text(response_body or details, secrets=secrets)[:1000] or None
-    classification, phase, transient = _classify_provider_failure(
+    classification, transmission_phase, transient = _classify_provider_failure(
         exc, code=code, http_status=http_status, message=message
     )
     diagnostics = {
@@ -947,8 +1097,15 @@ def _supabase_access_error(
         for key, value in {
             "operation": operation,
             "source": source,
+            "sync_id": sync_id,
             "classification": classification,
-            "phase": phase,
+            "phase": sync_phase or transmission_phase,
+            "transmission_phase": transmission_phase,
+            "chunk_number": chunk_number,
+            "chunk_rows": chunk_rows,
+            "chunk_bytes": chunk_bytes,
+            "total_rows": total_rows,
+            "total_bytes": total_bytes,
             "http_status": http_status,
             "provider_code": code,
             "provider_message": message[:500] or type(exc).__name__,
@@ -975,16 +1132,28 @@ def _supabase_access_error(
     )
     if any(marker in folded for marker in schema_markers):
         return SupabaseAccessError(
-            "Supabase dashboard schema is unavailable; run sql/supabase_schema.sql "
-            "in the Supabase SQL editor and retry",
+            "Supabase dashboard schema is unavailable; apply sql/supabase_schema.sql "
+            "and all sql/migrations in order, then retry",
             diagnostics=diagnostics,
         )
     summary_parts = [
         f"classification={classification}",
-        f"phase={phase}",
+        f"phase={sync_phase or transmission_phase}",
     ]
     if source:
         summary_parts.append(f"source={_sanitize_text(source, secrets=secrets)!r}")
+    if sync_id:
+        summary_parts.append(f"sync_id={sync_id!r}")
+    if chunk_number is not None:
+        summary_parts.append(f"chunk_number={chunk_number}")
+    if chunk_rows is not None:
+        summary_parts.append(f"chunk_rows={chunk_rows}")
+    if chunk_bytes is not None:
+        summary_parts.append(f"chunk_bytes={chunk_bytes}")
+    if total_rows is not None:
+        summary_parts.append(f"total_rows={total_rows}")
+    if total_bytes is not None:
+        summary_parts.append(f"total_bytes={total_bytes}")
     if http_status is not None:
         summary_parts.append(f"http_status={http_status}")
     if code:
@@ -1069,6 +1238,60 @@ def _serialized_bytes(value: Any) -> int:
     return len(encoded)
 
 
+def _payload_hash(value: Any) -> str:
+    encoded = json.dumps(
+        _json_safe(value), ensure_ascii=False, separators=(",", ":"), sort_keys=True
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _bounded_payload_chunks(
+    rows: list[dict[str, Any]],
+    *,
+    max_rows: int,
+    max_bytes: int,
+    source: Optional[str] = None,
+    sync_id: Optional[str] = None,
+) -> list[tuple[list[dict[str, Any]], int]]:
+    """Partition rows while bounding both serialized JSON rows and bytes."""
+    chunks: list[tuple[list[dict[str, Any]], int]] = []
+    current: list[dict[str, Any]] = []
+    for row in rows:
+        candidate = [*current, row]
+        candidate_bytes = _serialized_bytes(candidate)
+        if current and (len(candidate) > max_rows or candidate_bytes > max_bytes):
+            chunks.append((current, _serialized_bytes(current)))
+            current = [row]
+            candidate_bytes = _serialized_bytes(current)
+        else:
+            current = candidate
+        if candidate_bytes > max_bytes:
+            source_key = str(row.get("source_key") or "")
+            raise SupabaseAccessError(
+                "One tracked job exceeds SUPABASE_SYNC_CHUNK_BYTES; "
+                f"source_key={source_key!r}, payload_bytes={candidate_bytes}, "
+                f"limit_bytes={max_bytes}",
+                diagnostics={
+                    "classification": "payload_too_large",
+                    "phase": "staging",
+                    "source": source,
+                    "sync_id": sync_id,
+                    "source_key": source_key,
+                    "payload_rows": 1,
+                    "payload_bytes": candidate_bytes,
+                    "limit_bytes": max_bytes,
+                    "total_rows": len(rows),
+                    "total_bytes": _serialized_bytes(rows),
+                },
+            )
+        if len(current) == max_rows:
+            chunks.append((current, candidate_bytes))
+            current = []
+    if current:
+        chunks.append((current, _serialized_bytes(current)))
+    return chunks
+
+
 def _positive_integer_setting(
     environment: Mapping[str, str], name: str, default: int
 ) -> int:
@@ -1136,6 +1359,16 @@ def _optional_float(value: Any) -> Optional[float]:
     if value is None or value == "":
         return None
     return float(value)
+
+
+def _tracked_raw_data(values: Mapping[str, Any]) -> dict[str, Any]:
+    """Keep only metadata with a demonstrated tracked_jobs read consumer."""
+    brands = _string_list(values.get("child_brands"))
+    if not brands:
+        metadata = values.get("raw_metadata")
+        if isinstance(metadata, Mapping):
+            brands = _string_list(metadata.get("child_brands"))
+    return {"child_brands": brands} if brands else {}
 
 
 def _dashboard_child_brands(row: Mapping[str, Any]) -> list[str]:

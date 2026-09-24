@@ -513,3 +513,11 @@ comment on table public.applications is
     'Manually controlled application tracking; never modified by job refreshes.';
 comment on function public.sync_student_job_source(uuid, text, jsonb, boolean, integer, timestamptz) is
     'Atomically synchronizes one canonical source and idempotently reconciles absence for complete scans.';
+
+-- The direct JSON-array RPC above is retained only so this historical base
+-- schema can upgrade older installations in place. It is removed immediately;
+-- apply sql/migrations/20260924_staged_source_sync.sql next to install the
+-- bounded durable-staging RPCs used by the application.
+drop function if exists public.sync_student_job_source(
+    uuid, text, jsonb, boolean, integer, timestamptz
+);
