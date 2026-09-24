@@ -4,6 +4,8 @@ import unittest
 
 from src.scraper.company_careers.listing_completion import (
     AdaptiveListingCompletion,
+    MAX_LISTING_REQUESTS_PER_SOURCE,
+    MAX_RAW_JOBS_PER_SOURCE,
     PageSizeObservation,
     finish_authoritative_total,
     record_terminal_evidence,
@@ -136,49 +138,53 @@ class AdaptiveListingCompletionTests(unittest.TestCase):
     def test_projected_jobs_above_absolute_ceiling_keep_both_normal_caps(self):
         policy = AdaptiveListingCompletion(1, 20)
         kwargs = {"requests_completed": 1, "results_observed": 20}
-        self.assertEqual(policy.request_ceiling(5_001, 500, **kwargs), 1)
-        self.assertEqual(policy.job_ceiling(5_001, 500, **kwargs), 20)
+        self.assertEqual(policy.request_ceiling(20_001, 500, **kwargs), 1)
+        self.assertEqual(policy.job_ceiling(20_001, 500, **kwargs), 20)
 
     def test_projected_requests_above_absolute_ceiling_keep_both_normal_caps(self):
         policy = AdaptiveListingCompletion(
             90, 90, adaptive_request_allowance=20
         )
-        self.assertEqual(policy.request_ceiling(101, 1), 90)
-        self.assertEqual(policy.job_ceiling(101, 1), 90)
+        self.assertEqual(policy.request_ceiling(1_001, 1), 90)
+        self.assertEqual(policy.job_ceiling(1_001, 1), 90)
 
     def test_listing_only_second_stage_reaches_absolute_request_ceiling(self):
         policy = AdaptiveListingCompletion(
             5,
             100,
-            hard_request_ceiling=100,
-            hard_job_ceiling=5_000,
+            hard_request_ceiling=1_000,
+            hard_job_ceiling=20_000,
             allow_listing_only_second_stage=True,
         )
         self.assertEqual(policy.request_ceiling(1_000, 20), 50)
         self.assertEqual(policy.job_ceiling(1_000, 20), 1_000)
 
-    def test_listing_only_total_request_tiers_through_100_are_allowed(self):
+    def test_shared_listing_only_request_ceiling_boundaries(self):
         policy = AdaptiveListingCompletion(
             1,
             1,
-            hard_request_ceiling=100,
-            hard_job_ceiling=5_000,
             allow_listing_only_second_stage=True,
         )
-        for requests in (25, 50, 75, 100):
+        self.assertEqual(MAX_LISTING_REQUESTS_PER_SOURCE, 1_000)
+        for requests in (999, 1_000):
             with self.subTest(requests=requests):
                 self.assertEqual(policy.request_ceiling(requests, 1), requests)
-        self.assertEqual(policy.request_ceiling(101, 1), 1)
+        self.assertEqual(policy.request_ceiling(1_001, 1), 1)
+        metadata = {"scan_complete": False}
+        policy.record_decision(metadata, 1_001, 1)
+        self.assertFalse(metadata["listing_only_second_stage_eligible"])
+        self.assertFalse(metadata["scan_complete"])
 
-    def test_listing_only_job_ceiling_is_inclusive_at_5000(self):
+    def test_shared_listing_only_job_ceiling_boundaries(self):
         policy = AdaptiveListingCompletion(
             1,
             100,
             allow_listing_only_second_stage=True,
         )
-        self.assertEqual(policy.job_ceiling(4_999, 100), 4_999)
-        self.assertEqual(policy.job_ceiling(5_000, 100), 5_000)
-        self.assertEqual(policy.job_ceiling(5_001, 100), 100)
+        self.assertEqual(MAX_RAW_JOBS_PER_SOURCE, 20_000)
+        self.assertEqual(policy.job_ceiling(19_999, 100), 19_999)
+        self.assertEqual(policy.job_ceiling(20_000, 100), 20_000)
+        self.assertEqual(policy.job_ceiling(20_001, 100), 100)
 
     def test_detail_coupled_source_cannot_use_listing_only_expansion(self):
         policy = AdaptiveListingCompletion(
@@ -192,28 +198,45 @@ class AdaptiveListingCompletionTests(unittest.TestCase):
             1,
         )
 
-    def test_request_100_without_reaching_total_remains_incomplete(self):
+    def test_request_1000_without_reaching_total_remains_incomplete(self):
         policy = AdaptiveListingCompletion(
             1,
             1,
             allow_listing_only_second_stage=True,
         )
-        metadata = {}
+        metadata = {"scan_complete": False}
         policy.record_decision(
             metadata,
-            100,
+            1_000,
             1,
-            requests_completed=100,
-            results_observed=99,
+            requests_completed=1_000,
+            results_observed=999,
         )
         self.assertFalse(metadata["listing_only_second_stage_eligible"])
-        self.assertFalse(finish_authoritative_total(metadata, 100, 99))
+        self.assertFalse(finish_authoritative_total(metadata, 1_000, 999))
+        self.assertFalse(metadata["scan_complete"])
 
-    def test_authoritative_total_reached_on_request_100_is_complete(self):
-        metadata = {"pages_completed": 100, "safety_limit_reached": True}
-        self.assertTrue(finish_authoritative_total(metadata, 100, 100))
+    def test_authoritative_total_reached_on_request_1000_is_complete(self):
+        metadata = {"pages_completed": 1_000, "safety_limit_reached": True}
+        self.assertTrue(finish_authoritative_total(metadata, 1_000, 1_000))
         self.assertTrue(metadata["scan_complete"])
         self.assertEqual(metadata["scan_completeness_reason"], "reported_total_reached")
+
+    def test_authoritative_total_at_20000_jobs_is_complete(self):
+        metadata = {"safety_limit_reached": True}
+        self.assertTrue(finish_authoritative_total(metadata, 20_000, 20_000))
+        self.assertTrue(metadata["scan_complete"])
+
+    def test_total_above_20000_jobs_remains_incomplete(self):
+        policy = AdaptiveListingCompletion(
+            1, 100, allow_listing_only_second_stage=True
+        )
+        metadata = {"scan_complete": False}
+        policy.record_decision(metadata, 20_001, 100)
+        self.assertFalse(metadata["listing_only_second_stage_eligible"])
+        self.assertEqual(metadata["effective_listing_job_ceiling"], 100)
+        self.assertFalse(finish_authoritative_total(metadata, 20_001, 20_000))
+        self.assertFalse(metadata["scan_complete"])
 
     def test_second_stage_rejects_mutation_and_detail_coupling(self):
         policy = AdaptiveListingCompletion(
@@ -237,8 +260,8 @@ class AdaptiveListingCompletionTests(unittest.TestCase):
         policy = AdaptiveListingCompletion(
             1, 20, allow_listing_only_second_stage=True
         )
-        self.assertEqual(policy.request_ceiling(5_001, 100), 1)
-        self.assertEqual(policy.request_ceiling(1_001, 10), 1)
+        self.assertEqual(policy.request_ceiling(20_001, 100), 1)
+        self.assertEqual(policy.request_ceiling(10_001, 10), 1)
 
     def test_explicit_terminal_scan_gets_only_first_stage_allowance(self):
         policy = AdaptiveListingCompletion(2, 20)
@@ -264,20 +287,20 @@ class AdaptiveListingCompletionTests(unittest.TestCase):
         policy = AdaptiveListingCompletion(
             5, 100, allow_listing_only_second_stage=True
         )
-        self.assertEqual(policy.request_ceiling(1_600, 20), 80)
+        self.assertEqual(policy.request_ceiling(15_000, 20), 750)
 
         metadata = {}
         policy.record_decision(
             metadata,
-            1_600,
+            15_000,
             15,
             requests_completed=1,
             results_observed=15,
         )
 
-        self.assertFalse(metadata["listing_only_second_stage_eligible"])
-        self.assertEqual(metadata["effective_listing_request_ceiling"], 5)
-        self.assertEqual(metadata["terminal_listing_requests_required"], 107)
+        self.assertTrue(metadata["listing_only_second_stage_eligible"])
+        self.assertEqual(metadata["effective_listing_request_ceiling"], 1_000)
+        self.assertEqual(metadata["terminal_listing_requests_required"], 1_000)
 
 
 if __name__ == "__main__":

@@ -446,7 +446,9 @@ class PhenomAdapterTests(unittest.TestCase):
 
     def test_maximum_pages_results_and_configuration_are_enforced(self):
         responses = [
-            html_response(page([job(p * 10 + i) for i in range(1, 11)], total=6_000))
+            html_response(
+                page([job(p * 10 + i) for i in range(1, 11)], total=20_001)
+            )
             for p in range(5)
         ]
         jobs, session = self.fetch(responses, max_pages=5, max_jobs=50)

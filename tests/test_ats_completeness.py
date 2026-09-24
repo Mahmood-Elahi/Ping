@@ -182,7 +182,9 @@ class WorkdayCompletenessTests(unittest.TestCase):
         self.assertEqual(session.get_calls, [])
 
     def test_source_beyond_adaptive_allowance_remains_incomplete(self):
-        session = Session(Response({"total": 5_001, "jobPostings": postings(0, 20)}))
+        session = Session(
+            Response({"total": 20_001, "jobPostings": postings(0, 20)})
+        )
         jobs = workday.fetch_jobs(session, target(max_pages=1))
         metadata = source_scan_metadata(session)
         self.assertEqual(len(jobs), 20)

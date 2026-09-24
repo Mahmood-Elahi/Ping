@@ -253,8 +253,8 @@ class OracleRecruitingAdapterTests(unittest.TestCase):
         second = [requisition(str(index)) for index in range(24, 48)]
         session = FakeSession(
             [
-                FakeResponse(payload(first, total=6_000, offset=0)),
-                FakeResponse(payload(second, total=6_000, offset=24)),
+                FakeResponse(payload(first, total=20_001, offset=0)),
+                FakeResponse(payload(second, total=20_001, offset=24)),
             ]
         )
 
@@ -269,7 +269,7 @@ class OracleRecruitingAdapterTests(unittest.TestCase):
         self.assertFalse(metadata["scan_complete"])
         self.assertTrue(metadata["safety_limit_reached"])
         self.assertEqual(metadata["stop_reason"], "maximum_pages_reached")
-        self.assertEqual(metadata["total_available"], 6_000)
+        self.assertEqual(metadata["total_available"], 20_001)
 
     def test_max_pages_above_hard_limit_is_rejected_without_network(self):
         session = FakeSession([])

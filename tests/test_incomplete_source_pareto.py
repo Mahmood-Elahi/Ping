@@ -88,33 +88,34 @@ class IncompleteSourceParetoTests(unittest.TestCase):
 
     def test_saved_report_uses_latest_actual_incomplete_denominator(self):
         report = build_report()
-        self.assertEqual(report["summary"]["incomplete_nonfailed_sources"], 82)
-        self.assertEqual(sum(report["summary"]["primary_category_counts"].values()), 82)
+        self.assertEqual(report["summary"]["incomplete_nonfailed_sources"], 63)
+        self.assertEqual(sum(report["summary"]["primary_category_counts"].values()), 63)
         self.assertEqual(
             [item["strategy"] for item in report["budget_strategies"]],
             [
-                "through_10_total_requests",
-                "through_25_total_requests",
-                "through_50_total_requests",
-                "through_100_total_requests",
+                "through_150_total_requests",
+                "through_300_total_requests",
+                "through_500_total_requests",
+                "through_750_total_requests",
+                "through_1000_total_requests",
             ],
         )
         self.assertEqual(
             report["selected_strategy"],
-            "absolute_100_total_listing_request_ceiling",
+            "absolute_1000_total_listing_request_ceiling",
         )
         self.assertEqual(
             sum(
                 item["source_count"]
                 for item in report["groupings"]["primary_category"]
             ),
-            82,
+            63,
         )
-        self.assertEqual(report["projected_after"]["incomplete"], 67)
+        self.assertEqual(report["projected_after"]["incomplete"], 57)
         self.assertEqual(
-            sum(report["projected_after"]["remaining_breakdown"].values()), 67
+            sum(report["projected_after"]["remaining_breakdown"].values()), 57
         )
-        self.assertEqual(report["runtime_model"]["latest_actual_runtime_seconds"], 711.0)
+        self.assertEqual(report["runtime_model"]["latest_actual_runtime_seconds"], 775.4)
         for grouping in report["groupings"].values():
             self.assertTrue(
                 all("percentage_of_incomplete" in bucket for bucket in grouping)
@@ -126,41 +127,80 @@ class IncompleteSourceParetoTests(unittest.TestCase):
     def test_exact_large_board_selection_and_cost_bands_are_deterministic(self):
         report = build_report()
         recovery = report["large_board_recovery"]
-        self.assertEqual(report["summary"]["large_api_incomplete_sources"], 33)
-        self.assertEqual(recovery["selected_source_count"], 15)
-        self.assertEqual(recovery["additional_listing_requests"], 982)
-        self.assertEqual(recovery["additional_jobs_enumerated"], 15_811)
+        self.assertEqual(report["summary"]["large_api_incomplete_sources"], 7)
+        self.assertEqual(recovery["selected_source_count"], 6)
+        self.assertEqual(recovery["additional_listing_requests"], 1_555)
+        self.assertEqual(recovery["additional_jobs_enumerated"], 19_810)
         self.assertEqual(
             recovery["selected_sources"],
             sorted(
                 [
-                    "Blue Origin",
-                    "Capital One",
-                    "Ericsson Canada",
-                    "GlobalFoundries",
-                    "HP Inc.",
-                    "Hitachi",
-                    "Honeywell",
-                    "Mercado Libre",
-                    "Nvidia",
-                    "Oracle",
-                    "Rivian",
-                    "SLB",
-                    "Salesforce",
-                    "Stellantis",
-                    "TD Bank",
+                    "ABB",
+                    "Eaton",
+                    "JPMorgan Chase",
+                    "Micron",
+                    "Qualcomm",
+                    "Schneider Electric",
                 ]
             ),
         )
         self.assertEqual(
             sum(len(names) for names in recovery["cost_bands"].values()),
-            33,
+            7,
         )
-        self.assertEqual(len(recovery["cost_bands"]["<=25"]), 1)
-        self.assertEqual(len(recovery["cost_bands"]["26-50"]), 0)
-        self.assertEqual(len(recovery["cost_bands"]["51-75"]), 4)
-        self.assertEqual(len(recovery["cost_bands"]["76-100"]), 10)
-        self.assertEqual(len(recovery["cost_bands"][">100"]), 18)
+        self.assertEqual(len(recovery["cost_bands"]["<=150"]), 0)
+        self.assertEqual(len(recovery["cost_bands"]["151-300"]), 5)
+        self.assertEqual(len(recovery["cost_bands"]["301-500"]), 2)
+
+    def test_cumulative_recovery_tiers_expose_cost_cliff_and_runtime(self):
+        report = build_report()
+        tiers = report["cumulative_recovery_tiers"]
+
+        self.assertEqual(
+            [tier["ceiling"] for tier in tiers],
+            [150, 300, 500, 750, 1_000],
+        )
+        self.assertEqual(
+            [tier["sources_recovered"] for tier in tiers],
+            [0, 4, 6, 6, 6],
+        )
+        self.assertEqual(
+            [tier["extra_requests"] for tier in tiers],
+            [0, 899, 1_555, 1_555, 1_555],
+        )
+        self.assertEqual(
+            [tier["extra_jobs"] for tier in tiers],
+            [0, 8_977, 19_810, 19_810, 19_810],
+        )
+        self.assertEqual(
+            tiers[3]["incremental_from_previous_tier"]["sources_recovered"],
+            0,
+        )
+        self.assertEqual(
+            tiers[4]["projected_total_audit_runtime_seconds"], 905.0
+        )
+        self.assertEqual(
+            tiers[4]["projected_runtime_percentage_of_timeout"], 33.52
+        )
+        self.assertEqual(
+            [
+                row["company"]
+                for row in report["runtime_model"]["request_cost_dominators"][:3]
+            ],
+            ["Schneider Electric", "JPMorgan Chase", "Micron"],
+        )
+
+    def test_large_board_table_uses_effective_page_size_for_projection(self):
+        report = build_report()
+        table = report["large_board_recovery"]["table"]
+        schneider = next(
+            row for row in table if row["company"] == "Schneider Electric"
+        )
+
+        self.assertEqual(schneider["effective_server_page_size"], 10)
+        self.assertEqual(schneider["authoritative_total"], 3_511)
+        self.assertEqual(schneider["exact_total_listing_requests_required"], 352)
+        self.assertTrue(schneider["projected_completion_possible_at_500"])
 
     def test_runtime_is_extracted_from_current_artifact_when_present(self):
         coverage = {"runtime_seconds": 123.4, "coverage": [row("Alpha")]}
@@ -177,7 +217,7 @@ class IncompleteSourceParetoTests(unittest.TestCase):
     def test_primary_categories_are_mutually_exclusive(self):
         report = build_report()
         sources = report["sources"]
-        self.assertEqual(len(sources), 82)
+        self.assertEqual(len(sources), 63)
         self.assertEqual(
             len(sources),
             sum(report["summary"]["primary_category_counts"].values()),
@@ -195,10 +235,10 @@ class IncompleteSourceParetoTests(unittest.TestCase):
         report = build_report()
         families = {item["platform"]: item for item in report["page_size_families"]}
         self.assertEqual(
-            families["mcloud_cws"]["maximum_safely_supported_page_sizes"],
-            [20],
+            families["phenom"]["maximum_safely_supported_page_sizes"],
+            [10],
         )
-        self.assertGreater(
+        self.assertEqual(
             report["runtime_model"]["requests_avoided_through_larger_page_sizes"],
             0,
         )
@@ -233,21 +273,18 @@ class IncompleteSourceParetoTests(unittest.TestCase):
         )
 
     def test_large_board_validator_has_all_required_controls_and_hard_cap(self):
-        self.assertEqual(MAX_HTTP_REQUESTS_PER_REPRESENTATIVE, 100)
+        self.assertEqual(MAX_HTTP_REQUESTS_PER_REPRESENTATIVE, 1_000)
         self.assertEqual(
             set(LARGE_BOARD_REPRESENTATIVES),
             {
-                "<=25",
-                "26-50",
-                "51-75",
-                "76-100",
-                ">100_control",
-                ">5000_jobs_control",
+                "200_to_300_requests",
+                "300_to_500_requests",
+                "beyond_old_ceiling_now_recoverable",
                 "detail_coupled_control",
                 "mutable_control",
             },
         )
-        self.assertEqual(len(large_board_representative_targets()), 8)
+        self.assertEqual(len(large_board_representative_targets()), 5)
 
 
 if __name__ == "__main__":

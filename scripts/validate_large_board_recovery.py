@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Manual bounded validation matrix for the large-board recovery tier.
+"""Manual bounded validation matrix for the 1000-request large-board policy.
 
 This validator is intentionally excluded from automated tests. It invokes only
 the named representatives, never the full scanner, never writes artifacts, and
-fails closed before a representative can start more than 100 HTTP requests.
+fails closed before a representative can start more than 1000 HTTP requests.
 """
 
 from __future__ import annotations
@@ -24,18 +24,18 @@ from src.scraper.company_careers.registry import load_target_companies
 from src.scraper.company_careers.scanner import ADAPTERS
 
 
-MAX_HTTP_REQUESTS_PER_REPRESENTATIVE = 100
+MAX_HTTP_REQUESTS_PER_REPRESENTATIVE = 1_000
 TIMEOUT_SECONDS = 20
 REPRESENTATIVES = {
-    "<=25": "Stellantis",                 # 16 projected listing requests
-    "26-50": "McKesson",                  # 28 observed listing requests
-    "51-75": "Ericsson Canada",           # 60 projected listing requests
-    "76-100": "Hitachi",                  # 100 projected listing requests
-    ">100_control": "GE Vernova",         # 112 projected; must remain incomplete
-    ">5000_jobs_control": "JPMorgan Chase",
+    "200_to_300_requests": "Eaton",        # 235 projected listing requests
+    "300_to_500_requests": "Schneider Electric",  # 352 projected requests
+    "beyond_old_ceiling_now_recoverable": "ABB",  # 214 projected requests
     "detail_coupled_control": "Assent",
     "mutable_control": "ARM",
 }
+# The latest artifact set has no deterministic listing-only source projected
+# above 1000 requests and no source above 20000 raw jobs, so there is no honest
+# artifact-backed representative for either optional control category.
 
 
 class BoundedSession(requests.Session):
@@ -49,7 +49,7 @@ class BoundedSession(requests.Session):
         self.requests_started += 1
         if self.requests_started > MAX_HTTP_REQUESTS_PER_REPRESENTATIVE:
             raise AdapterError(
-                "Large-board validator exceeded its 100-request per-source cap"
+                "Large-board validator exceeded its 1000-request per-source cap"
             )
         return super().request(method, url, *args, **kwargs)
 

@@ -884,8 +884,10 @@ class SapSuccessFactorsTests(unittest.TestCase):
         first = [table_job(index) for index in range(1, 21)]
         second = [table_job(index) for index in range(21, 41)]
         session = FakeSession([
-            FakeResponse(table_html(first, total=6_000, next_offset=20)),
-            FakeResponse(table_html(second, total=6_000, offset=20, next_offset=40)),
+            FakeResponse(table_html(first, total=20_001, next_offset=20)),
+            FakeResponse(
+                table_html(second, total=20_001, offset=20, next_offset=40)
+            ),
         ])
         jobs = sf.fetch_jobs(session, target(max_pages=2))
         self.assertEqual(len(jobs), 40)
@@ -927,7 +929,16 @@ class SapSuccessFactorsTests(unittest.TestCase):
         pages = []
         for page in range(5):
             jobs = [table_job(page * 25 + index) for index in range(1, 26)]
-            pages.append(FakeResponse(table_html(jobs, total=6_000, offset=page * 25, next_offset=(page + 1) * 25)))
+            pages.append(
+                FakeResponse(
+                    table_html(
+                        jobs,
+                        total=20_001,
+                        offset=page * 25,
+                        next_offset=(page + 1) * 25,
+                    )
+                )
+            )
         session = FakeSession(pages)
         jobs = sf.fetch_jobs(session, target(max_pages=5))
         self.assertEqual(len(jobs), 125)

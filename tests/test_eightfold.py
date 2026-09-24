@@ -323,7 +323,7 @@ class EightfoldAdapterTests(unittest.TestCase):
             FakeResponse(
                 payload(
                     [position(page * 10 + index) for index in range(1, 11)],
-                    count=6_000,
+                    count=20_001,
                 )
             )
             for page in range(5)
@@ -334,7 +334,7 @@ class EightfoldAdapterTests(unittest.TestCase):
         self.assertEqual(session.eightfold_pagination["stop_reason"], "maximum_results_reached")
         self.assertEqual(
             session.eightfold_pagination["observed_total_counts"],
-            [6_000, 6_000, 6_000, 6_000, 6_000],
+            [20_001, 20_001, 20_001, 20_001, 20_001],
         )
 
     def test_empty_page_before_total_fails_closed(self):

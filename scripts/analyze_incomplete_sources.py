@@ -19,21 +19,26 @@ if str(ROOT) not in sys.path:
 
 from src.scraper.company_careers.models import SAFE_LISTING_PAGE_SIZE_DEFAULTS
 from src.scraper.company_careers.registry import load_target_companies
+from src.scraper.company_careers.listing_completion import (
+    MAX_LISTING_REQUESTS_PER_SOURCE,
+    MAX_RAW_JOBS_PER_SOURCE,
+)
 
 JOBS = ROOT / "jobs"
 OUTPUT = ROOT / "output"
-SAVED_STAMP = "20260923_201051"
+SAVED_STAMP = "20260924_000612"
 DEFAULT_COVERAGE = JOBS / f"company_careers_coverage_{SAVED_STAMP}.json"
 DEFAULT_FAILURES = JOBS / f"company_careers_failures_{SAVED_STAMP}.json"
 DEFAULT_DIAGNOSTICS = JOBS / f"student_search_diagnostics_{SAVED_STAMP}.json"
 DEFAULT_OUTPUT = OUTPUT / f"incomplete_source_pareto_{SAVED_STAMP}.json"
 DEFAULT_LARGE_BOARD_OUTPUT = OUTPUT / f"large_api_incomplete_recovery_{SAVED_STAMP}.json"
 DEFAULT_LARGE_BOARD_CSV = OUTPUT / f"large_api_incomplete_recovery_{SAVED_STAMP}.csv"
-LATEST_ARTIFACT_RUNTIME_SECONDS = {SAVED_STAMP: 711.0}
-ABSOLUTE_JOB_CEILING = 5_000
-ABSOLUTE_REQUEST_CEILING = 100
+LATEST_ARTIFACT_RUNTIME_SECONDS = {SAVED_STAMP: 775.4}
+ABSOLUTE_JOB_CEILING = MAX_RAW_JOBS_PER_SOURCE
+CURRENT_REQUEST_CEILING = 150
+ABSOLUTE_REQUEST_CEILING = MAX_LISTING_REQUESTS_PER_SOURCE
 FIRST_ADAPTIVE_REQUEST_ALLOWANCE = 10
-CURRENT_SECOND_STAGE_ADDITIONAL_ALLOWANCE = 50
+CURRENT_SECOND_STAGE_ADDITIONAL_ALLOWANCE = 150
 
 MUTABLE_REASONS = {"collection_changed_during_scan"}
 MALFORMED_REASONS = {"malformed_listing_records"}
@@ -56,8 +61,10 @@ SECOND_STAGE_PLATFORMS = {
 DETAIL_COUPLED_PLATFORMS = {
     "bamboohr", "paycor", "peoplesoft", "smartrecruiters",
 }
-STRATEGY_ALLOWANCES = (10, 25, 50, 100)
-COST_BAND_LIMITS = (25, 50, 75, 100)
+CANDIDATE_REQUEST_CEILINGS = (150, 300, 500, 750, 1_000)
+RUNTIME_SECONDS_PER_REQUEST_RANGE = (0.2, 0.5)
+RUNTIME_WORKERS = 6
+SCHEDULED_TIMEOUT_SECONDS = 45 * 60
 
 
 def _integer(value: Any) -> int | None:
@@ -98,7 +105,12 @@ def _runtime_seconds(
         if runtime is not None:
             return runtime, "diagnostics_artifact"
     stamp = coverage_payload.get("artifact_stamp") or SAVED_STAMP
-    return LATEST_ARTIFACT_RUNTIME_SECONDS.get(str(stamp), 711.0), "artifact_set_baseline"
+    runtime = LATEST_ARTIFACT_RUNTIME_SECONDS.get(str(stamp))
+    if runtime is None:
+        raise ValueError(
+            "Saved audit has no persisted runtime and no artifact-set runtime baseline"
+        )
+    return runtime, "artifact_set_baseline"
 
 
 def _is_hard_failed(row: Mapping[str, Any]) -> bool:
@@ -251,6 +263,61 @@ def _static_browser_status(row: Mapping[str, Any], target: Any) -> str:
     return "not_static_or_browser"
 
 
+def _has_unsafe_pagination_evidence(row: Mapping[str, Any]) -> bool:
+    evidence = " ".join(
+        str(row.get(key) or "").casefold()
+        for key in ("scan_completeness_reason", "stop_reason")
+    )
+    return bool(
+        row.get("repeated_page")
+        or row.get("zero_progress")
+        or any(
+            marker in evidence
+            for marker in (
+                "repeated_page",
+                "zero_progress",
+                "conflicting_repeated_job_id",
+                "conflicting_stable_id",
+            )
+        )
+    )
+
+
+def _has_unresolved_identity_failure(row: Mapping[str, Any]) -> bool:
+    evidence = " ".join(
+        str(row.get(key) or "").casefold()
+        for key in ("scan_completeness_reason", "stop_reason")
+    )
+    return any(
+        marker in evidence
+        for marker in (
+            "identity_missing",
+            "missing_source_identity",
+            "malformed_identity",
+            "identity_conflict",
+            "conflicting_stable_id",
+        )
+    )
+
+
+def _projected_completion_possible(
+    row: Mapping[str, Any], request_ceiling: int
+) -> bool:
+    required = _integer(row.get("calculated_listing_requests_needed"))
+    total = _integer(row.get("total_available"))
+    return bool(
+        row.get("listing_only")
+        and row.get("deterministic_pagination")
+        and row.get("stable_collection")
+        and row.get("trustworthy_total_or_terminal")
+        and not row.get("unresolved_identity_failure")
+        and total is not None
+        and total <= ABSOLUTE_JOB_CEILING
+        and required is not None
+        and required <= request_ceiling
+    )
+
+
 def _source_metrics(
     row: Mapping[str, Any], target: Any, raw_target: Mapping[str, Any] | None
 ) -> dict[str, Any]:
@@ -282,23 +349,11 @@ def _source_metrics(
         and str(row.get("stop_reason")) in MAX_JOB_STOPS
         and not malformed
     )
-    hard_ceiling_eligible = bool(
-        _second_stage_supported(row, target)
-        and total is not None
-        and required_effective is not None
-        and total <= ABSOLUTE_JOB_CEILING
-        and required_effective <= ABSOLUTE_REQUEST_CEILING
-        and not mutable
-        and not malformed
-        and not detail_coupled
-    )
-    api_recovery = hard_ceiling_eligible
-    recoverable = zero_network or api_recovery
     normal_request_budget = _integer(getattr(target, "max_pages", None)) or 1
     current_effective_ceiling = normal_request_budget
     if required_effective is not None:
         if required_effective <= min(
-            ABSOLUTE_REQUEST_CEILING,
+            CURRENT_REQUEST_CEILING,
             normal_request_budget + FIRST_ADAPTIVE_REQUEST_ALLOWANCE,
         ):
             current_effective_ceiling = max(normal_request_budget, required_effective)
@@ -308,12 +363,15 @@ def _source_metrics(
             and not detail_coupled
             and total is not None
             and total <= ABSOLUTE_JOB_CEILING
-            and required_effective <= ABSOLUTE_REQUEST_CEILING
+            and required_effective <= CURRENT_REQUEST_CEILING
             and required_effective - normal_request_budget
             <= CURRENT_SECOND_STAGE_ADDITIONAL_ALLOWANCE
         ):
             current_effective_ceiling = max(normal_request_budget, required_effective)
-    return {
+    stable_collection = bool(
+        not mutable and not malformed and not _has_unsafe_pagination_evidence(row)
+    )
+    metrics = {
         "configured_page_size": configured_page,
         "requested_page_size": requested_page,
         "observed_page_size": observed_page,
@@ -335,22 +393,26 @@ def _source_metrics(
         "known_jobs_remaining": max(0, total - fetched) if total is not None else None,
         "remaining_listing_requests": remaining_requests,
         "additional_requests_from_current_state": 0 if zero_network else remaining_requests,
-        "source_would_become_complete": recoverable,
-        "jobs_added": max(0, total - fetched) if recoverable and total is not None else None,
+        "additional_requests_from_normal_budget": (
+            max(0, required_effective - normal_request_budget)
+            if required_effective is not None else None
+        ),
         "zero_network_recovery": zero_network,
-        "large_api_recovery": api_recovery,
-        "hard_ceiling_eligible": hard_ceiling_eligible,
         "normal_request_budget": normal_request_budget,
         "current_adaptive_effective_ceiling": current_effective_ceiling,
         "mutable_status": "changed" if mutable else "stable_or_not_observed_changed",
         "mutable": mutable,
+        "stable_collection": stable_collection,
         "static_browser_status": _static_browser_status(row, target),
         "detail_coupled": detail_coupled,
         "listing_only": not detail_coupled,
         "authoritative_total_known": total is not None,
-        "total_over_5000": bool(total is not None and total > ABSOLUTE_JOB_CEILING),
+        "trustworthy_total_or_terminal": bool(
+            total is not None or _terminal_evidence_present(row)
+        ),
+        "unresolved_identity_failure": _has_unresolved_identity_failure(row),
+        "total_over_20000": bool(total is not None and total > ABSOLUTE_JOB_CEILING),
         "deterministic_pagination": _second_stage_supported(row, target),
-        "expected_recoverable_under_100_listing_requests": hard_ceiling_eligible,
         "incomplete_reason": ":".join(
             filter(
                 None,
@@ -365,6 +427,27 @@ def _source_metrics(
         "result_ceiling_hit": str(row.get("stop_reason")) in MAX_JOB_STOPS,
         "primary_category": _primary_category(row, target),
     }
+    capability_row = {**row, **metrics}
+    hard_ceiling_eligible = _projected_completion_possible(
+        capability_row, ABSOLUTE_REQUEST_CEILING
+    )
+    metrics.update(
+        source_would_become_complete=zero_network or hard_ceiling_eligible,
+        jobs_added=(
+            max(0, total - fetched)
+            if (zero_network or hard_ceiling_eligible) and total is not None
+            else None
+        ),
+        large_api_recovery=hard_ceiling_eligible,
+        hard_ceiling_eligible=hard_ceiling_eligible,
+        expected_recoverable_under_selected_listing_ceiling=hard_ceiling_eligible,
+    )
+    capability_row.update(metrics)
+    for ceiling in CANDIDATE_REQUEST_CEILINGS:
+        metrics[f"projected_completion_possible_at_{ceiling}"] = (
+            _projected_completion_possible(capability_row, ceiling)
+        )
+    return metrics
 
 
 def _bucket(rows: Iterable[Mapping[str, Any]], key: Any, total: int) -> dict[str, Any]:
@@ -395,7 +478,7 @@ def _grouping(rows: list[Mapping[str, Any]], key_fn: Callable[[Mapping[str, Any]
 def _remaining_category(row: Mapping[str, Any]) -> str:
     total = _integer(row.get("total_available"))
     if total is not None and total > ABSOLUTE_JOB_CEILING:
-        return "boards_over_5000_jobs"
+        return "boards_over_20000_jobs"
     if row.get("mutable_status") == "changed":
         return "mutable_collections"
     if row.get("primary_category") == "malformed_partial_collections":
@@ -409,15 +492,14 @@ def _remaining_category(row: Mapping[str, Any]) -> str:
 
 def _cost_band(row: Mapping[str, Any]) -> str:
     requests = _integer(row.get("calculated_listing_requests_needed"))
-    if requests is None or requests > 100:
-        return ">100"
-    if requests <= 25:
-        return "<=25"
-    if requests <= 50:
-        return "26-50"
-    if requests <= 75:
-        return "51-75"
-    return "76-100"
+    if requests is None:
+        return "unknown"
+    lower = 0
+    for ceiling in CANDIDATE_REQUEST_CEILINGS:
+        if requests <= ceiling:
+            return f"<={ceiling}" if lower == 0 else f"{lower + 1}-{ceiling}"
+        lower = ceiling
+    return f">{CANDIDATE_REQUEST_CEILINGS[-1]}"
 
 
 def _source_names(rows: Iterable[Mapping[str, Any]]) -> list[str]:
@@ -436,6 +518,8 @@ def _large_board_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "normal_request_budget",
         "current_adaptive_effective_ceiling",
         "calculated_listing_requests_needed",
+        "additional_requests_from_normal_budget",
+        "additional_requests_from_current_state",
         "configured_page_size",
         "requested_page_size",
         "observed_page_size",
@@ -444,13 +528,28 @@ def _large_board_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "listing_only",
         "detail_coupled",
         "mutable",
-        "total_over_5000",
+        "stable_collection",
+        "total_over_20000",
         "deterministic_pagination",
         "authoritative_total_known",
-        "expected_recoverable_under_100_listing_requests",
+        "trustworthy_total_or_terminal",
+        "unresolved_identity_failure",
+        "expected_recoverable_under_selected_listing_ceiling",
         "incomplete_reason",
     )
     result = {key: row.get(key) for key in keys}
+    result["current_fetched_count"] = row.get("fetched_count")
+    result["authoritative_total"] = row.get("total_available")
+    result["remaining_raw_jobs"] = row.get("known_jobs_remaining")
+    result["current_pages_requests"] = row.get("pages_requested")
+    result["exact_total_listing_requests_required"] = row.get(
+        "calculated_listing_requests_needed"
+    )
+    result["total_jobs_expected"] = row.get("total_available")
+    for ceiling in CANDIDATE_REQUEST_CEILINGS:
+        result[f"projected_completion_possible_at_{ceiling}"] = row.get(
+            f"projected_completion_possible_at_{ceiling}"
+        )
     result["cost_band"] = _cost_band(row)
     return result
 
@@ -472,6 +571,70 @@ def _page_size_families(rows: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
             "detail_requests_coupled": any(bool(row.get("detail_coupled")) for row in items),
         })
     return sorted(result, key=lambda item: (-item["incomplete_sources"], item["platform"]))
+
+
+def _runtime_projection(
+    latest_runtime_seconds: float, additional_requests: int
+) -> dict[str, Any]:
+    low_per_request, high_per_request = RUNTIME_SECONDS_PER_REQUEST_RANGE
+    low_extra = additional_requests * low_per_request / RUNTIME_WORKERS
+    high_extra = additional_requests * high_per_request / RUNTIME_WORKERS
+    projected = latest_runtime_seconds + high_extra
+    return {
+        "estimated_extra_wall_time_seconds": round(high_extra, 1),
+        "estimated_extra_wall_time_seconds_range": [
+            round(low_extra, 1),
+            round(high_extra, 1),
+        ],
+        "projected_total_audit_runtime_seconds": round(projected, 1),
+        "projected_runtime_percentage_of_timeout": round(
+            100 * projected / SCHEDULED_TIMEOUT_SECONDS, 2
+        ),
+    }
+
+
+def _candidate_tiers(
+    rows: list[Mapping[str, Any]], latest_runtime_seconds: float
+) -> list[dict[str, Any]]:
+    tiers: list[dict[str, Any]] = []
+    previous_names: set[str] = set()
+    previous_requests = 0
+    previous_jobs = 0
+    previous_ceiling = CURRENT_REQUEST_CEILING
+    for ceiling in CANDIDATE_REQUEST_CEILINGS:
+        selected = [
+            row for row in rows
+            if _projected_completion_possible(row, ceiling)
+        ]
+        names = {str(row.get("company") or "") for row in selected}
+        requests = sum(
+            _integer(row.get("additional_requests_from_normal_budget")) or 0
+            for row in selected
+        )
+        jobs = sum(
+            _integer(row.get("known_jobs_remaining")) or 0 for row in selected
+        )
+        item = {
+            "ceiling": ceiling,
+            "sources_recovered": len(selected),
+            "source_names": sorted(names),
+            "extra_requests": requests,
+            "extra_jobs": jobs,
+            "incremental_from_previous_tier": {
+                "from_ceiling": previous_ceiling,
+                "sources_recovered": len(names - previous_names),
+                "source_names": sorted(names - previous_names),
+                "extra_requests": requests - previous_requests,
+                "extra_jobs": jobs - previous_jobs,
+            },
+        }
+        item.update(_runtime_projection(latest_runtime_seconds, requests))
+        tiers.append(item)
+        previous_names = names
+        previous_requests = requests
+        previous_jobs = jobs
+        previous_ceiling = ceiling
+    return tiers
 
 
 def build_report(
@@ -502,55 +665,84 @@ def build_report(
         row.update(_source_metrics(row, target, raw_targets.get(key)))
         enriched.append(row)
     category_counts = Counter(str(row["primary_category"]) for row in enriched)
-    recoveries = [row for row in enriched if row["source_would_become_complete"]]
-    zero_network = [row for row in recoveries if row["zero_network_recovery"]]
-    api_recoveries = [row for row in recoveries if row["large_api_recovery"]]
-    hard_ceiling_candidates = [row for row in enriched if row["hard_ceiling_eligible"]]
     large_api_rows = [
         row for row in enriched if row["primary_category"] == "large_api_boards"
     ]
+    tiers = _candidate_tiers(large_api_rows, latest_runtime_seconds)
+    selected_ceiling = ABSOLUTE_REQUEST_CEILING
+    selected_ceiling_reason = "configured shared listing-only emergency ceiling"
+    zero_network = [row for row in enriched if row["zero_network_recovery"]]
+    api_recoveries = [
+        row for row in large_api_rows
+        if _projected_completion_possible(row, selected_ceiling)
+    ]
+    recoveries = zero_network + api_recoveries
     ranked = sorted(
         api_recoveries,
         key=lambda row: (
-            _integer(row.get("additional_requests_from_current_state")) or 0,
+            _integer(row.get("additional_requests_from_normal_budget")) or 0,
             -(_integer(row.get("jobs_added")) or 0),
             str(row.get("company")),
         ),
     )
-    strategies = []
-    for allowance in STRATEGY_ALLOWANCES:
-        selected_api = [
-            row
-            for row in hard_ceiling_candidates
-            if (_integer(row.get("calculated_listing_requests_needed")) or 0)
-            <= allowance
-        ]
-        requests = sum(_integer(row.get("additional_requests_from_current_state")) or 0 for row in selected_api)
-        completed = len(zero_network) + len(selected_api)
-        strategies.append({
-            "strategy": f"through_{allowance}_total_requests",
-            "maximum_total_listing_requests_per_source": allowance,
-            "sources_expected_complete": completed,
-            "api_sources_expected_complete": len(selected_api),
+    strategies = [
+        {
+            "strategy": f"through_{tier['ceiling']}_total_requests",
+            "maximum_total_listing_requests_per_source": tier["ceiling"],
+            "sources_expected_complete": len(zero_network) + tier["sources_recovered"],
+            "api_sources_expected_complete": tier["sources_recovered"],
             "zero_network_sources_expected_complete": len(zero_network),
-            "additional_listing_requests": requests,
-            "additional_jobs_enumerated": sum(_integer(row.get("known_jobs_remaining")) or 0 for row in selected_api),
-            "sources_completed_per_extra_request": round(len(selected_api) / requests, 4) if requests else None,
-            "projected_incomplete": len(enriched) - completed,
-        })
+            "additional_listing_requests": tier["extra_requests"],
+            "additional_jobs_enumerated": tier["extra_jobs"],
+            "sources_completed_per_extra_request": round(
+                tier["sources_recovered"] / tier["extra_requests"], 4
+            ) if tier["extra_requests"] else None,
+            "projected_incomplete": (
+                len(enriched) - len(zero_network) - tier["sources_recovered"]
+            ),
+        }
+        for tier in tiers
+    ]
 
     recovered_keys = {(row.get("company"), row.get("platform")) for row in recoveries}
     remaining = [row for row in enriched if (row.get("company"), row.get("platform")) not in recovered_keys]
     remaining_breakdown = Counter(_remaining_category(row) for row in remaining)
-    additional = sum(_integer(row.get("additional_requests_from_current_state")) or 0 for row in api_recoveries)
+    additional = sum(
+        _integer(row.get("additional_requests_from_normal_budget")) or 0
+        for row in api_recoveries
+    )
     avoided = sum(_integer(row.get("requests_avoided_by_larger_pages")) or 0 for row in api_recoveries)
-    runtime_high = round(latest_runtime_seconds + additional * 0.5 / 6, 1)
-    runtime_low = round(latest_runtime_seconds + additional * 0.2 / 6, 1)
+    selected_runtime = _runtime_projection(latest_runtime_seconds, additional)
+    request_cost_dominators = [
+        {
+            "company": str(row.get("company") or ""),
+            "platform": str(row.get("platform") or ""),
+            "extra_listing_requests": (
+                _integer(row.get("additional_requests_from_normal_budget")) or 0
+            ),
+        }
+        for row in sorted(
+            api_recoveries,
+            key=lambda item: (
+                -(
+                    _integer(item.get("additional_requests_from_normal_budget"))
+                    or 0
+                ),
+                str(item.get("company") or ""),
+            ),
+        )
+    ]
     complete_count = sum(bool(row.get("scan_complete")) for row in canonical)
     failed_count = sum(_is_hard_failed(row) for row in canonical)
+    cost_band_names = [
+        "<=150", "151-300", "301-500", "501-750", "751-1000",
+        ">1000", "unknown",
+    ]
     cost_bands = {
-        band: _source_names(row for row in large_api_rows if _cost_band(row) == band)
-        for band in ("<=25", "26-50", "51-75", "76-100", ">100")
+        band: _source_names(
+            row for row in large_api_rows if _cost_band(row) == band
+        )
+        for band in cost_band_names
     }
     large_table = [
         _large_board_row(row)
@@ -564,13 +756,15 @@ def build_report(
     ]
     selected_names = _source_names(api_recoveries)
     rejection_lists = {
-        "over_100_requests": _source_names(
+        "over_selected_request_ceiling": _source_names(
             row
             for row in large_api_rows
             if (_integer(row.get("calculated_listing_requests_needed")) or 10**9)
-            > ABSOLUTE_REQUEST_CEILING
+            > selected_ceiling
+            and not row.get("total_over_20000")
+            and row.get("deterministic_pagination")
         ),
-        "over_5000_jobs": _source_names(
+        "over_20000_jobs": _source_names(
             row
             for row in large_api_rows
             if (_integer(row.get("total_available")) or 0) > ABSOLUTE_JOB_CEILING
@@ -593,10 +787,22 @@ def build_report(
             for row in enriched
             if row.get("primary_category") == "malformed_partial_collections"
         ),
+        "non_deterministic_pagination": _source_names(
+            row for row in large_api_rows
+            if not row.get("deterministic_pagination")
+        ),
+        "unstable_or_unsafe_pagination": _source_names(
+            row for row in large_api_rows
+            if not row.get("stable_collection")
+        ),
+        "unresolved_identity_failure": _source_names(
+            row for row in large_api_rows
+            if row.get("unresolved_identity_failure")
+        ),
     }
 
     return {
-        "report_version": 5,
+        "report_version": 6,
         "source_artifacts": {"coverage": str(coverage_path), "failures": str(failures_path) if failures_path else None, "student_search_diagnostics": str(diagnostics_path) if diagnostics_path else None},
         "summary": {
             "complete_sources": complete_count,
@@ -619,8 +825,9 @@ def build_report(
         "page_size_families": _page_size_families(enriched),
         "ranked_recovery_candidates": ranked,
         "large_board_recovery": {
-            "maximum_listing_requests_per_source": ABSOLUTE_REQUEST_CEILING,
+            "maximum_listing_requests_per_source": selected_ceiling,
             "maximum_jobs_per_source": ABSOLUTE_JOB_CEILING,
+            "selected_ceiling_reason": selected_ceiling_reason,
             "selected_source_count": len(api_recoveries),
             "selected_sources": selected_names,
             "cost_bands": cost_bands,
@@ -644,24 +851,47 @@ def build_report(
                 round(len(api_recoveries) / additional, 4) if additional else None
             ),
             "rejected_sources": rejection_lists,
+            "cumulative_recovery_tiers": tiers,
+            "runtime_baseline_seconds": latest_runtime_seconds,
+            "selected_runtime_projection": selected_runtime,
             "table": large_table,
         },
+        "cumulative_recovery_tiers": tiers,
         "budget_strategies": strategies,
-        "selected_strategy": "absolute_100_total_listing_request_ceiling",
+        "selected_strategy": (
+            f"absolute_{selected_ceiling}_total_listing_request_ceiling"
+        ),
+        "selected_ceiling_reason": selected_ceiling_reason,
         "runtime_model": {
             "latest_actual_runtime_seconds": latest_runtime_seconds,
             "latest_actual_runtime_source": runtime_source,
-            "workers": 6,
+            "workers": RUNTIME_WORKERS,
             "gross_additional_listing_requests_without_larger_pages": additional + avoided,
             "requests_avoided_through_larger_page_sizes": avoided,
             "net_additional_listing_requests": additional,
-            "expected_additional_wall_time_seconds_range": [
-                round(additional * 0.2 / 6, 1),
-                round(additional * 0.5 / 6, 1),
+            "expected_additional_wall_time_seconds_range": selected_runtime[
+                "estimated_extra_wall_time_seconds_range"
             ],
-            "expected_wall_time_seconds_range": [runtime_low, runtime_high],
-            "scheduled_timeout_seconds": 45 * 60,
+            "expected_wall_time_seconds_range": [
+                round(
+                    latest_runtime_seconds
+                    + selected_runtime["estimated_extra_wall_time_seconds_range"][0],
+                    1,
+                ),
+                selected_runtime["projected_total_audit_runtime_seconds"],
+            ],
+            "estimated_extra_wall_time_seconds": selected_runtime[
+                "estimated_extra_wall_time_seconds"
+            ],
+            "projected_total_audit_runtime_seconds": selected_runtime[
+                "projected_total_audit_runtime_seconds"
+            ],
+            "projected_runtime_percentage_of_timeout": selected_runtime[
+                "projected_runtime_percentage_of_timeout"
+            ],
+            "scheduled_timeout_seconds": SCHEDULED_TIMEOUT_SECONDS,
             "browser_work_delta": 0,
+            "request_cost_dominators": request_cost_dominators,
         },
         "projected_after": {
             "complete": complete_count + len(recoveries),

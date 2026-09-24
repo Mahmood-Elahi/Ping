@@ -9,8 +9,12 @@ from typing import Any, MutableMapping, Optional
 
 
 ADAPTIVE_LISTING_REQUEST_ALLOWANCE = 10
-ABSOLUTE_LISTING_REQUEST_CEILING = 100
-ABSOLUTE_LISTING_JOB_CEILING = 5_000
+MAX_LISTING_REQUESTS_PER_SOURCE = 1_000
+MAX_RAW_JOBS_PER_SOURCE = 20_000
+# Backward-compatible names retained for adapters that record the shared
+# listing policy in their scan metadata.
+ABSOLUTE_LISTING_REQUEST_CEILING = MAX_LISTING_REQUESTS_PER_SOURCE
+ABSOLUTE_LISTING_JOB_CEILING = MAX_RAW_JOBS_PER_SOURCE
 # The second stage may consume the remainder of the existing absolute request
 # ceiling. The absolute ceiling is still a total-per-source limit, not an
 # additional-request allowance.
