@@ -1071,6 +1071,76 @@ class SupabaseJobStoreTests(unittest.TestCase):
         )
         self.assertTrue(all(call["limit"] == 500 for call in calls))
         self.assertTrue(all(call["range"] is None for call in calls))
+        self.assertEqual(self.client.range_calls.get("tracked_jobs", []), [])
+
+    def test_lifecycle_keyset_treats_server_cursor_as_opaque(self):
+        first_page = FakeResponse(
+            [{"source_key": "aardvark"}, {"source_key": "alpha"}]
+        )
+        server_collated_continuation = FakeResponse([{"source_key": "Beta"}])
+        self.assertLess("Beta", "alpha")
+
+        with patch.object(
+            self.store,
+            "_fetch_lifecycle_page",
+            side_effect=[
+                (first_page, 2),
+                (server_collated_continuation, 2),
+            ],
+        ) as fetch_page:
+            state = self.store.fetch_lifecycle_state()
+
+        self.assertEqual(list(state["jobs"]), ["aardvark", "alpha", "Beta"])
+        self.assertEqual(fetch_page.call_args_list[1].kwargs["cursor"], "alpha")
+
+    def test_lifecycle_keyset_rejects_an_equality_stall(self):
+        first_page = FakeResponse(
+            [{"source_key": "alpha"}, {"source_key": "cursor"}]
+        )
+        repeated_cursor = FakeResponse(
+            [{"source_key": "other"}, {"source_key": "cursor"}]
+        )
+
+        with patch.object(
+            self.store,
+            "_fetch_lifecycle_page",
+            side_effect=[(first_page, 2), (repeated_cursor, 2)],
+        ) as fetch_page:
+            with self.assertRaisesRegex(RuntimeError, "did not advance"):
+                self.store.fetch_lifecycle_state()
+
+        self.assertEqual(fetch_page.call_args_list[1].kwargs["cursor"], "cursor")
+
+    def test_lifecycle_keyset_rejects_empty_and_duplicate_keys(self):
+        cases = (
+            ([{"source_key": ""}], "empty source_key"),
+            (
+                [{"source_key": "duplicate"}, {"source_key": "duplicate"}],
+                "duplicate rows",
+            ),
+        )
+        for rows, message in cases:
+            with self.subTest(message=message), patch.object(
+                self.store,
+                "_fetch_lifecycle_page",
+                return_value=(FakeResponse(rows), 500),
+            ):
+                with self.assertRaisesRegex(RuntimeError, message):
+                    self.store.fetch_lifecycle_state()
+
+    def test_lifecycle_keyset_rejects_duplicates_across_pages(self):
+        first_page = FakeResponse(
+            [{"source_key": "alpha"}, {"source_key": "zulu"}]
+        )
+        duplicate_continuation = FakeResponse([{"source_key": "alpha"}])
+
+        with patch.object(
+            self.store,
+            "_fetch_lifecycle_page",
+            side_effect=[(first_page, 2), (duplicate_continuation, 2)],
+        ):
+            with self.assertRaisesRegex(RuntimeError, "duplicate rows"):
+                self.store.fetch_lifecycle_state()
 
     def test_lifecycle_state_read_requests_only_required_columns_without_count(self):
         self.client.tracked_jobs["key-00000"] = {
@@ -1151,8 +1221,10 @@ class SupabaseJobStoreTests(unittest.TestCase):
         self.assertIn("lifecycle-state query", str(error))
         self.assertEqual(error.diagnostics["classification"], "timeout")
         self.assertEqual(error.diagnostics["provider_code"], "57014")
+        self.assertEqual(error.diagnostics["page"], 2)
         self.assertEqual(error.diagnostics["attempt"], 3)
         self.assertEqual(error.diagnostics["payload_rows"], 125)
+        self.assertTrue(error.diagnostics["cursor"].startswith("sha256:"))
         calls = [
             call for call in self.client.select_calls
             if call["table"] == "tracked_jobs"
@@ -1294,6 +1366,29 @@ class SupabaseJobStoreTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "duplicate rows"):
                 self.store.fetch_dashboard_data()
 
+    def test_dashboard_keyset_rejects_an_empty_key(self):
+        with patch.object(
+            self.store,
+            "_fetch_active_jobs_page",
+            return_value=(FakeResponse([{"source_key": ""}]), 500),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "empty source_key"):
+                self.store.fetch_dashboard_data()
+
+    def test_dashboard_keyset_rejects_duplicates_across_pages(self):
+        first_page = FakeResponse(
+            [{"source_key": "alpha"}, {"source_key": "zulu"}]
+        )
+        duplicate_continuation = FakeResponse([{"source_key": "alpha"}])
+
+        with patch.object(
+            self.store,
+            "_fetch_active_jobs_page",
+            side_effect=[(first_page, 2), (duplicate_continuation, 2)],
+        ):
+            with self.assertRaisesRegex(RuntimeError, "duplicate rows"):
+                self.store.fetch_dashboard_data()
+
     def test_dashboard_keyset_rejects_a_nonprogressing_cursor(self):
         first_page = FakeResponse(
             [{"source_key": f"key-{index:05d}"} for index in range(500)]
@@ -1311,6 +1406,29 @@ class SupabaseJobStoreTests(unittest.TestCase):
                 self.store.fetch_dashboard_data()
 
         self.assertEqual(fetch_page.call_args_list[1].kwargs["cursor"], "key-00499")
+
+    def test_dashboard_keyset_treats_server_cursor_as_opaque(self):
+        first_page = FakeResponse(
+            [{"source_key": "aardvark"}, {"source_key": "alpha"}]
+        )
+        server_collated_continuation = FakeResponse([{"source_key": "Beta"}])
+        self.assertLess("Beta", "alpha")
+
+        with patch.object(
+            self.store,
+            "_fetch_active_jobs_page",
+            side_effect=[
+                (first_page, 2),
+                (server_collated_continuation, 2),
+            ],
+        ) as fetch_page:
+            dashboard = self.store.fetch_dashboard_data()
+
+        self.assertEqual(
+            [row["source_key"] for row in dashboard.active_jobs],
+            ["aardvark", "alpha", "Beta"],
+        )
+        self.assertEqual(fetch_page.call_args_list[1].kwargs["cursor"], "alpha")
 
     def test_dashboard_middle_page_timeout_retries_same_cursor_at_smaller_size(self):
         for index in range(1201):

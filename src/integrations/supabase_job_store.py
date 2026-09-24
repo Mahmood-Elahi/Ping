@@ -991,10 +991,12 @@ class SupabaseJobStore:
         jobs: dict[str, dict[str, Any]] = {}
         latest: Optional[str] = None
         cursor: Optional[str] = None
+        page_number = 1
         page_size = DEFAULT_LIFECYCLE_PAGE_SIZE
         while True:
             response, page_size = self._fetch_lifecycle_page(
                 cursor=cursor,
+                page_number=page_number,
                 page_size=page_size,
             )
             page = getattr(response, "data", None)
@@ -1002,15 +1004,27 @@ class SupabaseJobStore:
                 isinstance(row, Mapping) for row in page
             ):
                 raise RuntimeError("Supabase lifecycle-state query returned an invalid response")
+            page_source_keys = [str(row.get("source_key") or "") for row in page]
+            if any(not source_key for source_key in page_source_keys):
+                raise RuntimeError(
+                    "Supabase lifecycle-state keyset pagination returned an empty source_key"
+                )
+            if len(page_source_keys) != len(set(page_source_keys)):
+                raise RuntimeError(
+                    "Supabase lifecycle-state keyset pagination returned duplicate rows"
+                )
+            next_cursor = page_source_keys[-1] if page_source_keys else None
+            if cursor is not None and next_cursor == cursor:
+                raise RuntimeError(
+                    "Supabase lifecycle-state keyset pagination did not advance"
+                )
+            if any(source_key in jobs for source_key in page_source_keys):
+                raise RuntimeError(
+                    "Supabase lifecycle-state pagination returned duplicate rows"
+                )
             for raw_row in page:
                 row = dict(raw_row)
-                source_key = str(row.get("source_key") or "")
-                if not source_key:
-                    continue
-                if source_key in jobs:
-                    raise RuntimeError(
-                        "Supabase lifecycle-state pagination returned duplicate rows"
-                    )
+                source_key = str(row["source_key"])
                 values = dict(row)
                 values["source"] = (
                     values.get("source") or values.get("source_platform") or ""
@@ -1032,18 +1046,19 @@ class SupabaseJobStore:
                 latest = max(latest or last_seen, last_seen) if last_seen else latest
             if len(page) < page_size:
                 break
-            next_cursor = str(page[-1].get("source_key") or "")
-            if not next_cursor or (cursor is not None and next_cursor <= cursor):
+            if next_cursor is None:
                 raise RuntimeError(
-                    "Supabase lifecycle-state keyset pagination did not advance"
+                    "Supabase lifecycle-state keyset pagination returned no cursor"
                 )
             cursor = next_cursor
+            page_number += 1
         return {"schema_version": 1, "updated_at": latest, "jobs": jobs}
 
     def _fetch_lifecycle_page(
         self,
         *,
         cursor: Optional[str],
+        page_number: int,
         page_size: int,
     ) -> tuple[Any, int]:
         """Fetch one keyset page, retrying only that page on transient failures."""
@@ -1065,6 +1080,8 @@ class SupabaseJobStore:
                 error = _supabase_access_error(
                     exc,
                     operation=operation,
+                    cursor=cursor,
+                    page_number=page_number,
                     payload_rows=requested_size,
                     elapsed_seconds=elapsed,
                     request_timeout_seconds=self.request_timeout_seconds,
