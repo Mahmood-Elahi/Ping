@@ -21,9 +21,14 @@ DEFAULT_SYNC_RETRY_DELAY_SECONDS = 0.5
 DEFAULT_SUPABASE_REQUEST_TIMEOUT_SECONDS = 120.0
 DEFAULT_LIFECYCLE_PAGE_SIZE = 500
 MIN_LIFECYCLE_PAGE_SIZE = 100
-DEFAULT_DASHBOARD_PAGE_SIZE = 1000
+DEFAULT_ACTIVE_JOBS_PAGE_SIZE = 500
+MIN_ACTIVE_JOBS_PAGE_SIZE = 100
 DEFAULT_SYNC_CHUNK_ROWS = 200
 DEFAULT_SYNC_CHUNK_BYTES = 512 * 1024
+ACTIVE_JOBS_COLUMNS = (
+    "source_key,company,title,location,apply_url,relevance_score,positive_signals,"
+    "first_seen_at,status,freshness_band,urgency_band"
+)
 LIFECYCLE_STATE_COLUMNS = (
     "source_key,company,title,location,apply_url,source_url,source_platform,"
     "first_seen_at,last_seen_at,first_seen_basis,source_posted_at,source_closes_at,"
@@ -866,48 +871,48 @@ class SupabaseJobStore:
 
     def fetch_dashboard_data(self) -> DashboardData:
         """Read active jobs and the latest scan without touching applications."""
-        columns = (
-            "source_key,company,title,location,apply_url,primary_category,"
-            "matched_categories,relevance_score,relevance_band,positive_signals,"
-            "location_status,source_updated_at,source_posted_at,source_closes_at,"
-            "first_seen_at,last_seen_at,first_seen_basis,first_seen_age_hours,"
-            "removed_at,status,lifecycle_status,"
-            "missing_successful_runs,freshness_age_source,age_days,freshness_band,"
-            "deadline_days_remaining,urgency_band,urgency_score,urgency_reasons,"
-            "date_parse_errors,is_ranked_output,raw_data"
-        )
         jobs_data: list[Mapping[str, Any]] = []
-        offset = 0
+        seen_source_keys: set[str] = set()
+        cursor: Optional[str] = None
+        page_number = 1
+        page_size = DEFAULT_ACTIVE_JOBS_PAGE_SIZE
         while True:
-            try:
-                jobs_response = (
-                    self.client.table("tracked_jobs")
-                    .select(columns)
-                    .eq("status", "active")
-                    .eq("is_ranked_output", True)
-                    .order("relevance_score", desc=True)
-                    .order("first_seen_at", desc=True)
-                    .order("source_key", desc=False)
-                    .range(offset, offset + DEFAULT_DASHBOARD_PAGE_SIZE - 1)
-                    .execute()
-                )
-            except Exception as exc:
-                raise _supabase_access_error(
-                    exc, operation="active-jobs query", secrets=self._redaction_secrets
-                ) from None
+            jobs_response, page_size = self._fetch_active_jobs_page(
+                cursor=cursor,
+                page_number=page_number,
+                page_size=page_size,
+            )
             page = getattr(jobs_response, "data", None)
             if not isinstance(page, list) or not all(
                 isinstance(row, Mapping) for row in page
             ):
                 raise RuntimeError("Supabase active-jobs query returned an invalid response")
+            page_source_keys = [str(row.get("source_key") or "") for row in page]
+            if any(not source_key for source_key in page_source_keys):
+                raise RuntimeError(
+                    "Supabase active-jobs keyset pagination returned an empty source_key"
+                )
+            if len(page_source_keys) != len(set(page_source_keys)):
+                raise RuntimeError(
+                    "Supabase active-jobs keyset pagination returned duplicate rows"
+                )
+            next_cursor = page_source_keys[-1] if page_source_keys else None
+            if cursor is not None and next_cursor == cursor:
+                raise RuntimeError(
+                    "Supabase active-jobs keyset pagination did not advance"
+                )
+            if any(source_key in seen_source_keys for source_key in page_source_keys):
+                raise RuntimeError("Supabase active-jobs pagination returned duplicate rows")
             jobs_data.extend(page)
-            if len(page) < DEFAULT_DASHBOARD_PAGE_SIZE:
+            seen_source_keys.update(page_source_keys)
+            if len(page) < page_size:
                 break
-            offset += DEFAULT_DASHBOARD_PAGE_SIZE
-
-        source_keys = [str(row.get("source_key") or "") for row in jobs_data]
-        if len(source_keys) != len(set(source_keys)):
-            raise RuntimeError("Supabase active-jobs pagination returned duplicate rows")
+            if next_cursor is None:
+                raise RuntimeError(
+                    "Supabase active-jobs keyset pagination returned no cursor"
+                )
+            cursor = next_cursor
+            page_number += 1
 
         try:
             scan_response = (
@@ -927,13 +932,59 @@ class SupabaseJobStore:
         ):
             raise RuntimeError("Supabase latest-scan query returned an invalid response")
 
-        active_jobs = [dict(row) for row in jobs_data]
-        for row in active_jobs:
-            row["child_brands"] = _dashboard_child_brands(row)
         return DashboardData(
-            active_jobs=active_jobs,
+            active_jobs=[dict(row) for row in jobs_data],
             latest_scan=dict(scan_data[0]) if scan_data else None,
         )
+
+    def _fetch_active_jobs_page(
+        self,
+        *,
+        cursor: Optional[str],
+        page_number: int,
+        page_size: int,
+    ) -> tuple[Any, int]:
+        """Fetch one active-job keyset page with bounded transient retries."""
+        requested_size = page_size
+        for attempt in range(1, self.sync_max_attempts + 1):
+            started = time.perf_counter()
+            try:
+                query = (
+                    self.client.table("tracked_jobs")
+                    .select(ACTIVE_JOBS_COLUMNS)
+                    .eq("status", "active")
+                    .eq("is_ranked_output", True)
+                    .order("source_key", desc=False)
+                )
+                if cursor is not None:
+                    query = query.gt("source_key", cursor)
+                return query.limit(requested_size).execute(), requested_size
+            except Exception as exc:
+                elapsed = time.perf_counter() - started
+                error = _supabase_access_error(
+                    exc,
+                    operation="active-jobs",
+                    cursor=cursor,
+                    page_number=page_number,
+                    requested_page_size=requested_size,
+                    payload_rows=requested_size,
+                    elapsed_seconds=elapsed,
+                    request_timeout_seconds=self.request_timeout_seconds,
+                    attempt=attempt,
+                    secrets=self._redaction_secrets,
+                )
+                if (
+                    not error.diagnostics.get("transient")
+                    or attempt >= self.sync_max_attempts
+                ):
+                    raise error from SupabaseProviderError(error.diagnostics)
+                if error.diagnostics.get("classification") == "timeout":
+                    requested_size = max(
+                        MIN_ACTIVE_JOBS_PAGE_SIZE,
+                        requested_size // 2,
+                    )
+                self._sleep(self.sync_retry_delay_seconds * (2 ** (attempt - 1)))
+        raise AssertionError("unreachable")
 
     def fetch_lifecycle_state(self) -> dict[str, Any]:
         """Load canonical lifecycle history from the existing tracked_jobs store."""
@@ -1067,6 +1118,9 @@ def _supabase_access_error(
     elapsed_seconds: Optional[float] = None,
     request_timeout_seconds: Optional[float] = None,
     attempt: Optional[int] = None,
+    cursor: Optional[str] = None,
+    page_number: Optional[int] = None,
+    requested_page_size: Optional[int] = None,
     secrets: Iterable[str] = (),
 ) -> SupabaseAccessError:
     """Return actionable provider diagnostics without credential-bearing values."""
@@ -1117,6 +1171,9 @@ def _supabase_access_error(
             if elapsed_seconds is not None else None,
             "request_timeout_seconds": request_timeout_seconds,
             "attempt": attempt,
+            "cursor": _safe_cursor_diagnostic(cursor),
+            "page": page_number,
+            "requested_page_size": requested_page_size,
             "transient": transient,
         }.items()
         if value is not None
@@ -1162,6 +1219,14 @@ def _supabase_access_error(
         summary_parts.append(f"payload_rows={payload_rows}")
     if payload_bytes is not None:
         summary_parts.append(f"payload_bytes={payload_bytes}")
+    if page_number is not None:
+        summary_parts.append(f"page={page_number}")
+    if requested_page_size is not None:
+        summary_parts.append(f"requested_page_size={requested_page_size}")
+    if cursor is not None:
+        summary_parts.append(f"cursor={_safe_cursor_diagnostic(cursor)!r}")
+    if attempt is not None:
+        summary_parts.append(f"attempt={attempt}")
     if elapsed_seconds is not None:
         summary_parts.append(f"elapsed_seconds={elapsed_seconds:.3f}")
     summary_parts.append(f"provider_message={message[:500]!r}")
@@ -1169,6 +1234,14 @@ def _supabase_access_error(
         f"Supabase access failed during {operation}; " + ", ".join(summary_parts),
         diagnostics=diagnostics,
     )
+
+
+def _safe_cursor_diagnostic(cursor: Optional[str]) -> Optional[str]:
+    """Identify a cursor in diagnostics without exposing a URL-shaped source key."""
+    if cursor is None:
+        return None
+    digest = hashlib.sha256(str(cursor).encode("utf-8")).hexdigest()[:12]
+    return f"sha256:{digest}"
 
 
 def _classify_provider_failure(

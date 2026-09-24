@@ -1163,8 +1163,8 @@ class SupabaseJobStoreTests(unittest.TestCase):
             [[("source_key__gt", "key-00499")]] * 3,
         )
 
-    def test_dashboard_data_paginates_all_active_ranked_rows(self):
-        for row_count in (999, 1000, 1001, 3007):
+    def test_dashboard_data_keyset_paginates_all_active_ranked_rows(self):
+        for row_count in (7, 1001, 3007):
             with self.subTest(row_count=row_count):
                 client = FakeSupabaseClient()
                 store = SupabaseJobStore(client, now_factory=self.clock)
@@ -1185,21 +1185,245 @@ class SupabaseJobStoreTests(unittest.TestCase):
                 keys = [row["source_key"] for row in dashboard.active_jobs]
                 self.assertEqual(len(keys), row_count)
                 self.assertEqual(len(set(keys)), row_count)
-                expected = list(client.tracked_jobs.values())
-                expected.sort(key=lambda row: row["source_key"])
-                expected.sort(key=lambda row: row["first_seen_at"], reverse=True)
-                expected.sort(key=lambda row: row["relevance_score"], reverse=True)
+                self.assertEqual(keys, sorted(client.tracked_jobs))
+                calls = [
+                    call for call in client.select_calls
+                    if call["table"] == "tracked_jobs"
+                ]
                 self.assertEqual(
-                    keys,
-                    [row["source_key"] for row in expected],
-                )
-                self.assertEqual(
-                    client.range_calls["tracked_jobs"],
+                    calls[0]["filters"][:2],
                     [
-                        (offset, offset + 999)
-                        for offset in range(0, row_count + 1, 1000)
+                        ("status", "active"),
+                        ("is_ranked_output", True),
                     ],
                 )
+                self.assertTrue(
+                    all(call["orderings"] == [("source_key", False)] for call in calls)
+                )
+                self.assertTrue(all(call["limit"] == 500 for call in calls))
+                self.assertTrue(all(call["range"] is None for call in calls))
+                self.assertEqual(client.range_calls.get("tracked_jobs", []), [])
+                cursors = [call["filters"][-1] for call in calls[1:]]
+                self.assertTrue(
+                    all(field == "source_key__gt" for field, _value in cursors)
+                )
+                self.assertEqual(
+                    [value for _field, value in cursors],
+                    sorted(value for _field, value in cursors),
+                )
+
+    def test_dashboard_data_excludes_inactive_and_unranked_rows(self):
+        base = {
+            "company": "Example",
+            "title": "Intern",
+            "relevance_score": 80,
+            "first_seen_at": "2026-08-01T00:00:00Z",
+        }
+        self.client.tracked_jobs = {
+            "active": {
+                **base,
+                "source_key": "active",
+                "status": "active",
+                "lifecycle_status": "active",
+                "is_ranked_output": True,
+            },
+            "removed": {
+                **base,
+                "source_key": "removed",
+                "status": "closed",
+                "lifecycle_status": "removed",
+                "removed_at": "2026-08-02T00:00:00Z",
+                "is_ranked_output": True,
+            },
+            "unranked": {
+                **base,
+                "source_key": "unranked",
+                "status": "active",
+                "lifecycle_status": "active",
+                "is_ranked_output": False,
+            },
+        }
+
+        dashboard = self.store.fetch_dashboard_data()
+
+        self.assertEqual(
+            [row["source_key"] for row in dashboard.active_jobs],
+            ["active"],
+        )
+
+    def test_dashboard_data_requests_only_sheet_fields_without_count_or_raw_data(self):
+        self.client.tracked_jobs["key-00000"] = {
+            "source_key": "key-00000",
+            "company": "Example",
+            "title": "Intern",
+            "status": "active",
+            "is_ranked_output": True,
+            "relevance_score": 90,
+            "first_seen_at": "2026-08-01T00:00:00Z",
+            "raw_data": {"description": "x" * 100_000},
+        }
+
+        self.store.fetch_dashboard_data()
+
+        call = next(
+            call for call in self.client.select_calls
+            if call["table"] == "tracked_jobs"
+        )
+        self.assertEqual(
+            call["columns"],
+            "source_key,company,title,location,apply_url,relevance_score,"
+            "positive_signals,first_seen_at,status,freshness_band,urgency_band",
+        )
+        self.assertNotIn("raw_data", call["columns"])
+        self.assertNotIn("description", call["columns"])
+        self.assertFalse(call["count_exact"])
+        self.assertIsNone(call["range"])
+
+    def test_dashboard_keyset_rejects_duplicate_keys(self):
+        duplicate_page = FakeResponse(
+            [
+                {"source_key": "duplicate"},
+                {"source_key": "duplicate"},
+            ]
+        )
+        with patch.object(
+            self.store,
+            "_fetch_active_jobs_page",
+            return_value=(duplicate_page, 500),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "duplicate rows"):
+                self.store.fetch_dashboard_data()
+
+    def test_dashboard_keyset_rejects_a_nonprogressing_cursor(self):
+        first_page = FakeResponse(
+            [{"source_key": f"key-{index:05d}"} for index in range(500)]
+        )
+        repeated_page = FakeResponse(
+            [{"source_key": f"other-{index:05d}"} for index in range(499)]
+            + [{"source_key": "key-00499"}]
+        )
+        with patch.object(
+            self.store,
+            "_fetch_active_jobs_page",
+            side_effect=[(first_page, 500), (repeated_page, 500)],
+        ) as fetch_page:
+            with self.assertRaisesRegex(RuntimeError, "did not advance"):
+                self.store.fetch_dashboard_data()
+
+        self.assertEqual(fetch_page.call_args_list[1].kwargs["cursor"], "key-00499")
+
+    def test_dashboard_middle_page_timeout_retries_same_cursor_at_smaller_size(self):
+        for index in range(1201):
+            source_key = f"key-{index:05d}"
+            self.client.tracked_jobs[source_key] = {
+                "source_key": source_key,
+                "company": "Example",
+                "title": f"Job {index}",
+                "status": "active",
+                "is_ranked_output": True,
+                "relevance_score": 90,
+                "first_seen_at": "2026-08-01T00:00:00Z",
+            }
+        self.client.tracked_query_failures = [
+            None,
+            ProviderFailure("canceling statement due to statement timeout", code="57014"),
+            None,
+        ]
+        delays = []
+        self.store._sleep = delays.append
+
+        dashboard = self.store.fetch_dashboard_data()
+
+        keys = [row["source_key"] for row in dashboard.active_jobs]
+        self.assertEqual(keys, sorted(self.client.tracked_jobs))
+        self.assertEqual(len(keys), len(set(keys)))
+        calls = [
+            call for call in self.client.select_calls
+            if call["table"] == "tracked_jobs"
+        ]
+        self.assertEqual(
+            [(call["filters"][-1:], call["limit"]) for call in calls[:3]],
+            [
+                ([("is_ranked_output", True)], 500),
+                ([("source_key__gt", "key-00499")], 500),
+                ([("source_key__gt", "key-00499")], 250),
+            ],
+        )
+        self.assertTrue(all(call["limit"] == 250 for call in calls[2:]))
+        self.assertEqual(delays, [0.5])
+
+    def test_dashboard_page_timeout_exhaustion_is_actionable_and_secret_safe(self):
+        for index in range(501):
+            source_key = f"key-{index:05d}"
+            self.client.tracked_jobs[source_key] = {
+                "source_key": source_key,
+                "company": "Example",
+                "title": "Intern",
+                "status": "active",
+                "is_ranked_output": True,
+            }
+        self.client.tracked_query_failures = [
+            None,
+            *[
+                ProviderFailure(
+                    "canceling statement due to statement timeout secret-token",
+                    code="57014",
+                )
+                for _ in range(3)
+            ],
+        ]
+        self.store._redaction_secrets = ("secret-token",)
+        self.store._sleep = lambda _delay: None
+
+        with self.assertRaises(SupabaseAccessError) as raised:
+            self.store.fetch_dashboard_data()
+
+        error = raised.exception
+        self.assertIn("active-jobs", str(error))
+        self.assertNotIn("secret-token", str(error))
+        self.assertEqual(error.diagnostics["operation"], "active-jobs")
+        self.assertEqual(error.diagnostics["classification"], "timeout")
+        self.assertEqual(error.diagnostics["provider_code"], "57014")
+        self.assertEqual(error.diagnostics["page"], 2)
+        self.assertEqual(error.diagnostics["attempt"], 3)
+        self.assertEqual(error.diagnostics["requested_page_size"], 125)
+        self.assertEqual(error.diagnostics["payload_rows"], 125)
+        self.assertTrue(error.diagnostics["cursor"].startswith("sha256:"))
+        calls = [
+            call for call in self.client.select_calls
+            if call["table"] == "tracked_jobs"
+        ]
+        self.assertEqual([call["limit"] for call in calls], [500, 500, 250, 125])
+        self.assertEqual(
+            [call["filters"][-1] for call in calls[1:]],
+            [("source_key__gt", "key-00499")] * 3,
+        )
+
+    def test_dashboard_other_transient_error_retries_without_reducing_page(self):
+        self.client.tracked_jobs["key-00000"] = {
+            "source_key": "key-00000",
+            "company": "Example",
+            "title": "Intern",
+            "status": "active",
+            "is_ranked_output": True,
+        }
+        self.client.tracked_query_failures = [
+            ProviderFailure("service unavailable", code="503"),
+            None,
+        ]
+        delays = []
+        self.store._sleep = delays.append
+
+        dashboard = self.store.fetch_dashboard_data()
+
+        self.assertEqual(len(dashboard.active_jobs), 1)
+        calls = [
+            call for call in self.client.select_calls
+            if call["table"] == "tracked_jobs"
+        ]
+        self.assertEqual([call["limit"] for call in calls], [500, 500])
+        self.assertEqual([call["filters"] for call in calls], [calls[0]["filters"]] * 2)
+        self.assertEqual(delays, [0.5])
 
     def test_timeout_is_retried_with_same_idempotency_key(self):
         client = SequencedSupabaseClient([TimeoutError("read timed out"), None])

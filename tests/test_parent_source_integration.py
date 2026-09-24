@@ -408,15 +408,17 @@ class ParentSourcePersistenceTests(unittest.TestCase):
             self.client.tracked_jobs[source_key]["missing_successful_runs"], 0
         )
 
-    def test_26b_child_brands_are_restored_from_raw_data_for_dashboard_rows(self):
+    def test_26b_dashboard_does_not_read_child_brand_raw_data(self):
         client = FakeDashboardClient()
         client.queries["tracked_jobs"].data[0]["raw_data"] = {
             "raw_metadata": {"child_brands": ["WhatsApp", "Instagram"]}
         }
-        dashboard = SupabaseJobStore(client).fetch_dashboard_data()
-        self.assertEqual(
-            dashboard.active_jobs[0]["child_brands"], ["Instagram", "WhatsApp"]
+        SupabaseJobStore(client).fetch_dashboard_data()
+        select_call = next(
+            call for call in client.queries["tracked_jobs"].calls
+            if call[0] == "select"
         )
+        self.assertNotIn("raw_data", select_call[1])
 
 
 class ParentSourceSheetsAndRegistryTests(unittest.TestCase):
