@@ -5,7 +5,11 @@ import unittest
 from unittest.mock import patch
 
 from src.scraper.company_careers.adapters import embedded_data
-from src.scraper.company_careers.models import AdapterError, CompanyTarget
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    source_scan_metadata,
+)
 
 
 class Response:
@@ -160,8 +164,9 @@ class EmbeddedDataAdapterTests(unittest.TestCase):
         a = document({"data": {"jobs": [item("1", url="https://apply.example.test/jobs/a")]}})
         b = document({"data": {"jobs": [item("1", url="https://apply.example.test/jobs/b")]}})
         session = Session(Response(a), Response(b))
-        embedded_data.fetch_jobs(session, target(max_pages=2, pagination_url_template="https://careers.example.test/jobs?page={page}"))
-        self.assertEqual(session.embedded_data_pagination["stop_reason"], "no_new_stable_ids")
+        with self.assertRaisesRegex(AdapterError, "repeated stable job ID"):
+            embedded_data.fetch_jobs(session, target(max_pages=2, pagination_url_template="https://careers.example.test/jobs?page={page}"))
+        self.assertEqual(session.embedded_data_pagination["stop_reason"], "repeated_job_id")
 
     def test_10_valid_empty_embedded_collection(self):
         session = Session(Response(document({"data": {"jobs": []}})))
@@ -203,11 +208,13 @@ class EmbeddedDataAdapterTests(unittest.TestCase):
         self.assertEqual(embedded_data.fetch_jobs(session, target()), [])
         self.assertEqual(len(session.calls), 2)
 
-    def test_17_page_and_job_limits(self):
+    def test_17_page_limit_and_complete_collection_adaptation(self):
         with self.assertRaisesRegex(AdapterError, "hard maximum"):
             embedded_data.validate_target(target(max_pages=3))
         jobs = [item(str(i), url=f"https://apply.example.test/jobs/{i}") for i in range(10)]
-        self.assertEqual(len(embedded_data.fetch_jobs(Session(Response(document({"data": {"jobs": jobs}}))), target(max_jobs=3))), 3)
+        session = Session(Response(document({"data": {"jobs": jobs}})))
+        self.assertEqual(len(embedded_data.fetch_jobs(session, target(max_jobs=3))), 10)
+        self.assertTrue(source_scan_metadata(session)["scan_complete"])
 
     def test_18_unsupported_schema_and_path_rejection(self):
         with self.assertRaisesRegex(AdapterError, "unsupported variant"):

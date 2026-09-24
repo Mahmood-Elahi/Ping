@@ -9,7 +9,14 @@ from urllib.parse import quote, urlparse, urlunparse
 
 import requests
 
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
+from src.scraper.company_careers.listing_completion import AdaptiveListingCompletion
 
 
 PAGE_SIZE = 24
@@ -40,35 +47,112 @@ def fetch_jobs(
     jobs: List[JobRecord] = []
     seen_ids: set[str] = set()
     expected_total: Optional[int] = None
+    metadata = SourceScanMetadata(
+        endpoint_variant="recruiting_ce_job_requisitions",
+        request_method="GET",
+        page_size=PAGE_SIZE,
+        maximum_pages=max_pages,
+        maximum_results=MAX_RESULTS,
+        pages=[],
+    )
+    listing_budget = AdaptiveListingCompletion(
+        normal_request_budget=max_pages,
+        normal_job_budget=max_pages * PAGE_SIZE,
+        allow_listing_only_second_stage=True,
+    )
+    listing_budget.record(metadata)
+    publish_source_scan_metadata(session, metadata)
 
-    for page_index in range(max_pages):
-        offset = page_index * PAGE_SIZE
-        if len(jobs) >= MAX_RESULTS:
-            break
-        response = _get_page(session, target, offset, timeout)
-        envelope = _parse_envelope(response, target, offset)
-        page_jobs = envelope["requisitionList"]
-        total = envelope["TotalJobsCount"]
-        if expected_total is None:
-            expected_total = total
-        elif total < 0:
-            raise AdapterError("Oracle Recruiting TotalJobsCount cannot be negative")
-
-        for item in page_jobs:
-            job = _normalize_job(item, target)
-            if job.job_id in seen_ids:
-                continue
-            seen_ids.add(job.job_id)
-            jobs.append(job)
-            if len(jobs) >= MAX_RESULTS:
+    try:
+        for page_index in range(listing_budget.hard_request_ceiling):
+            offset = page_index * PAGE_SIZE
+            effective_jobs = int(
+                metadata.get(
+                    "effective_listing_job_ceiling", listing_budget.normal_job_budget
+                )
+            )
+            if len(jobs) >= effective_jobs:
+                _mark_safety_limit(metadata, "maximum_results_reached")
                 break
+            metadata["pages_requested"] += 1
+            response = _get_page(session, target, offset, timeout)
+            envelope = _parse_envelope(response, target, offset)
+            metadata["pages_completed"] += 1
+            page_jobs = envelope["requisitionList"]
+            total = envelope["TotalJobsCount"]
+            if expected_total is None:
+                expected_total = total
+                metadata["total_available"] = total
+            elif total != expected_total:
+                metadata["stop_reason"] = "inconsistent_total"
+                metadata["scan_completeness_reason"] = "inconsistent_total"
+                raise AdapterError(
+                    "Oracle Recruiting TotalJobsCount changed during pagination: "
+                    f"{expected_total} -> {total}"
+                )
+            listing_budget.record_decision(
+                metadata,
+                expected_total,
+                PAGE_SIZE,
+                requests_completed=int(metadata["pages_completed"]),
+                results_observed=offset + len(page_jobs),
+            )
 
-        if offset + len(page_jobs) >= total or len(page_jobs) < PAGE_SIZE:
-            break
-        if page_index + 1 < max_pages:
-            time.sleep(PAGE_DELAY_SECONDS)
+            page_ids: set[str] = set()
+            for item in page_jobs:
+                job = _normalize_job(item, target)
+                if job.job_id in seen_ids or job.job_id in page_ids:
+                    metadata["stop_reason"] = "repeated_job_id"
+                    metadata["scan_completeness_reason"] = "pagination_failure"
+                    raise AdapterError(
+                        f"Oracle Recruiting repeated stable job ID: {job.job_id}"
+                    )
+                page_ids.add(job.job_id)
+                seen_ids.add(job.job_id)
+                jobs.append(job)
+
+            metadata["pages"].append(
+                {
+                    "offset": offset,
+                    "jobs_returned": len(page_jobs),
+                    "jobs_normalized": len(page_ids),
+                    "reported_total": total,
+                }
+            )
+            metadata["pages_fetched"] = len(metadata["pages"])
+            metadata["jobs_normalized"] = len(jobs)
+
+            if len(jobs) == total:
+                metadata.update(
+                    scan_complete=True,
+                    scan_completeness_reason="reported_total_reached",
+                    stop_reason="reported_total_reached",
+                )
+                break
+            if page_index + 1 >= int(metadata["effective_listing_request_ceiling"]):
+                _mark_safety_limit(metadata, "maximum_pages_reached")
+                break
+            if page_index + 1 < listing_budget.hard_request_ceiling:
+                time.sleep(PAGE_DELAY_SECONDS)
+        else:
+            _mark_safety_limit(metadata, "maximum_pages_reached")
+
+        if not metadata["scan_complete"] and metadata["stop_reason"] == "not_started":
+            _mark_safety_limit(metadata, "maximum_pages_reached")
+    except (AdapterError, requests.RequestException):
+        if metadata["stop_reason"] == "not_started":
+            metadata["stop_reason"] = "adapter_failure"
+            metadata["scan_completeness_reason"] = "adapter_failure"
+        raise
 
     return jobs
+
+
+def _mark_safety_limit(metadata: SourceScanMetadata, stop_reason: str) -> None:
+    metadata["scan_complete"] = False
+    metadata["scan_completeness_reason"] = "safety_limit_reached"
+    metadata["stop_reason"] = stop_reason
+    metadata["safety_limit_reached"] = True
 
 
 def validate_target(target: CompanyTarget) -> None:
@@ -194,6 +278,13 @@ def _parse_envelope(response: Any, target: CompanyTarget, offset: int) -> Mappin
         raise AdapterError("Oracle Recruiting zero-job envelope unexpectedly contained requisitions")
     if envelope["TotalJobsCount"] > offset and not requisitions:
         raise AdapterError("Oracle Recruiting response ended before its reported total job count")
+    if offset + len(requisitions) > envelope["TotalJobsCount"]:
+        raise AdapterError("Oracle Recruiting page exceeded its reported total job count")
+    if (
+        len(requisitions) < PAGE_SIZE
+        and offset + len(requisitions) < envelope["TotalJobsCount"]
+    ):
+        raise AdapterError("Oracle Recruiting short page ended before its reported total job count")
     return envelope
 
 

@@ -11,7 +11,22 @@ from urllib.parse import urljoin, urlparse, urlunparse
 
 import requests
 
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
+from src.scraper.company_careers.listing_completion import AdaptiveListingCompletion
+from src.scraper.company_careers.mutable_collection import (
+    finish_changed,
+    finish_terminal,
+    immutable_job_fingerprint,
+    initialize_mutable_collection,
+    mark_collection_changed,
+    record_total_observation,
+)
 
 
 PCSX_VARIANT = "pcsx"
@@ -47,7 +62,12 @@ def fetch_jobs(
         raise AdapterError(f"Eightfold max_pages cannot exceed {MAX_PAGES}")
     timeout = min(max(1, int(timeout)), MAX_TIMEOUT_SECONDS)
     maximum_results = min(MAX_RESULTS, max_pages * PAGE_SIZE)
-    metadata: dict[str, Any] = {
+    listing_budget = AdaptiveListingCompletion(
+        normal_request_budget=max_pages,
+        normal_job_budget=maximum_results,
+        allow_listing_only_second_stage=True,
+    )
+    metadata = SourceScanMetadata(**{
         "endpoint_variant": target.endpoint_variant,
         "request_method": "GET",
         "page_size": PAGE_SIZE,
@@ -64,15 +84,24 @@ def fetch_jobs(
         "stop_reason": "not_started",
         "diagnostics": [],
         "warnings": [],
-    }
+    })
     setattr(session, "eightfold_pagination", metadata)
+    publish_source_scan_metadata(session, metadata)
+    listing_budget.record(metadata)
+    initialize_mutable_collection(metadata)
 
     jobs: list[JobRecord] = []
     seen_job_ids: set[str] = set()
+    seen_job_fingerprints: dict[str, tuple[Any, ...]] = {}
     seen_page_ids: set[tuple[str, ...]] = set()
 
-    for page_index in range(max_pages):
-        if len(jobs) >= maximum_results:
+    for page_index in range(listing_budget.hard_request_ceiling):
+        effective_results = int(
+            metadata.get(
+                "effective_listing_job_ceiling", listing_budget.normal_job_budget
+            )
+        )
+        if len(jobs) >= effective_results:
             metadata["stop_reason"] = "maximum_results_reached"
             break
         offset = page_index * PAGE_SIZE
@@ -82,15 +111,21 @@ def fetch_jobs(
             "location": "",
             "start": str(offset),
         }
+        metadata["pages_requested"] += 1
         response = _get_page(session, target, params, timeout)
-        positions, total = _parse_page(
-            response,
-            offset,
-            allow_missing_count=metadata["final_total_available"] is not None,
-        )
+        positions, total = _parse_page(response, offset)
+        metadata["pages_completed"] += 1
         _record_total_observation(metadata, offset, total)
+        listing_budget.record_decision(
+            metadata,
+            total,
+            PAGE_SIZE,
+            requests_completed=int(metadata["pages_completed"]),
+            results_observed=offset + len(positions),
+        )
+        effective_results = int(metadata["effective_listing_job_ceiling"])
 
-        page_ids = tuple(_position_identity(item) for item in positions)
+        page_ids = tuple(sorted(_position_identity(item) for item in positions))
         if positions and page_ids in seen_page_ids:
             metadata["pages"].append(
                 {
@@ -104,7 +139,8 @@ def fetch_jobs(
             metadata["offsets"].append(offset)
             metadata["pages_fetched"] = len(metadata["pages"])
             metadata["stop_reason"] = "repeated_page"
-            break
+            metadata["scan_completeness_reason"] = "pagination_failure"
+            raise AdapterError("Eightfold pagination repeated a complete page")
         seen_page_ids.add(page_ids)
 
         normalized_count = 0
@@ -119,14 +155,19 @@ def fetch_jobs(
                 continue
             normalized_count += 1
             if job.job_id in seen_job_ids:
-                metadata["diagnostics"].append(
-                    {"offset": offset, "error": f"Duplicate stable job ID: {job.job_id}"}
-                )
+                if seen_job_fingerprints[job.job_id] != immutable_job_fingerprint(job):
+                    metadata["stop_reason"] = "conflicting_repeated_job_id"
+                    metadata["scan_completeness_reason"] = "pagination_failure"
+                    raise AdapterError(
+                        f"Eightfold conflicting repeated stable job ID: {job.job_id}"
+                    )
+                mark_collection_changed(metadata, offset=offset, overlap_count=1)
                 continue
             seen_job_ids.add(job.job_id)
+            seen_job_fingerprints[job.job_id] = immutable_job_fingerprint(job)
             new_id_count += 1
             jobs.append(job)
-            if len(jobs) >= maximum_results:
+            if len(jobs) >= effective_results:
                 break
 
         if positions and normalized_count == 0:
@@ -146,36 +187,64 @@ def fetch_jobs(
         metadata["jobs_normalized"] = len(jobs)
 
         if total == 0 and offset == 0 and not jobs:
-            metadata["stop_reason"] = "validated_zero_jobs"
+            finish_terminal(
+                metadata,
+                complete_reason="reported_total_reached",
+                stop_reason="validated_zero_jobs",
+            )
             break
         if not positions:
-            metadata["stop_reason"] = "empty_page"
+            if metadata["collection_changed_during_scan"]:
+                finish_changed(
+                    metadata, terminal_evidence="pagination_ended_before_reported_total"
+                )
+            else:
+                metadata["stop_reason"] = "pagination_ended_before_reported_total"
+                metadata["scan_completeness_reason"] = "pagination_failure"
             break
         if positions and new_id_count == 0:
             metadata["stop_reason"] = "no_new_stable_ids"
-            break
+            metadata["scan_completeness_reason"] = "pagination_failure"
+            raise AdapterError("Eightfold pagination returned no new stable job IDs")
         latest_total = metadata["final_total_available"]
-        if latest_total is not None and offset + len(positions) >= latest_total:
-            metadata["stop_reason"] = "total_jobs_reached"
+        if latest_total is not None and len(jobs) == latest_total:
+            finish_terminal(
+                metadata,
+                complete_reason="reported_total_reached",
+                stop_reason="total_jobs_reached",
+            )
             break
         if len(positions) < PAGE_SIZE:
-            metadata["stop_reason"] = "short_page"
+            if metadata["collection_changed_during_scan"]:
+                finish_changed(metadata, terminal_evidence="short_page_before_reported_total")
+            else:
+                metadata["stop_reason"] = "short_page_before_reported_total"
+                metadata["scan_completeness_reason"] = "pagination_failure"
             break
-        if len(jobs) >= maximum_results:
+        if len(jobs) >= effective_results:
             metadata["stop_reason"] = "maximum_results_reached"
             break
-        if page_index + 1 < max_pages:
+        if page_index + 1 >= int(metadata["effective_listing_request_ceiling"]):
+            metadata["stop_reason"] = "maximum_pages_reached"
+            break
+        if page_index + 1 < listing_budget.hard_request_ceiling:
             time.sleep(PAGE_DELAY_SECONDS)
     else:
         metadata["stop_reason"] = "maximum_pages_reached"
 
     if metadata["stop_reason"] == "not_started":
         metadata["stop_reason"] = "maximum_pages_reached"
+    if metadata["stop_reason"] in {"maximum_results_reached", "maximum_pages_reached"}:
+        metadata["safety_limit_reached"] = True
+        if metadata["collection_changed_during_scan"]:
+            finish_changed(metadata, terminal_evidence=metadata["stop_reason"])
+        else:
+            metadata["scan_completeness_reason"] = "safety_limit_reached"
     return jobs
 
 
 def _record_total_observation(
-    metadata: dict[str, Any],
+    metadata: SourceScanMetadata,
     offset: int,
     total: Optional[int],
 ) -> None:
@@ -190,29 +259,9 @@ def _record_total_observation(
         )
         return
 
-    previous_total = metadata["final_total_available"]
-    metadata["observed_total_counts"].append(total)
-    if metadata["initial_total_available"] is None:
-        metadata["initial_total_available"] = total
-    elif previous_total is not None and total != previous_total:
-        message = (
-            "Eightfold total job count changed during pagination: "
-            f"{previous_total} -> {total}"
-        )
-        metadata["total_count_changed"] = True
-        metadata["warnings"].append(message)
-        metadata["diagnostics"].append(
-            {
-                "offset": offset,
-                "level": "warning",
-                "warning": message,
-                "previous_total_available": previous_total,
-                "total_available": total,
-            }
-        )
-    metadata["final_total_available"] = total
-    # Retain the existing field as a compatibility alias for the latest valid hint.
-    metadata["total_available"] = total
+    record_total_observation(
+        metadata, total, offset=offset, source_label="Eightfold"
+    )
 
 
 def validate_target(target: CompanyTarget) -> None:

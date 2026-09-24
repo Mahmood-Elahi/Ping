@@ -20,7 +20,14 @@ from urllib.parse import parse_qs, urlencode, urlparse
 
 import requests
 
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
+from src.scraper.company_careers.listing_completion import AdaptiveListingCompletion
 
 
 ENDPOINT_VARIANT = "mobile_career_site_external_search_v1"
@@ -76,7 +83,7 @@ def fetch_jobs(
     if endpoint != config["endpoint_url"]:
         raise AdapterError("Cornerstone CSOD shell changed its configured official search endpoint")
 
-    metadata: dict[str, Any] = {
+    metadata = SourceScanMetadata(**{
         "endpoint_variant": ENDPOINT_VARIANT,
         "request_method": "POST",
         "page_size": PAGE_SIZE,
@@ -86,8 +93,15 @@ def fetch_jobs(
         "jobs_normalized": 0,
         "total_available": None,
         "stop_reason": "not_started",
-    }
+    })
     setattr(session, "cornerstone_csod_pagination", metadata)
+    publish_source_scan_metadata(session, metadata)
+    listing_budget = AdaptiveListingCompletion(
+        int(target.max_pages),
+        int(target.max_jobs),
+        allow_listing_only_second_stage=True,
+    )
+    listing_budget.record(metadata)
     headers = {
         "Accept": "application/json",
         "Authorization": f"Bearer {token}",
@@ -100,7 +114,8 @@ def fetch_jobs(
     seen: set[str] = set()
     observed_total: Optional[int] = None
 
-    for page_number in range(1, int(target.max_pages) + 1):
+    for page_number in range(1, listing_budget.hard_request_ceiling + 1):
+        metadata["pages_requested"] += 1
         response = session.post(
             endpoint,
             headers=headers,
@@ -108,6 +123,7 @@ def fetch_jobs(
             timeout=timeout,
         )
         payload = _search_json(response, target, page_number)
+        metadata["pages_completed"] += 1
         data = payload["data"]
         total = data["totalCount"]
         rows = data["requisitions"]
@@ -116,6 +132,14 @@ def fetch_jobs(
         elif total != observed_total:
             raise AdapterError("Cornerstone CSOD total job count changed during pagination")
         offset = (page_number - 1) * PAGE_SIZE
+        listing_budget.record_decision(
+            metadata,
+            total,
+            PAGE_SIZE,
+            requests_completed=int(metadata["pages_completed"]),
+            results_observed=offset + len(rows),
+        )
+        effective_jobs = int(metadata["effective_listing_job_ceiling"])
         if total > offset and not rows:
             raise AdapterError("Cornerstone CSOD results ended before the reported total")
 
@@ -128,19 +152,33 @@ def fetch_jobs(
         metadata["pages"].append(
             {"page_number": page_number, "offset": offset, "jobs_returned": len(rows)}
         )
-        metadata["jobs_normalized"] = min(len(jobs), int(target.max_jobs))
-        if offset + len(rows) >= total:
-            metadata["stop_reason"] = "total_jobs_reached"
-            break
-        if len(jobs) >= int(target.max_jobs):
+        metadata["jobs_normalized"] = min(len(jobs), effective_jobs)
+        if len(jobs) > effective_jobs:
             metadata["stop_reason"] = "maximum_results_reached"
+            break
+        if offset + len(rows) == total:
+            metadata["stop_reason"] = "reported_total_reached"
+            metadata["scan_complete"] = True
+            metadata["scan_completeness_reason"] = "reported_total_reached"
+            break
+        if len(jobs) >= effective_jobs:
+            metadata["stop_reason"] = "maximum_results_reached"
+            break
+        if page_number >= int(metadata["effective_listing_request_ceiling"]):
+            metadata["stop_reason"] = "maximum_pages_reached"
             break
     else:
         metadata["stop_reason"] = "maximum_pages_reached"
 
     metadata["total_available"] = observed_total
+    if metadata["stop_reason"] in {"maximum_results_reached", "maximum_pages_reached"}:
+        metadata["scan_completeness_reason"] = "safety_limit_reached"
+        metadata["safety_limit_reached"] = True
     jobs.sort(key=lambda job: int(job.raw_metadata["requisition_id"]), reverse=True)
-    return jobs[: int(target.max_jobs)]
+    final_limit = int(
+        metadata.get("effective_listing_job_ceiling", listing_budget.normal_job_budget)
+    )
+    return jobs[:final_limit]
 
 
 def validate_target(target: CompanyTarget) -> dict[str, str]:

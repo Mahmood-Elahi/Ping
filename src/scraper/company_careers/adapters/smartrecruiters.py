@@ -11,7 +11,13 @@ from urllib.parse import urlparse, urlunparse
 
 import requests
 
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
 
 
 API_HOST = "api.smartrecruiters.com"
@@ -49,7 +55,10 @@ def fetch_jobs(
     """Fetch a bounded prefix and corroborate every row with its detail record."""
     validate_target(target)
     max_pages = max(1, int(target.max_pages))
-    page_size = max(1, int(target.page_size))
+    configured_page_size = max(1, int(target.page_size))
+    page_size = (
+        MAX_PAGE_SIZE if configured_page_size == 20 else configured_page_size
+    )
     requested_limit = min(MAX_RESULTS, max(1, int(target.max_jobs)))
     timeout = min(MAX_TIMEOUT_SECONDS, max(1, int(timeout)))
     endpoint = str(target.endpoint_url)
@@ -58,89 +67,102 @@ def fetch_jobs(
     seen_ids: set[str] = set()
     observed_total: int | None = None
 
-    metadata: dict[str, Any] = {
-        "endpoint_variant": ENDPOINT_VARIANT,
-        "request_method": "GET",
-        "page_size": page_size,
-        "maximum_pages": max_pages,
-        "maximum_results": requested_limit,
-        "pages": [],
-        "jobs_normalized": 0,
-        "stop_reason": "not_started",
-    }
+    metadata = SourceScanMetadata(
+        endpoint_variant=ENDPOINT_VARIANT,
+        request_method="GET",
+        page_size=page_size,
+        maximum_pages=max_pages,
+        maximum_results=requested_limit,
+        pages=[],
+        jobs_normalized=0,
+    )
     setattr(session, "smartrecruiters_pagination", metadata)
+    publish_source_scan_metadata(session, metadata)
 
-    for page_index in range(max_pages):
-        if len(jobs) >= requested_limit:
-            metadata["stop_reason"] = "maximum_results_reached"
-            break
-        offset = page_index * page_size
-        response = session.get(
-            endpoint,
-            params={"limit": page_size, "offset": offset},
-            headers=HEADERS,
-            timeout=timeout,
-        )
-        payload = _parse_response(response, f"postings offset={offset}")
-        content, total = _parse_listing(payload, identifier, target, page_size, offset)
-        if observed_total is None:
-            observed_total = total
-            metadata["initial_total_available"] = total
-        elif total != observed_total:
-            raise AdapterError(
-                "SmartRecruiters totalFound changed during pagination: "
-                f"{observed_total} -> {total}"
-            )
-
-        normalized_on_page = 0
-        for item in content:
-            list_id = _posting_id(item.get("id"))
-            if list_id in seen_ids:
-                raise AdapterError(f"SmartRecruiters repeated stable job ID: {list_id}")
-            detail_ref = _detail_ref(item.get("ref"), identifier, list_id)
-            detail_response = session.get(detail_ref, headers=HEADERS, timeout=timeout)
-            detail = _parse_response(detail_response, f"posting detail {list_id}")
-            job = _normalize(detail, item, target, identifier, detail_ref)
-            seen_ids.add(list_id)
-            jobs.append(job)
-            normalized_on_page += 1
+    try:
+        for page_index in range(max_pages):
             if len(jobs) >= requested_limit:
+                _mark_safety_limit(metadata, "maximum_results_reached")
                 break
-
-        metadata["pages"].append(
-            {
-                "offset": offset,
-                "jobs_returned": len(content),
-                "jobs_normalized": normalized_on_page,
-                "reported_total": total,
-            }
-        )
-        metadata["jobs_normalized"] = len(jobs)
-        metadata["pages_fetched"] = len(metadata["pages"])
-        metadata["total_available"] = total
-
-        if total == 0:
-            metadata["stop_reason"] = "validated_zero_jobs"
-            break
-        if not content:
-            metadata["stop_reason"] = "empty_page"
-            break
-        if offset + len(content) >= total:
-            metadata["stop_reason"] = "total_jobs_reached"
-            break
-        if len(content) < page_size:
-            raise AdapterError(
-                "SmartRecruiters page ended before its stable totalFound boundary"
+            offset = page_index * page_size
+            metadata["pages_requested"] += 1
+            response = session.get(
+                endpoint,
+                params={"limit": page_size, "offset": offset},
+                headers=HEADERS,
+                timeout=timeout,
             )
-        if len(jobs) >= requested_limit:
-            metadata["stop_reason"] = "maximum_results_reached"
-            break
-        if page_index + 1 < max_pages:
-            time.sleep(PAGE_DELAY_SECONDS)
-    else:
-        metadata["stop_reason"] = "maximum_pages_reached"
+            payload = _parse_response(response, f"postings offset={offset}")
+            content, total = _parse_listing(payload, identifier, target, page_size, offset)
+            metadata["pages_completed"] += 1
+            if observed_total is None:
+                observed_total = total
+                metadata["initial_total_available"] = total
+                metadata["total_available"] = total
+            elif total != observed_total:
+                metadata["stop_reason"] = "inconsistent_total"
+                metadata["scan_completeness_reason"] = "inconsistent_total"
+                raise AdapterError(
+                    "SmartRecruiters totalFound changed during pagination: "
+                    f"{observed_total} -> {total}"
+                )
+
+            normalized_on_page = 0
+            for item in content:
+                list_id = _posting_id(item.get("id"))
+                if list_id in seen_ids:
+                    metadata["stop_reason"] = "repeated_job_id"
+                    metadata["scan_completeness_reason"] = "pagination_failure"
+                    raise AdapterError(f"SmartRecruiters repeated stable job ID: {list_id}")
+                detail_ref = _detail_ref(item.get("ref"), identifier, list_id)
+                detail_response = session.get(detail_ref, headers=HEADERS, timeout=timeout)
+                detail = _parse_response(detail_response, f"posting detail {list_id}")
+                job = _normalize(detail, item, target, identifier, detail_ref)
+                seen_ids.add(list_id)
+                jobs.append(job)
+                normalized_on_page += 1
+                if len(jobs) >= requested_limit:
+                    break
+
+            metadata["pages"].append(
+                {
+                    "offset": offset,
+                    "jobs_returned": len(content),
+                    "jobs_normalized": normalized_on_page,
+                    "reported_total": total,
+                }
+            )
+            metadata["jobs_normalized"] = len(jobs)
+            metadata["pages_fetched"] = len(metadata["pages"])
+
+            if len(jobs) == total:
+                metadata.update(
+                    scan_complete=True,
+                    scan_completeness_reason="reported_total_reached",
+                    stop_reason="reported_total_reached",
+                )
+                break
+            if len(jobs) >= requested_limit:
+                _mark_safety_limit(metadata, "maximum_results_reached")
+                break
+            if page_index + 1 < max_pages:
+                time.sleep(PAGE_DELAY_SECONDS)
+        else:
+            _mark_safety_limit(metadata, "maximum_pages_reached")
+    except (AdapterError, requests.RequestException):
+        if metadata["stop_reason"] == "not_started":
+            metadata["stop_reason"] = "adapter_failure"
+            metadata["scan_completeness_reason"] = "adapter_failure"
+        raise
 
     return jobs
+
+
+def _mark_safety_limit(metadata: SourceScanMetadata, stop_reason: str) -> None:
+    metadata["scan_complete"] = False
+    metadata["scan_completeness_reason"] = "safety_limit_reached"
+    metadata["stop_reason"] = stop_reason
+    metadata["safety_limit_reached"] = True
 
 
 def validate_target(target: CompanyTarget) -> None:

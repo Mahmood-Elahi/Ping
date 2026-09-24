@@ -24,6 +24,7 @@ from src.scraper.company_careers.models import (
     SourceScanMetadata,
     publish_source_scan_metadata,
 )
+from src.scraper.company_careers.listing_completion import AdaptiveListingCompletion
 
 
 EMBEDDED_REFINE_SEARCH_VARIANT = "embedded_refine_search"
@@ -68,6 +69,11 @@ def fetch_jobs(
     read_timeout = min(max(1, int(timeout)), MAX_TIMEOUT_SECONDS)
     request_timeout = (min(CONNECT_TIMEOUT_SECONDS, read_timeout), read_timeout)
     maximum_results = min(MAX_RESULTS, int(target.max_jobs), max_pages * PAGE_SIZE)
+    listing_budget = AdaptiveListingCompletion(
+        normal_request_budget=max_pages,
+        normal_job_budget=maximum_results,
+        allow_listing_only_second_stage=True,
+    )
     metadata = SourceScanMetadata(
         endpoint_variant=target.endpoint_variant,
         request_method="GET",
@@ -81,6 +87,7 @@ def fetch_jobs(
         stop_reason="not_started",
         diagnostics=[],
     )
+    listing_budget.record(metadata)
     setattr(session, "phenom_pagination", metadata)
     publish_source_scan_metadata(session, metadata)
 
@@ -88,8 +95,13 @@ def fetch_jobs(
     seen_job_ids: set[str] = set()
     seen_page_ids: set[tuple[str, ...]] = set()
 
-    for page_index in range(max_pages):
-        if len(jobs) >= maximum_results:
+    for page_index in range(listing_budget.hard_request_ceiling):
+        effective_results = int(
+            metadata.get(
+                "effective_listing_job_ceiling", listing_budget.normal_job_budget
+            )
+        )
+        if len(jobs) >= effective_results:
             metadata["stop_reason"] = "maximum_results_reached"
             metadata["scan_completeness_reason"] = "safety_limit_reached"
             metadata["safety_limit_reached"] = True
@@ -115,6 +127,14 @@ def fetch_jobs(
             metadata["stop_reason"] = "inconsistent_total"
             metadata["scan_completeness_reason"] = "inconsistent_total"
             raise AdapterError("Phenom total job count changed during pagination")
+        listing_budget.record_decision(
+            metadata,
+            total,
+            PAGE_SIZE,
+            requests_completed=int(metadata["pages_requested"]),
+            results_observed=offset + len(items),
+        )
+        effective_results = int(metadata["effective_listing_job_ceiling"])
 
         page_ids = tuple(_item_identity(item) for item in items)
         if items and page_ids in seen_page_ids:
@@ -144,7 +164,7 @@ def fetch_jobs(
             seen_job_ids.add(job.job_id)
             new_id_count += 1
             jobs.append(job)
-            if len(jobs) >= maximum_results:
+            if len(jobs) >= effective_results:
                 break
 
         if items and normalized_count == 0:
@@ -174,12 +194,17 @@ def fetch_jobs(
             metadata["stop_reason"] = "malformed_total"
             metadata["scan_completeness_reason"] = "malformed_total"
             raise AdapterError("Phenom response ended before its reported total job count")
-        if len(jobs) >= maximum_results:
+        if len(jobs) >= effective_results:
             metadata["stop_reason"] = "maximum_results_reached"
             metadata["scan_completeness_reason"] = "safety_limit_reached"
             metadata["safety_limit_reached"] = True
             break
-        if page_index + 1 < max_pages:
+        if page_index + 1 >= int(metadata["effective_listing_request_ceiling"]):
+            metadata["stop_reason"] = "maximum_pages_reached"
+            metadata["scan_completeness_reason"] = "safety_limit_reached"
+            metadata["safety_limit_reached"] = True
+            break
+        if page_index + 1 < listing_budget.hard_request_ceiling:
             time.sleep(PAGE_DELAY_SECONDS)
     else:
         metadata["stop_reason"] = "maximum_pages_reached"

@@ -13,7 +13,13 @@ from urllib.parse import urlencode, urlparse
 
 import requests
 
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
 
 
 SEARCH_URL = "https://www.metacareers.com/jobsearch"
@@ -87,33 +93,64 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
     search_terms = target.search_terms or DEFAULT_SEARCH_TERMS
     jobs: List[JobRecord] = []
     seen: set[str] = set()
+    by_id: dict[str, JobRecord] = {}
     pacer = _RequestPacer()
     # The anonymous page context is parent-inventory state, not query state.
     # Reuse it for every configured term and for mapped Meta child brands.
     page_context = _fetch_search_context(session, "", timeout, pacer=pacer)
+    metadata = SourceScanMetadata(
+        endpoint_variant="graphql_search_terms_v1",
+        maximum_pages=int(target.max_pages),
+        maximum_results=maximum_jobs,
+    )
+    publish_source_scan_metadata(session, metadata)
+    safety_limited = False
 
     for term in search_terms:
         if len(jobs) >= maximum_jobs:
+            safety_limited = True
             break
+        term_complete = False
         for page in range(1, max(1, target.max_pages) + 1):
             if len(jobs) >= maximum_jobs:
+                safety_limited = True
                 break
+            metadata["pages_requested"] += 1
             payload = _fetch_results_page(
                 session, term, page, page_context, timeout, pacer=pacer
             )
+            metadata["pages_completed"] += 1
             page_jobs = _extract_jobs(payload, target.name)
             if not page_jobs:
+                term_complete = True
                 break
 
             for job in page_jobs:
                 key = job.job_id or job.url or job.title
                 if key in seen:
+                    if by_id[key].to_dict() != job.to_dict():
+                        raise AdapterError("Meta Careers returned a conflicting duplicate stable ID")
                     continue
                 seen.add(key)
+                by_id[key] = job
                 jobs.append(job)
                 if len(jobs) >= maximum_jobs:
+                    safety_limited = True
                     break
+        if not term_complete:
+            safety_limited = True
 
+    metadata["total_available"] = len(jobs) if not safety_limited else None
+    metadata["scan_complete"] = not safety_limited
+    metadata["scan_completeness_reason"] = (
+        "safety_limit_reached" if safety_limited else "all_search_terms_exhausted"
+    )
+    metadata["stop_reason"] = (
+        "maximum_results_reached" if len(jobs) >= maximum_jobs
+        else "maximum_pages_reached" if safety_limited
+        else "all_search_terms_exhausted"
+    )
+    metadata["safety_limit_reached"] = safety_limited
     return jobs
 
 

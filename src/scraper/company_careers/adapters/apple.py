@@ -9,7 +9,13 @@ from urllib.parse import urlencode, urlparse
 
 import requests
 
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
 
 
 SEARCH_ENDPOINT = "https://jobs.apple.com/api/v1/search"
@@ -67,7 +73,7 @@ def fetch_jobs(
     maximum_pages = int(target.max_pages)
     maximum_jobs = int(target.max_jobs)
     locale = str(target.locale or "en-us").casefold()
-    metadata: dict[str, Any] = {
+    metadata = SourceScanMetadata(**{
         "endpoint_variant": ENDPOINT_VARIANT,
         "pages": [],
         "pages_fetched": 0,
@@ -79,8 +85,9 @@ def fetch_jobs(
         "repeated_page": False,
         "zero_job_contract": False,
         "stop_reason": "not_started",
-    }
+    })
     setattr(session, "apple_pagination", metadata)
+    publish_source_scan_metadata(session, metadata)
 
     jobs: list[JobRecord] = []
     by_stable_id: dict[str, JobRecord] = {}
@@ -102,6 +109,7 @@ def fetch_jobs(
                 "mediumDate": "MMM D, YYYY",
             },
         }
+        metadata["pages_requested"] += 1
         payload, response_bytes = _post_json(
             session,
             str(target.endpoint_url),
@@ -111,6 +119,8 @@ def fetch_jobs(
         )
         metadata["bytes_inspected"] += response_bytes
         items, total = _search_page(payload)
+        metadata["pages_completed"] += 1
+        metadata["total_available"] = total
         if expected_total is None:
             expected_total = total
             metadata["total_records"] = total
@@ -156,19 +166,29 @@ def fetch_jobs(
             if page == 1 and total == 0:
                 metadata["zero_job_contract"] = True
                 metadata["stop_reason"] = "validated_zero_jobs"
+                metadata["scan_complete"] = True
+                metadata["scan_completeness_reason"] = "reported_total_reached"
                 break
             if records_seen < total:
                 raise AdapterError("Apple pagination ended before totalRecords was satisfied")
             metadata["stop_reason"] = "total_records_reached"
+            metadata["scan_complete"] = True
+            metadata["scan_completeness_reason"] = "reported_total_reached"
             break
         if len(jobs) >= maximum_jobs:
             metadata["stop_reason"] = "maximum_results_reached"
             break
         if records_seen >= total:
             metadata["stop_reason"] = "total_records_reached"
+            metadata["scan_complete"] = True
+            metadata["scan_completeness_reason"] = "reported_total_reached"
             break
     else:
         metadata["stop_reason"] = "maximum_pages_reached"
+
+    if metadata["stop_reason"] in {"maximum_results_reached", "maximum_pages_reached"}:
+        metadata["scan_completeness_reason"] = "safety_limit_reached"
+        metadata["safety_limit_reached"] = True
 
     return jobs
 

@@ -17,7 +17,14 @@ from urllib.parse import urlparse
 
 import requests
 
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.diagnostics import structure_diagnostic
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
 
 
 ENDPOINT_VARIANT = "nextjs_jobposting_search"
@@ -29,6 +36,9 @@ MAX_TIMEOUT_SECONDS = 30
 MAX_BOOTSTRAP_BYTES = 1_000_000
 MAX_CSRF_BYTES = 10_000
 MAX_RESPONSE_BYTES = 3_000_000
+MAX_DETAIL_REQUESTS = 10
+MAX_DETAIL_NODES = 10_000
+MAX_DETAIL_DEPTH = 24
 NEXT_DATA_RE = re.compile(
     r'<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>',
     re.IGNORECASE | re.DOTALL,
@@ -56,7 +66,7 @@ def fetch_jobs(
     site_info = _site_info(next_data, config)
     csrf_token = _csrf_token(session, config, timeout)
 
-    metadata: dict[str, Any] = {
+    metadata = SourceScanMetadata(**{
         "endpoint_variant": ENDPOINT_VARIANT,
         "request_method": "GET shell + GET CSRF + POST search",
         "page_size": PAGE_SIZE,
@@ -65,10 +75,13 @@ def fetch_jobs(
         "pages": [],
         "jobs_normalized": 0,
         "duplicate_requisitions_skipped": 0,
+        "detail_requests": 0,
+        "maximum_detail_requests": MAX_DETAIL_REQUESTS,
         "total_available": None,
         "stop_reason": "not_started",
-    }
+    })
     setattr(session, "dayforce_pagination", metadata)
+    publish_source_scan_metadata(session, metadata)
 
     headers = {
         "Accept": "application/json",
@@ -92,6 +105,7 @@ def fetch_jobs(
             "cultureCode": site_info["cultureCode"],
             "paginationStart": offset,
         }
+        metadata["pages_requested"] += 1
         response = session.post(
             config["endpoint_url"],
             headers=headers,
@@ -123,7 +137,24 @@ def fetch_jobs(
                 metadata["duplicate_requisitions_skipped"] += 1
                 continue
             seen_requisition_ids.add(requisition_id)
-            jobs.append(_normalize(row, target, config, site_info))
+            normalized_row = row
+            if _needs_detail_location(row):
+                if metadata["detail_requests"] >= MAX_DETAIL_REQUESTS:
+                    metadata["stop_reason"] = "detail_enrichment_limit_reached"
+                    metadata["scan_completeness_reason"] = (
+                        "missing_location_detail_enrichment_limit_reached"
+                    )
+                    metadata["safety_limit_reached"] = True
+                    raise AdapterError(
+                        "Dayforce missing-location detail enrichment exceeded "
+                        f"the {MAX_DETAIL_REQUESTS}-request bound"
+                    )
+                metadata["detail_requests"] += 1
+                detail = _fetch_detail_posting(
+                    session, row, target, config, site_info, timeout
+                )
+                normalized_row = _merge_detail_location(row, detail)
+            jobs.append(_normalize(normalized_row, target, config, site_info))
 
         metadata["pages"].append(
             {
@@ -132,6 +163,7 @@ def fetch_jobs(
                 "jobs_returned": len(rows),
             }
         )
+        metadata["pages_completed"] += 1
         metadata["jobs_normalized"] = min(len(jobs), int(target.max_jobs))
         if offset + len(rows) >= total:
             metadata["stop_reason"] = "total_jobs_reached"
@@ -143,6 +175,16 @@ def fetch_jobs(
         metadata["stop_reason"] = "maximum_pages_reached"
 
     metadata["total_available"] = observed_total
+    if metadata["stop_reason"] == "total_jobs_reached":
+        metadata["scan_complete"] = True
+        metadata["scan_completeness_reason"] = "reported_total_enumerated"
+    else:
+        metadata["scan_complete"] = False
+        metadata["safety_limit_reached"] = metadata["stop_reason"] in {
+            "maximum_results_reached",
+            "maximum_pages_reached",
+        }
+        metadata["scan_completeness_reason"] = metadata["stop_reason"]
     return jobs[: int(target.max_jobs)]
 
 
@@ -352,37 +394,25 @@ def _normalize(
     if not title:
         raise AdapterError("Dayforce posting has no title")
 
-    raw_locations = row.get("postingLocations")
-    if raw_locations is None and row.get("hasVirtualLocation") is True:
-        raw_locations = []
-    if not isinstance(raw_locations, list):
-        raise AdapterError("Dayforce postingLocations must be a list")
+    try:
+        raw_locations = _posting_locations(
+            row.get("postingLocations"),
+            has_virtual_location=row.get("hasVirtualLocation") is True,
+            posting=row,
+        )
+    except AdapterError as exc:
+        raise AdapterError(f"{exc} ({_dayforce_location_diagnostic(row)})") from exc
     locations: list[str] = []
     if row.get("hasVirtualLocation") is True:
         locations.append("Remote")
     for value in raw_locations:
-        if not isinstance(value, Mapping):
-            raise AdapterError("Dayforce posting location must be an object")
-        location = _clean_text(value.get("formattedAddress"))
-        if not location:
-            location = ", ".join(
-                part
-                for part in (
-                    _clean_text(value.get("cityName")),
-                    _clean_text(value.get("stateCode")),
-                    _clean_text(value.get("isoCountryCode")),
-                )
-                if part
-            )
+        location = _posting_location_display(value)
         if location and location.casefold() not in {item.casefold() for item in locations}:
             locations.append(location)
 
     tenant = config["tenant"].casefold()
     board = config["board"].casefold()
-    detail_url = (
-        f"{config['origin']}/{config['locale']}/{config['tenant']}/{config['board']}"
-        f"/jobs/{posting_id}"
-    )
+    detail_url = _detail_url(config, posting_id)
     return JobRecord(
         job_id=f"dayforce:{tenant}:{board}:{requisition_id}",
         title=title,
@@ -405,6 +435,585 @@ def _normalize(
             "detail_url": detail_url,
             "apply_url": detail_url,
         },
+    )
+
+
+def _needs_detail_location(row: Mapping[str, Any]) -> bool:
+    """Return true only when a non-virtual listing has no location projection."""
+    if row.get("postingLocations") is not None or row.get("hasVirtualLocation") is True:
+        return False
+    return not _alternate_posting_locations(row)
+
+
+def _detail_url(config: Mapping[str, str], posting_id: int) -> str:
+    return (
+        f"{config['origin']}/{config['locale']}/{config['tenant']}/{config['board']}"
+        f"/jobs/{posting_id}"
+    )
+
+
+def _fetch_detail_posting(
+    session: requests.Session,
+    listing: Mapping[str, Any],
+    target: CompanyTarget,
+    config: Mapping[str, str],
+    site_info: Mapping[str, Any],
+    timeout: int,
+) -> Mapping[str, Any]:
+    """Fetch one public detail shell and return its identity-checked posting."""
+    posting_id = _positive_int(listing, "jobPostingId", "posting")
+    requisition_id = _positive_int(listing, "jobReqId", "requisition")
+    response = session.get(
+        _detail_url(config, posting_id),
+        headers={
+            "Accept": "text/html,application/xhtml+xml",
+            "Referer": config["search_url"],
+            "User-Agent": "job-radar/1.0 (read-only public careers scan)",
+        },
+        timeout=timeout,
+    )
+    status = getattr(response, "status_code", None)
+    if status != 200:
+        raise AdapterError(f"Dayforce job detail HTTP {status}")
+    content = bytes(getattr(response, "content", b"") or b"")
+    if len(content) > min(int(target.max_response_bytes), MAX_RESPONSE_BYTES):
+        raise AdapterError("Dayforce job detail exceeded max_response_bytes")
+    content_type = str(getattr(response, "headers", {}).get("content-type", ""))
+    if content_type and "html" not in content_type.casefold():
+        raise AdapterError("Dayforce job detail was not HTML")
+    matches = NEXT_DATA_RE.findall(str(getattr(response, "text", "") or ""))
+    if len(matches) != 1:
+        raise AdapterError("Dayforce job detail omitted unambiguous __NEXT_DATA__")
+    try:
+        next_data = json.loads(matches[0])
+    except (TypeError, ValueError) as exc:
+        raise AdapterError("Dayforce job detail __NEXT_DATA__ was invalid JSON") from exc
+
+    detail = _identity_checked_detail(
+        next_data,
+        listing,
+        posting_id=posting_id,
+        requisition_id=requisition_id,
+    )
+    detail_tenant = detail.get("clientNamespace")
+    if (
+        detail_tenant is not None
+        and str(detail_tenant).casefold() != config["tenant"].casefold()
+    ):
+        raise AdapterError("Dayforce listing/detail tenant identity mismatch")
+    detail_board = detail.get("jobBoardId")
+    if detail_board is not None and detail_board != site_info["jobBoardId"]:
+        raise AdapterError("Dayforce listing/detail job-board identity mismatch")
+    detail_title = _clean_text(detail.get("jobTitle"))
+    if detail_title and detail_title != _clean_text(listing.get("jobTitle")):
+        raise AdapterError("Dayforce listing/detail title identity mismatch")
+    return detail
+
+
+_DETAIL_LOCATION_FIELDS = frozenset(
+    {
+        "postingLocations",
+        "primaryLocation",
+        "jobLocation",
+        "workLocation",
+        "siteLocation",
+        "locationDetails",
+        "primaryLocationName",
+        "jobLocationName",
+        "workLocationName",
+        "locationName",
+        "formattedAddress",
+        "address",
+        "addressLineOne",
+        "addressLine1",
+        "cityName",
+        "city",
+        "stateProvince",
+        "stateName",
+        "stateCode",
+        "state",
+        "countryName",
+        "country",
+        "countryCode",
+        "isoCountryCode",
+    }
+)
+_DETAIL_IDENTITY_FIELDS = {
+    "posting": ("jobPostingId", "postingId", "postingID", "jobId"),
+    "requisition": (
+        "jobReqId",
+        "requisitionId",
+        "requisitionID",
+        "reqId",
+    ),
+    "reference": (
+        "referenceNumber",
+        "requisitionNumber",
+        "jobRequisitionNumber",
+    ),
+}
+_DETAIL_URL_FIELDS = (
+    "canonicalUrl",
+    "canonicalPostingUrl",
+    "jobPostingUrl",
+    "jobUrl",
+    "applyUrl",
+    "url",
+)
+_IDENTIFIER_CONTAINER_FIELDS = (
+    "identifier",
+    "identifiers",
+    "postingIdentifier",
+    "requisitionIdentifier",
+    "jobIdentifier",
+)
+
+
+def _identity_checked_detail(
+    next_data: Mapping[str, Any],
+    listing: Mapping[str, Any],
+    *,
+    posting_id: int,
+    requisition_id: int,
+) -> Mapping[str, Any]:
+    """Select one detail payload only after strict, multi-shape identity proof."""
+    expected = {
+        "posting": str(posting_id),
+        "requisition": str(requisition_id),
+    }
+    listing_references = {
+        _identity_scalar(listing[field], f"listing {field}")
+        for field in _DETAIL_IDENTITY_FIELDS["reference"]
+        if field in listing
+    }
+    if len(listing_references) > 1:
+        raise AdapterError("Dayforce listing exposed ambiguous reference identities")
+    if listing_references:
+        expected["reference"] = next(iter(listing_references))
+    valid: list[tuple[Mapping[str, Any], dict[str, set[str]]]] = []
+    conflicts: list[dict[str, set[str]]] = []
+    observed: list[Mapping[str, Any]] = []
+    listing_title = _clean_text(listing.get("jobTitle"))
+
+    for node in _detail_mapping_nodes(next_data):
+        evidence = _detail_identity_evidence(node)
+        if not evidence:
+            continue
+        observed.append(node)
+        ambiguous = any(len(values) != 1 for values in evidence.values())
+        mismatched = any(
+            group not in expected or next(iter(values), "") != expected[group]
+            for group, values in evidence.items()
+        )
+        title = _clean_text(node.get("jobTitle") or node.get("title"))
+        posting_payload = bool(_DETAIL_LOCATION_FIELDS.intersection(node)) or bool(title)
+        if ambiguous:
+            if posting_payload:
+                raise AdapterError("Dayforce job detail exposed ambiguous structured identities")
+            continue
+        if mismatched:
+            if posting_payload and (not title or title == listing_title):
+                conflicts.append(evidence)
+            continue
+        if posting_payload:
+            valid.append((node, evidence))
+
+    if conflicts:
+        raise AdapterError("Dayforce listing/detail identity mismatch")
+    if not valid:
+        route_identity = _detail_route_identity(next_data)
+        if route_identity:
+            if route_identity != str(posting_id):
+                raise AdapterError("Dayforce listing/detail canonical route identity mismatch")
+            route_candidates = [
+                node
+                for node in _detail_mapping_nodes(next_data)
+                if _DETAIL_LOCATION_FIELDS.intersection(node)
+                and (
+                    not _clean_text(node.get("jobTitle") or node.get("title"))
+                    or _clean_text(node.get("jobTitle") or node.get("title"))
+                    == listing_title
+                )
+            ]
+            if route_candidates:
+                score = max(
+                    len(_DETAIL_LOCATION_FIELDS.intersection(node))
+                    + (2 if _clean_text(node.get("jobTitle") or node.get("title")) else 0)
+                    for node in route_candidates
+                )
+                strongest_route_candidates = [
+                    node
+                    for node in route_candidates
+                    if len(_DETAIL_LOCATION_FIELDS.intersection(node))
+                    + (2 if _clean_text(node.get("jobTitle") or node.get("title")) else 0)
+                    == score
+                ]
+                if len(strongest_route_candidates) == 1:
+                    return strongest_route_candidates[0]
+                raise AdapterError(
+                    "Dayforce job detail exposed ambiguous route-identified location payloads"
+                )
+        diagnostic = structure_diagnostic(observed[:3])
+        raise AdapterError(
+            "Dayforce job detail did not expose one structured posting identity "
+            f"(identity_shape: {diagnostic})"
+        )
+
+    with_locations = [item for item in valid if _DETAIL_LOCATION_FIELDS.intersection(item[0])]
+    candidates = with_locations or valid
+    strongest = max(sum(len(values) for values in evidence.values()) for _, evidence in candidates)
+    strongest_candidates = [
+        node
+        for node, evidence in candidates
+        if sum(len(values) for values in evidence.values()) == strongest
+    ]
+    unique_candidates: list[Mapping[str, Any]] = []
+    seen_shapes: set[str] = set()
+    for node in strongest_candidates:
+        signature = json.dumps(node, sort_keys=True, separators=(",", ":"), default=str)
+        if signature not in seen_shapes:
+            seen_shapes.add(signature)
+            unique_candidates.append(node)
+    if len(unique_candidates) != 1:
+        raise AdapterError("Dayforce job detail exposed ambiguous matching posting identities")
+    return unique_candidates[0]
+
+
+def _detail_route_identity(next_data: Mapping[str, Any]) -> str:
+    """Read one canonical posting identifier from Next.js route state."""
+    query = next_data.get("query")
+    if not isinstance(query, Mapping):
+        return ""
+    values: set[str] = set()
+    for field in ("jobPostingId", "postingId", "jobId", "id"):
+        if field in query:
+            values.add(_identity_scalar(query[field], f"detail route {field}"))
+    if len(values) > 1:
+        raise AdapterError("Dayforce job detail exposed ambiguous canonical route identities")
+    return next(iter(values), "")
+
+
+def _detail_identity_evidence(value: Mapping[str, Any]) -> dict[str, set[str]]:
+    evidence: dict[str, set[str]] = {}
+    for group, fields in _DETAIL_IDENTITY_FIELDS.items():
+        for field in fields:
+            if field in value:
+                normalized = _identity_scalar(value[field], f"detail {field}")
+                if normalized:
+                    evidence.setdefault(group, set()).add(normalized)
+
+    for field in _DETAIL_URL_FIELDS:
+        if field not in value:
+            continue
+        url = value[field]
+        if not isinstance(url, str):
+            raise AdapterError(f"Dayforce detail {field} identity must be text")
+        match = re.search(r"/jobs/([A-Za-z0-9._:-]+)(?:[/?#]|$)", url)
+        if match:
+            evidence.setdefault("posting", set()).add(match.group(1))
+
+    for field in _IDENTIFIER_CONTAINER_FIELDS:
+        if field not in value:
+            continue
+        containers = value[field] if isinstance(value[field], list) else [value[field]]
+        if len(containers) > 16:
+            raise AdapterError("Dayforce detail identifiers exceeded the collection bound")
+        for container in containers:
+            if not isinstance(container, Mapping):
+                raise AdapterError(f"Dayforce detail {field} must contain objects")
+            for group, fields in _DETAIL_IDENTITY_FIELDS.items():
+                for identity_field in fields:
+                    if identity_field in container:
+                        normalized = _identity_scalar(
+                            container[identity_field], f"detail {field}.{identity_field}"
+                        )
+                        if normalized:
+                            evidence.setdefault(group, set()).add(normalized)
+            kind = _clean_text(
+                container.get("type")
+                or container.get("name")
+                or container.get("key")
+                or container.get("identifierType")
+            ).casefold()
+            scalar = next(
+                (
+                    container[key]
+                    for key in ("value", "codeValue", "id")
+                    if key in container
+                ),
+                None,
+            )
+            if scalar is not None:
+                if "post" in kind or kind in {"jobid", "job id"}:
+                    group = "posting"
+                elif "reference" in kind:
+                    group = "reference"
+                elif "req" in kind:
+                    group = "requisition"
+                else:
+                    continue
+                normalized = _identity_scalar(scalar, f"detail {field}.{kind or 'value'}")
+                if normalized:
+                    evidence.setdefault(group, set()).add(normalized)
+    return evidence
+
+
+def _identity_scalar(value: Any, label: str) -> str:
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        raise AdapterError(f"Dayforce {label} identity must be a scalar")
+    text = str(value).strip()
+    if not text or len(text) > 128 or not re.fullmatch(r"[A-Za-z0-9._:-]+", text):
+        raise AdapterError(f"Dayforce {label} identity is malformed")
+    return text
+
+
+def _detail_mapping_nodes(value: Any) -> list[Mapping[str, Any]]:
+    """Walk a bounded JSON tree; interpretation remains posting-contract-specific."""
+    nodes: list[Mapping[str, Any]] = []
+    stack: list[tuple[Any, int]] = [(value, 0)]
+    visited = 0
+    while stack:
+        current, depth = stack.pop()
+        visited += 1
+        if visited > MAX_DETAIL_NODES:
+            raise AdapterError("Dayforce job detail exceeded the structured-node bound")
+        if depth > MAX_DETAIL_DEPTH:
+            raise AdapterError("Dayforce job detail exceeded the structured-depth bound")
+        if isinstance(current, Mapping):
+            nodes.append(current)
+            stack.extend((item, depth + 1) for item in reversed(list(current.values())))
+        elif isinstance(current, list):
+            stack.extend((item, depth + 1) for item in reversed(current))
+    return nodes
+
+
+def _merge_detail_location(
+    listing: Mapping[str, Any], detail: Mapping[str, Any]
+) -> Mapping[str, Any]:
+    """Copy only explicit structured location projections from detail data."""
+    merged = dict(listing)
+    fields = (
+        "postingLocations",
+        "primaryLocation",
+        "jobLocation",
+        "workLocation",
+        "siteLocation",
+        "locationDetails",
+        "primaryLocationName",
+        "jobLocationName",
+        "workLocationName",
+        "locationName",
+        "formattedAddress",
+        "address",
+        "addressLineOne",
+        "addressLine1",
+        "cityName",
+        "city",
+        "stateProvince",
+        "stateName",
+        "stateCode",
+        "state",
+        "countryName",
+        "country",
+        "countryCode",
+        "isoCountryCode",
+    )
+    copied = False
+    for field in fields:
+        if field in detail:
+            merged[field] = detail[field]
+            copied = True
+    if not copied:
+        raise AdapterError("Dayforce job detail has no structured location fields")
+    if merged.get("postingLocations") is None and not _alternate_posting_locations(merged):
+        raise AdapterError("Dayforce job detail has no structured location")
+    try:
+        locations = _posting_locations(
+            merged.get("postingLocations"),
+            has_virtual_location=False,
+            posting=merged,
+        )
+        if not locations:
+            raise AdapterError("Dayforce job detail has no structured location")
+        for location in locations:
+            _posting_location_display(location)
+    except AdapterError as exc:
+        raise AdapterError(f"Dayforce job detail location is invalid: {exc}") from exc
+    return merged
+
+
+def _posting_locations(
+    value: Any,
+    *,
+    has_virtual_location: bool,
+    posting: Optional[Mapping[str, Any]] = None,
+) -> list[Mapping[str, Any]]:
+    """Normalize only Dayforce's equivalent location collection shapes."""
+    if value is None:
+        if has_virtual_location:
+            return []
+        alternates = _alternate_posting_locations(posting or {})
+        if alternates:
+            return alternates
+        raise AdapterError("Dayforce postingLocations is null for a non-virtual posting")
+    if isinstance(value, Mapping):
+        # Some Candidate Portal tenants project the sole location as the same
+        # location object used inside the normal array. Validate it before
+        # normalizing so arbitrary wrappers are never coerced into a list.
+        _posting_location_display(value)
+        return [value]
+    if not isinstance(value, list):
+        raise AdapterError("Dayforce postingLocations must be a list or location object")
+    normalized: list[Mapping[str, Any]] = []
+    for item in value:
+        if not isinstance(item, Mapping):
+            raise AdapterError("Dayforce posting location must be an object")
+        _posting_location_display(item)
+        normalized.append(item)
+    return normalized
+
+
+def _posting_location_display(value: Mapping[str, Any]) -> str:
+    formatted = _location_text(value.get("formattedAddress"), "formattedAddress")
+    if formatted:
+        return formatted
+    named = next(
+        (
+            _location_text(value.get(field), field)
+            for field in ("locationName", "displayName", "name")
+            if value.get(field) is not None
+        ),
+        "",
+    )
+    if named:
+        return named
+    address = value.get("address")
+    if address is not None and not isinstance(address, Mapping):
+        raise AdapterError("Dayforce posting location address must be an object")
+    source = address if isinstance(address, Mapping) else value
+    line_one = _first_dayforce_component(
+        source, ("addressLineOne", "addressLine1", "lineOne")
+    )
+    city = _first_dayforce_component(source, ("cityName", "city"))
+    subdivision = _first_dayforce_component(
+        source, ("stateProvince", "stateName", "stateCode", "state")
+    )
+    country = _first_dayforce_component(
+        source, ("countryName", "country", "countryCode", "isoCountryCode")
+    )
+    parts = [line_one, city, subdivision, country]
+    display = ", ".join(part for part in parts if part)
+    if not display:
+        raise AdapterError("Dayforce posting location has no stable display value")
+    return display
+
+
+def _location_text(value: Any, field_name: str) -> str:
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        raise AdapterError(f"Dayforce posting location {field_name} must be text")
+    return _clean_text(value)
+
+
+def _first_dayforce_component(
+    value: Mapping[str, Any], fields: tuple[str, ...]
+) -> str:
+    for field in fields:
+        component = value.get(field)
+        if component is None:
+            continue
+        if isinstance(component, str):
+            text = _clean_text(component)
+        elif isinstance(component, Mapping):
+            text = next(
+                (
+                    _clean_text(component.get(key))
+                    for key in ("longName", "shortName", "name", "codeValue")
+                    if isinstance(component.get(key), str) and _clean_text(component.get(key))
+                ),
+                "",
+            )
+        else:
+            raise AdapterError(f"Dayforce posting location {field} must be text or an object")
+        if text:
+            return text
+    return ""
+
+
+def _alternate_posting_locations(
+    posting: Mapping[str, Any],
+) -> list[Mapping[str, Any]]:
+    """Read only explicitly named Dayforce location projections."""
+    for field in (
+        "primaryLocation",
+        "jobLocation",
+        "workLocation",
+        "siteLocation",
+        "locationDetails",
+    ):
+        value = posting.get(field)
+        candidates = value if isinstance(value, list) else [value]
+        if value is None:
+            continue
+        normalized: list[Mapping[str, Any]] = []
+        for candidate in candidates:
+            if not isinstance(candidate, Mapping):
+                raise AdapterError(f"Dayforce alternate location field {field} must be an object")
+            _posting_location_display(candidate)
+            normalized.append(candidate)
+        if normalized:
+            return normalized
+
+    for field in ("primaryLocationName", "jobLocationName", "workLocationName", "locationName"):
+        value = posting.get(field)
+        if value is None:
+            continue
+        text = _location_text(value, field)
+        if text:
+            return [{"locationName": text}]
+
+    explicit = {
+        field: posting[field]
+        for field in (
+            "formattedAddress",
+            "address",
+            "addressLineOne",
+            "addressLine1",
+            "cityName",
+            "city",
+            "stateProvince",
+            "stateName",
+            "stateCode",
+            "state",
+            "countryName",
+            "country",
+            "countryCode",
+            "isoCountryCode",
+        )
+        if field in posting
+    }
+    if explicit:
+        _posting_location_display(explicit)
+        return [explicit]
+    return []
+
+
+def _dayforce_location_diagnostic(posting: Mapping[str, Any]) -> str:
+    location_fields = {
+        str(key): value
+        for key, value in posting.items()
+        if any(
+            token in str(key).casefold()
+            for token in ("location", "city", "state", "province", "country", "address", "site")
+        )
+    }
+    names = ",".join(sorted(location_fields, key=str.casefold)) or "none"
+    return (
+        f"virtual={str(posting.get('hasVirtualLocation') is True).lower()}; "
+        f"location_fields=[{names}]; "
+        f"postingLocations: {structure_diagnostic(posting.get('postingLocations'))}; "
+        f"alternate_fields: {structure_diagnostic(location_fields)}"
     )
 
 

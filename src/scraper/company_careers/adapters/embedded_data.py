@@ -14,7 +14,14 @@ import requests
 from lxml import html
 
 from src.scraper.company_careers.adapters import static_html
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
+from src.scraper.company_careers.listing_completion import AdaptiveListingCompletion
 
 
 MAX_PAGES = 2
@@ -45,14 +52,17 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
     maximum_pages = min(int(target.max_pages), MAX_PAGES)
     maximum_jobs = min(int(target.max_jobs), MAX_RESULTS)
     timeout = min(max(1, int(timeout)), MAX_TIMEOUT_SECONDS)
-    metadata: dict[str, Any] = {
+    metadata = SourceScanMetadata(**{
         "endpoint_variant": target.endpoint_variant, "request_method": "GET", "pages": [],
         "pages_fetched": 0, "scripts_inspected": 0, "bytes_inspected": 0,
         "jobs_normalized": 0, "maximum_pages": maximum_pages, "maximum_results": maximum_jobs,
         "stop_reason": "not_started", "repeated_page": False, "zero_job_contract": False,
         "diagnostics": [], "warnings": [],
-    }
+    })
     setattr(session, "embedded_data_pagination", metadata)
+    publish_source_scan_metadata(session, metadata)
+    listing_budget = AdaptiveListingCompletion(maximum_pages, maximum_jobs)
+    listing_budget.record(metadata)
     jobs: list[JobRecord] = []
     seen_ids: set[str] = set()
     seen_pages: set[tuple[str, ...]] = set()
@@ -60,6 +70,7 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
     for page_index in range(maximum_pages):
         url = (str(target.pagination_url_template).format(page=page_index + 1)
                if target.pagination_url_template else str(target.listing_url))
+        metadata["pages_requested"] += 1
         response = _get(session, url, timeout)
         if target.endpoint_variant == "public_json_endpoint":
             items, scripts, inspected_bytes, valid_empty = _extract_direct_json(
@@ -79,8 +90,14 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
             )
         else:
             items, scripts, inspected_bytes, valid_empty = _extract(response, target)
+        effective_jobs = (
+            listing_budget.complete_collection_job_ceiling(len(items))
+            if not target.pagination_url_template
+            else maximum_jobs
+        )
         metadata["scripts_inspected"] += scripts
         metadata["bytes_inspected"] += inspected_bytes
+        metadata["pages_completed"] += 1
         identities = tuple(_item_identity(item, target) for item in items)
         record = {"page": page_index + 1, "url": url, "jobs_returned": len(items), "jobs_normalized": 0}
         metadata["pages"].append(record)
@@ -100,11 +117,13 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                 continue
             parsed += 1
             if job.job_id in seen_ids:
-                continue
+                metadata["stop_reason"] = "repeated_job_id"
+                metadata["scan_completeness_reason"] = "pagination_failure"
+                raise AdapterError(f"Embedded-data repeated stable job ID: {job.job_id}")
             seen_ids.add(job.job_id)
             jobs.append(job)
             new_ids += 1
-            if len(jobs) >= maximum_jobs:
+            if len(jobs) >= effective_jobs:
                 break
         if items and parsed == 0:
             if metadata["diagnostics"]:
@@ -117,20 +136,42 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                 raise AdapterError("Embedded-data response did not prove a valid empty collection")
             metadata["zero_job_contract"] = True
             metadata["stop_reason"] = "validated_zero_jobs"
+            metadata["scan_complete"] = True
+            metadata["scan_completeness_reason"] = "validated_zero_jobs"
+            metadata["total_available"] = 0
+            break
+        if not items and target.pagination_url_template and valid_empty:
+            metadata["stop_reason"] = "validated_terminal_empty_page"
+            metadata["scan_complete"] = True
+            metadata["scan_completeness_reason"] = "validated_terminal_empty_page"
+            metadata["total_available"] = len(jobs)
             break
         if new_ids == 0:
             metadata["stop_reason"] = "no_new_stable_ids"
+            metadata["scan_completeness_reason"] = "pagination_failure"
+            break
+        if not target.pagination_url_template:
+            metadata["stop_reason"] = "complete_structured_collection"
+            metadata["total_available"] = len(items)
+            if len(items) > effective_jobs:
+                metadata["scan_completeness_reason"] = "safety_limit_reached"
+                metadata["safety_limit_reached"] = True
+                metadata["stop_reason"] = "maximum_results_reached"
+            else:
+                metadata["scan_complete"] = True
+                metadata["scan_completeness_reason"] = "complete_structured_collection"
             break
         if len(jobs) >= maximum_jobs:
             metadata["stop_reason"] = "maximum_results_reached"
-            break
-        if not target.pagination_url_template:
-            metadata["stop_reason"] = "no_pagination_configured"
+            metadata["scan_completeness_reason"] = "safety_limit_reached"
+            metadata["safety_limit_reached"] = True
             break
         if page_index + 1 < maximum_pages:
             time.sleep(RETRY_DELAY_SECONDS)
     else:
         metadata["stop_reason"] = "maximum_pages_reached"
+        metadata["scan_completeness_reason"] = "safety_limit_reached"
+        metadata["safety_limit_reached"] = True
     return jobs
 
 

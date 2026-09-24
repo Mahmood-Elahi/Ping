@@ -16,7 +16,25 @@ from urllib.parse import parse_qs, urljoin, urlparse, urlunparse
 import requests
 from lxml import html
 
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
+from src.scraper.company_careers.listing_completion import (
+    AdaptiveListingCompletion,
+    PageSizeObservation,
+)
+from src.scraper.company_careers.mutable_collection import (
+    finish_changed,
+    finish_terminal,
+    immutable_job_fingerprint,
+    initialize_mutable_collection,
+    mark_collection_changed,
+    record_total_observation,
+)
 
 
 PORTAL_HTML = "avature_portal_html"
@@ -53,11 +71,21 @@ def fetch_jobs(
     maximum_jobs = max(1, int(target.max_jobs))
     if maximum_jobs > MAX_RESULTS:
         raise AdapterError(f"Avature max_jobs cannot exceed {MAX_RESULTS}")
-    page_size = max(1, int(target.page_size))
+    configured_page_size = max(1, int(target.page_size))
+    page_size = (
+        MAX_PAGE_SIZE
+        if configured_page_size in {4, 10, 12, 15}
+        else configured_page_size
+    )
     if page_size > MAX_PAGE_SIZE:
         raise AdapterError(f"Avature page_size cannot exceed {MAX_PAGE_SIZE}")
     timeout = min(max(1, int(timeout)), MAX_TIMEOUT_SECONDS)
-    metadata: dict[str, Any] = {
+    listing_budget = AdaptiveListingCompletion(
+        normal_request_budget=maximum_pages,
+        normal_job_budget=maximum_jobs,
+        allow_listing_only_second_stage=True,
+    )
+    metadata = SourceScanMetadata(**{
         "endpoint_variant": target.endpoint_variant,
         "request_method": "GET",
         "page_size": page_size,
@@ -72,29 +100,66 @@ def fetch_jobs(
         "zero_job_contract": False,
         "diagnostics": [],
         "warnings": [],
-    }
+    })
     setattr(session, "avature_pagination", metadata)
+    publish_source_scan_metadata(session, metadata)
+    listing_budget.record(metadata)
+    page_sizes = PageSizeObservation(page_size)
+    page_sizes.record(metadata)
+    initialize_mutable_collection(metadata)
 
     jobs: list[JobRecord] = []
     seen_ids: set[str] = set()
+    seen_fingerprints: dict[str, tuple[Any, ...]] = {}
     seen_pages: set[tuple[str, ...]] = set()
-    for page_index in range(maximum_pages):
-        if len(jobs) >= maximum_jobs:
+    positions_seen = 0
+    for page_index in range(listing_budget.hard_request_ceiling):
+        effective_jobs = int(
+            metadata.get(
+                "effective_listing_job_ceiling", listing_budget.normal_job_budget
+            )
+        )
+        if len(jobs) >= effective_jobs:
             metadata["stop_reason"] = "maximum_results_reached"
             break
-        params = _page_params(target, page_index, page_size)
+        params = _page_params(target, page_index, page_size, positions_seen)
+        metadata["pages_requested"] += 1
         response = _get_page(session, target, params, timeout)
         items, total, zero_contract = _parse_page(response, target)
-        if total is not None:
-            if metadata["total_available"] is None:
-                metadata["total_available"] = total
-            elif total != metadata["total_available"]:
-                metadata["warnings"].append(
-                    f"reported total changed: {metadata['total_available']} -> {total}"
-                )
-                metadata["total_available"] = total
+        metadata["pages_completed"] += 1
+        record_total_observation(
+            metadata,
+            total,
+            offset=positions_seen,
+            source_label="Avature",
+        )
+        next_positions_seen = positions_seen + len(items)
+        if (
+            total is not None
+            and not metadata["collection_changed_during_scan"]
+            and next_positions_seen > total
+        ):
+            raise AdapterError("Avature returned more jobs than its reported total")
+        page_sizes.observe(
+            len(items),
+            terminal=(
+                (total is not None and next_positions_seen >= total)
+                or (total is None and len(items) < page_size)
+            ),
+        )
+        page_sizes.record(metadata)
+        listing_budget.record_decision(
+            metadata,
+            total,
+            page_sizes.effective_size,
+            requests_completed=int(metadata["pages_completed"]),
+            results_observed=next_positions_seen,
+        )
+        effective_jobs = int(metadata["effective_listing_job_ceiling"])
 
-        identities = tuple(_item_identity(item, target.endpoint_variant) for item in items)
+        identities = tuple(
+            sorted(_item_identity(item, target.endpoint_variant) for item in items)
+        )
         page_record = {
             "page": page_index + 1,
             "params": params,
@@ -107,7 +172,8 @@ def fetch_jobs(
         if items and identities in seen_pages:
             metadata["repeated_page"] = True
             metadata["stop_reason"] = "repeated_page"
-            break
+            metadata["scan_completeness_reason"] = "pagination_failure"
+            raise AdapterError("Avature pagination repeated a complete page")
         seen_pages.add(identities)
 
         parsed_on_page = 0
@@ -120,45 +186,86 @@ def fetch_jobs(
                 continue
             parsed_on_page += 1
             if job.job_id in seen_ids:
-                metadata["diagnostics"].append(
-                    {"page": page_index + 1, "error": f"duplicate stable job ID: {job.job_id}"}
+                if seen_fingerprints[job.job_id] != immutable_job_fingerprint(job):
+                    metadata["stop_reason"] = "conflicting_repeated_job_id"
+                    metadata["scan_completeness_reason"] = "pagination_failure"
+                    raise AdapterError(
+                        f"Avature conflicting repeated stable job ID: {job.job_id}"
+                    )
+                mark_collection_changed(
+                    metadata, offset=positions_seen, overlap_count=1
                 )
                 continue
             seen_ids.add(job.job_id)
+            seen_fingerprints[job.job_id] = immutable_job_fingerprint(job)
             jobs.append(job)
             new_ids += 1
-            if len(jobs) >= maximum_jobs:
+            if len(jobs) >= effective_jobs:
                 break
         if items and parsed_on_page == 0:
             raise AdapterError("Avature page contained jobs but none were valid")
         page_record["jobs_normalized"] = new_ids
         metadata["jobs_normalized"] = len(jobs)
+        positions_seen = next_positions_seen
 
         if page_index == 0 and not items:
             if not zero_contract:
                 raise AdapterError("Avature HTTP 200 response did not prove an empty jobs collection")
             metadata["zero_job_contract"] = True
-            metadata["stop_reason"] = "validated_zero_jobs"
+            finish_terminal(
+                metadata,
+                complete_reason="validated_zero_jobs",
+                stop_reason="validated_zero_jobs",
+            )
             break
         if not items:
-            metadata["stop_reason"] = "empty_page"
+            if metadata["collection_changed_during_scan"]:
+                finish_changed(metadata, terminal_evidence="empty_terminal_page")
+            elif total is None:
+                metadata["total_available"] = len(jobs)
+                finish_terminal(
+                    metadata,
+                    complete_reason="natural_terminal_page",
+                    stop_reason="natural_terminal_empty_page",
+                )
+            else:
+                metadata["stop_reason"] = "empty_page_before_reported_total"
+                metadata["scan_completeness_reason"] = "pagination_failure"
             break
         if new_ids == 0:
             metadata["stop_reason"] = "no_new_stable_ids"
+            metadata["scan_completeness_reason"] = "pagination_failure"
+            raise AdapterError("Avature pagination returned no new stable job IDs")
+        if total is not None and len(jobs) == total:
+            finish_terminal(metadata, complete_reason="reported_total_reached")
             break
-        if total is not None and len(jobs) >= total:
-            metadata["stop_reason"] = "total_jobs_reached"
+        if len(items) < page_size and total is None:
+            if metadata["collection_changed_during_scan"]:
+                finish_changed(metadata, terminal_evidence="short_terminal_page")
+            else:
+                metadata["total_available"] = len(jobs)
+                finish_terminal(
+                    metadata,
+                    complete_reason="natural_terminal_page",
+                    stop_reason="natural_terminal_short_page",
+                )
             break
-        if len(items) < page_size:
-            metadata["stop_reason"] = "short_page"
-            break
-        if len(jobs) >= maximum_jobs:
+        if len(jobs) >= effective_jobs:
             metadata["stop_reason"] = "maximum_results_reached"
             break
-        if page_index + 1 < maximum_pages:
+        if page_index + 1 >= int(metadata["effective_listing_request_ceiling"]):
+            metadata["stop_reason"] = "maximum_pages_reached"
+            break
+        if page_index + 1 < listing_budget.hard_request_ceiling:
             time.sleep(PAGE_DELAY_SECONDS)
     else:
         metadata["stop_reason"] = "maximum_pages_reached"
+    if metadata["stop_reason"] in {"maximum_results_reached", "maximum_pages_reached"}:
+        metadata["safety_limit_reached"] = True
+        if metadata["collection_changed_during_scan"]:
+            finish_changed(metadata, terminal_evidence=metadata["stop_reason"])
+        else:
+            metadata["scan_completeness_reason"] = "safety_limit_reached"
     return jobs
 
 
@@ -193,18 +300,24 @@ def validate_target(target: CompanyTarget) -> None:
         raise AdapterError(f"Avature page_size must be between 1 and {MAX_PAGE_SIZE}")
 
 
-def _page_params(target: CompanyTarget, page_index: int, page_size: int) -> dict[str, str]:
+def _page_params(
+    target: CompanyTarget,
+    page_index: int,
+    page_size: int,
+    offset: Optional[int] = None,
+) -> dict[str, str]:
+    effective_offset = page_index * page_size if offset is None else offset
     if target.endpoint_variant == PORTAL_HTML:
         return {
             "jobRecordsPerPage": str(page_size),
-            "jobOffset": str(page_index * page_size),
+            "jobOffset": str(effective_offset),
         }
     if target.endpoint_variant == RADANCY_HTML:
         return {"p": str(page_index + 1)}
     return {
         "ref": "search",
         "search": "getAllJobs",
-        "start": str(page_index * page_size),
+        "start": str(effective_offset),
         "rows": str(page_size),
     }
 

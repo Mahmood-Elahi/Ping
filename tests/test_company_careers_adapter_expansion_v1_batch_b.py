@@ -16,7 +16,11 @@ from scripts import investigate_unknown_companies
 from scripts import validate_company_registry as registry_validator
 from src.scraper.company_careers import scanner
 from src.scraper.company_careers.adapters import hawksearch_v2, smartrecruiters
-from src.scraper.company_careers.models import AdapterError, CompanyTarget
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    source_scan_metadata,
+)
 from src.scraper.company_careers.parent_sources import load_parent_source_mappings
 from src.scraper.company_careers.registry import load_target_companies
 
@@ -201,9 +205,18 @@ def hawk_result(
 
 
 def hawk_page(
-    job_id="J000702285", *, total=1, page=1, pages=None, doc_id=None, apply_host=None
+    job_id="J000702285",
+    *,
+    total=1,
+    page=1,
+    pages=None,
+    max_per_page=1,
+    doc_id=None,
+    apply_host=None,
 ):
-    expected_pages = total if pages is None else pages
+    expected_pages = (
+        (total + max_per_page - 1) // max_per_page if pages is None else pages
+    )
     kwargs = {"doc_id": doc_id}
     if apply_host is not None:
         kwargs["apply_host"] = apply_host
@@ -213,7 +226,7 @@ def hawk_page(
             "Pagination": {
                 "NofResults": total,
                 "CurrentPage": page,
-                "MaxPerPage": 1,
+                "MaxPerPage": max_per_page,
                 "NofPages": expected_pages,
             },
         }
@@ -236,6 +249,11 @@ class SmartRecruitersAdapterTests(unittest.TestCase):
         self.assertEqual(job.raw_metadata["detail_url"], job.url)
         self.assertIn(job.job_id, job.raw_metadata["api_detail_url"])
         self.assertEqual(session.calls[0][2]["params"], {"limit": 1, "offset": 0})
+        metadata = source_scan_metadata(session)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["scan_completeness_reason"], "reported_total_reached")
+        self.assertEqual(metadata["total_available"], 1)
+        self.assertEqual((metadata["pages_requested"], metadata["pages_completed"]), (1, 1))
 
     def test_identity_crossing_and_unofficial_apply_urls_fail_closed(self):
         with self.assertRaisesRegex(AdapterError, "mixed or ambiguous"):
@@ -263,11 +281,52 @@ class SmartRecruitersAdapterTests(unittest.TestCase):
             smartrecruiters_detail(first_id),
             smartrecruiters_listing(second_id, total=3, offset=1),
         ]
+        session = Session(responses)
         with self.assertRaisesRegex(AdapterError, "changed during pagination"):
             smartrecruiters.fetch_jobs(
-                Session(responses),
+                session,
                 smartrecruiters_target(max_pages=2, max_jobs=2),
             )
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["scan_completeness_reason"], "inconsistent_total")
+
+    def test_result_cap_remains_intentionally_incomplete(self):
+        session = Session(
+            [smartrecruiters_listing(total=2), smartrecruiters_detail()]
+        )
+
+        jobs = smartrecruiters.fetch_jobs(
+            session, smartrecruiters_target(max_pages=2, max_jobs=1)
+        )
+
+        self.assertEqual(len(jobs), 1)
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertTrue(metadata["safety_limit_reached"])
+        self.assertEqual(metadata["stop_reason"], "maximum_results_reached")
+        self.assertEqual(metadata["total_available"], 2)
+        self.assertEqual(len(session.calls), 2)
+
+    @patch.object(smartrecruiters.time, "sleep", return_value=None)
+    def test_repeated_pagination_id_fails_closed(self, _sleep):
+        job_id = "744000142609254"
+        session = Session(
+            [
+                smartrecruiters_listing(job_id, total=2, offset=0),
+                smartrecruiters_detail(job_id),
+                smartrecruiters_listing(job_id, total=2, offset=1),
+            ]
+        )
+
+        with self.assertRaisesRegex(AdapterError, "repeated stable job ID"):
+            smartrecruiters.fetch_jobs(
+                session, smartrecruiters_target(max_pages=2, max_jobs=2)
+            )
+
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["stop_reason"], "repeated_job_id")
 
     def test_captcha_shape_and_invalid_limits_fail_without_fallback(self):
         with self.assertRaisesRegex(AdapterError, "CAPTCHA"):
@@ -337,6 +396,48 @@ class HawkSearchV2AdapterTests(unittest.TestCase):
             hawksearch_v2.fetch_jobs(
                 Session([]), hawk_target(endpoint_url="https://evil.test/api/v2/search/")
             )
+
+    @patch.object(hawksearch_v2.time, "sleep", return_value=None)
+    def test_server_selected_page_size_is_used_for_page_number_pagination(
+        self, _sleep
+    ):
+        session = Session(
+            [
+                hawk_identity(),
+                hawk_page("J000702285", total=2, page=1, pages=2),
+                hawk_page("J000702286", total=2, page=2, pages=2),
+            ]
+        )
+        jobs = hawksearch_v2.fetch_jobs(
+            session, hawk_target(page_size=2, max_pages=1, max_jobs=1)
+        )
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(len(jobs), 2)
+        self.assertEqual([call[2]["json"]["PageNo"] for call in session.calls[1:]], [1, 2])
+        self.assertEqual(metadata["requested_page_size"], 2)
+        self.assertEqual(metadata["effective_server_page_size"], 1)
+        self.assertTrue(metadata["page_size_was_clamped"])
+
+    def test_server_reported_upward_page_size_is_accepted(self):
+        session = Session(
+            [hawk_identity(), hawk_page(max_per_page=2)]
+        )
+        jobs = hawksearch_v2.fetch_jobs(session, hawk_target(page_size=1))
+
+        self.assertEqual(len(jobs), 1)
+        self.assertEqual(
+            source_scan_metadata(session)["effective_server_page_size"], 2
+        )
+        self.assertTrue(
+            source_scan_metadata(session)["page_size_was_expanded"]
+        )
+
+    def test_oversized_page_size_request_fails_before_transport(self):
+        session = Session([])
+        with self.assertRaisesRegex(AdapterError, "page_size"):
+            hawksearch_v2.fetch_jobs(session, hawk_target(page_size=101))
+        self.assertEqual(session.calls, [])
 
 
 class BatchBRecoveryValidationTests(unittest.TestCase):
@@ -453,7 +554,7 @@ class BatchBRecoveryValidationTests(unittest.TestCase):
             inspect.getsource(smartrecruiters) + inspect.getsource(hawksearch_v2)
         ).casefold()
         for company in ("bosch", "aptiv", "continental", "renesas", "copperleaf"):
-            self.assertNotIn(company, source)
+            self.assertNotRegex(source, rf"\b{company}\b")
 
     def test_research_inventory_no_longer_classifies_smartrecruiters_as_future(self):
         self.assertIn(

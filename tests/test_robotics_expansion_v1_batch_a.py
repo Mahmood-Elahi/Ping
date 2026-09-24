@@ -256,6 +256,166 @@ class RoboticsExpansionV1BatchAAdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(AdapterError, "no stable display value"):
             adp._locations([empty])
 
+    def test_14_adp_structured_address_variants_have_deterministic_precedence(self):
+        location = {
+            "nameCode": {},
+            "formattedAddress": "Richmond, BC, Canada",
+            "displayName": "Lower Mainland",
+            "address": {
+                "cityName": "Burnaby",
+                "countrySubdivisionLevel1": {"codeValue": "BC"},
+                "countryCode": "CA",
+            },
+        }
+        self.assertEqual(adp._locations([location]), "Richmond, BC, Canada")
+
+        address_only = dict(location)
+        address_only.pop("formattedAddress")
+        address_only.pop("displayName")
+        self.assertEqual(adp._locations([address_only]), "Burnaby, BC, CA")
+
+    def test_15_adp_multiple_locations_are_ordered_and_deduplicated(self):
+        locations = [
+            {"nameCode": {"longName": "Burnaby, BC, Canada"}},
+            {"displayName": "Remote - Canada"},
+            {"nameCode": {"shortName": "burnaby, bc, canada"}},
+        ]
+        self.assertEqual(
+            adp._locations(locations),
+            "Burnaby, BC, Canada | Remote - Canada",
+        )
+
+    def test_16_adp_missing_and_malformed_locations_fail_closed(self):
+        for value, message in (
+            (None, "missing requisition locations"),
+            ([], "missing requisition locations"),
+            (["Burnaby"], "location is malformed"),
+            ([{"formattedAddress": {"value": "Burnaby"}}], "must be text"),
+            ([{"nameCode": {"codeValue": "LOC-14987"}}], "no stable display value"),
+            ([{"address": {"countryCode": 124}}], "is malformed"),
+        ):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(AdapterError, message):
+                    adp._locations(value)
+
+    def test_17_adp_nested_work_location_and_bounded_diagnostics(self):
+        nested = [{
+            "nameCode": {"codeValue": "LOC-14987"},
+            "workLocation": {
+                "address": {
+                    "addressLineOne": "123 Main St",
+                    "city": "Burnaby",
+                    "stateProvince": {"shortName": "BC"},
+                    "country": {"longName": "Canada"},
+                }
+            },
+        }]
+        self.assertEqual(
+            adp._locations(nested),
+            "123 Main St, Burnaby, BC, Canada",
+        )
+
+        secret = "private description " + ("x" * 200)
+        with self.assertRaisesRegex(AdapterError, "entries=1") as caught:
+            adp._locations([{"description": secret, "opaqueId": "LOC-1"}])
+        message = str(caught.exception)
+        self.assertIn("fields=[description,opaqueId]", message)
+        self.assertNotIn(secret, message)
+        self.assertNotIn("x" * 80, message)
+
+    def test_18_adp_nested_structured_geography_regression_fixtures(self):
+        cases = (
+            (
+                [{"address": {
+                    "countrySubdivisionLevel1": {"longName": "British Columbia"}
+                }}],
+                "British Columbia",
+            ),
+            (
+                [{"address": {
+                    "cityName": {"nameCode": {"longName": "Burnaby"}},
+                    "countrySubdivisionLevel1": {"codeValue": "BC"},
+                }}],
+                "Burnaby, BC",
+            ),
+            (
+                [{"address": {
+                    "countrySubdivisionLevel1": {
+                        "displayValue": {"shortName": "AB"}
+                    },
+                    "country": {"longName": "Canada"},
+                }}],
+                "AB, Canada",
+            ),
+            (
+                [{"address": {
+                    "cityName": "Burnaby",
+                    "countrySubdivisionLevel1": {"shortName": "BC"},
+                    "postalCode": "V5J 1A1",
+                    "countryCode": "CA",
+                }}],
+                "Burnaby, BC V5J 1A1, CA",
+            ),
+            (
+                [
+                    {"address": {"cityName": "Burnaby", "stateCode": "BC"}},
+                    {"address": {"cityName": "Calgary", "stateCode": "AB"}},
+                ],
+                "Burnaby, BC | Calgary, AB",
+            ),
+        )
+        for value, expected in cases:
+            with self.subTest(expected=expected):
+                self.assertEqual(adp._locations(value), expected)
+
+        rejected = (
+            [{"address": {}}],
+            [{"address": {"countrySubdivisionLevel1": {"codeValue": "LOC-14987"}}}],
+            [{"aliasNames": ["Vancouver office"]}],
+        )
+        for value in rejected:
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(AdapterError, "no stable display value"):
+                    adp._locations(value)
+
+    def test_19_adp_subdivision_scalar_object_list_and_rejections(self):
+        accepted = (
+            ([{"address": {"countrySubdivisionLevel1": "British Columbia"}}], "British Columbia"),
+            ([{"address": {"countrySubdivisionLevel1": "BC"}}], "BC"),
+            ([{"address": {"countrySubdivisionLevel1": {"value": "Ontario"}}}], "Ontario"),
+            ([{"address": {"countrySubdivisionLevel1": {"name": "California", "code": "CA"}}}], "California"),
+            ([{"address": {"countrySubdivisionLevel1": [{"displayValue": "Alberta"}]}}], "Alberta"),
+        )
+        for value, expected in accepted:
+            with self.subTest(expected=expected):
+                self.assertEqual(adp._locations(value), expected)
+
+        rejected = (
+            [{"address": {"countrySubdivisionLevel1": "550e8400-e29b-41d4-a716-446655440000"}}],
+            [{"address": {"countrySubdivisionLevel1": "14987"}}],
+            [{"address": {"countrySubdivisionLevel1": '{"name":"Ontario"}'}}],
+            [{"address": {"countrySubdivisionLevel1": ["Ontario", "California"]}}],
+            [{"aliasNames": ["Vancouver office"]}],
+        )
+        for value in rejected:
+            with self.subTest(value=value):
+                with self.assertRaises(AdapterError):
+                    adp._locations(value)
+
+    def test_20_adp_diagnostic_exposes_nested_subdivision_shape_boundedly(self):
+        with self.assertRaises(AdapterError) as caught:
+            adp._locations([{
+                "address": {
+                    "countrySubdivisionLevel1": {
+                        "opaqueId": "550e8400-e29b-41d4-a716-446655440000"
+                    }
+                }
+            }])
+        message = str(caught.exception)
+        self.assertIn("address.countrySubdivisionLevel1(opaqueId)", message)
+        self.assertIn("address.countrySubdivisionLevel1.opaqueId=str", message)
+        self.assertLess(len(message), 2000)
+
 
 def registry_key(item: dict) -> str:
     key = registry_validator_key(item)

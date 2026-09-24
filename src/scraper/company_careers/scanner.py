@@ -57,7 +57,9 @@ from src.scraper.company_careers.models import (
     CompanyTarget,
     CoverageStatus,
     JobRecord,
+    SourceScanMetadata,
     clear_source_scan_metadata,
+    publish_source_scan_metadata,
     source_scan_metadata,
 )
 from src.scraper.company_careers.registry import DEFAULT_REGISTRY_PATH, load_target_companies
@@ -297,10 +299,34 @@ class CompanyCareersScanner:
         """Scan one source and contain every adapter/session failure to it."""
         adapter = ADAPTERS.get(target.platform)
         if target.platform == "browser_rendered_html" and browser_batch is not None:
-            adapter = (
-                lambda _session, current, timeout:
-                browser_batch.fetch_jobs(current, timeout)
-            )
+            def _browser_adapter(
+                session: requests.Session,
+                current: CompanyTarget,
+                timeout: int,
+            ) -> List[JobRecord]:
+                jobs = browser_batch.fetch_jobs(current, timeout)
+                metadata = SourceScanMetadata.from_value(
+                    browser_batch.last_run.get("static_parser")
+                )
+                metadata["rendered_collection_observed"] = True
+                terminal_stop = str(metadata.get("stop_reason") or "")
+                browser_terminal = terminal_stop in {
+                    "validated_zero_jobs",
+                    "no_next_page",
+                    "proven_structured_collection",
+                }
+                metadata["browser_terminal_evidence"] = browser_terminal
+                if not browser_terminal:
+                    metadata["scan_complete"] = False
+                    metadata["scan_completeness_reason"] = (
+                        "browser_exhaustion_not_proven"
+                    )
+                    if terminal_stop == "no_pagination_configured":
+                        metadata["stop_reason"] = "browser_exhaustion_not_proven"
+                publish_source_scan_metadata(session, metadata)
+                return jobs
+
+            adapter = _browser_adapter
         if target.platform == "browser_rendered_html" and browser_batch_error is not None:
             message = f"{browser_batch_error.__class__.__name__}: {browser_batch_error}"
             error_type, remediation = self._adapter_failure_details(message)
@@ -463,6 +489,50 @@ class CompanyCareersScanner:
     def _adapter_failure_details(error: str) -> tuple[str, str]:
         """Classify adapter failures without changing their fail-closed contract."""
         lowered = error.casefold()
+        static_diagnostics = {
+            "access_blocked": (
+                "The public source blocked bounded anonymous access; do not bypass its access controls.",
+            ),
+            "html_too_large": (
+                "The bounded HTML prefix did not expose a trusted contract; use a smaller official structured source.",
+            ),
+            "unsupported_listing_contract": (
+                "The HTTP response did not match a reviewed structured or HTML listing contract.",
+            ),
+            "identity_missing": (
+                "A listing lacked a title or stable structured/canonical identity; do not synthesize one from presentation text.",
+            ),
+            "unproven_empty_collection": (
+                "The HTTP 200 response did not prove a zero-job collection, so absence reconciliation remains blocked.",
+            ),
+            "structured_payload_malformed": (
+                "A bounded structured payload was present but malformed or internally inconsistent.",
+            ),
+        }
+        for code, (remediation,) in static_diagnostics.items():
+            if f"static source {code}:" in lowered:
+                return code, remediation
+        if (
+            ("candidate_sites=[none]" in lowered or "no_valid_candidate" in lowered)
+            and re.search(r"\bhttp (404|422)\b", lowered)
+        ):
+            return (
+                "source_unresolved",
+                "The configured source is stale and bounded authoritative discovery found no identity-verified replacement.",
+            )
+        if (
+            "official careers page did not link the configured" in lowered
+            or "official careers page no longer links the configured" in lowered
+        ):
+            return (
+                "probable_ats_migration",
+                "The official careers page no longer corroborates the configured ATS identity; verify a replacement before migrating the registry.",
+            )
+        if re.search(r"\bhttp 404\b", lowered):
+            return (
+                "stale_board_identifier",
+                "Verify the current official career board or ATS and migrate the registry only with strong identity evidence.",
+            )
         if (
             re.search(r"\bhttp (408|425|429|500|502|503|504)\b", lowered)
             or "transient upstream maintenance redirect" in lowered
@@ -470,6 +540,14 @@ class CompanyCareersScanner:
             return (
                 "transient_upstream_http",
                 "Retry later; the bounded public source returned a transient HTTP failure.",
+            )
+        if (
+            "official careers page" in lowered
+            and re.search(r"\bhttp 403\b|blocked|captcha|challenge", lowered)
+        ):
+            return (
+                "official_page_blocked",
+                "The official careers page blocked bounded anonymous verification; retain the configured source until identity can be checked manually.",
             )
         if "blocked response" in lowered or "captcha" in lowered or "challenge" in lowered:
             return (
@@ -501,10 +579,10 @@ class CompanyCareersScanner:
                 "adapter_schema_mismatch",
                 "Inspect the upstream schema and add a bounded, fixture-backed contract if reusable.",
             )
-        if re.search(r"\bhttp 404\b", lowered):
+        if re.search(r"\bhttp (400|401|405|409|415|422)\b", lowered):
             return (
-                "stale_company_configuration",
-                "Verify the employer's current official career board and update the registry.",
+                "adapter_protocol_failure",
+                "Verify the bounded public request contract and source configuration without weakening identity validation.",
             )
         return (
             "adapter_error",

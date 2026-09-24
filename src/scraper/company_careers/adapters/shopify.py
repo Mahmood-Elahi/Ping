@@ -12,7 +12,13 @@ from typing import Any, List
 
 import requests
 
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
 
 
 CAREERS_URL = "https://www.shopify.com/careers"
@@ -39,9 +45,17 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
         raise AdapterError("Shopify careers page did not contain job postings")
 
     jobs = []
+    seen_ids: set[str] = set()
     for posting in postings:
         if not posting.get("isListed", True):
             continue
+        job_id = str(posting.get("id", "") or posting.get("jobId", "")).strip()
+        title = str(posting.get("title", "")).strip()
+        if not job_id or not title:
+            raise AdapterError("Shopify embedded collection has a listed job without identity")
+        if job_id in seen_ids:
+            raise AdapterError("Shopify embedded collection repeated a stable job ID")
+        seen_ids.add(job_id)
         location = (
             posting.get("locationExternalName")
             or posting.get("locationName")
@@ -50,8 +64,8 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
         )
         jobs.append(
             JobRecord(
-                job_id=posting.get("id", "") or posting.get("jobId", ""),
-                title=posting.get("title", ""),
+                job_id=job_id,
+                title=title,
                 company=target.name,
                 location=location,
                 url=posting.get("externalLink", "") or posting.get("applyLink", "") or CAREERS_URL,
@@ -63,6 +77,17 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                 offices=[location] if location else [],
             )
         )
+    publish_source_scan_metadata(
+        session,
+        SourceScanMetadata(
+            scan_complete=True,
+            scan_completeness_reason="complete_embedded_collection",
+            total_available=len(jobs),
+            pages_requested=1,
+            pages_completed=1,
+            stop_reason="complete_embedded_collection",
+        ),
+    )
     return jobs
 
 

@@ -109,7 +109,8 @@ class ICIMSAdapterTests(unittest.TestCase):
     def test_23_repeated_page_detection(self, _sleep):
         response = page(item("1"), item("2"), total=4)
         session = Session([response, page(item("1"), item("2"), total=4)])
-        icims.fetch_jobs(session, target())
+        with self.assertRaisesRegex(AdapterError, "repeated a complete page"):
+            icims.fetch_jobs(session, target())
         self.assertEqual(session.icims_pagination["stop_reason"], "repeated_page")
 
     @patch.object(icims.time, "sleep", return_value=None)
@@ -118,8 +119,21 @@ class ICIMSAdapterTests(unittest.TestCase):
             page(item("1"), item("2"), total=4),
             page(item("1"), item("1", "Duplicate"), total=4),
         ])
-        icims.fetch_jobs(session, target())
+        with self.assertRaisesRegex(AdapterError, "no new stable job IDs"):
+            icims.fetch_jobs(session, target())
         self.assertEqual(session.icims_pagination["stop_reason"], "no_new_stable_ids")
+
+    @patch.object(icims.time, "sleep", return_value=None)
+    def test_24a_overlap_and_total_decrease_is_usable_incomplete(self, _sleep):
+        session = Session([
+            page(item("1"), item("2"), total=4),
+            page(item("2"), item("3"), total=3),
+        ])
+        jobs = icims.fetch_jobs(session, target())
+        self.assertEqual([job.raw_metadata["external_job_id"] for job in jobs], ["1", "2", "3"])
+        metadata = session.icims_pagination
+        self.assertEqual(metadata["overlapping_jobs_skipped"], 1)
+        self.assertEqual(metadata["scan_completeness_reason"], "collection_changed_during_scan")
 
     def test_25_valid_zero_job_response(self):
         session = Session([Response({"jobs": [], "totalCount": 0, "count": 0})])

@@ -15,6 +15,7 @@ from src.scraper.company_careers.models import (
     CompanyTarget,
     CoverageStatus,
     JobRecord,
+    source_scan_metadata,
 )
 from src.scraper.company_careers.student_roles import (
     student_job_exclusion_reason,
@@ -40,8 +41,9 @@ class Response:
 
 
 class Session:
-    def __init__(self, posts, *, shell=None, csrf=None):
+    def __init__(self, posts, *, shell=None, csrf=None, details=None):
         self.posts = list(posts)
+        self.details = list(details or [])
         self.get_responses = [
             shell or Response(text=shell_html(), content_type="text/html; charset=utf-8"),
             csrf or Response({"csrfToken": "a" * 64}),
@@ -50,6 +52,8 @@ class Session:
 
     def get(self, url, **kwargs):
         self.calls.append(("get", url, kwargs))
+        if "/jobs/" in url:
+            return self.details.pop(0)
         return self.get_responses.pop(0)
 
     def post(self, url, **kwargs):
@@ -141,6 +145,27 @@ def page(rows, *, total=None, offset=0):
     )
 
 
+def detail_html(row, *, query=None):
+    data = {
+        "query": query or {},
+        "props": {
+            "pageProps": {
+                "dehydratedState": {
+                    "queries": [{"state": {"data": row}}]
+                }
+            }
+        }
+    }
+    return Response(
+        text=(
+            '<html><script id="__NEXT_DATA__" type="application/json">'
+            + json.dumps(data)
+            + "</script></html>"
+        ),
+        content_type="text/html; charset=utf-8",
+    )
+
+
 class DayforceTests(unittest.TestCase):
     def test_successful_retrieval_normalization_and_public_request_contract(self):
         session = Session([page([posting()])])
@@ -162,6 +187,12 @@ class DayforceTests(unittest.TestCase):
         self.assertEqual(job.raw_metadata["requisition_id"], 501)
         self.assertEqual(job.raw_metadata["job_posting_id"], 101)
         self.assertEqual([call[0] for call in session.calls], ["get", "get", "post"])
+        self.assertEqual(session.dayforce_pagination["detail_requests"], 0)
+        self.assertTrue(source_scan_metadata(session)["scan_complete"])
+        self.assertEqual(
+            source_scan_metadata(session)["scan_completeness_reason"],
+            "reported_total_enumerated",
+        )
         search = session.calls[-1]
         self.assertEqual(search[1], target().endpoint_url)
         self.assertEqual(search[2]["headers"]["X-CSRF-TOKEN"], "a" * 64)
@@ -264,11 +295,286 @@ class DayforceTests(unittest.TestCase):
         self.assertEqual(job.location, "Remote")
         self.assertEqual(job.offices, ["Remote"])
 
-        with self.assertRaisesRegex(AdapterError, "postingLocations"):
+        with self.assertRaisesRegex(AdapterError, "no structured location"):
             dayforce.fetch_jobs(
-                Session([page([posting(postingLocations=None)])]),
+                Session(
+                    [page([posting(postingLocations=None)])],
+                    details=[detail_html(posting(postingLocations=None))],
+                ),
                 target(),
             )
+
+    def test_singleton_posting_location_uses_the_same_object_contract(self):
+        singleton = {
+            "formattedAddress": "Edmonton, AB, Canada",
+            "cityName": "Edmonton",
+            "stateCode": "AB",
+            "isoCountryCode": "CA",
+        }
+
+        job = dayforce.fetch_jobs(
+            Session([page([posting(postingLocations=singleton)])]),
+            target(),
+        )[0]
+
+        self.assertEqual(job.location, "Edmonton, AB, Canada")
+        self.assertEqual(job.offices, ["Edmonton, AB, Canada"])
+        self.assertEqual(job.raw_metadata["posting_locations"], [singleton])
+
+    def test_empty_location_list_remains_distinct_from_null(self):
+        job = dayforce.fetch_jobs(
+            Session([page([posting(postingLocations=[])])]),
+            target(),
+        )[0]
+
+        self.assertEqual(job.location, "")
+        self.assertEqual(job.offices, [])
+        with self.assertRaisesRegex(AdapterError, "no structured location"):
+            dayforce.fetch_jobs(
+                Session(
+                    [page([posting(postingLocations=None)])],
+                    details=[detail_html(posting(postingLocations=None))],
+                ),
+                target(),
+            )
+
+    def test_null_posting_locations_uses_explicit_structured_fallback(self):
+        job = dayforce.fetch_jobs(
+            Session([page([posting(
+                postingLocations=None,
+                primaryLocation={
+                    "address": {
+                        "city": "Edmonton",
+                        "stateProvince": {"codeValue": "AB"},
+                        "country": {"longName": "Canada"},
+                    }
+                },
+            )])]),
+            target(),
+        )[0]
+
+        self.assertEqual(job.location, "Edmonton, AB, Canada")
+        self.assertEqual(job.offices, ["Edmonton, AB, Canada"])
+
+    def test_null_posting_locations_without_explicit_fallback_reports_shape(self):
+        secret = "description text " + ("x" * 200)
+        row = posting(
+            postingLocations=None,
+            jobDescription=secret,
+            opaqueLocationId="LOC-14987",
+        )
+        with self.assertRaisesRegex(AdapterError, "postingLocations is null") as caught:
+            dayforce._normalize(
+                row,
+                target(),
+                dayforce.validate_target(target()),
+                {"jobBoardId": 1},
+            )
+        message = str(caught.exception)
+        self.assertIn("virtual=false", message)
+        self.assertIn("opaqueLocationId", message)
+        self.assertIn("postingLocations: entries=1; shape=null", message)
+        self.assertNotIn(secret, message)
+
+    def test_null_listing_location_uses_identity_checked_detail_location(self):
+        listing = posting(postingLocations=None)
+        detail = posting(
+            postingLocations=[{
+                "cityName": "Edmonton",
+                "stateCode": "AB",
+                "isoCountryCode": "CA",
+            }]
+        )
+        session = Session([page([listing])], details=[detail_html(detail)])
+
+        job = dayforce.fetch_jobs(session, target())[0]
+
+        self.assertEqual(job.location, "Edmonton, AB, CA")
+        self.assertEqual(session.dayforce_pagination["detail_requests"], 1)
+        self.assertEqual(
+            [call[1] for call in session.calls if "/jobs/" in call[1]],
+            ["https://jobs.dayforcehcm.com/en-CA/example/CANDIDATEPORTAL/jobs/101"],
+        )
+
+    def test_null_listing_location_rejects_malformed_or_missing_detail_location(self):
+        listing = posting(postingLocations=None)
+        cases = (
+            (posting(postingLocations=[{"cityName": 42}]), "location is invalid"),
+            (posting(postingLocations=None), "no structured location"),
+        )
+        for detail, message in cases:
+            with self.subTest(message=message):
+                with self.assertRaisesRegex(AdapterError, message):
+                    dayforce.fetch_jobs(
+                        Session([page([listing])], details=[detail_html(detail)]),
+                        target(),
+                    )
+
+    def test_null_listing_location_rejects_detail_identity_mismatch(self):
+        listing = posting(postingLocations=None)
+        mismatched = posting(
+            posting_id=999,
+            postingLocations=[{"formattedAddress": "Edmonton, AB, Canada"}],
+        )
+
+        with self.assertRaisesRegex(AdapterError, "identity mismatch"):
+            dayforce.fetch_jobs(
+                Session([page([listing])], details=[detail_html(mismatched)]),
+                target(),
+            )
+
+    def test_detail_accepts_alternate_structured_identity_representations(self):
+        listing = posting(postingLocations=None)
+        detail = posting(
+            postingLocations=[{"formattedAddress": "Edmonton, AB, Canada"}],
+        )
+        detail.pop("jobPostingId")
+        detail.pop("jobReqId")
+        detail["canonicalPostingUrl"] = (
+            "https://jobs.dayforcehcm.com/en-CA/example/CANDIDATEPORTAL/jobs/101"
+        )
+        detail["identifiers"] = [
+            {"type": "requisitionId", "value": 501},
+        ]
+
+        job = dayforce.fetch_jobs(
+            Session([page([listing])], details=[detail_html(detail)]),
+            target(),
+        )[0]
+
+        self.assertEqual(job.location, "Edmonton, AB, Canada")
+
+    def test_detail_accepts_nested_name_code_identity(self):
+        listing = posting(postingLocations=None)
+        detail = posting(
+            postingLocations=[{"formattedAddress": "Calgary, AB, Canada"}],
+        )
+        detail.pop("jobPostingId")
+        detail.pop("jobReqId")
+        detail["postingIdentifier"] = {
+            "identifierType": "postingId",
+            "codeValue": "101",
+        }
+        detail["requisitionIdentifier"] = {
+            "name": "requisitionId",
+            "id": "501",
+        }
+
+        job = dayforce.fetch_jobs(
+            Session([page([listing])], details=[detail_html(detail)]),
+            target(),
+        )[0]
+
+        self.assertEqual(job.location, "Calgary, AB, Canada")
+
+    def test_detail_accepts_canonical_route_identity_with_separate_payload(self):
+        listing = posting(postingLocations=None)
+        detail = posting(
+            postingLocations=[{"formattedAddress": "Vancouver, BC, Canada"}],
+        )
+        detail.pop("jobPostingId")
+        detail.pop("jobReqId")
+
+        job = dayforce.fetch_jobs(
+            Session(
+                [page([listing])],
+                details=[detail_html(detail, query={"postingId": "101"})],
+            ),
+            target(),
+        )[0]
+
+        self.assertEqual(job.location, "Vancouver, BC, Canada")
+
+    def test_detail_reference_number_must_match_listing_reference(self):
+        listing = posting(postingLocations=None, referenceNumber="REQ-501")
+        detail = posting(
+            postingLocations=[{"formattedAddress": "Toronto, ON, Canada"}],
+            referenceNumber="REQ-501",
+        )
+        detail.pop("jobPostingId")
+        detail.pop("jobReqId")
+        job = dayforce.fetch_jobs(
+            Session([page([listing])], details=[detail_html(detail)]),
+            target(),
+        )[0]
+        self.assertEqual(job.location, "Toronto, ON, Canada")
+
+        detail["referenceNumber"] = "REQ-999"
+        with self.assertRaisesRegex(AdapterError, "identity mismatch"):
+            dayforce.fetch_jobs(
+                Session([page([listing])], details=[detail_html(detail)]),
+                target(),
+            )
+
+    def test_detail_rejects_ambiguous_conflicting_and_absent_identity(self):
+        listing = posting(postingLocations=None)
+        ambiguous = posting(
+            postingLocations=[{"formattedAddress": "Calgary, AB, Canada"}],
+            canonicalUrl=(
+                "https://jobs.dayforcehcm.com/en-CA/example/CANDIDATEPORTAL/jobs/999"
+            ),
+        )
+        absent = posting(
+            postingLocations=[{"formattedAddress": "Calgary, AB, Canada"}],
+        )
+        absent.pop("jobPostingId")
+        absent.pop("jobReqId")
+
+        for detail, message in (
+            (ambiguous, "ambiguous structured identities"),
+            (absent, "did not expose one structured posting identity"),
+        ):
+            with self.subTest(message=message):
+                with self.assertRaisesRegex(AdapterError, message):
+                    dayforce.fetch_jobs(
+                        Session([page([listing])], details=[detail_html(detail)]),
+                        target(),
+                    )
+
+    def test_missing_location_detail_enrichment_is_bounded(self):
+        count = dayforce.MAX_DETAIL_REQUESTS + 1
+        listings = [
+            posting(index, 500 + index, postingLocations=None)
+            for index in range(1, count + 1)
+        ]
+        details = [
+            detail_html(posting(
+                index,
+                500 + index,
+                postingLocations=[{"formattedAddress": "Calgary, AB, Canada"}],
+            ))
+            for index in range(1, dayforce.MAX_DETAIL_REQUESTS + 1)
+        ]
+        session = Session([page(listings)], details=details)
+
+        with self.assertRaisesRegex(AdapterError, "detail enrichment exceeded"):
+            dayforce.fetch_jobs(session, target())
+
+        self.assertEqual(session.dayforce_pagination["detail_requests"], 10)
+        self.assertEqual(
+            source_scan_metadata(session)["scan_completeness_reason"],
+            "missing_location_detail_enrichment_limit_reached",
+        )
+        self.assertEqual(
+            len([call for call in session.calls if "/jobs/" in call[1]]),
+            dayforce.MAX_DETAIL_REQUESTS,
+        )
+
+    def test_malformed_location_objects_and_collection_shapes_fail_closed(self):
+        cases = (
+            ({"items": [{"formattedAddress": "Calgary, AB"}]}, "no stable display value"),
+            ({"formattedAddress": {"value": "Calgary, AB"}}, "must be text"),
+            ([{"cityName": 42}], "must be text"),
+            (["Calgary, AB"], "must be an object"),
+            ("Calgary, AB", "must be a list or location object"),
+        )
+        for value, message in cases:
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(AdapterError, message):
+                    dayforce.fetch_jobs(
+                        Session([page([posting(postingLocations=value)])]),
+                        target(),
+                    )
 
     def test_tenant_locale_board_and_bounds_are_validated(self):
         with self.assertRaisesRegex(AdapterError, "search_url"):

@@ -430,7 +430,7 @@ class CompanyCareersReliabilityRepairV1Tests(unittest.TestCase):
             "detail requisition ID did not match the listing": "validation_identity_mismatch",
             "unsupported ADP variant": "unsupported_ats_variant",
             "listing response is malformed": "adapter_schema_mismatch",
-            "Greenhouse HTTP 404": "stale_company_configuration",
+            "Greenhouse HTTP 404": "stale_board_identifier",
         }
         for message, expected in cases.items():
             with self.subTest(message=message):
@@ -438,6 +438,22 @@ class CompanyCareersReliabilityRepairV1Tests(unittest.TestCase):
                     CompanyCareersScanner._adapter_failure_details(message)[0],
                     expected,
                 )
+
+    def test_static_source_diagnostics_have_distinct_failure_classes(self):
+        for code in (
+            "access_blocked",
+            "html_too_large",
+            "unsupported_listing_contract",
+            "identity_missing",
+            "unproven_empty_collection",
+            "structured_payload_malformed",
+        ):
+            with self.subTest(code=code):
+                actual, remediation = CompanyCareersScanner._adapter_failure_details(
+                    f"Static source {code}: bounded diagnostic"
+                )
+                self.assertEqual(actual, code)
+                self.assertTrue(remediation)
 
     def test_company_careers_summary_names_legacy_local_database_scope(self):
         source = inspect.getsource(JobSearchPipeline._search_company_careers)

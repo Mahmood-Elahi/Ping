@@ -45,6 +45,18 @@ LEGACY_ADAPTER_SAFETY_BUDGETS: Dict[str, Dict[str, set[int]]] = {
     for platform in ADAPTER_SAFETY_BUDGET_DEFAULTS
 }
 
+# These APIs explicitly advertise/echo a bounded page-size parameter and the
+# adapters validate the corresponding hard maximum.  Production registry
+# entries retain their historical values; adapters apply these safe defaults
+# at request time, and the offline Pareto analyzer uses them for projections.
+SAFE_LISTING_PAGE_SIZE_DEFAULTS: Dict[str, int] = {
+    "avature": 20,
+    "beesite": 20,
+    "hawksearch_v2": 100,
+    "mcloud_cws": 20,
+    "smartrecruiters": 100,
+}
+
 
 def _adapter_safety_budget(
     data: Mapping[str, Any],

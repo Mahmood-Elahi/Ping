@@ -362,16 +362,18 @@ class PhenomAdapterTests(unittest.TestCase):
 
     def test_safety_budget_is_incomplete_but_reported_total_is_complete(self):
         first = [job(index) for index in range(1, 11)]
-        capped_jobs, capped_session = self.fetch(
-            [html_response(page(first, total=30))], max_pages=1, max_jobs=100
+        adaptive_jobs, adaptive_session = self.fetch(
+            [
+                html_response(page(first, total=30)),
+                html_response(page([job(index) for index in range(11, 21)], total=30)),
+                html_response(page([job(index) for index in range(21, 31)], total=30)),
+            ],
+            max_pages=1,
+            max_jobs=100,
         )
-        self.assertEqual(len(capped_jobs), 10)
-        self.assertFalse(capped_session.phenom_pagination["scan_complete"])
-        self.assertTrue(capped_session.phenom_pagination["safety_limit_reached"])
-        self.assertEqual(
-            capped_session.phenom_pagination["scan_completeness_reason"],
-            "safety_limit_reached",
-        )
+        self.assertEqual(len(adaptive_jobs), 30)
+        self.assertTrue(adaptive_session.phenom_pagination["scan_complete"])
+        self.assertEqual(adaptive_session.phenom_pagination["pages_requested"], 3)
 
         complete_jobs, complete_session = self.fetch(
             [html_response(page(first, total=10))], max_pages=1, max_jobs=100
@@ -444,7 +446,7 @@ class PhenomAdapterTests(unittest.TestCase):
 
     def test_maximum_pages_results_and_configuration_are_enforced(self):
         responses = [
-            html_response(page([job(p * 10 + i) for i in range(1, 11)], total=100))
+            html_response(page([job(p * 10 + i) for i in range(1, 11)], total=6_000))
             for p in range(5)
         ]
         jobs, session = self.fetch(responses, max_pages=5, max_jobs=50)

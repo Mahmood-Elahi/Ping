@@ -10,7 +10,14 @@ from urllib.parse import parse_qs, urlparse
 
 import requests
 
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
+from src.scraper.company_careers.listing_completion import AdaptiveListingCompletion
 
 
 MAX_JOBS = 20
@@ -43,19 +50,32 @@ def fetch_jobs(
     if any(not _has_exact_attribution(item, str(target.job_attribution_regex)) for item in payload):
         raise AdapterError("StartDate collection has mixed or ambiguous per-job attribution")
 
+    listing_budget = AdaptiveListingCompletion(1, int(target.max_jobs))
+    effective_jobs = listing_budget.complete_collection_job_ceiling(len(payload))
     jobs: list[JobRecord] = []
     seen_ids: set[str] = set()
-    for item in payload[: int(target.max_jobs)]:
+    for item in payload[:effective_jobs]:
         job = _normalize(item, target, contract)
         if job.job_id in seen_ids:
             raise AdapterError("StartDate returned a duplicate stable job ID")
         seen_ids.add(job.job_id)
         jobs.append(job)
-    setattr(
-        session,
-        "startdate_pagination",
-        {"stop_reason": "bounded_public_collection", "zero_job_contract": not jobs},
+    limited = len(payload) > effective_jobs
+    metadata = SourceScanMetadata(
+        scan_complete=not limited,
+        scan_completeness_reason=(
+            "safety_limit_reached" if limited else "complete_collection_response"
+        ),
+        total_available=len(payload),
+        pages_requested=1,
+        pages_completed=1,
+        stop_reason=("maximum_results_reached" if limited else "complete_collection_response"),
+        safety_limit_reached=limited,
+        zero_job_contract=not payload,
     )
+    setattr(session, "startdate_pagination", metadata)
+    publish_source_scan_metadata(session, metadata)
+    listing_budget.record(metadata)
     return jobs
 
 

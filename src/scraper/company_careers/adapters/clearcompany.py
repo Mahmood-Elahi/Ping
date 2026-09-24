@@ -9,7 +9,14 @@ from urllib.parse import urlparse
 
 import requests
 
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
+from src.scraper.company_careers.listing_completion import AdaptiveListingCompletion
 
 
 PAGE_SIZE = 20
@@ -37,15 +44,36 @@ def fetch_jobs(
     seen_ids: set[str] = set()
     expected_total: int | None = None
     endpoint = f"https://careers-api.clearcompany.com/v1/{target.site_id}"
+    metadata = SourceScanMetadata(
+        endpoint_variant="public_total_count_api",
+        page_size=PAGE_SIZE,
+        maximum_pages=max_pages,
+        maximum_results=int(target.max_jobs),
+    )
+    listing_budget = AdaptiveListingCompletion(
+        max_pages, int(target.max_jobs), allow_listing_only_second_stage=True
+    )
+    listing_budget.record(metadata)
+    publish_source_scan_metadata(session, metadata)
 
-    for page_index in range(max_pages):
+    for page_index in range(listing_budget.hard_request_ceiling):
+        metadata["pages_requested"] += 1
         response = _get_page(session, endpoint, page_index, timeout)
         payload = _parse_page(response, page_index)
+        metadata["pages_completed"] += 1
         total = payload["totalCount"]
         if expected_total is None:
             expected_total = total
         elif total != expected_total:
             raise AdapterError("ClearCompany total job count changed during pagination")
+        listing_budget.record_decision(
+            metadata,
+            total,
+            PAGE_SIZE,
+            requests_completed=int(metadata["pages_completed"]),
+            results_observed=page_index * PAGE_SIZE + len(payload["results"]),
+        )
+        effective_jobs = int(metadata["effective_listing_job_ceiling"])
 
         for item in payload["results"]:
             job = _normalize(item, target)
@@ -53,9 +81,30 @@ def fetch_jobs(
                 raise AdapterError("ClearCompany returned a duplicate stable job ID")
             seen_ids.add(job.job_id)
             jobs.append(job)
+            if len(jobs) >= effective_jobs:
+                break
 
-        if (page_index + 1) * PAGE_SIZE >= total or len(payload["results"]) < PAGE_SIZE:
+        metadata["total_available"] = total
+        if len(jobs) == total:
+            metadata["scan_complete"] = True
+            metadata["scan_completeness_reason"] = "reported_total_reached"
+            metadata["stop_reason"] = "reported_total_reached"
             break
+        if len(jobs) >= effective_jobs:
+            metadata["stop_reason"] = "maximum_results_reached"
+            break
+        if len(payload["results"]) < PAGE_SIZE:
+            metadata["stop_reason"] = "short_page_before_reported_total"
+            metadata["scan_completeness_reason"] = "pagination_failure"
+            raise AdapterError("ClearCompany returned a short page before totalCount")
+        if page_index + 1 >= int(metadata["effective_listing_request_ceiling"]):
+            metadata["stop_reason"] = "maximum_pages_reached"
+            break
+    if not metadata["scan_complete"] and metadata["stop_reason"] == "not_started":
+        metadata["stop_reason"] = "maximum_pages_reached"
+    if metadata["stop_reason"] in {"maximum_results_reached", "maximum_pages_reached"}:
+        metadata["scan_completeness_reason"] = "safety_limit_reached"
+        metadata["safety_limit_reached"] = True
     return jobs
 
 

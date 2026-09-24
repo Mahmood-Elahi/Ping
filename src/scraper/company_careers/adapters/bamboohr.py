@@ -9,7 +9,13 @@ from urllib.parse import urlparse
 
 import requests
 
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
 
 
 MAX_JOBS = 20
@@ -30,8 +36,20 @@ def fetch_jobs(
     """Fetch one bounded anonymous BambooHR collection and its public details."""
     contract = validate_target(target)
     timeout = max(1, min(int(timeout), MAX_TIMEOUT_SECONDS))
+    metadata = SourceScanMetadata(
+        endpoint_variant="complete_public_collection",
+        maximum_pages=1,
+        maximum_results=int(target.max_jobs),
+        pages_requested=1,
+        stop_reason="not_started",
+    )
+    setattr(session, "bamboohr_pagination", metadata)
+    publish_source_scan_metadata(session, metadata)
     payload = _json_get(session, contract["listing_url"], timeout)
-    items = _parse_listing(payload, int(target.max_jobs))
+    all_items = _parse_listing(payload)
+    metadata["pages_completed"] = 1
+    metadata["total_available"] = len(all_items)
+    items = all_items[: int(target.max_jobs)]
     jobs: list[JobRecord] = []
     seen_ids: set[str] = set()
     for item in items:
@@ -42,11 +60,16 @@ def fetch_jobs(
         detail_url = f"{contract['careers_url']}/{job_id}/detail"
         detail = _parse_detail(_json_get(session, detail_url, timeout), item, contract, job_id)
         jobs.append(_normalize(item, detail, target, contract, job_id))
-    setattr(
-        session,
-        "bamboohr_pagination",
-        {"stop_reason": "bounded_public_collection", "zero_job_contract": not jobs},
-    )
+    metadata["jobs_normalized"] = len(jobs)
+    metadata["zero_job_contract"] = not all_items
+    if len(all_items) > int(target.max_jobs):
+        metadata["stop_reason"] = "maximum_results_reached"
+        metadata["scan_completeness_reason"] = "safety_limit_reached"
+        metadata["safety_limit_reached"] = True
+    else:
+        metadata["stop_reason"] = "complete_collection_response"
+        metadata["scan_completeness_reason"] = "complete_collection_response"
+        metadata["scan_complete"] = True
     return jobs
 
 
@@ -102,7 +125,7 @@ def _json_get(session: requests.Session, url: str, timeout: int) -> Mapping[str,
     raise AdapterError("BambooHR request attempts exhausted")
 
 
-def _parse_listing(payload: Mapping[str, Any], maximum: int) -> list[Mapping[str, Any]]:
+def _parse_listing(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     meta = payload.get("meta")
     items = payload.get("result")
     if not isinstance(meta, Mapping) or not isinstance(items, list):
@@ -112,7 +135,7 @@ def _parse_listing(payload: Mapping[str, Any], maximum: int) -> list[Mapping[str
     total = meta.get("totalCount")
     if isinstance(total, bool) or not isinstance(total, int) or total < 0 or total != len(items):
         raise AdapterError("BambooHR totalCount does not match its result collection")
-    return items[:maximum]
+    return items
 
 
 def _parse_detail(

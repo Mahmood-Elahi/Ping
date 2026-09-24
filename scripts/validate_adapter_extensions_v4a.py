@@ -475,6 +475,16 @@ def _valid_empty(session: CachedBoundedSession, platform: str) -> bool:
 
 def _status_for_error(exc: BaseException) -> str:
     message = str(exc).casefold()
+    if any(
+        code in message
+        for code in (
+            "unsupported_listing_contract",
+            "html_too_large",
+            "structured_payload_malformed",
+            "unproven_empty_collection",
+        )
+    ):
+        return "malformed_response"
     if "authentication" in message or "login" in message:
         return "authentication_required"
     if "session" in message:

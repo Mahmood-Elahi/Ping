@@ -11,7 +11,15 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import requests
 
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.diagnostics import structure_diagnostic
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
+from src.scraper.company_careers.listing_completion import AdaptiveListingCompletion
 
 
 WORKFORCE_NOW = "workforce_now_requisitions_v1"
@@ -156,14 +164,17 @@ def _fetch_workforce_now(
     total: int | None = None
     metadata = _metadata(target, "GET", page_size, limit)
     setattr(session, "adp_pagination", metadata)
+    publish_source_scan_metadata(session, metadata)
     for page in range(int(target.max_pages)):
         if len(jobs) >= limit:
             metadata["stop_reason"] = "maximum_results_reached"
             break
         offset = page * page_size
         params = {**common, "$skip": offset, "$top": page_size, "userQuery": ""}
+        metadata["pages_requested"] += 1
         payload = _get_json(session, str(target.endpoint_url), f"Workforce Now offset={offset}", timeout, params=params, headers=headers)
         rows, current_total = _wfn_listing(payload, offset, page_size)
+        metadata["pages_completed"] += 1
         total = _stable_total(total, current_total, "ADP Workforce Now")
         for row in rows:
             item_id = _stable_id(row.get("itemID"), "ADP Workforce Now itemID")
@@ -186,6 +197,7 @@ def _fetch_workforce_now(
     else:
         metadata["stop_reason"] = "maximum_pages_reached"
     metadata["total_available"] = total
+    _finalize_metadata(metadata)
     jobs.sort(key=lambda job: (job.updated_at, job.job_id), reverse=True)
     return jobs
 
@@ -228,8 +240,20 @@ def _fetch_myjobs(session: requests.Session, target: CompanyTarget, timeout: int
     total: int | None = None
     metadata = _metadata(target, "GET", page_size, limit)
     setattr(session, "adp_pagination", metadata)
-    for page in range(int(target.max_pages)):
-        if len(jobs) >= limit:
+    publish_source_scan_metadata(session, metadata)
+    listing_budget = AdaptiveListingCompletion(
+        int(target.max_pages),
+        limit,
+        allow_listing_only_second_stage=True,
+    )
+    listing_budget.record(metadata)
+    for page in range(listing_budget.hard_request_ceiling):
+        effective_limit = int(
+            metadata.get(
+                "effective_listing_job_ceiling", listing_budget.normal_job_budget
+            )
+        )
+        if len(jobs) >= effective_limit:
             metadata["stop_reason"] = "maximum_results_reached"
             break
         offset = page * page_size
@@ -237,16 +261,26 @@ def _fetch_myjobs(session: requests.Session, target: CompanyTarget, timeout: int
             "$orderby": "postingDate desc", "$select": select, "$top": page_size,
             "$skip": offset, "tz": "UTC",
         }
+        metadata["pages_requested"] += 1
         payload = _get_json(session, str(target.endpoint_url), f"MyJobs offset={offset}", timeout, params=params, headers=headers)
         rows, current_total = _myjobs_listing(payload, page_size, offset)
+        metadata["pages_completed"] += 1
         total = _stable_total(total, current_total, "ADP MyJobs")
+        listing_budget.record_decision(
+            metadata,
+            current_total,
+            page_size,
+            requests_completed=int(metadata["pages_completed"]),
+            results_observed=offset + len(rows),
+        )
+        effective_limit = int(metadata["effective_listing_job_ceiling"])
         for row in rows:
             req_id = _stable_id(row.get("reqId"), "ADP MyJobs reqId")
             if req_id in seen:
                 raise AdapterError(f"ADP MyJobs repeated stable job ID: {req_id}")
             jobs.append(_normalize_myjobs(row, target))
             seen.add(req_id)
-            if len(jobs) >= limit:
+            if len(jobs) >= effective_limit:
                 break
         metadata["pages"].append({"offset": offset, "jobs_returned": len(rows)})
         metadata["jobs_normalized"] = len(jobs)
@@ -255,9 +289,13 @@ def _fetch_myjobs(session: requests.Session, target: CompanyTarget, timeout: int
             break
         if not rows:
             raise AdapterError("ADP MyJobs ended before its reported total")
+        if page + 1 >= int(metadata["effective_listing_request_ceiling"]):
+            metadata["stop_reason"] = "maximum_pages_reached"
+            break
     else:
         metadata["stop_reason"] = "maximum_pages_reached"
     metadata["total_available"] = total
+    _finalize_metadata(metadata)
     jobs.sort(key=lambda job: (job.updated_at, job.job_id), reverse=True)
     return jobs
 
@@ -309,9 +347,10 @@ def _normalize_wfn(
     external_id = _wfn_external_id(listing)
     if _wfn_external_id(detail) != external_id:
         raise AdapterError("ADP Workforce Now external job ID changed in the detail response")
-    location = _locations(listing.get("requisitionLocations"))
-    if _locations(detail.get("requisitionLocations")) != location:
+    locations = _location_values(listing.get("requisitionLocations"))
+    if _location_values(detail.get("requisitionLocations")) != locations:
         raise AdapterError("ADP Workforce Now detail locations did not match the listing")
+    location = " | ".join(locations)
     apply_query = urlencode(
         {"cid": query["cid"], "ccId": query["ccId"], "jobId": external_id, "lang": query["lang"]}
     )
@@ -322,6 +361,7 @@ def _normalize_wfn(
         title=title, company=target.name, location=location, url=apply_url,
         updated_at=_date_value(listing.get("postDate")),
         source=f"adp:{(careers.hostname or '').casefold()}:{query['cid'].casefold()}",
+        offices=locations,
         description=_html_text(detail.get("requisitionDescription")),
         raw_metadata={
             "platform": "adp", "endpoint_variant": WORKFORCE_NOW,
@@ -340,13 +380,15 @@ def _normalize_myjobs(row: Mapping[str, Any], target: CompanyTarget) -> JobRecor
         raise AdapterError("ADP MyJobs row crossed or ambiguously attributed career-site domains")
     if row.get("canApply") is not True:
         raise AdapterError("ADP MyJobs row did not expose an official apply action")
-    location = _locations(row.get("requisitionLocations"))
+    locations = _location_values(row.get("requisitionLocations"))
+    location = " | ".join(locations)
     detail_url = f"https://{MYJOBS_HOST}/{target.slug}/cx/job-details?{urlencode({'reqId': req_id})}"
     return JobRecord(
         job_id=f"adp:{str(target.organization_id).casefold()}:{req_id}",
         title=title, company=target.name, location=location, url=detail_url,
         updated_at=_date_value(row.get("postingDate")),
         source=f"adp:{str(target.organization_id).casefold()}:{str(target.slug).casefold()}",
+        offices=locations,
         description=_html_text(row.get("jobDescription")),
         raw_metadata={
             "platform": "adp", "endpoint_variant": MYJOBS,
@@ -387,36 +429,243 @@ def _get_json(session: requests.Session, url: str, label: str, timeout: int, **k
 
 
 def _locations(value: Any) -> str:
+    return " | ".join(_location_values(value))
+
+
+def _location_values(value: Any) -> list[str]:
+    """Return ADP's stable location displays in deterministic precedence order."""
     if not isinstance(value, list) or not value:
-        raise AdapterError("ADP job is missing requisition locations")
+        raise AdapterError(
+            "ADP job is missing requisition locations "
+            f"({_adp_location_diagnostic(value)})"
+        )
     locations: list[str] = []
-    for item in value:
-        if not isinstance(item, Mapping):
-            raise AdapterError("ADP requisition location is malformed")
-        name = item.get("nameCode")
-        text = str(name.get("longName") or name.get("shortName") or "").strip() if isinstance(name, Mapping) else ""
-        if not text:
-            address = item.get("address")
-            if not isinstance(address, Mapping):
-                raise AdapterError("ADP requisition location has no stable display value")
-            subdivision = address.get("countrySubdivisionLevel1")
-            country = address.get("country")
-            parts = [
-                address.get("cityName"),
-                subdivision.get("longName") or subdivision.get("codeValue") if isinstance(subdivision, Mapping) else None,
-                country.get("longName") or country.get("codeValue") if isinstance(country, Mapping) else None,
-            ]
-            text = ", ".join(str(part).strip() for part in parts if str(part or "").strip())
-        # Some Workforce Now tenants append empty location placeholders after
-        # one or more real locations. Ignore only those empty objects; the
-        # collection still fails closed below if no stable location remains.
-        if not text:
-            continue
-        if text not in locations:
-            locations.append(text)
+    try:
+        for item in value:
+            if not isinstance(item, Mapping):
+                raise AdapterError("ADP requisition location is malformed")
+            name = item.get("nameCode")
+            if name is not None and not isinstance(name, Mapping):
+                raise AdapterError("ADP requisition location nameCode is malformed")
+            text = _first_text(name, ("longName", "shortName"), "nameCode")
+            if not text:
+                text = _first_text(
+                    item,
+                    ("formattedAddress", "displayName", "locationName"),
+                    "location display",
+                )
+            if not text:
+                text = _structured_adp_location(item, "location")
+            if not text and item.get("workLocation") is not None:
+                work_location = item.get("workLocation")
+                if not isinstance(work_location, Mapping):
+                    raise AdapterError("ADP requisition workLocation is malformed")
+                text = _first_text(
+                    work_location,
+                    ("formattedAddress", "displayName", "locationName", "name"),
+                    "workLocation",
+                ) or _structured_adp_location(work_location, "workLocation")
+            # Some Workforce Now tenants append empty location placeholders after
+            # one or more real locations. Ignore only those empty objects; the
+            # collection still fails closed below if no stable location remains.
+            if not text:
+                continue
+            if text.casefold() not in {location.casefold() for location in locations}:
+                locations.append(text)
+    except AdapterError as exc:
+        raise AdapterError(f"{exc} ({_adp_location_diagnostic(value)})") from exc
     if not locations:
-        raise AdapterError("ADP requisition location has no stable display value")
-    return " | ".join(locations)
+        raise AdapterError(
+            "ADP requisition location has no stable display value "
+            f"({_adp_location_diagnostic(value)})"
+        )
+    return locations
+
+
+def _structured_adp_location(value: Mapping[str, Any], label: str) -> str:
+    """Build a display from only semantically explicit ADP geography fields."""
+    address = value.get("address")
+    if address is not None and not isinstance(address, Mapping):
+        raise AdapterError(f"ADP requisition {label}.address is malformed")
+    source = address if isinstance(address, Mapping) else value
+    line_one = _first_text_value(
+        source, ("addressLineOne", "addressLine1", "lineOne"), f"{label}.address line"
+    )
+    city = _first_geographic_component(
+        source, ("cityName", "city"), f"{label}.city"
+    )
+    subdivision_field, subdivision_value = next(
+        (
+            (field, source.get(field))
+            for field in ("countrySubdivisionLevel1", "stateProvince", "stateCode", "state")
+            if source.get(field) is not None
+        ),
+        ("countrySubdivisionLevel1", None),
+    )
+    subdivision = _geographic_component(
+        subdivision_value, f"{label}.{subdivision_field}"
+    )
+    postal_value = next(
+        (
+            source.get(field)
+            for field in ("postalCode", "zipCode")
+            if source.get(field) is not None
+        ),
+        None,
+    )
+    postal = _geographic_component(postal_value, f"{label}.postalCode")
+    country_value = next(
+        (
+            source.get(field)
+            for field in ("country", "countryCode", "isoCountryCode")
+            if source.get(field) is not None
+        ),
+        None,
+    )
+    country = _geographic_component(country_value, f"{label}.country")
+    parts = [part for part in (line_one, city, subdivision) if part]
+    if postal:
+        if parts:
+            parts[-1] = f"{parts[-1]} {postal}"
+        else:
+            parts.append(postal)
+    if country:
+        parts.append(country)
+    return ", ".join(parts)
+
+
+def _first_text_value(
+    value: Mapping[str, Any], fields: tuple[str, ...], label: str
+) -> str:
+    for field in fields:
+        text = _optional_text(value.get(field), f"{label}.{field}")
+        if text:
+            return text
+    return ""
+
+
+def _first_geographic_component(
+    value: Mapping[str, Any], fields: tuple[str, ...], label: str
+) -> str:
+    for field in fields:
+        text = _geographic_component(value.get(field), f"{label}.{field}")
+        if text:
+            return text
+    return ""
+
+
+def _adp_location_diagnostic(value: Any) -> str:
+    return "location_shape: " + structure_diagnostic(value)
+
+
+def _first_text(value: Any, fields: tuple[str, ...], label: str) -> str:
+    if value is None:
+        return ""
+    if not isinstance(value, Mapping):
+        raise AdapterError(f"ADP requisition {label} is malformed")
+    for field in fields:
+        text = _optional_text(value.get(field), f"{label}.{field}")
+        if text:
+            return text
+    return ""
+
+
+def _optional_text(value: Any, label: str) -> str:
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        raise AdapterError(f"ADP requisition {label} must be text")
+    return " ".join(value.split())
+
+
+def _geographic_component(value: Any, label: str, *, depth: int = 0) -> str:
+    """Read only explicitly geographic ADP address components."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return _explicit_geographic_text(value, label, is_code=False)
+    if isinstance(value, list):
+        if depth >= 5:
+            raise AdapterError(f"ADP requisition {label} exceeded the geographic nesting bound")
+        if len(value) > 8:
+            raise AdapterError(f"ADP requisition {label} exceeded the geographic list bound")
+        displays: list[str] = []
+        for index, item in enumerate(value):
+            display = _geographic_component(
+                item, f"{label}[{index}]", depth=depth + 1
+            )
+            if display and display.casefold() not in {
+                existing.casefold() for existing in displays
+            }:
+                displays.append(display)
+        if len(displays) > 1:
+            raise AdapterError(
+                f"ADP requisition {label} contains ambiguous geographic display values"
+            )
+        return displays[0] if displays else ""
+    if not isinstance(value, Mapping):
+        raise AdapterError(f"ADP requisition {label} is malformed")
+    if depth >= 5:
+        raise AdapterError(f"ADP requisition {label} exceeded the geographic nesting bound")
+    for field in ("longName", "shortName", "name"):
+        field_value = value.get(field)
+        if field_value is None:
+            continue
+        if not isinstance(field_value, str):
+            raise AdapterError(f"ADP requisition {label}.{field} must be text")
+        text = _explicit_geographic_text(field_value, label, is_code=False)
+        if text:
+            return text
+    for field in ("displayValue", "value", "nameCode"):
+        nested = value.get(field)
+        if nested is None:
+            continue
+        text = _geographic_component(nested, f"{label}.{field}", depth=depth + 1)
+        if text:
+            return text
+    for field in ("codeValue", "code", "isoCode"):
+        field_value = value.get(field)
+        if field_value is None:
+            continue
+        if not isinstance(field_value, str):
+            raise AdapterError(f"ADP requisition {label}.{field} must be text")
+        text = _explicit_geographic_text(field_value, label, is_code=True)
+        if text:
+            return text
+    return ""
+
+
+def _explicit_geographic_text(value: str, label: str, *, is_code: bool) -> str:
+    text = " ".join(value.split())
+    if not text:
+        return ""
+    if len(text) > 200 or any(ord(character) < 32 for character in text):
+        return ""
+    if text[:1] in "[{" or text[-1:] in "]}":
+        try:
+            if isinstance(json.loads(text), (Mapping, list)):
+                return ""
+        except (TypeError, ValueError):
+            # A malformed object-looking scalar is not a geographic display.
+            return ""
+    if re.fullmatch(r"[+-]?\d+(?:\.\d+)?", text):
+        return ""
+    if re.fullmatch(r"(?i)(?:loc(?:ation)?|id|code)[-_ ]?\d{2,}", text):
+        return ""
+    if re.fullmatch(
+        r"(?i)[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}",
+        text,
+    ):
+        return ""
+    if not is_code:
+        return text
+    if "country" in label.casefold():
+        return text if re.fullmatch(r"[A-Za-z]{2,3}", text) else ""
+    if "state" in label.casefold() or "subdivision" in label.casefold():
+        return text if re.fullmatch(r"[A-Za-z]{2,3}(?:-[A-Za-z0-9]{1,3})?", text) else ""
+    if "postal" in label.casefold():
+        return text if re.fullmatch(r"(?=.*\d)[A-Za-z0-9 -]{3,12}", text) else ""
+    return ""
 
 
 def _wfn_external_id(item: Mapping[str, Any]) -> str:
@@ -435,13 +684,25 @@ def _wfn_external_id(item: Mapping[str, Any]) -> str:
     return matches[0]
 
 
-def _metadata(target: CompanyTarget, method: str, page_size: int, limit: int) -> dict[str, Any]:
-    return {
+def _metadata(
+    target: CompanyTarget, method: str, page_size: int, limit: int
+) -> SourceScanMetadata:
+    return SourceScanMetadata(**{
         "endpoint_variant": target.endpoint_variant, "request_method": method,
         "page_size": page_size, "maximum_pages": int(target.max_pages),
         "maximum_results": limit, "pages": [], "jobs_normalized": 0,
         "stop_reason": "not_started",
-    }
+    })
+
+
+def _finalize_metadata(metadata: SourceScanMetadata) -> None:
+    if metadata["stop_reason"] == "total_jobs_reached":
+        metadata["scan_complete"] = True
+        metadata["scan_completeness_reason"] = "reported_total_reached"
+        metadata["stop_reason"] = "total_jobs_reached"
+    elif metadata["stop_reason"] in {"maximum_results_reached", "maximum_pages_reached"}:
+        metadata["scan_completeness_reason"] = "safety_limit_reached"
+        metadata["safety_limit_reached"] = True
 
 
 def _stable_total(previous: int | None, current: int, label: str) -> int:

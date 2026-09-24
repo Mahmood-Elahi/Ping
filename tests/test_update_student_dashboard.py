@@ -392,7 +392,7 @@ class UpdateStudentDashboardTests(unittest.TestCase):
 
     def test_incomplete_company_never_advances_lifecycle_without_freshness(self):
         self.report.results[0].scan_complete = False
-        self.report.results[0].scan_completeness_reason = "safety_limit_reached"
+        self.report.results[0].scan_completeness_reason = "collection_changed_during_scan"
         pipeline = FakePipeline(self.report, self.summary)
         store = FakeStore()
 

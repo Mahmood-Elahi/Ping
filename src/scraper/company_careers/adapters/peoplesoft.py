@@ -11,7 +11,13 @@ from urllib.parse import parse_qs, urljoin, urlparse
 import requests
 from lxml import html
 
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
 
 
 MAX_RESULTS = 20
@@ -64,10 +70,21 @@ def fetch_jobs(
         candidates.append((job_id, " ".join(link.text_content().split()), proposed, posting_sequence))
     if not candidates:
         if "no current" in listing_text.casefold() or "no job" in listing_text.casefold():
+            publish_source_scan_metadata(
+                session,
+                SourceScanMetadata(
+                    scan_complete=True,
+                    scan_completeness_reason="validated_zero_jobs",
+                    total_available=0,
+                    pages_requested=1,
+                    pages_completed=1,
+                    stop_reason="validated_zero_jobs",
+                ),
+            )
             return []
         raise AdapterError("PeopleSoft listing has no stable public job-specific links")
-    if len(candidates) > MAX_RESULTS:
-        candidates = candidates[: int(target.max_jobs)]
+    total_candidates = len(candidates)
+    candidates = candidates[: int(target.max_jobs)]
 
     jobs: list[JobRecord] = []
     for job_id, listing_title, detail_url, posting_sequence in candidates[: int(target.max_jobs)]:
@@ -116,6 +133,21 @@ def fetch_jobs(
                 },
             )
         )
+    limited = total_candidates > int(target.max_jobs)
+    publish_source_scan_metadata(
+        session,
+        SourceScanMetadata(
+            scan_complete=not limited,
+            scan_completeness_reason=(
+                "safety_limit_reached" if limited else "complete_listing_container"
+            ),
+            total_available=total_candidates,
+            pages_requested=1,
+            pages_completed=1,
+            stop_reason=("maximum_results_reached" if limited else "complete_listing_container"),
+            safety_limit_reached=limited,
+        ),
+    )
     return jobs
 
 

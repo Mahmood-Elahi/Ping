@@ -12,7 +12,17 @@ from urllib.parse import urlparse, urlunparse
 
 import requests
 
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
+from src.scraper.company_careers.listing_completion import (
+    AdaptiveListingCompletion,
+    PageSizeObservation,
+)
 
 
 ENDPOINT_VARIANT = "hawksearch_v2_search"
@@ -43,7 +53,8 @@ def fetch_jobs(
 ) -> list[JobRecord]:
     validate_target(target)
     max_pages = int(target.max_pages)
-    page_size = int(target.page_size)
+    configured_page_size = int(target.page_size)
+    page_size = MAX_PAGE_SIZE if configured_page_size == 16 else configured_page_size
     requested_limit = min(MAX_RESULTS, int(target.max_jobs))
     timeout = min(MAX_TIMEOUT_SECONDS, max(1, int(timeout)))
     client_guid = str(target.client_guid)
@@ -57,7 +68,12 @@ def fetch_jobs(
     seen_ids: set[str] = set()
     observed_total: int | None = None
     observed_pages: int | None = None
-    metadata: dict[str, Any] = {
+    listing_budget = AdaptiveListingCompletion(
+        normal_request_budget=max_pages,
+        normal_job_budget=requested_limit,
+        allow_listing_only_second_stage=True,
+    )
+    metadata = SourceScanMetadata(**{
         "endpoint_variant": ENDPOINT_VARIANT,
         "request_method": "POST",
         "page_size": page_size,
@@ -66,13 +82,22 @@ def fetch_jobs(
         "pages": [],
         "jobs_normalized": 0,
         "stop_reason": "not_started",
-    }
+    })
     setattr(session, "hawksearch_v2_pagination", metadata)
+    publish_source_scan_metadata(session, metadata)
+    listing_budget.record(metadata)
+    page_sizes = PageSizeObservation(page_size)
+    page_sizes.record(metadata)
 
     _validate_identity_page(session, target, headers, timeout)
 
-    for page_no in range(1, max_pages + 1):
-        if len(jobs) >= requested_limit:
+    for page_no in range(1, listing_budget.hard_request_ceiling + 1):
+        effective_limit = int(
+            metadata.get(
+                "effective_listing_job_ceiling", listing_budget.normal_job_budget
+            )
+        )
+        if len(jobs) >= effective_limit:
             metadata["stop_reason"] = "maximum_results_reached"
             break
         payload = {
@@ -92,6 +117,7 @@ def fetch_jobs(
             "Is100CoverageTurnedOn": True,
             "MaxPerPage": page_size,
         }
+        metadata["pages_requested"] += 1
         response = session.post(
             str(target.endpoint_url),
             headers=headers,
@@ -99,9 +125,11 @@ def fetch_jobs(
             timeout=timeout,
         )
         body = _parse_response(response, page_no)
-        results, pagination = _parse_page(body, page_no, page_size)
+        results, pagination = _parse_page(body, page_no)
+        metadata["pages_completed"] += 1
         total = pagination["NofResults"]
         total_pages = pagination["NofPages"]
+        accepted_page_size = pagination["MaxPerPage"]
         if observed_total is None:
             observed_total = total
             observed_pages = total_pages
@@ -111,6 +139,22 @@ def fetch_jobs(
                 "HawkSearch result bounds changed during pagination: "
                 f"{observed_total}/{observed_pages} -> {total}/{total_pages}"
             )
+        if len(jobs) + len(results) > total:
+            raise AdapterError("HawkSearch returned jobs beyond NofResults")
+        page_sizes.observe(
+            len(results),
+            authoritative_size=accepted_page_size or None,
+            terminal=page_no >= total_pages,
+        )
+        page_sizes.record(metadata)
+        listing_budget.record_decision(
+            metadata,
+            total,
+            page_sizes.effective_size,
+            requests_completed=int(metadata["pages_completed"]),
+            results_observed=len(jobs) + len(results),
+        )
+        effective_limit = int(metadata["effective_listing_job_ceiling"])
 
         normalized_on_page = 0
         for result in results:
@@ -120,7 +164,7 @@ def fetch_jobs(
             seen_ids.add(job.job_id)
             jobs.append(job)
             normalized_on_page += 1
-            if len(jobs) >= requested_limit:
+            if len(jobs) >= effective_limit:
                 break
 
         metadata["pages"].append(
@@ -130,6 +174,7 @@ def fetch_jobs(
                 "jobs_normalized": normalized_on_page,
                 "reported_total": total,
                 "reported_pages": total_pages,
+                "reported_page_size": accepted_page_size,
             }
         )
         metadata["pages_fetched"] = len(metadata["pages"])
@@ -138,21 +183,35 @@ def fetch_jobs(
 
         if total == 0:
             metadata["stop_reason"] = "validated_zero_jobs"
+            metadata["scan_complete"] = True
+            metadata["scan_completeness_reason"] = "reported_total_reached"
             break
         if not results:
             raise AdapterError("HawkSearch page ended before its reported result bounds")
-        if page_no >= total_pages:
-            metadata["stop_reason"] = "total_jobs_reached"
-            break
-        if len(results) < page_size:
-            raise AdapterError("HawkSearch returned a short page before NofPages")
-        if len(jobs) >= requested_limit:
+        if len(jobs) >= effective_limit and len(jobs) < total:
             metadata["stop_reason"] = "maximum_results_reached"
             break
-        if page_no < max_pages:
+        if page_no >= total_pages:
+            if len(jobs) != total:
+                metadata["stop_reason"] = "reported_page_count_conflict"
+                metadata["scan_completeness_reason"] = "pagination_failure"
+                raise AdapterError("HawkSearch final page did not reach NofResults")
+            metadata["stop_reason"] = "reported_total_reached"
+            metadata["scan_complete"] = True
+            metadata["scan_completeness_reason"] = "reported_total_reached"
+            break
+        if len(results) < accepted_page_size:
+            raise AdapterError("HawkSearch returned a short page before NofPages")
+        if page_no >= int(metadata["effective_listing_request_ceiling"]):
+            metadata["stop_reason"] = "maximum_pages_reached"
+            break
+        if page_no < listing_budget.hard_request_ceiling:
             time.sleep(PAGE_DELAY_SECONDS)
     else:
         metadata["stop_reason"] = "maximum_pages_reached"
+    if metadata["stop_reason"] in {"maximum_results_reached", "maximum_pages_reached"}:
+        metadata["scan_completeness_reason"] = "safety_limit_reached"
+        metadata["safety_limit_reached"] = True
 
     return jobs
 
@@ -280,7 +339,7 @@ def _parse_response(response: Any, page_no: int) -> Mapping[str, Any]:
 
 
 def _parse_page(
-    payload: Mapping[str, Any], page_no: int, page_size: int
+    payload: Mapping[str, Any], page_no: int
 ) -> tuple[list[Mapping[str, Any]], Mapping[str, int]]:
     results = payload.get("Results")
     pagination = payload.get("Pagination")
@@ -294,12 +353,17 @@ def _parse_page(
             raise AdapterError(f"HawkSearch Pagination.{field} must be a non-negative integer")
     if pagination["CurrentPage"] != page_no:
         raise AdapterError("HawkSearch response did not honor PageNo")
-    if pagination["MaxPerPage"] != page_size:
-        raise AdapterError("HawkSearch response did not honor MaxPerPage")
-    expected_pages = math.ceil(pagination["NofResults"] / page_size)
+    accepted_page_size = pagination["MaxPerPage"]
+    if accepted_page_size == 0 and pagination["NofResults"]:
+        raise AdapterError("HawkSearch MaxPerPage cannot be zero for non-empty results")
+    expected_pages = (
+        math.ceil(pagination["NofResults"] / accepted_page_size)
+        if accepted_page_size
+        else 0
+    )
     if pagination["NofPages"] != expected_pages:
         raise AdapterError("HawkSearch NofPages is inconsistent with its result count")
-    if len(results) > page_size:
+    if len(results) > accepted_page_size:
         raise AdapterError("HawkSearch page exceeded MaxPerPage")
     if pagination["NofResults"] == 0 and results:
         raise AdapterError("HawkSearch zero-result response contained jobs")

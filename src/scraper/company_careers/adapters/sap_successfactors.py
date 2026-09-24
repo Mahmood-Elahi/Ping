@@ -19,12 +19,25 @@ from urllib.parse import parse_qsl, quote, unquote, urljoin, urlparse, urlunpars
 
 import requests
 
+from src.scraper.company_careers.diagnostics import (
+    bounded_scalar_sample,
+    diagnostic_shape,
+    structure_diagnostic,
+)
 from src.scraper.company_careers.models import (
     AdapterError,
     CompanyTarget,
     JobRecord,
     SourceScanMetadata,
     publish_source_scan_metadata,
+)
+from src.scraper.company_careers.listing_completion import AdaptiveListingCompletion
+from src.scraper.company_careers.mutable_collection import (
+    finish_changed,
+    finish_terminal,
+    initialize_mutable_collection,
+    mark_collection_changed,
+    record_total_observation,
 )
 from src.scraper.company_careers.student_roles import student_job_signals
 
@@ -72,6 +85,38 @@ RMK_COUNTRY_ONLY_LOCATIONS = frozenset(
         "NO", "NOR", "NZ", "NZL", "PH", "PHL", "PL", "POL", "PT", "PRT",
         "RO", "ROU", "SE", "SWE", "SG", "SGP", "TH", "THA", "TR", "TUR",
         "TW", "TWN", "UA", "UK", "UKR", "US", "USA", "VN", "VNM", "ZA", "ZAF",
+    )
+)
+RMK_SUBNATIONAL_LOCATIONS = frozenset(
+    value.casefold()
+    for value in (
+        "Alberta", "British Columbia", "Manitoba", "New Brunswick",
+        "Newfoundland and Labrador", "Nova Scotia", "Ontario",
+        "Prince Edward Island", "Quebec", "Saskatchewan", "Northwest Territories",
+        "Nunavut", "Yukon", "AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU",
+        "ON", "PE", "QC", "SK", "YT",
+        "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado",
+        "Connecticut", "Delaware", "Florida", "Georgia", "Hawaii", "Idaho",
+        "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky", "Louisiana", "Maine",
+        "Maryland", "Massachusetts", "Michigan", "Minnesota", "Mississippi",
+        "Missouri", "Montana", "Nebraska", "Nevada", "New Hampshire", "New Jersey",
+        "New Mexico", "New York", "North Carolina", "North Dakota", "Ohio",
+        "Oklahoma", "Oregon", "Pennsylvania", "Rhode Island", "South Carolina",
+        "South Dakota", "Tennessee", "Texas", "Utah", "Vermont", "Virginia",
+        "Washington", "West Virginia", "Wisconsin", "Wyoming", "District of Columbia",
+        "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID",
+        "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS",
+        "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK",
+        "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV",
+        "WI", "WY", "DC",
+    )
+)
+RMK_REGION_LABELS = frozenset(
+    value.casefold()
+    for value in (
+        "Africa", "Americas", "Asia", "Asia Pacific", "Europe", "European Union",
+        "Latin America", "Middle East", "North America", "South America",
+        "APAC", "EMEA", "LATAM", "Global", "Worldwide", "Remote",
     )
 )
 
@@ -136,6 +181,7 @@ def fetch_jobs(
 ) -> List[JobRecord]:
     """Fetch a bounded, deterministically ordered public RMK job collection."""
     metadata = _new_scan_metadata(target)
+    initialize_mutable_collection(metadata)
     publish_source_scan_metadata(session, metadata)
     # Keep the adapter-specific diagnostics contract used by registry validation.
     setattr(session, "sap_successfactors_pagination", metadata)
@@ -205,15 +251,20 @@ def _record_adapter_failure(
 
 
 def _mark_safety_limit(metadata: SourceScanMetadata, stop_reason: str) -> None:
-    metadata["stop_reason"] = stop_reason
-    metadata["scan_completeness_reason"] = "safety_limit_reached"
     metadata["safety_limit_reached"] = True
+    if metadata.get("collection_changed_during_scan"):
+        finish_changed(metadata, terminal_evidence=stop_reason)
+    else:
+        metadata["stop_reason"] = stop_reason
+        metadata["scan_completeness_reason"] = "safety_limit_reached"
 
 
 def _mark_complete(metadata: SourceScanMetadata, *, zero: bool = False) -> None:
-    metadata["scan_complete"] = True
-    metadata["scan_completeness_reason"] = "reported_total_reached"
-    metadata["stop_reason"] = "validated_zero_jobs" if zero else "reported_total_reached"
+    finish_terminal(
+        metadata,
+        complete_reason="reported_total_reached",
+        stop_reason="validated_zero_jobs" if zero else "reported_total_reached",
+    )
 
 
 def _mark_columnized_terminal(
@@ -226,9 +277,11 @@ def _mark_columnized_terminal(
     reported_total = metadata.get("total_available")
     metadata["reported_total"] = reported_total
     metadata["total_available"] = actual_total
-    metadata["scan_complete"] = True
-    metadata["scan_completeness_reason"] = "natural_terminal_page"
-    metadata["stop_reason"] = stop_reason
+    finish_terminal(
+        metadata,
+        complete_reason="natural_terminal_page",
+        stop_reason=stop_reason,
+    )
     metadata["diagnostics"].append(
         {
             "warning": "columnized totalJobs exceeded the locale-specific terminal collection",
@@ -248,6 +301,12 @@ def _fetch_html_jobs(
     max_pages = max(1, int(target.max_pages))
     if max_pages > MAX_PAGES:
         raise AdapterError(f"SAP SuccessFactors max_pages cannot exceed {MAX_PAGES}")
+    listing_budget = AdaptiveListingCompletion(
+        normal_request_budget=max_pages,
+        normal_job_budget=int(metadata["maximum_results"]),
+        allow_listing_only_second_stage=True,
+    )
+    listing_budget.record(metadata)
 
     jobs: list[JobRecord] = []
     seen_ids: set[str] = set()
@@ -260,8 +319,13 @@ def _fetch_html_jobs(
         None,
     )
 
-    for page_index in range(max_pages):
-        if next_request is None or len(jobs) >= metadata["maximum_results"]:
+    for page_index in range(listing_budget.hard_request_ceiling):
+        effective_limit = int(
+            metadata.get(
+                "effective_listing_job_ceiling", listing_budget.normal_job_budget
+            )
+        )
+        if next_request is None or len(jobs) >= effective_limit:
             break
         offset = current_offset
         url, params = next_request
@@ -274,20 +338,34 @@ def _fetch_html_jobs(
             expected_page_size=(metadata["page_size"] if page_index else None),
         )
 
-        if page.total is not None and metadata["total_available"] is None:
-            metadata["total_available"] = page.total
-        elif page.total is not None and page.total != metadata["total_available"]:
-            metadata["stop_reason"] = "inconsistent_total"
-            metadata["scan_completeness_reason"] = "inconsistent_total"
-            raise AdapterError("SAP SuccessFactors total job count changed during pagination")
+        record_total_observation(
+            metadata,
+            page.total,
+            offset=offset,
+            source_label="SAP SuccessFactors",
+        )
         if page_index == 0:
             metadata["page_size"] = page.page_size
             metadata["maximum_results"] = min(
                 MAX_RESULTS,
                 max_pages * page.page_size,
             )
+            listing_budget = AdaptiveListingCompletion(
+                normal_request_budget=max_pages,
+                normal_job_budget=int(metadata["maximum_results"]),
+                allow_listing_only_second_stage=True,
+            )
+            listing_budget.record(metadata)
         elif page.page_size != metadata["page_size"]:
             raise AdapterError("SAP SuccessFactors page size changed during pagination")
+        listing_budget.record_decision(
+            metadata,
+            page.total,
+            page.page_size,
+            requests_completed=int(metadata["pages_requested"]),
+            results_observed=offset + len(page.items),
+        )
+        effective_limit = int(metadata["effective_listing_job_ceiling"])
 
         source_ids = tuple(_source_item_identity(item) for item in page.items)
         if page.items and (not all(source_ids) or source_ids in seen_page_signatures):
@@ -302,10 +380,12 @@ def _fetch_html_jobs(
             seen_page_signatures.add(source_ids)
 
         normalized_count = 0
+        page_overlap_count = 0
         for item in page.items:
             source_id = _source_item_identity(item)
             if source_id in seen_source_ids:
                 duplicate_source_id = True
+                page_overlap_count += 1
                 metadata["diagnostics"].append(
                     {"offset": offset, "error": f"Duplicate source job ID: {source_id}"}
                 )
@@ -315,7 +395,11 @@ def _fetch_html_jobs(
                 job = _normalize_item(item, target)
             except AdapterError as exc:
                 metadata["diagnostics"].append(
-                    {"offset": offset, "error": str(exc), "item": dict(item)}
+                    {
+                        "offset": offset,
+                        "error": str(exc),
+                        "item_shape": structure_diagnostic(item),
+                    }
                 )
                 continue
             if job.job_id in seen_ids:
@@ -326,13 +410,17 @@ def _fetch_html_jobs(
             seen_ids.add(job.job_id)
             jobs.append(job)
             normalized_count += 1
-            if len(jobs) >= metadata["maximum_results"]:
+            if len(jobs) >= effective_limit:
                 break
 
-        if page.items and normalized_count == 0 and not duplicate_source_id:
-            raise AdapterError("SAP SuccessFactors page contained jobs but none were valid")
-        if page.total and offset < page.total and not page.items:
-            raise AdapterError("SAP SuccessFactors response ended before its reported total job count")
+        if page.items and normalized_count == 0:
+            metadata["stop_reason"] = "no_new_stable_ids"
+            metadata["scan_completeness_reason"] = "pagination_failure"
+            raise AdapterError("SAP SuccessFactors pagination returned no new stable jobs")
+        if page_overlap_count:
+            mark_collection_changed(
+                metadata, offset=offset, overlap_count=page_overlap_count
+            )
 
         metadata["pages"].append(
             {
@@ -348,20 +436,29 @@ def _fetch_html_jobs(
         metadata["jobs_normalized"] = len(jobs)
 
         effective_total = metadata["total_available"]
-        if effective_total == 0:
+        if effective_total and offset < effective_total and not page.items:
+            if metadata["collection_changed_during_scan"]:
+                finish_changed(metadata, terminal_evidence="premature_terminal_page")
+            else:
+                metadata["stop_reason"] = "premature_terminal_page"
+                metadata["scan_completeness_reason"] = "premature_terminal_page"
+            next_request = None
+        elif effective_total == 0:
             _mark_complete(metadata, zero=True)
             next_request = None
         elif effective_total is not None and offset + len(page.items) >= effective_total:
-            if len(seen_source_ids) == effective_total and not duplicate_source_id:
+            if len(seen_source_ids) == effective_total:
                 _mark_complete(metadata)
             else:
-                metadata["stop_reason"] = "repeated_job_id"
-                metadata["scan_completeness_reason"] = "pagination_failure"
+                finish_changed(metadata, terminal_evidence="reported_total_boundary")
             next_request = None
         elif len(page.items) < page.page_size:
-            metadata["stop_reason"] = "malformed_total"
-            metadata["scan_completeness_reason"] = "malformed_total"
-            raise AdapterError("SAP SuccessFactors response ended before its reported total job count")
+            if metadata["collection_changed_during_scan"]:
+                finish_changed(metadata, terminal_evidence="premature_terminal_page")
+            else:
+                metadata["stop_reason"] = "premature_terminal_page"
+                metadata["scan_completeness_reason"] = "premature_terminal_page"
+            next_request = None
         else:
             next_request = page.next_request
             if (
@@ -373,13 +470,25 @@ def _fetch_html_jobs(
                 next_params["startrow"] = str(offset + page.page_size)
                 next_request = (url, next_params)
             if next_request is None:
-                raise AdapterError("SAP SuccessFactors response did not expose the next page contract")
+                if metadata["collection_changed_during_scan"]:
+                    finish_changed(metadata, terminal_evidence="missing_next_page_contract")
+                else:
+                    metadata["stop_reason"] = "premature_terminal_page"
+                    metadata["scan_completeness_reason"] = "premature_terminal_page"
 
-        if next_request is not None and page_index + 1 < max_pages:
+        if next_request is not None and page_index + 1 >= int(
+            metadata["effective_listing_request_ceiling"]
+        ):
+            _mark_safety_limit(metadata, "maximum_pages_reached")
+            break
+        if next_request is not None and page_index + 1 < listing_budget.hard_request_ceiling:
             current_offset = offset + page.page_size
             time.sleep(PAGE_DELAY_SECONDS)
 
-    if next_request is not None and metadata["pages_fetched"] >= max_pages:
+    if (
+        next_request is not None
+        and metadata["pages_fetched"] >= listing_budget.hard_request_ceiling
+    ):
         _mark_safety_limit(metadata, "maximum_pages_reached")
     elif metadata["stop_reason"] == "not_started" and len(jobs) >= MAX_RESULTS:
         _mark_safety_limit(metadata, "maximum_results_reached")
@@ -477,7 +586,6 @@ def _fetch_columnized_jobs(
     jobs: list[JobRecord] = []
     seen: set[str] = set()
     seen_fingerprints: dict[str, str] = {}
-    observed_total: Optional[int] = None
     duplicate_source_id = False
     seen_page_signatures: set[tuple[str, ...]] = set()
     previous_page_ids: tuple[str, ...] = ()
@@ -544,14 +652,16 @@ def _fetch_columnized_jobs(
             raise
         rows = payload["jobSearchResult"]
         total = payload["totalJobs"]
-        if observed_total is None:
-            observed_total = total
-            metadata["total_available"] = total
-        elif total != observed_total:
-            metadata["stop_reason"] = "inconsistent_total"
-            metadata["scan_completeness_reason"] = "inconsistent_total"
-            raise AdapterError("SAP SuccessFactors total job count changed during pagination")
-        if total < offset + len(rows):
+        record_total_observation(
+            metadata,
+            total,
+            offset=offset,
+            source_label="SAP SuccessFactors",
+        )
+        if (
+            total < offset + len(rows)
+            and not metadata["collection_changed_during_scan"]
+        ):
             metadata["stop_reason"] = "malformed_total"
             metadata["scan_completeness_reason"] = "malformed_total"
             raise AdapterError("SAP SuccessFactors columnized page exceeded the reported total")
@@ -561,18 +671,6 @@ def _fetch_columnized_jobs(
             metadata["scan_completeness_reason"] = "pagination_failure"
             raise AdapterError("SAP SuccessFactors columnized result envelope is malformed")
         if rows and page_ids in seen_page_signatures:
-            # The supported RMK client clamps requests beyond its locale-specific
-            # terminal page to the last page. That is terminal evidence only
-            # after multiple advancing pages and only for an immediate repeat.
-            # A first-page repeat, or a jump back to any older page, remains a
-            # genuine non-advancing pagination failure.
-            if metadata["pages_completed"] >= 2 and page_ids == previous_page_ids:
-                _mark_columnized_terminal(
-                    metadata,
-                    actual_total=len(seen),
-                    stop_reason="terminal_page_clamped",
-                )
-                break
             metadata["stop_reason"] = "repeated_page"
             metadata["scan_completeness_reason"] = "pagination_failure"
             raise AdapterError("SAP SuccessFactors columnized pagination repeated a complete page")
@@ -593,6 +691,7 @@ def _fetch_columnized_jobs(
                     raise AdapterError(f"SAP SuccessFactors conflicting repeated stable job ID: {external_id}")
                 duplicate_source_id = True
                 metadata.setdefault("duplicate_ids_skipped", []).append(external_id)
+                mark_collection_changed(metadata, offset=offset, overlap_count=1)
                 continue
             title = _clean_text(row.get("unifiedStandardTitle"))
             url_title = unescape(str(row.get("unifiedUrlTitle") or "").strip())
@@ -661,11 +760,10 @@ def _fetch_columnized_jobs(
         metadata["jobs_normalized"] = len(jobs)
         previous_page_ids = page_ids
         if offset + len(rows) >= total:
-            if len(seen) == total and not duplicate_source_id:
+            if len(seen) == total:
                 _mark_complete(metadata, zero=total == 0)
             else:
-                metadata["stop_reason"] = "repeated_job_id"
-                metadata["scan_completeness_reason"] = "pagination_failure"
+                finish_changed(metadata, terminal_evidence="reported_total_boundary")
             break
         if len(rows) < COLUMNIZED_PAGE_SIZE:
             _mark_columnized_terminal(
@@ -822,7 +920,11 @@ def _normalize_columnized_detail(
     # documented combined-location shape; a non-empty field name alone is not
     # enough to distinguish a display location from an internal identifier.
     primary_locations = (
-        [] if api_locations else _columnized_primary_location(row.get("primLocation"))
+        []
+        if api_locations
+        else _columnized_primary_location(
+            row.get("primLocation"), region=row.get("region")
+        )
     )
     # RMK also publishes Google Jobs microdata on the already-validated detail
     # page.  Some tenants, including the Seagate-style contract, omit every
@@ -902,20 +1004,26 @@ def _columnized_locations(value: Any, field_name: str = "location") -> list[str]
     return _unique_strings(locations)
 
 
-def _columnized_primary_location(value: Any) -> list[str]:
+def _columnized_primary_location(value: Any, *, region: Any = None) -> list[str]:
     """Validate RMK's scalar primary-location display projection."""
-    reason = _primary_location_rejection(value)
+    reason = _primary_location_rejection(value, region=region)
     if reason is None:
-        return [_clean_text(_html_to_text(value))]
+        text = _clean_text(_html_to_text(value))
+        components = [component.strip() for component in text.split(",") if component.strip()]
+        if len(components) == 1 and not _recognized_standalone_location(text):
+            region_text = _validated_primary_region(region)
+            if region_text:
+                text = f"{text}, {region_text}"
+        return [text]
     if value is not None and not isinstance(value, str):
         raise AdapterError(
             "SAP SuccessFactors columnized location field primLocation is unusable "
-            f"(observed={_diagnostic_shape(value)}; reason={reason})"
+            f"(observed={diagnostic_shape(value)}; reason={reason})"
         )
     return []
 
 
-def _primary_location_rejection(value: Any) -> Optional[str]:
+def _primary_location_rejection(value: Any, *, region: Any = None) -> Optional[str]:
     if value is None:
         return "missing"
     if not isinstance(value, str):
@@ -930,8 +1038,6 @@ def _primary_location_rejection(value: Any) -> Optional[str]:
     if text[0] in "[{" or text[-1] in "]}":
         return "serialized structure is not a display location"
     components = [component.strip() for component in text.split(",") if component.strip()]
-    if len(components) == 1 and text.casefold() not in RMK_COUNTRY_ONLY_LOCATIONS:
-        return "not a recognized country-only or combined display location"
     allowed_punctuation = frozenset(" .'-\u2019()/&")
     for component in components:
         if not any(character.isalpha() for character in component):
@@ -941,7 +1047,65 @@ def _primary_location_rejection(value: Any) -> Optional[str]:
             for character in component
         ):
             return "display component has identifier punctuation"
-    return None
+    if len(components) > 1:
+        return None
+    if _recognized_standalone_location(text):
+        return None
+    if re.fullmatch(r"[A-Z0-9_-]{2,32}", text) and any(
+        character.isalpha() for character in text
+    ):
+        return "opaque code-like token"
+    # Multi-word localized labels are distinguishable from opaque IDs and are
+    # a legitimate RMK display projection even when no country is appended.
+    if len(re.findall(r"[^\W\d_]+", text, re.UNICODE)) >= 2:
+        return None
+    if _validated_primary_region(region):
+        return None
+    return "not a recognized country-only or combined display location"
+
+
+def _recognized_standalone_location(value: str) -> bool:
+    key = value.casefold()
+    return key in (
+        RMK_COUNTRY_ONLY_LOCATIONS | RMK_SUBNATIONAL_LOCATIONS | RMK_REGION_LABELS
+    )
+
+
+def _validated_primary_region(value: Any) -> str:
+    """Return only an explicit, bounded geographic region display."""
+    if not isinstance(value, str):
+        return ""
+    text = _clean_text(_html_to_text(value))
+    if not text or len(text) > 80 or "," in text:
+        return ""
+    if _recognized_standalone_location(text):
+        return text
+    # Localized multi-word region labels are safe when the field itself is the
+    # RMK ``region`` projection; single opaque tokens remain rejected.
+    if (
+        len(re.findall(r"[^\W\d_]+", text, re.UNICODE)) >= 2
+        and not any(character in text for character in "{}[]:=")
+    ):
+        return text
+    return ""
+
+
+def _primary_location_scalar_diagnostic(value: Any) -> str:
+    """Describe the requested RMK scalar characteristics without dumping it."""
+    if not isinstance(value, str):
+        return f"shape={diagnostic_shape(value)}"
+    raw = value
+    text = _clean_text(_html_to_text(value))
+    upper_code_like = bool(
+        re.fullmatch(r"[A-Z0-9_-]{2,32}", text) and any(char.isalpha() for char in text)
+    )
+    return (
+        f"shape=str,length={len(raw)},comma_count={raw.count(',')},"
+        f"all_upper_code_like={str(upper_code_like).lower()},"
+        f"known_country={str(text.casefold() in RMK_COUNTRY_ONLY_LOCATIONS).lower()},"
+        f"contains_delimiters={str(bool(re.search(r'[,|;/]', raw))).lower()},"
+        f"sample=\"{bounded_scalar_sample(raw)}\""
+    )
 
 
 def _detail_job_locations(root: _Node) -> list[str]:
@@ -987,14 +1151,19 @@ def _columnized_location_diagnostic(
         if field_name not in row:
             continue
         value = row[field_name]
-        shape = _diagnostic_shape(value)
+        shape = diagnostic_shape(value)
         if field_name == "primLocation":
-            reason = _primary_location_rejection(value)
-            shape += "(usable)" if reason is None else f"(rejected={reason})"
+            reason = _primary_location_rejection(value, region=row.get("region"))
+            scalar = _primary_location_scalar_diagnostic(value)
+            shape += (
+                f"(usable; {scalar})"
+                if reason is None
+                else f"(rejected={reason}; {scalar})"
+            )
         shapes.append(f"{field_name}={shape}")
     fields = ", ".join(shapes) if shapes else "none"
     row_shapes = ", ".join(
-        f"{_diagnostic_token(key)}={_diagnostic_shape(value)}"
+        f"{_diagnostic_token(key)}={diagnostic_shape(value)}"
         for key, value in sorted(row.items(), key=lambda item: str(item[0]).casefold())[:20]
     ) or "none"
     descriptors = ", ".join(_columnized_descriptors(row)) or "none"
@@ -1026,7 +1195,9 @@ def _normalize_columnized_listing(
         if locations:
             break
     if not locations:
-        locations = _columnized_primary_location(row.get("primLocation"))
+        locations = _columnized_primary_location(
+            row.get("primLocation"), region=row.get("region")
+        )
     host = (urlparse(str(target.search_url)).hostname or "").casefold()
     return JobRecord(
         job_id=f"sap_successfactors:{host}:{external_id}",
@@ -1100,14 +1271,6 @@ def _diagnostic_token(value: Any) -> str:
 def _diagnostic_label(value: Any) -> str:
     label = _clean_text(value)
     return re.sub(r"[^A-Za-z0-9 #&/().,_-]+", "?", label)[:60] or "?"
-
-
-def _diagnostic_shape(value: Any) -> str:
-    if isinstance(value, list):
-        return f"list[{len(value)}]"
-    if isinstance(value, Mapping):
-        return f"object[{len(value)}]"
-    return type(value).__name__
 
 
 def _exact_numeric_ids(values: Iterable[Any]) -> list[str]:

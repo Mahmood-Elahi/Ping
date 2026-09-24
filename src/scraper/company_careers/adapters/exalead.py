@@ -7,7 +7,14 @@ from urllib.parse import urlparse
 
 import requests
 
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
+from src.scraper.company_careers.listing_completion import AdaptiveListingCompletion
 
 
 SUPPORTED_VARIANT = "exalead_career_cards_v1"
@@ -32,8 +39,23 @@ def fetch_jobs(
     page_size = min(max(1, int(target.page_size)), MAX_PAGE_SIZE)
     jobs: list[JobRecord] = []
     seen: set[str] = set()
+    observed_total: int | None = None
+    metadata = SourceScanMetadata(
+        endpoint_variant=SUPPORTED_VARIANT,
+        page_size=page_size,
+        maximum_pages=maximum_pages,
+        maximum_results=maximum_jobs,
+    )
+    publish_source_scan_metadata(session, metadata)
+    listing_budget = AdaptiveListingCompletion(
+        maximum_pages,
+        maximum_jobs,
+        allow_listing_only_second_stage=True,
+    )
+    listing_budget.record(metadata)
 
-    for page in range(maximum_pages):
+    for page in range(listing_budget.hard_request_ceiling):
+        metadata["pages_requested"] += 1
         response = session.get(
             str(target.endpoint_url),
             params={
@@ -53,6 +75,22 @@ def fetch_jobs(
         except (ValueError, requests.RequestException) as exc:
             raise AdapterError(f"Exalead Careers returned invalid JSON: {exc}") from exc
         items, total = _inventory(payload)
+        metadata["pages_completed"] += 1
+        if observed_total is None:
+            observed_total = total
+        elif total != observed_total:
+            metadata["stop_reason"] = "inconsistent_total"
+            metadata["scan_completeness_reason"] = "inconsistent_total"
+            raise AdapterError("Exalead Careers nhits changed during pagination")
+        metadata["total_available"] = total
+        listing_budget.record_decision(
+            metadata,
+            total,
+            page_size,
+            requests_completed=int(metadata["pages_completed"]),
+            results_observed=page * page_size + len(items),
+        )
+        effective_jobs = int(metadata["effective_listing_job_ceiling"])
         if page == 0 and not items and total != 0:
             raise AdapterError("Exalead Careers response did not prove an empty jobs collection")
 
@@ -60,17 +98,37 @@ def fetch_jobs(
         for item in items:
             job = _normalize(item, target)
             if job.job_id in seen:
-                continue
+                metadata["stop_reason"] = "repeated_job_id"
+                metadata["scan_completeness_reason"] = "pagination_failure"
+                raise AdapterError("Exalead Careers repeated a stable job ID")
             seen.add(job.job_id)
             jobs.append(job)
             new_ids += 1
-            if len(jobs) >= maximum_jobs:
+            if len(jobs) >= effective_jobs:
                 break
 
         if items and new_ids == 0:
             raise AdapterError("Exalead Careers page repeated without new stable job IDs")
-        if len(jobs) >= maximum_jobs or len(items) < page_size or len(jobs) >= total:
+        if len(jobs) == total:
+            metadata["scan_complete"] = True
+            metadata["scan_completeness_reason"] = "reported_total_reached"
+            metadata["stop_reason"] = "reported_total_reached"
             break
+        if len(jobs) >= effective_jobs:
+            metadata["stop_reason"] = "maximum_results_reached"
+            break
+        if len(items) < page_size:
+            metadata["stop_reason"] = "short_page_before_reported_total"
+            metadata["scan_completeness_reason"] = "pagination_failure"
+            raise AdapterError("Exalead Careers returned a short page before nhits")
+        if page + 1 >= int(metadata["effective_listing_request_ceiling"]):
+            metadata["stop_reason"] = "maximum_pages_reached"
+            break
+    if not metadata["scan_complete"] and metadata["stop_reason"] == "not_started":
+        metadata["stop_reason"] = "maximum_pages_reached"
+    if metadata["stop_reason"] in {"maximum_results_reached", "maximum_pages_reached"}:
+        metadata["scan_completeness_reason"] = "safety_limit_reached"
+        metadata["safety_limit_reached"] = True
 
     return jobs
 

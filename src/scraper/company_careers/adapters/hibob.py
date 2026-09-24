@@ -11,7 +11,14 @@ from uuid import UUID
 
 import requests
 
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
+from src.scraper.company_careers.listing_completion import AdaptiveListingCompletion
 
 
 ENDPOINT_VARIANT = "career_site_job_ads_v1"
@@ -53,16 +60,28 @@ def fetch_jobs(
     if len(ids) != len(set(ids)):
         raise AdapterError("HiBob job-ad collection repeated a stable job ID")
     jobs.sort(key=lambda job: (job.updated_at, job.job_id), reverse=True)
-    limit = int(target.max_jobs)
-    metadata = {
+    listing_budget = AdaptiveListingCompletion(1, int(target.max_jobs))
+    limit = listing_budget.complete_collection_job_ceiling(len(jobs))
+    metadata = SourceScanMetadata(**{
         "endpoint_variant": ENDPOINT_VARIANT,
         "request_method": "GET",
         "total_available": len(jobs),
+        "pages_requested": 1,
+        "pages_completed": 1,
         "maximum_results": limit,
         "jobs_normalized": min(len(jobs), limit),
         "stop_reason": "maximum_results_reached" if len(jobs) > limit else "collection_exhausted",
-    }
+    })
+    if len(jobs) > limit:
+        metadata["scan_completeness_reason"] = "safety_limit_reached"
+        metadata["safety_limit_reached"] = True
+    else:
+        metadata["scan_complete"] = True
+        metadata["scan_completeness_reason"] = "complete_collection_response"
+        metadata["stop_reason"] = "complete_collection_response"
     setattr(session, "hibob_pagination", metadata)
+    publish_source_scan_metadata(session, metadata)
+    listing_budget.record(metadata)
     return jobs[:limit]
 
 

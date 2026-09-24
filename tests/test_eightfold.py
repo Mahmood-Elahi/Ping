@@ -226,49 +226,38 @@ class EightfoldAdapterTests(unittest.TestCase):
         self.assertFalse(session.eightfold_pagination["total_count_changed"])
         self.assertEqual(session.eightfold_pagination["warnings"], [])
 
-    def test_total_count_increase_is_a_warning_and_unique_jobs_are_retained(self):
+    def test_total_count_increase_is_usable_incomplete(self):
         first = [position(index) for index in range(1, 11)]
         second = [position(index) for index in range(11, 16)]
         jobs, session = self.fetch(
             [FakeResponse(payload(first, count=30)), FakeResponse(payload(second, count=31))]
         )
-        pagination = session.eightfold_pagination
         self.assertEqual(len(jobs), 15)
-        self.assertEqual(pagination["observed_total_counts"], [30, 31])
-        self.assertEqual(pagination["initial_total_available"], 30)
-        self.assertEqual(pagination["final_total_available"], 31)
-        self.assertTrue(pagination["total_count_changed"])
-        self.assertEqual(pagination["stop_reason"], "short_page")
-        self.assertIn(
-            "Eightfold total job count changed during pagination: 30 -> 31",
-            pagination["warnings"],
-        )
+        metadata = session.eightfold_pagination
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["scan_completeness_reason"], "collection_changed_during_scan")
+        self.assertEqual(metadata["minimum_total_observed"], 30)
+        self.assertEqual(metadata["maximum_total_observed"], 31)
 
-    def test_total_count_decrease_uses_latest_hint_without_discarding_jobs(self):
+    def test_total_count_decrease_is_usable_incomplete(self):
         first = [position(index) for index in range(1, 11)]
         second = [position(index) for index in range(11, 20)]
         jobs, session = self.fetch(
             [FakeResponse(payload(first, count=30)), FakeResponse(payload(second, count=19))]
         )
         self.assertEqual(len(jobs), 19)
-        self.assertEqual(session.eightfold_pagination["final_total_available"], 19)
-        self.assertEqual(session.eightfold_pagination["stop_reason"], "total_jobs_reached")
+        metadata = session.eightfold_pagination
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["scan_completeness_reason"], "collection_changed_during_scan")
+        self.assertEqual(metadata["final_total_observed"], 19)
 
-    def test_later_page_may_omit_count_but_not_jobs(self):
+    def test_later_page_missing_count_fails_closed(self):
         first = [position(index) for index in range(1, 11)]
         second = [position(index) for index in range(11, 16)]
         second_payload = payload(second, count=30)
         second_payload["data"].pop("count")
-        jobs, session = self.fetch(
-            [FakeResponse(payload(first, count=30)), FakeResponse(second_payload)]
-        )
-        pagination = session.eightfold_pagination
-        self.assertEqual(len(jobs), 15)
-        self.assertEqual(pagination["observed_total_counts"], [30])
-        self.assertEqual(pagination["final_total_available"], 30)
-        self.assertEqual(pagination["stop_reason"], "short_page")
-        self.assertIn("omitted during pagination", pagination["warnings"][0])
-        self.assertEqual(pagination["diagnostics"][0]["level"], "warning")
+        with self.assertRaisesRegex(AdapterError, "count must be a non-negative integer"):
+            self.fetch([FakeResponse(payload(first, count=30)), FakeResponse(second_payload)])
 
     def test_malformed_later_count_remains_fatal(self):
         first = [position(index) for index in range(1, 11)]
@@ -282,45 +271,59 @@ class EightfoldAdapterTests(unittest.TestCase):
 
     def test_repeated_page_detection(self):
         page = [position(index) for index in range(1, 11)]
-        jobs, session = self.fetch(
-            [FakeResponse(payload(page, count=30)), FakeResponse(payload(page, count=31))]
-        )
-        self.assertEqual(len(jobs), 10)
-        self.assertEqual(session.eightfold_pagination["stop_reason"], "repeated_page")
-        self.assertTrue(session.eightfold_pagination["total_count_changed"])
+        with self.assertRaisesRegex(AdapterError, "repeated a complete page"):
+            self.fetch(
+                [FakeResponse(payload(page, count=30)), FakeResponse(payload(page, count=30))]
+            )
 
     def test_no_new_stable_id_stop(self):
         first = [position(index) for index in range(1, 11)]
         second = list(reversed(first))
-        jobs, session = self.fetch(
-            [FakeResponse(payload(first, count=30)), FakeResponse(payload(second, count=29))]
-        )
-        self.assertEqual(len(jobs), 10)
-        self.assertEqual(session.eightfold_pagination["stop_reason"], "no_new_stable_ids")
-        self.assertTrue(session.eightfold_pagination["total_count_changed"])
+        with self.assertRaisesRegex(AdapterError, "repeated a complete page"):
+            self.fetch(
+                [FakeResponse(payload(first, count=30)), FakeResponse(payload(second, count=30))]
+            )
 
-    def test_all_total_observations_and_changes_are_diagnostic(self):
+    def test_overlap_with_old_and_new_ids_continues_as_incomplete(self):
+        first = [position(index) for index in range(1, 11)]
+        second = [position(10)] + [position(index) for index in range(11, 20)]
+        jobs, session = self.fetch(
+            [FakeResponse(payload(first, count=19)), FakeResponse(payload(second, count=19))]
+        )
+        self.assertEqual(len(jobs), 19)
+        metadata = session.eightfold_pagination
+        self.assertEqual(metadata["overlapping_jobs_skipped"], 1)
+        self.assertEqual(metadata["scan_completeness_reason"], "collection_changed_during_scan")
+
+    def test_duplicate_identity_with_conflicting_immutable_data_fails(self):
+        first = [position(index) for index in range(1, 11)]
+        conflicting = position(10, positionUrl="/careers/job/999999")
+        second = [conflicting] + [position(index) for index in range(11, 20)]
+        with self.assertRaisesRegex(AdapterError, "conflicting repeated stable job ID"):
+            self.fetch(
+                [FakeResponse(payload(first, count=20)), FakeResponse(payload(second, count=20))]
+            )
+
+    def test_multiple_total_changes_are_diagnostic_and_incomplete(self):
         pages = [
             FakeResponse(payload([position(index) for index in range(1, 11)], count=30)),
             FakeResponse(payload([position(index) for index in range(11, 21)], count=31)),
             FakeResponse(payload([position(index) for index in range(21, 30)], count=29)),
         ]
         jobs, session = self.fetch(pages, max_pages=3)
-        pagination = session.eightfold_pagination
         self.assertEqual(len(jobs), 29)
-        self.assertEqual(pagination["observed_total_counts"], [30, 31, 29])
-        self.assertEqual(len(pagination["warnings"]), 2)
-        self.assertEqual(
-            [item["warning"] for item in pagination["diagnostics"]],
-            pagination["warnings"],
-        )
+        metadata = session.eightfold_pagination
+        self.assertEqual(metadata["observed_total_counts"], [30, 31, 29])
+        self.assertEqual(metadata["minimum_total_observed"], 29)
+        self.assertEqual(metadata["maximum_total_observed"], 31)
+        self.assertEqual(metadata["scan_completeness_reason"], "collection_changed_during_scan")
 
     def test_maximum_pages_and_results_are_enforced(self):
         pages = [
             FakeResponse(
                 payload(
                     [position(page * 10 + index) for index in range(1, 11)],
-                    count=100 + page,
+                    count=6_000,
                 )
             )
             for page in range(5)
@@ -331,16 +334,20 @@ class EightfoldAdapterTests(unittest.TestCase):
         self.assertEqual(session.eightfold_pagination["stop_reason"], "maximum_results_reached")
         self.assertEqual(
             session.eightfold_pagination["observed_total_counts"],
-            [100, 101, 102, 103, 104],
+            [6_000, 6_000, 6_000, 6_000, 6_000],
         )
 
-    def test_empty_page_stops_safely_despite_reported_total(self):
+    def test_empty_page_before_total_fails_closed(self):
         first = [position(index) for index in range(1, 11)]
         jobs, session = self.fetch(
-            [FakeResponse(payload(first, count=30)), FakeResponse(payload([], count=29))]
+            [FakeResponse(payload(first, count=30)), FakeResponse(payload([], count=30))]
         )
         self.assertEqual(len(jobs), 10)
-        self.assertEqual(session.eightfold_pagination["stop_reason"], "empty_page")
+        self.assertEqual(
+            session.eightfold_pagination["stop_reason"],
+            "pagination_ended_before_reported_total",
+        )
+        self.assertFalse(session.eightfold_pagination["scan_complete"])
 
     def test_maximum_page_configuration_is_rejected_without_network(self):
         session = FakeSession([])
@@ -429,7 +436,7 @@ class EightfoldValidationTests(unittest.TestCase):
         self.assertEqual(result["sample_posting_date"], "2026-08-04")
 
     @patch.object(eightfold.time, "sleep", return_value=None)
-    def test_validator_succeeds_with_total_drift_and_reports_warning(self, _sleep):
+    def test_validator_retains_jobs_on_total_drift(self, _sleep):
         first = [position(index) for index in range(1, 11)]
         second = [position(index) for index in range(11, 21)]
         session = FakeSession(
@@ -442,20 +449,13 @@ class EightfoldValidationTests(unittest.TestCase):
         )
         self.assertEqual(result["validation_status"], validator.VALIDATED_WITH_JOBS)
         self.assertEqual(result["result_status"], "success")
-        self.assertTrue(result["safe_to_activate"])
-        self.assertEqual(result["jobs_returned"], 20)
-        self.assertEqual(result["total_available_jobs"], 1789)
         self.assertEqual(
-            result["warning"],
-            "Eightfold total job count changed during pagination: 1790 -> 1789",
-        )
-        self.assertEqual(
-            result["pagination_result"]["observed_total_counts"],
-            [1790, 1789],
+            result["pagination_result"]["scan_completeness_reason"],
+            "collection_changed_during_scan",
         )
 
     @patch.object(eightfold.time, "sleep", return_value=None)
-    def test_microsoft_style_two_page_scanner_scan_is_not_failed_technical(self, _sleep):
+    def test_microsoft_style_total_drift_is_fetched_incomplete(self, _sleep):
         first = [position(index) for index in range(1, 11)]
         second = [position(index) for index in range(11, 21)]
         session = FakeSession(
@@ -470,22 +470,9 @@ class EightfoldValidationTests(unittest.TestCase):
         report = CompanyCareersScanner(targets=[microsoft], session=session).scan()
         result = report.results[0]
         self.assertEqual(result.status, CoverageStatus.FETCHED)
-        self.assertNotEqual(result.status, CoverageStatus.FAILED_TECHNICAL)
-        self.assertEqual(result.fetched_count, 20)
-        self.assertTrue(
-            all(
-                job.job_id.startswith("eightfold:apply.careers.microsoft.com:")
-                for job in result.jobs
-            )
-        )
-        self.assertTrue(
-            all(
-                job.url.startswith(
-                    "https://apply.careers.microsoft.com/careers/job/"
-                )
-                for job in result.jobs
-            )
-        )
+        self.assertEqual(result.scan_health, "incomplete")
+        self.assertEqual(result.scan_completeness_reason, "collection_changed_during_scan")
+        self.assertIsNone(result.error)
         self.assertTrue(session.eightfold_pagination["total_count_changed"])
 
     def test_validator_classifies_auth_browser_session_blocked_and_malformed(self):

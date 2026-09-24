@@ -10,7 +10,13 @@ from urllib.parse import urlparse
 import requests
 
 from src.scraper.company_careers.adapters import static_html
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
 
 
 ENDPOINT_VARIANT = "schema_org_itemlist_jobposting_v1"
@@ -56,7 +62,7 @@ def fetch_jobs(
     validate_target(target)
     timeout = min(max(1, int(timeout)), static_html.MAX_TIMEOUT_SECONDS)
     maximum_jobs = min(int(target.max_jobs), MAX_RESULTS)
-    metadata: dict[str, Any] = {
+    metadata = SourceScanMetadata(**{
         "endpoint_variant": ENDPOINT_VARIANT,
         "request_method": "GET listing + bounded GET details",
         "pages_fetched": 1,
@@ -67,11 +73,14 @@ def fetch_jobs(
         "maximum_results": maximum_jobs,
         "stop_reason": "not_started",
         "zero_job_contract": False,
-    }
+    })
     setattr(session, "deel_pagination", metadata)
+    publish_source_scan_metadata(session, metadata)
+    metadata["pages_requested"] = 1
     response = static_html._get(session, str(target.listing_url), timeout)
     content = static_html._response_bytes(response, target)
     root = static_html._parse_html(content, response)
+    metadata["pages_completed"] = 1
     documents = _json_ld(root, content)
     organization = _one_type(documents, "Organization", "listing")
     organization_name = str(organization.get("name") or "").strip()
@@ -85,9 +94,12 @@ def fetch_jobs(
     if not isinstance(elements, list):
         raise AdapterError("Deel ItemList is malformed")
     metadata["jobs_available"] = len(elements)
+    metadata["total_available"] = len(elements)
     if not elements:
         metadata["zero_job_contract"] = True
         metadata["stop_reason"] = "validated_zero_jobs"
+        metadata["scan_complete"] = True
+        metadata["scan_completeness_reason"] = "complete_item_list"
         return []
 
     detail_urls: list[tuple[str, str]] = []
@@ -114,6 +126,12 @@ def fetch_jobs(
     metadata["stop_reason"] = (
         "maximum_results_reached" if len(elements) > maximum_jobs else "collection_exhausted"
     )
+    if len(elements) > maximum_jobs:
+        metadata["scan_completeness_reason"] = "safety_limit_reached"
+        metadata["safety_limit_reached"] = True
+    else:
+        metadata["scan_complete"] = True
+        metadata["scan_completeness_reason"] = "complete_item_list"
     return jobs
 
 

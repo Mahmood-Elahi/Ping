@@ -10,7 +10,13 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 import requests
 from lxml import html
 
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
 
 
 MAX_RESULTS = 50
@@ -44,6 +50,14 @@ def fetch_jobs(
     page_text = " ".join(root.text_content().split())
     if not re.search(str(target.identity_regex), page_text, re.IGNORECASE):
         raise AdapterError("Paycor page has mixed or ambiguous company identity")
+    metadata = SourceScanMetadata(
+        endpoint_variant="career_home_complete_html",
+        pages_requested=1,
+        pages_completed=1,
+        maximum_pages=1,
+        maximum_results=int(target.max_jobs),
+    )
+    publish_source_scan_metadata(session, metadata)
     cards = root.xpath(
         "//div[contains(concat(' ', normalize-space(@class), ' '), "
         "' gnewtonCareerGroupRowClass ')]"
@@ -54,10 +68,17 @@ def fetch_jobs(
             or "no positions available" in page_text.casefold()
             or "currently have no openings" in page_text.casefold()
         ):
+            metadata.update(
+                scan_complete=True,
+                scan_completeness_reason="validated_zero_jobs",
+                total_available=0,
+                stop_reason="validated_zero_jobs",
+            )
             return []
         raise AdapterError("Paycor CareerHome is missing its job-card contract")
     if len(cards) > MAX_RESULTS:
         raise AdapterError("Paycor CareerHome exceeded the hard result limit")
+    metadata["total_available"] = len(cards)
 
     jobs: list[JobRecord] = []
     seen_ids: set[str] = set()
@@ -145,6 +166,14 @@ def fetch_jobs(
                 },
             )
         )
+    if len(cards) > int(target.max_jobs):
+        metadata["scan_completeness_reason"] = "safety_limit_reached"
+        metadata["stop_reason"] = "maximum_results_reached"
+        metadata["safety_limit_reached"] = True
+    else:
+        metadata["scan_complete"] = True
+        metadata["scan_completeness_reason"] = "complete_listing_container"
+        metadata["stop_reason"] = "complete_listing_container"
     return jobs
 
 

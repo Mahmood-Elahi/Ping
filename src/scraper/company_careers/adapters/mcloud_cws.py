@@ -11,7 +11,25 @@ from urllib.parse import parse_qsl, unquote, urljoin, urlparse, urlunparse
 import requests
 
 from src.scraper.company_careers.adapters import static_html
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
+from src.scraper.company_careers.listing_completion import (
+    AdaptiveListingCompletion,
+    PageSizeObservation,
+)
+from src.scraper.company_careers.mutable_collection import (
+    finish_changed,
+    finish_terminal,
+    immutable_job_fingerprint,
+    initialize_mutable_collection,
+    mark_collection_changed,
+    record_total_observation,
+)
 
 
 ENDPOINT_VARIANT = "google_jobs_v1"
@@ -40,9 +58,10 @@ def fetch_jobs(
     validate_target(target)
     maximum_pages = int(target.max_pages)
     maximum_jobs = int(target.max_jobs)
-    page_size = int(target.page_size)
+    configured_page_size = int(target.page_size)
+    page_size = MAX_PAGE_SIZE if configured_page_size == 10 else configured_page_size
     timeout = min(max(1, int(timeout)), MAX_TIMEOUT_SECONDS)
-    metadata: dict[str, Any] = {
+    metadata = SourceScanMetadata(**{
         "endpoint_variant": target.endpoint_variant,
         "request_method": "GET",
         "organization_id": target.organization_id,
@@ -65,8 +84,18 @@ def fetch_jobs(
         "declared_ats_hosts": [],
         "diagnostics": [],
         "warnings": [],
-    }
+    })
     setattr(session, "mcloud_cws_pagination", metadata)
+    publish_source_scan_metadata(session, metadata)
+    initialize_mutable_collection(metadata)
+    listing_budget = AdaptiveListingCompletion(
+        maximum_pages,
+        maximum_jobs,
+        allow_listing_only_second_stage=True,
+    )
+    listing_budget.record(metadata)
+    page_sizes = PageSizeObservation(page_size)
+    page_sizes.record(metadata)
     job_detail_path, declared_ats_hosts = _verify_identity_binding(
         session, target, timeout
     )
@@ -76,12 +105,20 @@ def fetch_jobs(
 
     jobs: list[JobRecord] = []
     seen_ids: set[str] = set()
+    seen_fingerprints: dict[str, tuple[Any, ...]] = {}
     seen_pages: set[tuple[str, ...]] = set()
-    for page_index in range(maximum_pages):
-        if len(jobs) >= maximum_jobs:
+    positions_seen = 0
+    for page_index in range(listing_budget.hard_request_ceiling):
+        effective_jobs = int(
+            metadata.get(
+                "effective_listing_job_ceiling", listing_budget.normal_job_budget
+            )
+        )
+        if len(jobs) >= effective_jobs:
             metadata["stop_reason"] = "maximum_results_reached"
             break
-        offset = page_index * page_size
+        offset = positions_seen
+        metadata["pages_requested"] += 1
         response = _get(
             session,
             str(target.endpoint_url),
@@ -96,8 +133,27 @@ def fetch_jobs(
         )
         _validate_final_url(response, target.allowed_source_hosts, "search endpoint")
         items, total, zero_contract = _parse_response(response, target)
+        metadata["pages_completed"] += 1
         _record_total_observation(metadata, offset, total)
-        identities = tuple(_job_id(item) for item in items)
+        next_positions_seen = positions_seen + len(items)
+        if (
+            not metadata["collection_changed_during_scan"]
+            and next_positions_seen > total
+        ):
+            raise AdapterError("M-Cloud result counts exceed the reported total")
+        page_sizes.observe(
+            len(items), terminal=next_positions_seen >= total
+        )
+        page_sizes.record(metadata)
+        listing_budget.record_decision(
+            metadata,
+            total,
+            page_sizes.effective_size,
+            requests_completed=int(metadata["pages_completed"]),
+            results_observed=next_positions_seen,
+        )
+        effective_jobs = int(metadata["effective_listing_job_ceiling"])
+        identities = tuple(sorted(_job_id(item) for item in items))
         page_record = {
             "page": page_index + 1,
             "offset": offset,
@@ -111,7 +167,8 @@ def fetch_jobs(
         if items and identities in seen_pages:
             metadata["repeated_page"] = True
             metadata["stop_reason"] = "repeated_page"
-            break
+            metadata["scan_completeness_reason"] = "pagination_failure"
+            raise AdapterError("M-Cloud pagination repeated a complete page")
         seen_pages.add(identities)
 
         new_ids = 0
@@ -123,67 +180,83 @@ def fetch_jobs(
                 declared_ats_hosts=declared_ats_hosts,
             )
             if job.job_id in seen_ids:
-                raise AdapterError("M-Cloud returned a duplicate stable job ID")
+                if seen_fingerprints[job.job_id] != immutable_job_fingerprint(job):
+                    metadata["stop_reason"] = "conflicting_repeated_job_id"
+                    metadata["scan_completeness_reason"] = "pagination_failure"
+                    raise AdapterError(
+                        "M-Cloud returned conflicting records for a stable job ID"
+                    )
+                mark_collection_changed(metadata, offset=offset, overlap_count=1)
+                continue
             seen_ids.add(job.job_id)
+            seen_fingerprints[job.job_id] = immutable_job_fingerprint(job)
             jobs.append(job)
             new_ids += 1
-            if len(jobs) >= maximum_jobs:
+            if len(jobs) >= effective_jobs:
                 break
         page_record["jobs_normalized"] = new_ids
         metadata["jobs_normalized"] = len(jobs)
+        positions_seen = next_positions_seen
+
+        if metadata["collection_changed_during_scan"]:
+            finish_changed(metadata, terminal_evidence="collection_changed_during_scan")
+            break
+
+        if items and new_ids == 0:
+            metadata["stop_reason"] = "no_new_stable_ids"
+            metadata["scan_completeness_reason"] = "pagination_failure"
+            raise AdapterError("M-Cloud pagination returned no new stable job IDs")
 
         if page_index == 0 and not items:
             if not zero_contract:
                 raise AdapterError("M-Cloud response did not prove an empty jobs collection")
             metadata["zero_job_contract"] = True
-            metadata["stop_reason"] = "validated_zero_jobs"
+            finish_terminal(
+                metadata,
+                complete_reason="reported_total_reached",
+                stop_reason="validated_zero_jobs",
+            )
             break
         if not items:
-            metadata["stop_reason"] = "empty_page"
+            if metadata["collection_changed_during_scan"]:
+                finish_changed(metadata, terminal_evidence="empty_page_before_reported_total")
+            else:
+                metadata["stop_reason"] = "empty_page_before_reported_total"
+                metadata["scan_completeness_reason"] = "pagination_failure"
             break
-        if len(jobs) >= maximum_jobs:
+        if len(jobs) >= effective_jobs:
             metadata["stop_reason"] = "maximum_results_reached"
             break
         latest_total = metadata["final_total_available"]
-        if latest_total is not None and offset + len(items) >= latest_total:
-            metadata["stop_reason"] = "total_jobs_reached"
+        if latest_total is not None and positions_seen >= latest_total:
+            finish_terminal(
+                metadata,
+                complete_reason="reported_total_reached",
+                stop_reason="total_jobs_reached",
+            )
             break
-        if len(items) < page_size:
-            metadata["stop_reason"] = "short_page"
+        if page_index + 1 >= int(metadata["effective_listing_request_ceiling"]):
+            metadata["stop_reason"] = "maximum_pages_reached"
             break
-        if page_index + 1 < maximum_pages:
+        if page_index + 1 < listing_budget.hard_request_ceiling:
             time.sleep(RETRY_DELAY_SECONDS)
     else:
         metadata["stop_reason"] = "maximum_pages_reached"
+    if metadata["stop_reason"] in {"maximum_results_reached", "maximum_pages_reached"}:
+        metadata["safety_limit_reached"] = True
+        if metadata["collection_changed_during_scan"]:
+            finish_changed(metadata, terminal_evidence=metadata["stop_reason"])
+        else:
+            metadata["scan_completeness_reason"] = "safety_limit_reached"
     return jobs
 
 
 def _record_total_observation(
-    metadata: dict[str, Any], offset: int, total: int
+    metadata: SourceScanMetadata, offset: int, total: int
 ) -> None:
-    previous_total = metadata["final_total_available"]
-    metadata["observed_total_counts"].append(total)
-    if metadata["initial_total_available"] is None:
-        metadata["initial_total_available"] = total
-    elif previous_total is not None and total != previous_total:
-        message = (
-            "M-Cloud total job count changed during pagination: "
-            f"{previous_total} -> {total}"
-        )
-        metadata["total_count_changed"] = True
-        metadata["warnings"].append(message)
-        metadata["diagnostics"].append(
-            {
-                "offset": offset,
-                "level": "warning",
-                "warning": message,
-                "previous_total_available": previous_total,
-                "total_available": total,
-            }
-        )
-    metadata["final_total_available"] = total
-    # Retain the existing field as a compatibility alias for the latest valid hint.
-    metadata["total_available"] = total
+    record_total_observation(
+        metadata, total, offset=offset, source_label="M-Cloud"
+    )
 
 
 def validate_target(target: CompanyTarget) -> None:
@@ -346,8 +419,8 @@ def _parse_response(
         raise AdapterError("M-Cloud totalHits is invalid")
     if not isinstance(items, list) or not all(isinstance(item, Mapping) for item in items):
         raise AdapterError("M-Cloud searchResults is not a job-object list")
-    if len(items) > int(target.page_size) or total < len(items):
-        raise AdapterError("M-Cloud result counts violate the requested contract")
+    if total < len(items):
+        raise AdapterError("M-Cloud result count exceeds the reported total")
     return list(items), total, total == 0 and not items
 
 

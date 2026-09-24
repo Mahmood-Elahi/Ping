@@ -349,7 +349,7 @@ class RegistryValidationTests(unittest.TestCase):
 
     def test_invalid_workday_tenant_site_combination_is_rejected(self):
         session = FakeSession(
-            [FakeResponse(status_code=404, payload={}) for _ in range(3)]
+            [FakeResponse(status_code=404, payload={}) for _ in range(4)]
         )
         result = validator.validate_company(
             target("workday", tenant="wrong", site_id="WrongSite"),
@@ -359,7 +359,8 @@ class RegistryValidationTests(unittest.TestCase):
 
         self.assertEqual(result["validation_status"], validator.INVALID_CONFIGURATION)
         self.assertEqual(result["http_status"], 404)
-        self.assertEqual(len(session.calls), 3)
+        self.assertEqual(len(session.calls), 4)
+        self.assertEqual(session.calls[-1][0], "get")
         self.assertFalse(result["safe_to_activate"])
 
     def test_duplicate_workday_tenant_is_rejected_without_network(self):

@@ -314,8 +314,15 @@ class AdapterExtensionsV4BContractTests(unittest.TestCase):
         first = "".join(card(str(index)) for index in range(1, 16))
         second = "".join(card(str(index)) for index in range(16, 31))
         entry = static_entry(max_pages=2, pagination_url_template="https://jobs.test/list?page={page}")
-        result = rollout.validate_candidate(entry, review(), session_factory=lambda: Session([page(first), page(second)]))
-        self.assertEqual((result["pages_requested"], result["normalized_jobs_inspected"]), (2, 20))
+        result = rollout.validate_candidate(
+            entry,
+            review(),
+            session_factory=lambda: Session([page(first), page(second), page(empty=True)]),
+        )
+        self.assertEqual(
+            (result["pages_requested"], result["normalized_jobs_inspected"]),
+            (3, 20),
+        )
 
     def test_20_bounded_retries_caching_and_response_limits(self):
         session = Session([Response([], status=503), Response([])])

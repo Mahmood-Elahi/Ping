@@ -6,7 +6,13 @@ from typing import List
 
 import requests
 
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
 
 
 HEADERS = {
@@ -29,10 +35,19 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
     search_terms = target.search_terms or DEFAULT_SEARCH_TERMS
     jobs: List[JobRecord] = []
     seen: set[str] = set()
+    by_id: dict[str, JobRecord] = {}
+    metadata = SourceScanMetadata(
+        endpoint_variant="search_terms_offset_v1",
+        maximum_pages=max(1, target.max_pages),
+    )
+    publish_source_scan_metadata(session, metadata)
+    safety_limited = False
 
     for term in search_terms:
+        term_complete = False
         for page in range(max(1, target.max_pages)):
             offset = page * 100
+            metadata["pages_requested"] += 1
             response = session.get(
                 base_url,
                 params={
@@ -48,17 +63,17 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                 raise AdapterError(f"Amazon HTTP {response.status_code}")
 
             items = response.json().get("jobs", []) or []
+            metadata["pages_completed"] += 1
             if not items:
+                term_complete = True
                 break
 
             for item in items:
                 job_id = str(item.get("id", "") or item.get("id_icims", ""))
-                if job_id in seen:
-                    continue
-                seen.add(job_id)
+                if not job_id:
+                    raise AdapterError("Amazon returned a job without a stable ID")
                 location = item.get("normalized_location", "") or item.get("location", "")
-                jobs.append(
-                    JobRecord(
+                job = JobRecord(
                         job_id=job_id,
                         title=item.get("title", ""),
                         company=target.name,
@@ -72,9 +87,33 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                         offices=[location] if location else [],
                         description=item.get("description"),
                     )
-                )
+                if job_id in seen:
+                    existing = by_id[job_id]
+                    if (
+                        existing.title != job.title
+                        or existing.url != job.url
+                        or existing.location != job.location
+                        or existing.updated_at != job.updated_at
+                    ):
+                        raise AdapterError("Amazon returned a conflicting duplicate stable ID")
+                    continue
+                seen.add(job_id)
+                by_id[job_id] = job
+                jobs.append(job)
 
             if len(items) < 100:
+                term_complete = True
                 break
+        if not term_complete:
+            safety_limited = True
 
+    metadata["total_available"] = len(jobs) if not safety_limited else None
+    metadata["scan_complete"] = not safety_limited
+    metadata["scan_completeness_reason"] = (
+        "safety_limit_reached" if safety_limited else "all_search_terms_exhausted"
+    )
+    metadata["stop_reason"] = (
+        "maximum_pages_reached" if safety_limited else "all_search_terms_exhausted"
+    )
+    metadata["safety_limit_reached"] = safety_limited
     return jobs

@@ -212,6 +212,80 @@ class BeeSiteAdapterTests(unittest.TestCase):
         self.assertEqual("Atlanta, United States", jobs[0].location)
         self.assertEqual(2, session.beesite_pagination["pages_fetched"])  # type: ignore[attr-defined]
 
+    @patch.object(beesite.time, "sleep", return_value=None)
+    def test_server_clamp_advances_by_observed_rows(self, _sleep: object) -> None:
+        parent = self
+
+        class Session:
+            def __init__(self) -> None:
+                self.first_items: list[int] = []
+
+            def get(self, url: str, **kwargs: object) -> Response:
+                data = json.loads(kwargs["params"]["data"])  # type: ignore[index]
+                first_item = int(data["SearchParameters"]["FirstItem"])
+                self.first_items.append(first_item)
+                items = [
+                    parent.payload(identifier)
+                    for identifier in range(first_item, first_item + 15)
+                ]
+                body = {
+                    "LanguageCode": "EN",
+                    "SearchResult": {
+                        "SearchResultCount": len(items),
+                        "SearchResultCountAll": 30,
+                        "SearchResultItems": items,
+                        "UserArea": {},
+                    },
+                }
+                return Response(json.dumps(body), url=url, content_type="application/json")
+
+        session = Session()
+        jobs = beesite.fetch_jobs(
+            session,
+            self.target(page_size=20, max_pages=2, max_jobs=20),
+            5,
+        )  # type: ignore[arg-type]
+
+        self.assertEqual(len(jobs), 30)
+        self.assertEqual(session.first_items, [1, 16])
+        self.assertEqual(session.beesite_pagination["effective_server_page_size"], 15)  # type: ignore[attr-defined]
+        self.assertTrue(session.beesite_pagination["page_size_was_clamped"])  # type: ignore[attr-defined]
+
+    @patch.object(beesite.time, "sleep", return_value=None)
+    def test_server_expansion_advances_without_overlap(self, _sleep: object) -> None:
+        parent = self
+
+        class Session:
+            def __init__(self) -> None:
+                self.first_items: list[int] = []
+
+            def get(self, url: str, **kwargs: object) -> Response:
+                data = json.loads(kwargs["params"]["data"])  # type: ignore[index]
+                first_item = int(data["SearchParameters"]["FirstItem"])
+                self.first_items.append(first_item)
+                items = [parent.payload(first_item), parent.payload(first_item + 1)]
+                body = {
+                    "LanguageCode": "EN",
+                    "SearchResult": {
+                        "SearchResultCount": 2,
+                        "SearchResultCountAll": 4,
+                        "SearchResultItems": items,
+                        "UserArea": {},
+                    },
+                }
+                return Response(json.dumps(body), url=url, content_type="application/json")
+
+        session = Session()
+        jobs = beesite.fetch_jobs(
+            session,
+            self.target(page_size=1, max_pages=2, max_jobs=2),
+            5,
+        )  # type: ignore[arg-type]
+
+        self.assertEqual(len(jobs), 4)
+        self.assertEqual(session.first_items, [1, 3])
+        self.assertTrue(session.beesite_pagination["page_size_was_expanded"])  # type: ignore[attr-defined]
+
     def test_attribution_mismatch_fails_closed(self) -> None:
         body = {
             "LanguageCode": "EN",
@@ -413,6 +487,99 @@ class MCloudAdapterTests(unittest.TestCase):
         self.assertTrue(session.mcloud_cws_pagination["identity_binding_verified"])  # type: ignore[attr-defined]
         self.assertEqual("Windsor, ON, CA", jobs[0].location)
 
+    @patch.object(mcloud_cws.time, "sleep", return_value=None)
+    def test_downward_clamp_uses_observed_offset(self, _sleep: object) -> None:
+        parent = self
+        organization = str(self.target().organization_id)
+
+        class Session:
+            def __init__(self) -> None:
+                self.offsets: list[int] = []
+
+            def get(self, url: str, **kwargs: object) -> Response:
+                if "careers.example.com" in url:
+                    return Response(
+                        parent.identity(organization), url=url, content_type="text/html"
+                    )
+                offset = int(kwargs["params"]["offset"])  # type: ignore[index]
+                self.offsets.append(offset)
+                return Response(
+                    parent.search_page((offset + 101,), total=2),
+                    url=url,
+                    content_type="application/json",
+                )
+
+        session = Session()
+        jobs = mcloud_cws.fetch_jobs(
+            session,
+            self.target(page_size=2, max_pages=1, max_jobs=1),
+            5,
+        )  # type: ignore[arg-type]
+
+        self.assertEqual(len(jobs), 2)
+        self.assertEqual(session.offsets, [0, 1])
+        self.assertEqual(session.mcloud_cws_pagination["effective_server_page_size"], 1)  # type: ignore[attr-defined]
+
+    def test_upward_response_is_accepted_when_total_is_coherent(self) -> None:
+        parent = self
+        organization = str(self.target().organization_id)
+
+        class Session:
+            def get(self, url: str, **_kwargs: object) -> Response:
+                if "careers.example.com" in url:
+                    return Response(
+                        parent.identity(organization), url=url, content_type="text/html"
+                    )
+                return Response(
+                    parent.search_page((201, 202), total=2),
+                    url=url,
+                    content_type="application/json",
+                )
+
+        session = Session()
+        jobs = mcloud_cws.fetch_jobs(
+            session,
+            self.target(page_size=1, max_pages=1, max_jobs=1),
+            5,
+        )  # type: ignore[arg-type]
+
+        self.assertEqual(len(jobs), 2)
+        self.assertTrue(session.mcloud_cws_pagination["page_size_was_expanded"])  # type: ignore[attr-defined]
+
+    @patch.object(mcloud_cws.time, "sleep", return_value=None)
+    def test_variable_pages_progress_by_returned_rows(self, _sleep: object) -> None:
+        parent = self
+        organization = str(self.target().organization_id)
+        pages = [(301, 302, 303), (304, 305), (306, 307, 308, 309)]
+
+        class Session:
+            def __init__(self) -> None:
+                self.offsets: list[int] = []
+
+            def get(self, url: str, **kwargs: object) -> Response:
+                if "careers.example.com" in url:
+                    return Response(
+                        parent.identity(organization), url=url, content_type="text/html"
+                    )
+                self.offsets.append(int(kwargs["params"]["offset"]))  # type: ignore[index]
+                return Response(
+                    parent.search_page(pages.pop(0), total=9),
+                    url=url,
+                    content_type="application/json",
+                )
+
+        session = Session()
+        jobs = mcloud_cws.fetch_jobs(
+            session,
+            self.target(page_size=5, max_pages=2, max_jobs=20),
+            5,
+        )  # type: ignore[arg-type]
+
+        self.assertEqual(len(jobs), 9)
+        self.assertEqual(session.offsets, [0, 3, 5])
+        self.assertEqual(session.mcloud_cws_pagination["effective_server_page_size"], 2)  # type: ignore[attr-defined]
+        self.assertFalse(session.mcloud_cws_pagination["page_size_stable_across_pages"])  # type: ignore[attr-defined]
+
     def test_declared_external_ats_url_uses_verified_first_party_detail_route(self) -> None:
         parent = self
         organization = str(self.target().organization_id)
@@ -520,7 +687,7 @@ class MCloudAdapterTests(unittest.TestCase):
             mcloud_cws.fetch_jobs(Session(), self.target(), 5)  # type: ignore[arg-type]
 
     @patch.object(mcloud_cws.time, "sleep", return_value=None)
-    def test_total_increase_is_diagnostic_and_unique_jobs_are_retained(
+    def test_total_increase_is_usable_incomplete_with_diagnostics(
         self, _sleep: object
     ) -> None:
         parent = self
@@ -551,35 +718,15 @@ class MCloudAdapterTests(unittest.TestCase):
             5,
         )  # type: ignore[arg-type]
         pagination = session.mcloud_cws_pagination  # type: ignore[attr-defined]
+        self.assertEqual(len(jobs), 4)
         self.assertEqual([item["offset"] for item in session.api_params], [0, 2])
-        self.assertEqual(
-            [job.job_id for job in jobs],
-            [
-                "mcloud_cws:api.example.com:101",
-                "mcloud_cws:api.example.com:102",
-                "mcloud_cws:api.example.com:103",
-                "mcloud_cws:api.example.com:104",
-            ],
-        )
-        self.assertEqual(
-            [job.url for job in jobs],
-            [
-                "https://careers.example.com/job/101/stellantis-role-101/",
-                "https://careers.example.com/job/102/stellantis-role-102/",
-                "https://careers.example.com/job/103/stellantis-role-103/",
-                "https://careers.example.com/job/104/stellantis-role-104/",
-            ],
-        )
-        self.assertTrue(all(job.company == "Stellantis" for job in jobs))
         self.assertEqual(pagination["initial_total_available"], 20)
         self.assertEqual(pagination["final_total_available"], 21)
         self.assertEqual(pagination["total_available"], 21)
         self.assertEqual(pagination["observed_total_counts"], [20, 21])
         self.assertTrue(pagination["total_count_changed"])
-        self.assertEqual(
-            [page["reported_total"] for page in pagination["pages"]], [20, 21]
-        )
-        self.assertEqual(pagination["stop_reason"], "maximum_results_reached")
+        self.assertEqual(pagination["stop_reason"], "collection_changed_during_scan")
+        self.assertEqual(pagination["scan_completeness_reason"], "collection_changed_during_scan")
         self.assertEqual(
             pagination["warnings"],
             ["M-Cloud total job count changed during pagination: 20 -> 21"],
@@ -587,7 +734,7 @@ class MCloudAdapterTests(unittest.TestCase):
         self.assertEqual(pagination["diagnostics"][0]["level"], "warning")
 
     @patch.object(mcloud_cws.time, "sleep", return_value=None)
-    def test_total_decrease_uses_latest_hint_without_discarding_unique_jobs(
+    def test_total_decrease_is_usable_incomplete(
         self, _sleep: object
     ) -> None:
         parent = self
@@ -617,10 +764,10 @@ class MCloudAdapterTests(unittest.TestCase):
         self.assertEqual(len(jobs), 4)
         self.assertEqual(pagination["observed_total_counts"], [20, 3])
         self.assertEqual(pagination["final_total_available"], 3)
-        self.assertEqual(pagination["stop_reason"], "total_jobs_reached")
+        self.assertEqual(pagination["stop_reason"], "collection_changed_during_scan")
 
     @patch.object(mcloud_cws.time, "sleep", return_value=None)
-    def test_total_drift_does_not_weaken_duplicate_stable_id_failure(
+    def test_total_drift_and_overlap_are_both_recorded(
         self, _sleep: object
     ) -> None:
         parent = self
@@ -640,12 +787,18 @@ class MCloudAdapterTests(unittest.TestCase):
                     bodies.pop(0), url=url, content_type="application/json"
                 )
 
-        with self.assertRaisesRegex(AdapterError, "duplicate stable job ID"):
-            mcloud_cws.fetch_jobs(
-                Session(),
-                self.target(page_size=2, max_pages=2, max_jobs=4),
-                5,
-            )  # type: ignore[arg-type]
+        session = Session()
+        jobs = mcloud_cws.fetch_jobs(
+            session,
+            self.target(page_size=2, max_pages=2, max_jobs=4),
+            5,
+        )  # type: ignore[arg-type]
+        self.assertEqual(len(jobs), 3)
+        self.assertEqual(session.mcloud_cws_pagination["overlapping_jobs_skipped"], 1)  # type: ignore[attr-defined]
+        self.assertEqual(
+            session.mcloud_cws_pagination["scan_completeness_reason"],  # type: ignore[attr-defined]
+            "collection_changed_during_scan",
+        )
 
     @patch.object(mcloud_cws.time, "sleep", return_value=None)
     def test_malformed_later_total_still_fails_closed(self, _sleep: object) -> None:

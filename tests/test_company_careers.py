@@ -31,6 +31,7 @@ from src.scraper.company_careers.models import (
     JobRecord,
     SourceScanMetadata,
     publish_source_scan_metadata,
+    source_scan_metadata,
 )
 from src.scraper.company_careers.relevance import rank_jobs, score_job
 from src.scraper.company_careers.scanner import CompanyCareersScanner
@@ -49,11 +50,13 @@ from src.utils.job_search_pipeline import JobSearchPipeline
 
 
 class FakeResponse:
-    def __init__(self, payload, status_code=200, text=None, headers=None):
+    def __init__(self, payload, status_code=200, text=None, headers=None, url=None):
         self.payload = payload
         self.status_code = status_code
         self.text = text if text is not None else json.dumps(payload)
         self.headers = dict(headers or {})
+        self.content = self.text.encode("utf-8")
+        self.url = url
 
     def json(self):
         return self.payload
@@ -631,6 +634,188 @@ class CompanyCareersTests(unittest.TestCase):
         self.assertIn("/en-US/ExternalCareers/job/Remote", jobs[0].url)
         self.assertEqual(len(session.post_calls), 4)
 
+    def test_workday_discovers_and_validates_replacement_site_metadata(self):
+        host = "example.wd1.myworkdayjobs.com"
+        replacement = "External_Careers"
+        session = FakeSession(
+            get_responses=[
+                FakeResponse(
+                    {},
+                    text=f'<a href="https://{host}/en-US/{replacement}/jobs">Jobs</a>',
+                    headers={"content-type": "text/html"},
+                    url="https://careers.example.com/jobs",
+                ),
+                FakeResponse(
+                    {},
+                    text=(
+                        'window.workday = { "tenant": "example", '
+                        f'"siteId": "{replacement}" }};'
+                    ),
+                    headers={"content-type": "text/html"},
+                    url=f"https://{host}/en-US/{replacement}",
+                ),
+            ],
+            post_responses=[
+                FakeResponse({}, status_code=422),
+                FakeResponse({}, status_code=422),
+                FakeResponse({}, status_code=422),
+                FakeResponse(
+                    {
+                        "total": 1,
+                        "jobPostings": [
+                            {
+                                "title": "Controls Engineer",
+                                "locationsText": "Calgary, AB",
+                                "externalPath": "/job/Calgary/Controls-Engineer_R10001",
+                                "bulletFields": ["R10001"],
+                            }
+                        ],
+                    }
+                ),
+            ],
+        )
+        target = CompanyTarget(
+            name="Example",
+            platform="workday",
+            tenant="example",
+            wd_subdomain="wd1",
+            site_id="External",
+            careers_url="https://careers.example.com/jobs",
+            max_pages=1,
+        )
+
+        jobs = workday.fetch_jobs(session, target)
+
+        self.assertEqual([job.job_id for job in jobs], ["R10001"])
+        self.assertIn(f"/en-US/{replacement}/job/Calgary", jobs[0].url)
+        self.assertEqual(len(session.get_calls), 2)
+        self.assertEqual(len(session.post_calls), 4)
+        metadata = getattr(session, "job_radar_scan_metadata")
+        self.assertEqual(metadata["site_discovery"], "authoritative_workday_metadata")
+        self.assertEqual(metadata["resolved_site_id"], replacement)
+
+    def test_workday_rejects_unverified_or_cross_tenant_discovery(self):
+        host = "example.wd1.myworkdayjobs.com"
+        session = FakeSession(
+            get_responses=[
+                FakeResponse(
+                    {},
+                    text=f'<a href="https://{host}/OtherSite/jobs">Jobs</a>',
+                    headers={"content-type": "text/html"},
+                    url="https://careers.example.com/jobs",
+                ),
+                FakeResponse(
+                    {},
+                    text='window.workday = { tenant: "other", siteId: "OtherSite" };',
+                    headers={"content-type": "text/html"},
+                    url=f"https://{host}/OtherSite",
+                ),
+            ],
+            post_responses=[FakeResponse({}, status_code=422) for _ in range(3)],
+        )
+        target = CompanyTarget(
+            name="Example",
+            platform="workday",
+            tenant="example",
+            wd_subdomain="wd1",
+            site_id="External",
+            careers_url="https://careers.example.com/jobs",
+            max_pages=1,
+        )
+
+        with self.assertRaisesRegex(AdapterError, "HTTP 422") as caught:
+            workday.fetch_jobs(session, target)
+
+        self.assertEqual(len(session.post_calls), 3)
+        self.assertIn("configured_sites=[External]", str(caught.exception))
+        self.assertIn("candidate_sites=[OtherSite]", str(caught.exception))
+        self.assertIn("tenant/site metadata mismatch", str(caught.exception))
+        metadata = getattr(session, "job_radar_scan_metadata")
+        diagnostic = metadata["diagnostics"][-1]
+        self.assertEqual(diagnostic["kind"], "workday_site_discovery")
+        self.assertEqual(diagnostic["candidate_site_ids"], ["OtherSite"])
+
+    def test_workday_discovery_reports_rejected_candidate_hostname(self):
+        candidate_host = "other.wd3.myworkdayjobs.com"
+        session = FakeSession(
+            get_responses=[
+                FakeResponse(
+                    {},
+                    text=f'<a href="https://{candidate_host}/OtherSite/jobs">Jobs</a>',
+                    headers={"content-type": "text/html"},
+                    url="https://careers.example.com/jobs",
+                ),
+            ],
+            post_responses=[FakeResponse({}, status_code=422) for _ in range(3)],
+        )
+        target = CompanyTarget(
+            name="Example",
+            platform="workday",
+            tenant="example",
+            wd_subdomain="wd1",
+            site_id="External",
+            careers_url="https://careers.example.com/jobs",
+            max_pages=1,
+        )
+
+        with self.assertRaisesRegex(
+            AdapterError, "candidate hostname tenant does not match configured tenant"
+        ):
+            workday.fetch_jobs(session, target)
+
+        diagnostic = getattr(session, "job_radar_scan_metadata")["diagnostics"][-1]
+        self.assertEqual(diagnostic["candidate_hostnames"], [candidate_host])
+        self.assertEqual(diagnostic["candidate_site_ids"], ["OtherSite"])
+
+    def test_workday_accepts_verified_same_tenant_alternate_wd_hostname(self):
+        candidate_host = "example.wd3.myworkdayjobs.com"
+        session = FakeSession(
+            get_responses=[
+                FakeResponse(
+                    {},
+                    text=f'<a href="https://{candidate_host}/OtherSite/jobs">Jobs</a>',
+                    headers={"content-type": "text/html"},
+                    url="https://careers.example.com/jobs",
+                ),
+                FakeResponse(
+                    {},
+                    text='window.workday={"tenant":"example","siteId":"OtherSite"};',
+                    headers={"content-type": "text/html"},
+                    url=f"https://{candidate_host}/OtherSite",
+                ),
+            ],
+            post_responses=[
+                FakeResponse({}, status_code=422),
+                FakeResponse({}, status_code=422),
+                FakeResponse({}, status_code=422),
+                FakeResponse({
+                    "total": 1,
+                    "jobPostings": [{
+                        "title": "Systems Engineer",
+                        "locationsText": "Austin, TX",
+                        "externalPath": "/job/Austin/Systems-Engineer_R20001",
+                        "bulletFields": ["R20001"],
+                    }],
+                }),
+            ],
+        )
+        target = CompanyTarget(
+            name="Example",
+            platform="workday",
+            tenant="example",
+            wd_subdomain="wd1",
+            site_id="External",
+            careers_url="https://careers.example.com/jobs",
+            max_pages=1,
+        )
+
+        jobs = workday.fetch_jobs(session, target)
+
+        self.assertEqual(len(jobs), 1)
+        self.assertTrue(jobs[0].url.startswith(f"https://{candidate_host}/"))
+        metadata = getattr(session, "job_radar_scan_metadata")
+        self.assertEqual(metadata["resolved_hostname"], candidate_host)
+
     def test_amazon_normalization_and_dedupe(self):
         session = FakeSession(
             get_responses=[
@@ -792,6 +977,30 @@ class CompanyCareersTests(unittest.TestCase):
         self.assertEqual(jobs[0].departments, ["Engineering"])
         self.assertIn("Build products.", jobs[0].description)
 
+    def test_atlassian_identical_duplicate_is_retained_as_mutable_incomplete(self):
+        item = {
+            "id": 24880,
+            "title": "Principal Software Engineer",
+            "locations": ["Remote - Remote"],
+            "category": "Engineering",
+            "applyUrl": "https://careers-americas.icims.com/jobs/24880/job?mode=apply",
+            "portalJobPost": {"updatedDate": "2026-04-13 03:26 AM"},
+        }
+        session = FakeSession(get_responses=[FakeResponse([item, dict(item)])])
+
+        jobs = atlassian.fetch_jobs(
+            session, CompanyTarget(name="Atlassian", platform="atlassian")
+        )
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(len(jobs), 1)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["overlapping_jobs_skipped"], 1)
+        self.assertEqual(
+            metadata["scan_completeness_reason"],
+            "collection_changed_during_scan",
+        )
+
     def test_uber_normalization(self):
         listing = """<!doctype html><html><body>
         <div data-slot="card" data-id="156408">
@@ -908,8 +1117,27 @@ class CompanyCareersTests(unittest.TestCase):
 
         self.assertEqual(report.results[0].status, CoverageStatus.FAILED_TECHNICAL)
         self.assertIn("HTTP 404", report.results[0].error)
-        self.assertEqual(report.results[0].error_type, "stale_company_configuration")
+        self.assertEqual(report.results[0].error_type, "stale_board_identifier")
         self.assertIn("current official career board", report.results[0].remediation)
+
+    def test_scanner_distinguishes_migration_unresolved_and_protocol_failures(self):
+        cases = (
+            (
+                "Cornerstone CSOD official careers page did not link the configured tenant and site",
+                "probable_ats_migration",
+            ),
+            (
+                "Workday HTTP 422 (candidate_sites=[none]; discovery_status=no_valid_candidate)",
+                "source_unresolved",
+            ),
+            ("Example adapter HTTP 400", "adapter_protocol_failure"),
+            ("Official careers page blocked response HTTP 403", "official_page_blocked"),
+        )
+        for error, expected in cases:
+            with self.subTest(error=error):
+                actual, remediation = CompanyCareersScanner._adapter_failure_details(error)
+                self.assertEqual(actual, expected)
+                self.assertTrue(remediation)
 
     def test_scanner_does_not_infer_completeness_from_a_short_unproven_result(self):
         def unproven_adapter(session, target, timeout):
@@ -1220,6 +1448,68 @@ class CompanyCareersTests(unittest.TestCase):
             report.results[1].scan_completeness_reason,
             "browser_batch_startup_failure",
         )
+
+    def test_browser_terminal_metadata_is_propagated_without_unbounded_work(self):
+        class FakeBrowserBatch:
+            def __init__(self, timeout=30):
+                self.timeout = timeout
+                self.last_run = {}
+
+            def __enter__(self):
+                return self
+
+            def close(self):
+                return None
+
+            def fetch_jobs(self, target, timeout):
+                stop = (
+                    "no_next_page"
+                    if target.name == "Terminal"
+                    else "no_pagination_configured"
+                )
+                self.last_run = {
+                    "static_parser": SourceScanMetadata(
+                        scan_complete=True,
+                        scan_completeness_reason="validated_html_terminal",
+                        total_available=25,
+                        pages_requested=1,
+                        pages_completed=1,
+                        stop_reason=stop,
+                    )
+                }
+                return [
+                    JobRecord(
+                        job_id=f"browser:{target.name}",
+                        title="Engineer",
+                        company=target.name,
+                        location="Remote",
+                        url="https://example.test/job/1",
+                        updated_at="",
+                        source="browser:test",
+                    )
+                ]
+
+        with patch.object(
+            scanner_module.browser_rendered_html,
+            "BrowserBatch",
+            FakeBrowserBatch,
+        ):
+            report = CompanyCareersScanner(
+                targets=[
+                    CompanyTarget(name="Terminal", platform="browser_rendered_html"),
+                    CompanyTarget(name="Needs Scroll", platform="browser_rendered_html"),
+                ],
+                session=FakeSession(),
+            ).scan()
+
+        by_name = {row.target.name: row for row in report.results}
+        self.assertTrue(by_name["Terminal"].scan_complete)
+        self.assertFalse(by_name["Needs Scroll"].scan_complete)
+        self.assertEqual(
+            by_name["Needs Scroll"].scan_completeness_reason,
+            "browser_exhaustion_not_proven",
+        )
+        self.assertEqual(by_name["Needs Scroll"].fetched_count, 1)
 
     def test_scanner_reports_fetched_no_matching_roles(self):
         session = FakeSession(

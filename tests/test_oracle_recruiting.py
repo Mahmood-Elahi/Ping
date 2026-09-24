@@ -8,7 +8,11 @@ import requests
 
 from scripts import validate_company_registry as validator
 from src.scraper.company_careers.adapters import oracle_recruiting
-from src.scraper.company_careers.models import AdapterError, CompanyTarget
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    source_scan_metadata,
+)
 from src.scraper.company_careers.registry import load_target_companies
 
 
@@ -224,6 +228,11 @@ class OracleRecruitingAdapterTests(unittest.TestCase):
             job.source,
             "oracle_recruiting:example.fa.us2.oraclecloud.com:cx_1",
         )
+        metadata = source_scan_metadata(session)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["scan_completeness_reason"], "reported_total_reached")
+        self.assertEqual(metadata["total_available"], 1)
+        self.assertEqual((metadata["pages_requested"], metadata["pages_completed"]), (1, 1))
 
     def test_supported_organization_identifier_is_sent_as_finder_parameter(self):
         session = FakeSession([FakeResponse(payload([], total=0))])
@@ -244,8 +253,8 @@ class OracleRecruitingAdapterTests(unittest.TestCase):
         second = [requisition(str(index)) for index in range(24, 48)]
         session = FakeSession(
             [
-                FakeResponse(payload(first, total=100, offset=0)),
-                FakeResponse(payload(second, total=100, offset=24)),
+                FakeResponse(payload(first, total=6_000, offset=0)),
+                FakeResponse(payload(second, total=6_000, offset=24)),
             ]
         )
 
@@ -256,6 +265,11 @@ class OracleRecruitingAdapterTests(unittest.TestCase):
         finders = [call[1]["params"]["finder"] for call in session.calls]
         self.assertIn("limit=24,offset=0,sortBy=POSTING_DATES_DESC", finders[0])
         self.assertIn("limit=24,offset=24,sortBy=POSTING_DATES_DESC", finders[1])
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertTrue(metadata["safety_limit_reached"])
+        self.assertEqual(metadata["stop_reason"], "maximum_pages_reached")
+        self.assertEqual(metadata["total_available"], 6_000)
 
     def test_max_pages_above_hard_limit_is_rejected_without_network(self):
         session = FakeSession([])
@@ -264,11 +278,51 @@ class OracleRecruitingAdapterTests(unittest.TestCase):
         self.assertEqual(session.calls, [])
 
     def test_valid_zero_job_response(self):
-        jobs = oracle_recruiting.fetch_jobs(
-            FakeSession([FakeResponse(payload([], total=0))]),
-            target(max_pages=1),
-        )
+        session = FakeSession([FakeResponse(payload([], total=0))])
+        jobs = oracle_recruiting.fetch_jobs(session, target(max_pages=1))
         self.assertEqual(jobs, [])
+        self.assertTrue(source_scan_metadata(session)["scan_complete"])
+
+    @patch.object(oracle_recruiting.time, "sleep", return_value=None)
+    def test_changing_total_and_repeated_ids_fail_closed(self, _sleep):
+        first = [requisition(str(index)) for index in range(24)]
+        changed = FakeSession(
+            [
+                FakeResponse(payload(first, total=48, offset=0)),
+                FakeResponse(
+                    payload(
+                        [requisition(str(index)) for index in range(24, 48)],
+                        total=49,
+                        offset=24,
+                    )
+                ),
+            ]
+        )
+        with self.assertRaisesRegex(AdapterError, "changed during pagination"):
+            oracle_recruiting.fetch_jobs(changed, target(max_pages=2))
+        changed_metadata = source_scan_metadata(changed)
+        self.assertFalse(changed_metadata["scan_complete"])
+        self.assertEqual(changed_metadata["scan_completeness_reason"], "inconsistent_total")
+
+        repeated = FakeSession(
+            [
+                FakeResponse(payload(first, total=25, offset=0)),
+                FakeResponse(payload([requisition("0")], total=25, offset=24)),
+            ]
+        )
+        with self.assertRaisesRegex(AdapterError, "repeated stable job ID"):
+            oracle_recruiting.fetch_jobs(repeated, target(max_pages=2))
+        repeated_metadata = source_scan_metadata(repeated)
+        self.assertFalse(repeated_metadata["scan_complete"])
+        self.assertEqual(repeated_metadata["stop_reason"], "repeated_job_id")
+
+    def test_short_page_before_reported_total_fails_closed(self):
+        session = FakeSession(
+            [FakeResponse(payload([requisition("1")], total=2, offset=0))]
+        )
+        with self.assertRaisesRegex(AdapterError, "short page ended before"):
+            oracle_recruiting.fetch_jobs(session, target(max_pages=1))
+        self.assertFalse(source_scan_metadata(session)["scan_complete"])
 
     def test_malformed_http_200_is_rejected(self):
         with self.assertRaisesRegex(AdapterError, "search envelope"):

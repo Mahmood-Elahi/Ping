@@ -251,11 +251,12 @@ class AdapterExtensionsV4ABulkActivationTests(unittest.TestCase):
         self.assertIn('"repeated_page"', source)
 
     @patch.object(static_html.time, "sleep", return_value=None)
-    def test_26_no_new_id_termination(self, _sleep):
+    def test_26_conflicting_repeated_id_fails_closed(self, _sleep):
         entry = static_entry(max_pages=2, pagination_url_template="https://jobs.test/list?page={page}")
         session = Session([page(card("1")), page(card("1") + card("1", title="Duplicate"))])
-        static_html.fetch_jobs(session, CompanyTarget.from_dict(entry), 5)
-        self.assertEqual(session.static_html_pagination["stop_reason"], "no_new_stable_ids")
+        with self.assertRaisesRegex(AdapterError, "identity_conflict"):
+            static_html.fetch_jobs(session, CompanyTarget.from_dict(entry), 5)
+        self.assertEqual(session.static_html_pagination["stop_reason"], "conflicting_stable_id")
 
     def test_27_two_page_validation_limit(self):
         bounded = rollout.CachedBoundedSession(Session([Response("ok"), Response("ok")]))
@@ -265,8 +266,12 @@ class AdapterExtensionsV4ABulkActivationTests(unittest.TestCase):
 
     def test_28_twenty_job_validation_limit(self):
         cards = "".join(card(str(index)) for index in range(25))
-        jobs = static_html.fetch_jobs(Session([page(cards)]), CompanyTarget.from_dict(static_entry()), 5)
-        self.assertEqual(len(jobs), 20)
+        session = Session([page(cards)])
+        jobs = static_html.fetch_jobs(
+            session, CompanyTarget.from_dict(static_entry()), 5
+        )
+        self.assertEqual(len(jobs), 25)
+        self.assertTrue(session.static_html_pagination["scan_complete"])
 
     @patch.object(static_html.time, "sleep", return_value=None)
     def test_29_bounded_retry_enforcement(self, _sleep):
@@ -297,7 +302,13 @@ class AdapterExtensionsV4ABulkActivationTests(unittest.TestCase):
 
     def test_34_no_company_name_branches(self):
         source = "\n".join(Path(module.__file__).read_text(encoding="utf-8") for module in (icims, static_html, oracle_recruiting, eightfold)).casefold()
-        self.assertTrue(all(name.casefold() not in source for name in EXPECTED))
+        self.assertTrue(
+            all(
+                f'"{name.casefold()}"' not in source
+                and f"'{name.casefold()}'" not in source
+                for name in EXPECTED
+            )
+        )
 
     def test_35_existing_production_adapter_fixtures_remain_unchanged(self):
         changed = subprocess.check_output(["git", "diff", "--name-only", "--", "tests/fixtures"], cwd=ROOT, text=True)

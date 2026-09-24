@@ -18,6 +18,7 @@ from lxml import html
 
 from src.scraper.company_careers.adapters import static_html
 from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.listing_completion import ABSOLUTE_LISTING_JOB_CEILING
 
 
 MAX_TIMEOUT_SECONDS = 30
@@ -249,8 +250,8 @@ class BrowserBatch:
             page = context.new_page()
             rendered_session = _RenderedSession(page, target, timeout or self.timeout)
             jobs = static_html.fetch_jobs(rendered_session, _static_target(target), timeout or self.timeout)
-            if len(jobs) > MAX_RESULTS:
-                raise AdapterError("Browser-rendered normalized job limit exceeded")
+            if len(jobs) > ABSOLUTE_LISTING_JOB_CEILING:
+                raise AdapterError("Browser-rendered normalized job hard limit exceeded")
             for job in jobs:
                 job.job_id = job.job_id.replace("static_html:", "browser_rendered_html:", 1)
                 job.source = job.source.replace("static_html:", "browser_rendered_html:", 1)

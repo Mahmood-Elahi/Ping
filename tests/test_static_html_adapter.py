@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 from unittest.mock import patch
+import json
 
 import requests
 
@@ -31,6 +32,24 @@ class Session:
             raise value
         value.url = url
         return value
+
+
+class StreamingResponse:
+    def __init__(self, chunks, status=200):
+        self.chunks = list(chunks)
+        self.status_code = status
+        self.headers = {"content-type": "text/html"}
+        self.url = "https://jobs.example.test/jobs"
+        self.yielded = 0
+        self.closed = False
+
+    def iter_content(self, **_kwargs):
+        for chunk in self.chunks:
+            self.yielded += 1
+            yield chunk
+
+    def close(self):
+        self.closed = True
 
 
 def page(cards: str = "", extra: str = "") -> str:
@@ -84,9 +103,22 @@ class StaticHTMLAdapterTests(unittest.TestCase):
 
     @patch("src.scraper.company_careers.adapters.static_html.time.sleep", lambda _: None)
     def test_08_page_number_pagination_and_limit(self):
-        session = Session(Response(page(card("1", href="/jobs/1"))), Response(page(card("2", href="/jobs/2"))))
-        jobs = static_html.fetch_jobs(session, target(max_pages=2, pagination_url_template="https://jobs.example.test/jobs?page={page}"))
+        session = Session(
+            Response(page(card("1", href="/jobs/1"))),
+            Response(page(card("2", href="/jobs/2"))),
+            Response(page(extra="<p class='empty'>No jobs</p>")),
+        )
+        jobs = static_html.fetch_jobs(
+            session,
+            target(
+                max_pages=2,
+                pagination_url_template="https://jobs.example.test/jobs?page={page}",
+                empty_selector="p.empty",
+            ),
+        )
         self.assertEqual([job.job_id.rsplit(":", 1)[-1] for job in jobs], ["1", "2"])
+        self.assertEqual(len(session.calls), 3)
+        self.assertTrue(session.static_html_pagination["scan_complete"])
 
     @patch("src.scraper.company_careers.adapters.static_html.time.sleep", lambda _: None)
     def test_09_next_link_pagination(self):
@@ -101,10 +133,14 @@ class StaticHTMLAdapterTests(unittest.TestCase):
         self.assertEqual(session.static_html_pagination["stop_reason"], "repeated_page")
 
     @patch("src.scraper.company_careers.adapters.static_html.time.sleep", lambda _: None)
-    def test_11_no_new_id_termination(self):
+    def test_11_repeated_stable_id_with_conflicting_url_fails_closed(self):
         session = Session(Response(page(card("1", href="/jobs/a"))), Response(page(card("1", href="/jobs/b"))))
-        static_html.fetch_jobs(session, target(max_pages=2, pagination_url_template="https://jobs.example.test/jobs?page={page}"))
-        self.assertEqual(session.static_html_pagination["stop_reason"], "no_new_stable_ids")
+        with self.assertRaisesRegex(AdapterError, "identity_conflict"):
+            static_html.fetch_jobs(
+                session,
+                target(max_pages=2, pagination_url_template="https://jobs.example.test/jobs?page={page}"),
+            )
+        self.assertEqual(session.static_html_pagination["stop_reason"], "conflicting_stable_id")
 
     def test_12_valid_zero_job_page(self):
         t = target(empty_selector="p.empty")
@@ -143,7 +179,10 @@ class StaticHTMLAdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(AdapterError, "hard maximum"):
             static_html.validate_target(target(max_pages=3))
         many = "".join(card(str(i), href=f"/jobs/{i}") for i in range(30))
-        self.assertEqual(len(static_html.fetch_jobs(Session(Response(page(many))), target(max_jobs=4))), 4)
+        session = Session(Response(page(many)))
+        self.assertEqual(len(static_html.fetch_jobs(session, target(max_jobs=4))), 30)
+        self.assertTrue(session.static_html_pagination["scan_complete"])
+        self.assertEqual(session.static_html_pagination["total_available"], 30)
 
     def test_20_unsupported_selector_and_regex_contracts(self):
         with self.assertRaisesRegex(AdapterError, "unsupported construct"):
@@ -184,6 +223,248 @@ class StaticHTMLAdapterTests(unittest.TestCase):
             static_html.fetch_jobs(Session(Response(body)), target(
                 external_id_attribute=None, external_id_selector="span.req"
             ))
+
+    def test_25_json_ld_jobposting_precedes_changed_html_contract(self):
+        payload = {
+            "@type": "ItemList",
+            "numberOfItems": 1,
+            "itemListElement": [{
+                "@type": "JobPosting",
+                "title": "Controls Engineer",
+                "identifier": {"value": "42"},
+                "url": "https://jobs.example.test/jobs/42",
+                "datePosted": "2026-09-01",
+                "jobLocation": {
+                    "address": {
+                        "addressLocality": "Calgary",
+                        "addressRegion": "AB",
+                        "addressCountry": "Canada",
+                    }
+                },
+            }],
+        }
+        body = (
+            "<html><head><script type='application/ld+json'>"
+            + json.dumps(payload)
+            + "</script></head><body><div id='changed'></div></body></html>"
+        )
+        session = Session(Response(body))
+
+        jobs = static_html.fetch_jobs(
+            session,
+            target(external_id_attribute=None, external_id_regex=r"/jobs/(\d+)$"),
+        )
+
+        self.assertEqual((jobs[0].title, jobs[0].location), ("Controls Engineer", "Calgary, AB, Canada"))
+        self.assertTrue(session.static_html_pagination["scan_complete"])
+        self.assertEqual(session.static_html_pagination["structured_contract"], "json_ld_job_posting")
+
+    def test_26_json_ld_proves_zero_but_spa_shell_does_not(self):
+        zero = (
+            "<html><script type='application/ld+json'>"
+            '{"@type":"ItemList","numberOfItems":0,"itemListElement":[]}'
+            "</script></html>"
+        )
+        self.assertEqual(static_html.fetch_jobs(Session(Response(zero)), target()), [])
+
+        shell = "<html><head><title>Jobs</title></head><body><div id='app'></div></body></html>"
+        with self.assertRaisesRegex(AdapterError, "unsupported_listing_contract"):
+            static_html.fetch_jobs(Session(Response(shell)), target())
+
+    def test_27_malformed_structured_payload_has_bounded_classification(self):
+        body = "<html><script type='application/ld+json'>{bad</script></html>"
+        with self.assertRaisesRegex(AdapterError, "structured_payload_malformed"):
+            static_html.fetch_jobs(Session(Response(body)), target())
+
+    def test_28_large_html_uses_bounded_prefix_only_when_contract_is_present(self):
+        relevant = page(card()) + ("x" * 5000)
+        session = Session(Response(relevant))
+        jobs = static_html.fetch_jobs(
+            session, target(max_response_bytes=1000)
+        )
+        self.assertEqual(len(jobs), 1)
+        self.assertTrue(session.static_html_pagination["html_truncated"])
+        self.assertTrue(session.static_html_pagination["safety_limit_reached"])
+        self.assertFalse(session.static_html_pagination["scan_complete"])
+        self.assertLessEqual(session.static_html_pagination["bytes_inspected"], 1000)
+
+        irrelevant = "<html><body>" + ("x" * 5000)
+        with self.assertRaisesRegex(AdapterError, "html_too_large"):
+            static_html.fetch_jobs(
+                Session(Response(irrelevant)), target(max_response_bytes=1000)
+            )
+
+    def test_29_canonical_url_supplies_title_and_stable_id_but_conflicts_fail(self):
+        body = page(
+            "<a class='job' href='/role/software-engineer-abc123'></a>"
+        )
+        canonical_target = target(
+            job_card_selector="a.job",
+            title_selector="h2",
+            detail_link_selector=":self",
+            external_id_attribute=None,
+            external_id_regex=r"/role/[^/?#]+-([a-z0-9]+)$",
+        )
+        job = static_html.fetch_jobs(Session(Response(body)), canonical_target)[0]
+        self.assertEqual((job.title, job.raw_metadata["external_job_id"]), ("Software engineer", "abc123"))
+
+        with self.assertRaisesRegex(AdapterError, "identity_missing"):
+            static_html.fetch_jobs(
+                Session(Response(page(card(job_id="one", href="/jobs/two")))),
+                target(external_id_regex=r"/jobs/([^/?#]+)$"),
+            )
+
+    def test_30_access_blocked_and_identity_missing_codes_are_explicit(self):
+        with self.assertRaisesRegex(AdapterError, "access_blocked"):
+            static_html.fetch_jobs(Session(Response("denied", status=403)), target())
+        with self.assertRaisesRegex(AdapterError, "identity_missing"):
+            static_html.fetch_jobs(
+                Session(Response(page("<article class='job'><a class='title' href='/jobs/no-id'>Engineer</a></article>"))),
+                target(external_id_attribute=None, external_id_regex=r"/jobs/(\d+)$"),
+            )
+
+    def test_31_oversized_irrelevant_stream_stops_at_the_hard_prefix_bound(self):
+        response = StreamingResponse(
+            [b"<html><body>"] + [b"x" * 128 for _ in range(1000)]
+        )
+        with self.assertRaisesRegex(AdapterError, "html_too_large"):
+            static_html.fetch_jobs(
+                Session(response), target(max_response_bytes=1000)
+            )
+        self.assertLess(response.yielded, 20)
+        self.assertTrue(response.closed)
+
+    def test_32_duplicate_equivalent_title_nodes_are_accepted(self):
+        body = page(
+            "<article class='job' data-id='123'>"
+            "<a class='title' href='/jobs/123'>  Controls   Engineer </a>"
+            "<a class='title' href='/jobs/123'>Controls Engineer</a>"
+            "</article>"
+        )
+        session = Session(Response(body))
+        jobs = static_html.fetch_jobs(session, target())
+        self.assertEqual([job.title for job in jobs], ["Controls Engineer"])
+        self.assertEqual(
+            jobs[0].raw_metadata["listing_resolution"]["candidate_title_count"], 2
+        )
+        self.assertEqual(
+            jobs[0].raw_metadata["listing_resolution"]["normalized_equivalent_title_count"], 1
+        )
+
+    def test_33_desktop_mobile_duplicate_markup_is_equivalent(self):
+        body = page(
+            "<div class='desktop'><a class='job' href='/jobs/123'>Engineer</a></div>"
+            "<div class='mobile'><a class='job' href='/jobs/123'> Engineer </a></div>"
+        )
+        jobs = static_html.fetch_jobs(
+            Session(Response(body)),
+            target(
+                job_card_selector="a.job",
+                title_selector=":self",
+                detail_link_selector=":self",
+                external_id_attribute=None,
+                external_id_regex=r"/jobs/(\d+)$",
+            ),
+        )
+        self.assertEqual([(job.title, job.raw_metadata["external_job_id"]) for job in jobs], [("Engineer", "123")])
+
+    def test_34_conflicting_titles_in_one_record_are_rejected(self):
+        body = page(
+            "<article class='job' data-id='123'>"
+            "<a class='title' href='/jobs/123'>Engineer</a>"
+            "<a class='title' href='/jobs/123'>Engineering Manager</a>"
+            "</article>"
+        )
+        session = Session(Response(body))
+        with self.assertRaisesRegex(AdapterError, "title selector was ambiguous"):
+            static_html.fetch_jobs(session, target())
+        diagnostic = session.static_html_pagination["diagnostics"][0]
+        self.assertEqual(diagnostic["candidate_title_count"], 2)
+        self.assertEqual(diagnostic["normalized_equivalent_title_count"], 2)
+        self.assertEqual(diagnostic["reason"], "conflicting_titles_within_precedence")
+
+    def test_35_page_heading_does_not_contaminate_card_title(self):
+        body = (
+            "<html><body><h2>Global careers heading</h2><main class='listing'>"
+            "<article class='job' data-id='123'><a class='title' href='/jobs/123'>Engineer</a></article>"
+            "</main></body></html>"
+        )
+        jobs = static_html.fetch_jobs(
+            Session(Response(body)), target(title_selector="h2")
+        )
+        self.assertEqual(jobs[0].title, "Engineer")
+
+    def test_36_link_scoping_binds_associated_heading_and_splits_broad_container(self):
+        body = page(
+            "<article><h4>Robotics Engineer</h4><a class='job' href='/role/robotics-engineer-a1b2c3'>Apply</a></article>"
+            "<article><h4>Controls Engineer</h4><a class='job' href='/role/controls-engineer-d4e5f6'>Apply</a></article>"
+        )
+        jobs = static_html.fetch_jobs(
+            Session(Response(body)),
+            target(
+                job_card_selector="main.listing",
+                title_selector="h4",
+                detail_link_selector="a.job",
+                external_id_attribute=None,
+                external_id_regex=r"/role/[^/?#]+-([a-z0-9]+)$",
+            ),
+        )
+        self.assertEqual(
+            [(job.title, job.raw_metadata["external_job_id"]) for job in jobs],
+            [("Robotics Engineer", "a1b2c3"), ("Controls Engineer", "d4e5f6")],
+        )
+
+    def test_37_canonical_url_anchor_title_generic_id_and_tracking_cleanup(self):
+        body = page(
+            "<a class='job' href='/role/software-engineer-abc123?utm_source=mail&amp;gclid=track'>Software Engineer</a>"
+        )
+        job = static_html.fetch_jobs(
+            Session(Response(body)),
+            target(
+                job_card_selector="a.job",
+                title_selector=":self",
+                detail_link_selector=":self",
+                external_id_attribute=None,
+                external_id_regex=None,
+                allow_url_id_fallback=True,
+            ),
+        )[0]
+        self.assertEqual(job.title, "Software Engineer")
+        self.assertEqual(job.raw_metadata["external_job_id"], "abc123")
+        self.assertEqual(job.url, "https://jobs.example.test/role/software-engineer-abc123")
+
+    def test_38_malformed_titled_record_is_skipped_but_marks_scan_incomplete(self):
+        body = page(
+            card("1", "Engineer", "/jobs/1")
+            + "<article class='job' data-id='2'><a class='title' href='/jobs/2'></a></article>"
+        )
+        session = Session(Response(body))
+        jobs = static_html.fetch_jobs(session, target())
+        self.assertEqual([job.raw_metadata["external_job_id"] for job in jobs], ["1"])
+        self.assertFalse(session.static_html_pagination["scan_complete"])
+        self.assertEqual(
+            session.static_html_pagination["scan_completeness_reason"],
+            "malformed_listing_records",
+        )
+        self.assertEqual(session.static_html_pagination["malformed_records"], 1)
+
+    def test_39_missing_identity_in_any_record_fails_closed(self):
+        body = page(
+            card("1", "Engineer", "/jobs/1")
+            + "<article class='job'><span class='title'>Unknown role</span></article>"
+        )
+        with self.assertRaisesRegex(AdapterError, "canonical job URL"):
+            static_html.fetch_jobs(Session(Response(body)), target())
+
+    def test_40_duplicate_stable_ids_accept_identical_and_reject_conflicts(self):
+        identical = page(card("1", "Engineer", "/jobs/1") + card("1", "Engineer", "/jobs/1"))
+        session = Session(Response(identical))
+        self.assertEqual(len(static_html.fetch_jobs(session, target())), 1)
+        self.assertEqual(session.static_html_pagination["equivalent_duplicate_records"], 1)
+
+        conflicting = page(card("1", "Engineer", "/jobs/1") + card("1", "Manager", "/jobs/1"))
+        with self.assertRaisesRegex(AdapterError, "identity_conflict"):
+            static_html.fetch_jobs(Session(Response(conflicting)), target())
 
 
 if __name__ == "__main__":

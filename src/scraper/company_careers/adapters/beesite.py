@@ -11,7 +11,17 @@ from urllib.parse import urlparse, urlunparse
 import requests
 
 from src.scraper.company_careers.adapters import static_html
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
+from src.scraper.company_careers.listing_completion import (
+    AdaptiveListingCompletion,
+    PageSizeObservation,
+)
 
 
 ENDPOINT_VARIANT = "gjb_search_v1"
@@ -49,9 +59,10 @@ def fetch_jobs(
     validate_target(target)
     maximum_pages = int(target.max_pages)
     maximum_jobs = int(target.max_jobs)
-    page_size = int(target.page_size)
+    configured_page_size = int(target.page_size)
+    page_size = MAX_PAGE_SIZE if configured_page_size == 10 else configured_page_size
     timeout = min(max(1, int(timeout)), MAX_TIMEOUT_SECONDS)
-    metadata: dict[str, Any] = {
+    metadata = SourceScanMetadata(**{
         "endpoint_variant": target.endpoint_variant,
         "request_method": "GET",
         "page_size": page_size,
@@ -66,24 +77,56 @@ def fetch_jobs(
         "zero_job_contract": False,
         "diagnostics": [],
         "warnings": [],
-    }
+    })
     setattr(session, "beesite_pagination", metadata)
+    publish_source_scan_metadata(session, metadata)
+    listing_budget = AdaptiveListingCompletion(
+        maximum_pages,
+        maximum_jobs,
+        allow_listing_only_second_stage=True,
+    )
+    listing_budget.record(metadata)
+    page_sizes = PageSizeObservation(page_size)
+    page_sizes.record(metadata)
     jobs: list[JobRecord] = []
     seen_ids: set[str] = set()
     seen_pages: set[tuple[str, ...]] = set()
+    positions_seen = 0
 
-    for page_index in range(maximum_pages):
-        if len(jobs) >= maximum_jobs:
+    for page_index in range(listing_budget.hard_request_ceiling):
+        effective_jobs = int(
+            metadata.get(
+                "effective_listing_job_ceiling", listing_budget.normal_job_budget
+            )
+        )
+        if len(jobs) >= effective_jobs:
             metadata["stop_reason"] = "maximum_results_reached"
             break
-        first_item = page_index * page_size + 1
+        first_item = positions_seen + 1
         payload = _request_payload(target, first_item, page_size)
+        metadata["pages_requested"] += 1
         response = _get(session, target, payload, timeout)
         items, total, zero_contract = _parse_response(response, target)
+        metadata["pages_completed"] += 1
         if metadata["total_available"] is None:
             metadata["total_available"] = total
         elif metadata["total_available"] != total:
             raise AdapterError("BeeSite total job count changed during pagination")
+        next_positions_seen = positions_seen + len(items)
+        if next_positions_seen > total:
+            raise AdapterError("BeeSite returned jobs beyond its reported total")
+        page_sizes.observe(
+            len(items), terminal=next_positions_seen >= total
+        )
+        page_sizes.record(metadata)
+        listing_budget.record_decision(
+            metadata,
+            total,
+            page_sizes.effective_size,
+            requests_completed=int(metadata["pages_completed"]),
+            results_observed=next_positions_seen,
+        )
+        effective_jobs = int(metadata["effective_listing_job_ceiling"])
 
         identities = tuple(_descriptor(item).get("ID", "") for item in items)
         page_record = {
@@ -98,6 +141,7 @@ def fetch_jobs(
         if items and identities in seen_pages:
             metadata["repeated_page"] = True
             metadata["stop_reason"] = "repeated_page"
+            metadata["scan_completeness_reason"] = "pagination_failure"
             break
         seen_pages.add(identities)
 
@@ -109,33 +153,42 @@ def fetch_jobs(
             seen_ids.add(job.job_id)
             jobs.append(job)
             new_ids += 1
-            if len(jobs) >= maximum_jobs:
+            if len(jobs) >= effective_jobs:
                 break
         page_record["jobs_normalized"] = new_ids
         metadata["jobs_normalized"] = len(jobs)
+        positions_seen = next_positions_seen
 
         if page_index == 0 and not items:
             if not zero_contract:
                 raise AdapterError("BeeSite response did not prove an empty jobs collection")
             metadata["zero_job_contract"] = True
             metadata["stop_reason"] = "validated_zero_jobs"
+            metadata["scan_complete"] = True
+            metadata["scan_completeness_reason"] = "reported_total_reached"
             break
         if not items:
-            metadata["stop_reason"] = "empty_page"
+            metadata["stop_reason"] = "empty_page_before_reported_total"
+            metadata["scan_completeness_reason"] = "pagination_failure"
             break
-        if len(jobs) >= maximum_jobs:
+        if len(jobs) == total:
+            metadata["stop_reason"] = "reported_total_reached"
+            metadata["scan_complete"] = True
+            metadata["scan_completeness_reason"] = "reported_total_reached"
+            break
+        if len(jobs) >= effective_jobs:
             metadata["stop_reason"] = "maximum_results_reached"
             break
-        if len(jobs) >= total:
-            metadata["stop_reason"] = "total_jobs_reached"
+        if page_index + 1 >= int(metadata["effective_listing_request_ceiling"]):
+            metadata["stop_reason"] = "maximum_pages_reached"
             break
-        if len(items) < page_size:
-            metadata["stop_reason"] = "short_page"
-            break
-        if page_index + 1 < maximum_pages:
+        if page_index + 1 < listing_budget.hard_request_ceiling:
             time.sleep(RETRY_DELAY_SECONDS)
     else:
         metadata["stop_reason"] = "maximum_pages_reached"
+    if metadata["stop_reason"] in {"maximum_results_reached", "maximum_pages_reached"}:
+        metadata["scan_completeness_reason"] = "safety_limit_reached"
+        metadata["safety_limit_reached"] = True
     return jobs
 
 
@@ -255,8 +308,6 @@ def _parse_response(
         raise AdapterError("BeeSite SearchResultCountAll is invalid")
     if isinstance(returned, bool) or not isinstance(returned, int) or returned != len(items):
         raise AdapterError("BeeSite SearchResultCount does not match returned jobs")
-    if len(items) > int(target.page_size):
-        raise AdapterError("BeeSite returned more jobs than the requested page size")
     if total < len(items):
         raise AdapterError("BeeSite total count is smaller than the returned collection")
     zero_contract = total == 0 and returned == 0 and not items

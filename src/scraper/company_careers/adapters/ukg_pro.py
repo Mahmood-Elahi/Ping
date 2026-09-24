@@ -11,7 +11,14 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import requests
 
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
+from src.scraper.company_careers.listing_completion import AdaptiveListingCompletion
 
 
 PAGE_SIZE = 50
@@ -57,17 +64,34 @@ def fetch_jobs(
     board_response = _request(session, "get", board["board_url"], timeout)
     board_config = _parse_board_config(board_response, target, board)
 
+    metadata = SourceScanMetadata(
+        endpoint_variant="load_search_results",
+        page_size=PAGE_SIZE,
+        maximum_pages=maximum_pages,
+        maximum_results=maximum_jobs,
+    )
+    setattr(session, "ukg_pro_pagination", metadata)
+    publish_source_scan_metadata(session, metadata)
+    listing_budget = AdaptiveListingCompletion(
+        maximum_pages, maximum_jobs, allow_listing_only_second_stage=True
+    )
+    listing_budget.record(metadata)
+
     jobs: list[JobRecord] = []
     seen_ids: set[str] = set()
     expected_total: int | None = None
     raw_offset = 0
     endpoint = f"{board['board_url']}/JobBoardView/LoadSearchResults"
-    for page_index in range(maximum_pages):
-        remaining = maximum_jobs - len(jobs)
+    for page_index in range(listing_budget.hard_request_ceiling):
+        effective_jobs = int(
+            metadata.get("effective_listing_job_ceiling", maximum_jobs)
+        )
+        remaining = effective_jobs - len(jobs)
         if remaining <= 0:
             break
         top = min(PAGE_SIZE, remaining)
         skip = raw_offset
+        metadata["pages_requested"] += 1
         response = _request(
             session,
             "post",
@@ -90,13 +114,21 @@ def fetch_jobs(
             },
         )
         payload = _parse_search(response, top, skip)
+        metadata["pages_completed"] += 1
         total = payload["totalCount"]
         if expected_total is None:
             expected_total = total
         elif total != expected_total:
             raise AdapterError("UKG Pro totalCount changed during pagination")
-
         opportunities = payload["opportunities"]
+        listing_budget.record_decision(
+            metadata,
+            total,
+            PAGE_SIZE,
+            requests_completed=int(metadata["pages_completed"]),
+            results_observed=skip + len(opportunities),
+        )
+        effective_jobs = int(metadata["effective_listing_job_ceiling"])
         for item in opportunities:
             if not _has_exact_job_attribution(item, target):
                 continue
@@ -107,10 +139,28 @@ def fetch_jobs(
             jobs.append(job)
 
         raw_offset += len(opportunities)
-        if skip + len(opportunities) >= total or len(opportunities) < top:
+        metadata["total_available"] = total
+        if skip + len(opportunities) == total:
+            metadata["scan_complete"] = True
+            metadata["scan_completeness_reason"] = "reported_total_reached"
+            metadata["stop_reason"] = "reported_total_reached"
             break
-        if page_index + 1 < maximum_pages:
+        if len(opportunities) < top:
+            metadata["stop_reason"] = "short_page_before_reported_total"
+            metadata["scan_completeness_reason"] = "pagination_failure"
+            raise AdapterError("UKG Pro returned a short page before totalCount")
+        if page_index + 1 >= int(metadata["effective_listing_request_ceiling"]):
+            break
+        if page_index + 1 < listing_budget.hard_request_ceiling:
             time.sleep(RETRY_DELAY_SECONDS)
+    if not metadata["scan_complete"]:
+        metadata["stop_reason"] = (
+            "maximum_results_reached"
+            if len(jobs) >= maximum_jobs
+            else "maximum_pages_reached"
+        )
+        metadata["scan_completeness_reason"] = "safety_limit_reached"
+        metadata["safety_limit_reached"] = True
     return jobs
 
 

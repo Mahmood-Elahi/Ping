@@ -50,7 +50,7 @@ MAX_BATCH_SIZE = 5
 MAX_PAGES = 2
 MAX_JOBS = 20
 MAX_RESPONSE_BYTES = 3_000_000
-MAX_UNIQUE_REQUESTS = 2
+MAX_UNIQUE_REQUESTS = 12
 SAFE_STATUSES = {"validated_with_jobs", "validated_zero_jobs"}
 TEMPORARY_STATUSES = {"temporary_failure", "network_inaccessible", "failed_technical"}
 
@@ -374,7 +374,7 @@ class CachedBoundedSession:
             return self.cache[key]
         if key not in self.unique_requests:
             if len(self.unique_requests) >= MAX_UNIQUE_REQUESTS:
-                raise AdapterError("v4b validator two-page request limit exceeded")
+                raise AdapterError("v4b validator adaptive request limit exceeded")
             self.unique_requests.append(key)
         self.network_requests += 1
         response = getattr(self.session, method)(url, **kwargs)

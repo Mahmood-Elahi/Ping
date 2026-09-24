@@ -57,6 +57,22 @@ def page(*jobs, total=None):
     return Response(f"<html><body><section{total_attr}>{articles}</section></body></html>")
 
 
+def radancy_page(job_ids, *, total):
+    items = "".join(
+        f'''<li class="search-results-list__list-item" data-intuit-jobid="{job_id}">
+          <a data-job-id="{job_id}" href="https://jobs.example.com/job/role/{job_id}">
+            <h2>Role {job_id}</h2>
+            <span class="job-location">Calgary</span>
+            <span class="job-date-posted">Posted: 08/01/2026</span>
+          </a>
+        </li>'''
+        for job_id in job_ids
+    )
+    return Response(
+        f'<html><body><section data-total-job-results="{total}"><ul>{items}</ul></section></body></html>'
+    )
+
+
 JOB1 = ("101", "Engineer", "Calgary", "Engineering", "08/01/2026")
 JOB2 = ("102", "Analyst", "Toronto", "Finance", "Aug 02, 2026")
 
@@ -97,7 +113,8 @@ class AvatureAdapterTests(unittest.TestCase):
     @patch.object(avature.time, "sleep", return_value=None)
     def test_07_repeated_page_detection(self, _sleep):
         session = Session([page(JOB1, JOB2), page(JOB1, JOB2)])
-        avature.fetch_jobs(session, target())
+        with self.assertRaisesRegex(AdapterError, "repeated a complete page"):
+            avature.fetch_jobs(session, target())
         self.assertEqual(session.avature_pagination["stop_reason"], "repeated_page")
         self.assertTrue(session.avature_pagination["repeated_page"])
 
@@ -105,7 +122,8 @@ class AvatureAdapterTests(unittest.TestCase):
     def test_08_no_new_id_termination(self, _sleep):
         second = page(JOB1, ("101", "Engineer duplicate", "Calgary", "Engineering", "08/01/2026"))
         session = Session([page(JOB1, JOB2), second])
-        avature.fetch_jobs(session, target())
+        with self.assertRaisesRegex(AdapterError, "no new stable job IDs"):
+            avature.fetch_jobs(session, target())
         self.assertEqual(session.avature_pagination["stop_reason"], "no_new_stable_ids")
 
     def test_09_valid_zero_job_response(self):
@@ -150,6 +168,33 @@ class AvatureAdapterTests(unittest.TestCase):
     def test_16_unsupported_variant_rejection(self):
         with self.assertRaisesRegex(AdapterError, "endpoint_variant"):
             avature.fetch_jobs(Session([]), target(endpoint_variant="unknown"))
+
+    @patch.object(avature.time, "sleep", return_value=None)
+    def test_17_short_page_before_total_uses_effective_size_and_continues(
+        self, _sleep
+    ):
+        session = Session(
+            [
+                radancy_page(range(100, 115), total=30),
+                radancy_page(range(115, 130), total=30),
+            ]
+        )
+        jobs = avature.fetch_jobs(
+            session,
+            target(
+                endpoint_variant=avature.RADANCY_HTML,
+                page_size=10,
+                max_pages=2,
+                max_jobs=20,
+            ),
+        )
+
+        self.assertEqual(len(jobs), 30)
+        self.assertEqual([call[1]["params"]["p"] for call in session.calls], ["1", "2"])
+        self.assertEqual(session.avature_pagination["requested_page_size"], 20)
+        self.assertEqual(session.avature_pagination["effective_server_page_size"], 15)
+        self.assertTrue(session.avature_pagination["page_size_was_clamped"])
+        self.assertTrue(session.avature_pagination["scan_complete"])
 
 
 if __name__ == "__main__":

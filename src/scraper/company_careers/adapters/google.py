@@ -10,7 +10,13 @@ from typing import Any, List, Optional
 
 import requests
 
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
 
 
 SEARCH_URL = "https://www.google.com/about/careers/applications/jobs/results/"
@@ -25,9 +31,18 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
     search_terms = target.search_terms or DEFAULT_SEARCH_TERMS
     jobs: List[JobRecord] = []
     seen: set[str] = set()
+    by_id: dict[str, JobRecord] = {}
+    metadata = SourceScanMetadata(
+        endpoint_variant="search_terms_page_v1",
+        maximum_pages=max(1, target.max_pages),
+    )
+    publish_source_scan_metadata(session, metadata)
+    safety_limited = False
 
     for term in search_terms:
+        term_complete = False
         for page in range(1, max(1, target.max_pages) + 1):
+            metadata["pages_requested"] += 1
             response = session.get(
                 SEARCH_URL,
                 params={"q": term, "page": page},
@@ -41,16 +56,32 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                 raise AdapterError(f"Google Careers HTTP {response.status_code}")
 
             page_jobs = _extract_jobs(response.text, target.name)
+            metadata["pages_completed"] += 1
             if not page_jobs:
+                term_complete = True
                 break
 
             for job in page_jobs:
                 key = job.job_id or job.url or job.title
                 if key in seen:
+                    if by_id[key].to_dict() != job.to_dict():
+                        raise AdapterError("Google Careers returned a conflicting duplicate stable ID")
                     continue
                 seen.add(key)
+                by_id[key] = job
                 jobs.append(job)
+        if not term_complete:
+            safety_limited = True
 
+    metadata["total_available"] = len(jobs) if not safety_limited else None
+    metadata["scan_complete"] = not safety_limited
+    metadata["scan_completeness_reason"] = (
+        "safety_limit_reached" if safety_limited else "all_search_terms_exhausted"
+    )
+    metadata["stop_reason"] = (
+        "maximum_pages_reached" if safety_limited else "all_search_terms_exhausted"
+    )
+    metadata["safety_limit_reached"] = safety_limited
     return jobs
 
 
@@ -62,10 +93,12 @@ def _extract_jobs(html: str, company: str) -> List[JobRecord]:
     jobs = []
     for item in data[0]:
         if not isinstance(item, list) or len(item) < 10:
-            continue
+            raise AdapterError("Google Careers data contained a malformed job row")
         job_id = str(item[0] or "")
         title = str(item[1] or "")
         url = str(item[2] or "")
+        if not job_id or not title or not url:
+            raise AdapterError("Google Careers job row lacked identity, title, or URL")
         locations = _locations(item[9])
         description = _text_from_html(_safe_nested_text(item, 10) or _safe_nested_text(item, 3))
         jobs.append(

@@ -82,6 +82,20 @@ class Page:
         self.closed = True
 
 
+class StaticSession:
+    def __init__(self, body):
+        self.body = body
+
+    def get(self, url, **_kwargs):
+        return Mock(
+            status_code=200,
+            content=self.body.encode(),
+            headers={"content-type": "text/html"},
+            url=url,
+            history=[],
+        )
+
+
 class Context:
     def __init__(self, page):
         self.page = page
@@ -303,6 +317,57 @@ class BrowserCollectorTests(unittest.TestCase):
 
     def test_14_scanner_registers_generic_platform(self):
         self.assertIs(scanner.ADAPTERS["browser_rendered_html"], browser_rendered_html.fetch_jobs)
+
+    def test_15_static_and_rendered_paths_share_listing_resolution(self):
+        body = rendered_page(
+            "<main class='listing'><article>"
+            "<h4>Software Engineer</h4>"
+            "<a class='job' href='/jobs/123?utm_source=mail'>Apply</a>"
+            "</article></main>"
+        )
+        configured = target(
+            listing_selector="main.listing",
+            job_card_selector="a.job",
+            title_selector="h4",
+        )
+        static_jobs = static_html.fetch_jobs(
+            StaticSession(body), browser_rendered_html._static_target(configured)
+        )
+        batch, _browser, _playwright = batch_for(Page(body))
+        with batch:
+            rendered_jobs = batch.fetch_jobs(configured)
+
+        self.assertEqual(
+            [
+                (
+                    job.title,
+                    job.url,
+                    job.location,
+                    job.raw_metadata["external_job_id"],
+                )
+                for job in static_jobs
+            ],
+            [
+                (
+                    job.title,
+                    job.url,
+                    job.location,
+                    job.raw_metadata["external_job_id"],
+                )
+                for job in rendered_jobs
+            ],
+        )
+
+    def test_16_rendered_complete_snapshot_retains_all_observed_jobs(self):
+        links = "".join(
+            f"<a class='job' href='/jobs/{index}'>Engineer {index}</a>"
+            for index in range(25)
+        )
+        batch, _browser, _playwright = batch_for(Page(rendered_page(links)))
+        with batch:
+            jobs = batch.fetch_jobs(target())
+        self.assertEqual(len(jobs), 25)
+        self.assertEqual(batch.last_run["static_parser"]["total_available"], 25)
 
 
 if __name__ == "__main__":

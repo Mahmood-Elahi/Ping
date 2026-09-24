@@ -480,7 +480,10 @@ class SapSuccessFactorsTests(unittest.TestCase):
         self.assertEqual([job.raw_metadata["external_job_id"] for job in jobs], ["15004"])
         duplicate_metadata = source_scan_metadata(duplicate_session)
         self.assertFalse(duplicate_metadata["scan_complete"])
-        self.assertEqual(duplicate_metadata["stop_reason"], "repeated_job_id")
+        self.assertEqual(
+            duplicate_metadata["scan_completeness_reason"],
+            "collection_changed_during_scan",
+        )
 
         conflicting = dict(row)
         conflicting["unifiedStandardTitle"] = "Different Engineer"
@@ -607,7 +610,7 @@ class SapSuccessFactorsTests(unittest.TestCase):
         for value, reason in (
             ("", "empty"),
             ("   ", "empty"),
-            ("LOC-14987", "not a recognized country-only or combined display location"),
+            ("LOC-14987", "opaque code-like token"),
             ("Warehouse", "not a recognized country-only or combined display location"),
             ("https://example.test/location/14987", "URL is not a display location"),
             ('{"id":"LOC-14987","region":"NA"}', "serialized structure"),
@@ -638,13 +641,44 @@ class SapSuccessFactorsTests(unittest.TestCase):
                     )
                 diagnostic = source_scan_metadata(session)["diagnostics"][-1]["error"]
                 self.assertIn("primLocation=str(rejected=", diagnostic)
-                if value.strip():
-                    self.assertNotIn(value, diagnostic)
+                self.assertIn("length=", diagnostic)
+                self.assertIn("comma_count=", diagnostic)
+                self.assertIn("all_upper_code_like=", diagnostic)
+                self.assertIn("known_country=", diagnostic)
+                self.assertIn("contains_delimiters=", diagnostic)
+                self.assertIn("sample=", diagnostic)
 
     def test_columnized_primary_location_accepts_country_only_display_forms(self):
         for value in ("Thailand", "India", "United States", "THA", "SG"):
             with self.subTest(value=value):
                 self.assertEqual(sf._columnized_primary_location(value), [value])
+
+    def test_columnized_primary_location_accepts_explicit_display_variants(self):
+        cases = (
+            ("New York", None, "New York"),
+            ("Ontario", None, "Ontario"),
+            ("Asia Pacific", None, "Asia Pacific"),
+            ("Shakopee", "MN", "Shakopee, MN"),
+            ("Kortrijk", "European Union", "Kortrijk, European Union"),
+        )
+        for value, region, expected in cases:
+            with self.subTest(value=value, region=region):
+                self.assertEqual(
+                    sf._columnized_primary_location(value, region=region),
+                    [expected],
+                )
+        self.assertEqual(
+            sf._primary_location_rejection("LOC-14987", region="North America"),
+            "opaque code-like token",
+        )
+
+    def test_columnized_primary_location_diagnostic_is_escaped_and_bounded(self):
+        value = "Calgary\n" + ("x" * 200)
+        diagnostic = sf._primary_location_scalar_diagnostic(value)
+
+        self.assertIn("length=208", diagnostic)
+        self.assertIn(r"Calgary\n", diagnostic)
+        self.assertNotIn("x" * 100, diagnostic)
 
     def test_columnized_primary_location_rejects_malformed_structures(self):
         cases = (
@@ -850,8 +884,8 @@ class SapSuccessFactorsTests(unittest.TestCase):
         first = [table_job(index) for index in range(1, 21)]
         second = [table_job(index) for index in range(21, 41)]
         session = FakeSession([
-            FakeResponse(table_html(first, total=101, next_offset=20)),
-            FakeResponse(table_html(second, total=101, offset=20, next_offset=40)),
+            FakeResponse(table_html(first, total=6_000, next_offset=20)),
+            FakeResponse(table_html(second, total=6_000, offset=20, next_offset=40)),
         ])
         jobs = sf.fetch_jobs(session, target(max_pages=2))
         self.assertEqual(len(jobs), 40)
@@ -874,7 +908,9 @@ class SapSuccessFactorsTests(unittest.TestCase):
 
     def test_tile_accepts_bounded_source_declared_page_sizes(self):
         jobs = [tile_job(index) for index in range(1, 51)]
-        session = FakeSession([FakeResponse(tile_html(jobs, total=75, page_size=50))])
+        session = FakeSession([
+            FakeResponse(tile_html(jobs, total=50, page_size=50)),
+        ])
         normalized = sf.fetch_jobs(session, target(sf.TILE_VARIANT))
         self.assertEqual(len(normalized), 50)
         self.assertEqual(session.sap_successfactors_pagination["page_size"], 50)
@@ -891,7 +927,7 @@ class SapSuccessFactorsTests(unittest.TestCase):
         pages = []
         for page in range(5):
             jobs = [table_job(page * 25 + index) for index in range(1, 26)]
-            pages.append(FakeResponse(table_html(jobs, total=200, offset=page * 25, next_offset=(page + 1) * 25)))
+            pages.append(FakeResponse(table_html(jobs, total=6_000, offset=page * 25, next_offset=(page + 1) * 25)))
         session = FakeSession(pages)
         jobs = sf.fetch_jobs(session, target(max_pages=5))
         self.assertEqual(len(jobs), 125)
@@ -1138,7 +1174,7 @@ class SapSuccessFactorsTests(unittest.TestCase):
         self.assertEqual(metadata["stop_reason"], "repeated_page")
         self.assertEqual(metadata["pages_completed"], 1)
 
-    def test_columnized_long_collection_accepts_immediate_terminal_page_clamp(self):
+    def test_columnized_long_collection_rejects_immediate_terminal_page_clamp(self):
         pages = [
             [columnized_row(page * 10 + index) for index in range(1, 11)]
             for page in range(7)
@@ -1151,29 +1187,27 @@ class SapSuccessFactorsTests(unittest.TestCase):
             + [{"totalJobs": 198, "jobSearchResult": pages[-1]}]
         )
 
-        jobs = sf.fetch_jobs(
-            session,
-            target(
-                sf.COLUMNIZED_VARIANT,
-                endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
-                locale="en_US",
-                identity_regex=r"Example",
-                allowed_apply_hosts=["jobs.example.com"],
-                max_pages=8,
-                max_jobs=100,
-                page_size=10,
-                selective_detail_enrichment=True,
-            ),
-        )
+        with self.assertRaisesRegex(AdapterError, "repeated a complete page"):
+            sf.fetch_jobs(
+                session,
+                target(
+                    sf.COLUMNIZED_VARIANT,
+                    endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
+                    locale="en_US",
+                    identity_regex=r"Example",
+                    allowed_apply_hosts=["jobs.example.com"],
+                    max_pages=8,
+                    max_jobs=100,
+                    page_size=10,
+                    selective_detail_enrichment=True,
+                ),
+            )
         metadata = source_scan_metadata(session)
 
-        self.assertEqual(len(jobs), 70)
         self.assertEqual(metadata["pages_requested"], 8)
         self.assertEqual(metadata["pages_completed"], 7)
-        self.assertTrue(metadata["scan_complete"])
-        self.assertEqual(metadata["stop_reason"], "terminal_page_clamped")
-        self.assertEqual(metadata["reported_total"], 198)
-        self.assertEqual(metadata["total_available"], 70)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["stop_reason"], "repeated_page")
         self.assertEqual(
             [call[1]["json"]["pageNumber"] for call in session.post_calls],
             [0, 2, 3, 4, 5, 6, 7, 8],
@@ -1274,28 +1308,30 @@ class SapSuccessFactorsTests(unittest.TestCase):
         self.assertEqual(metadata["pages_completed"], 1)
 
     @patch.object(sf.time, "sleep", return_value=None)
-    def test_changing_positive_total_fails_closed(self, _sleep):
+    def test_changing_positive_total_is_usable_incomplete(self, _sleep):
         first = [table_job(index) for index in range(1, 26)]
         second = [table_job(index) for index in range(26, 31)]
         session = FakeSession([
             FakeResponse(table_html(first, total=30, next_offset=25)),
             FakeResponse(table_html(second, total=31, offset=25)),
         ])
-        with self.assertRaisesRegex(AdapterError, "total job count changed"):
-            sf.fetch_jobs(session, target(max_pages=2))
+        jobs = sf.fetch_jobs(session, target(max_pages=2))
         metadata = source_scan_metadata(session)
+        self.assertEqual(len(jobs), 30)
         self.assertFalse(metadata["scan_complete"])
-        self.assertEqual(metadata["stop_reason"], "inconsistent_total")
+        self.assertEqual(metadata["scan_completeness_reason"], "collection_changed_during_scan")
+        self.assertEqual(metadata["minimum_total_observed"], 30)
+        self.assertEqual(metadata["maximum_total_observed"], 31)
 
     def test_short_page_before_reported_total_is_not_a_natural_terminal(self):
         session = FakeSession([
             FakeResponse(table_html([table_job(1)], total=2))
         ])
-        with self.assertRaisesRegex(AdapterError, "next page contract"):
-            sf.fetch_jobs(session, target())
+        jobs = sf.fetch_jobs(session, target())
         metadata = source_scan_metadata(session)
+        self.assertEqual(len(jobs), 1)
         self.assertFalse(metadata["scan_complete"])
-        self.assertEqual(metadata["scan_completeness_reason"], "pagination_failure")
+        self.assertEqual(metadata["scan_completeness_reason"], "premature_terminal_page")
 
     def test_malformed_total_metadata_fails_closed(self):
         html = table_html([table_job(1)]).replace(

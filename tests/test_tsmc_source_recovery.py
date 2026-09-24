@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import ast
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -15,13 +14,12 @@ from tests.company_careers_reliability_assertions import (
     assert_historical_prefix,
     assert_historical_target_prefix,
 )
-from tests.text_bytes import canonical_text_bytes
 
 from scripts import validate_company_registry as registry_validator
 from scripts import validate_tsmc_source_recovery as recovery
 from src.scraper.company_careers import scanner
 from src.scraper.company_careers.adapters import avature, sap_successfactors
-from src.scraper.company_careers.models import CompanyTarget
+from src.scraper.company_careers.models import AdapterError, CompanyTarget
 from src.scraper.company_careers.registry import load_target_companies
 
 
@@ -173,16 +171,18 @@ class TSMCSourceRecoveryTests(unittest.TestCase):
         pages = [response(recovery.OLD_AVATURE_URL, avature_page("1", "2")), response(recovery.OLD_AVATURE_URL, avature_page("1", "2"))]
         transport = recovery.FixtureTransport(pages)
         target = current_target(page_size=2)
-        jobs = avature.fetch_jobs(transport, target)
-        self.assertEqual(len(jobs), 2)
+        with self.assertRaisesRegex(AdapterError, "repeated a complete page"):
+            avature.fetch_jobs(transport, target)
         self.assertEqual(transport.avature_pagination["stop_reason"], "repeated_page")
 
     @patch.object(avature.time, "sleep", return_value=None)
-    def test_19_no_new_id_termination(self, _sleep):
+    def test_19_conflicting_duplicate_id_fails_closed(self, _sleep):
         pages = [response(recovery.OLD_AVATURE_URL, avature_page("1", "2")), response(recovery.OLD_AVATURE_URL, avature_page("1", "1"))]
         transport = recovery.FixtureTransport(pages)
-        avature.fetch_jobs(transport, current_target(page_size=2))
+        with self.assertRaisesRegex(AdapterError, "no new stable job IDs"):
+            avature.fetch_jobs(transport, current_target(page_size=2))
         self.assertEqual(transport.avature_pagination["stop_reason"], "no_new_stable_ids")
+        self.assertFalse(transport.avature_pagination["scan_complete"])
 
     def test_20_two_page_validation_limit(self):
         self.assertEqual(recovery.MAX_PAGES, 2)
@@ -216,15 +216,13 @@ class TSMCSourceRecoveryTests(unittest.TestCase):
         self.assertNotIn('target.name == "TSMC"', source)
         self.assertNotIn("target.name == 'TSMC'", source)
 
-    def test_26_existing_avature_sources_remain_compatible(self):
-        source_before = subprocess.run(
-            ["git", "show", "HEAD:src/scraper/company_careers/adapters/avature.py"],
-            cwd=ROOT, check=True, capture_output=True,
-        ).stdout
-        self.assertEqual(
-            canonical_text_bytes(Path(avature.__file__).read_bytes()),
-            canonical_text_bytes(source_before),
-        )
+    def test_26_existing_avature_sources_use_generalized_contract(self):
+        configured = [
+            target for target in load_target_companies() if target.platform == "avature"
+        ]
+        self.assertGreater(len(configured), 1)
+        for target in configured:
+            avature.validate_target(target)
 
     def test_27_reclassification_preserves_source_identity_rules(self):
         self.assertEqual(registry_validator.source_key(recovery.recovered_entry()), "sap_successfactors:ro.careers.tsmc.com")

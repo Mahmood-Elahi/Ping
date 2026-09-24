@@ -9,7 +9,13 @@ from urllib.parse import urljoin, urlparse
 import requests
 
 from src.scraper.company_careers.adapters import static_html
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
+)
 
 
 ENDPOINT_VARIANT = "search_results_data_job_id_v1"
@@ -49,7 +55,7 @@ def fetch_jobs(
     maximum_pages = min(int(target.max_pages), MAX_PAGES)
     maximum_jobs = min(int(target.max_jobs), MAX_RESULTS)
     timeout = min(max(1, int(timeout)), static_html.MAX_TIMEOUT_SECONDS)
-    metadata: dict[str, Any] = {
+    metadata = SourceScanMetadata(**{
         "endpoint_variant": ENDPOINT_VARIANT,
         "request_method": "GET",
         "pages": [],
@@ -59,8 +65,9 @@ def fetch_jobs(
         "maximum_results": maximum_jobs,
         "stop_reason": "not_started",
         "zero_job_contract": False,
-    }
+    })
     setattr(session, "talentbrew_pagination", metadata)
+    publish_source_scan_metadata(session, metadata)
     jobs: list[JobRecord] = []
     seen_ids: set[str] = set()
     seen_urls: set[str] = set()
@@ -71,6 +78,7 @@ def fetch_jobs(
             metadata["stop_reason"] = "repeated_page"
             break
         seen_urls.add(next_url)
+        metadata["pages_requested"] += 1
         response = static_html._get(session, next_url, timeout)
         content = static_html._response_bytes(response, target)
         root = static_html._parse_html(content, response)
@@ -93,6 +101,7 @@ def fetch_jobs(
         }
         metadata["pages"].append(page_row)
         metadata["pages_fetched"] = len(metadata["pages"])
+        metadata["pages_completed"] += 1
         if not unique_cards:
             static_html._reject_non_listing(root, content, False)
 
@@ -117,6 +126,9 @@ def fetch_jobs(
         links = root.xpath("//a[contains(concat(' ', normalize-space(@class), ' '), ' next ') and @href]")
         if not links or "disabled" in str(links[0].get("class") or "").split():
             metadata["stop_reason"] = "no_next_page"
+            metadata["scan_complete"] = True
+            metadata["scan_completeness_reason"] = "explicit_next_page_exhausted"
+            metadata["total_available"] = len(jobs)
             break
         proposed = urljoin(next_url, str(links[0].get("href")))
         static_html._require_listing_host(proposed, target)
@@ -125,6 +137,11 @@ def fetch_jobs(
             time.sleep(static_html.RETRY_DELAY_SECONDS)
     else:
         metadata["stop_reason"] = "maximum_pages_reached"
+    if metadata["stop_reason"] in {"maximum_results_reached", "maximum_pages_reached"}:
+        metadata["scan_completeness_reason"] = "safety_limit_reached"
+        metadata["safety_limit_reached"] = True
+    elif not metadata["scan_complete"]:
+        metadata["scan_completeness_reason"] = "pagination_failure"
     return jobs
 
 

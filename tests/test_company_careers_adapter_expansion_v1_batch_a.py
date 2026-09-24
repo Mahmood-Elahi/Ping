@@ -13,7 +13,11 @@ from tests.company_careers_reliability_assertions import assert_historical_prefi
 from scripts import validate_company_registry as registry_validator
 from src.scraper.company_careers import scanner
 from src.scraper.company_careers.adapters import dayforce, paycor, peoplesoft, ukg_pro, workable
-from src.scraper.company_careers.models import AdapterError, CompanyTarget
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    source_scan_metadata,
+)
 from src.scraper.company_careers.parent_sources import load_parent_source_mappings
 
 
@@ -278,6 +282,62 @@ class UKGProAdapterTests(unittest.TestCase):
         second = ukg_payload(job_id="00000000-0000-4000-8000-000000000051", total=52)
         with self.assertRaisesRegex(AdapterError, "changed during pagination"):
             ukg_pro.fetch_jobs(Session([ukg_board(), Response(first), Response(second)]), ukg_target(max_pages=2, max_jobs=100))
+
+    @patch.object(ukg_pro.time, "sleep", return_value=None)
+    def test_pason_shape_adapts_both_caps_without_detail_enrichment(self, _sleep):
+        template = ukg_payload()["opportunities"][0]
+        first_items = [
+            dict(
+                template,
+                Id=f"00000000-0000-4000-8000-{index:012d}",
+                BriefDescription=(
+                    "Pason Systems role" if index <= 14 else "IWS role"
+                ),
+            )
+            for index in range(1, 21)
+        ]
+        second_items = [
+            dict(
+                template,
+                Id=f"00000000-0000-4000-8000-{index:012d}",
+                BriefDescription="Pason Systems role",
+            )
+            for index in range(21, 27)
+        ]
+        target = ukg_target(
+            name="Pason Systems",
+            identity_regex=r"Pason",
+            job_attribution_regex=r"\bPason(?: Systems)?\b",
+            job_attribution_exclude_regex=r"\b(?:IWS)\b",
+            max_pages=1,
+            max_jobs=20,
+        )
+        session = Session(
+            [
+                ukg_board(name="Pason Systems"),
+                Response({"opportunities": first_items, "totalCount": 26}),
+                Response({"opportunities": second_items, "totalCount": 26}),
+            ]
+        )
+
+        jobs = ukg_pro.fetch_jobs(session, target)
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(len(jobs), 20)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["stop_reason"], "reported_total_reached")
+        self.assertEqual(metadata["total_available"], 26)
+        self.assertEqual(metadata["pages_requested"], 2)
+        self.assertEqual(metadata["effective_listing_request_ceiling"], 2)
+        self.assertEqual(metadata["effective_listing_job_ceiling"], 26)
+        self.assertEqual(metadata["listing_results_observed_at_decision"], 26)
+        self.assertEqual([call[0] for call in session.calls], ["get", "post", "post"])
+        self.assertEqual(
+            session.calls[1][2]["json"]["opportunitySearch"]["Top"], 20
+        )
+        self.assertEqual(
+            session.calls[2][2]["json"]["opportunitySearch"]["Top"], 12
+        )
 
     def test_invalid_board_host_and_excessive_limits_fail_without_network(self):
         with self.assertRaisesRegex(AdapterError, "supported public JobBoard"):
