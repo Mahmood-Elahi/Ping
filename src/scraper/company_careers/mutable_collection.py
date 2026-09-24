@@ -6,6 +6,7 @@ from typing import Any, Optional
 from urllib.parse import parse_qsl, urlparse
 
 from src.scraper.company_careers.models import JobRecord, SourceScanMetadata
+from src.scraper.company_careers.listing_completion import record_terminal_evidence
 
 
 COLLECTION_CHANGED_REASON = "collection_changed_during_scan"
@@ -37,6 +38,8 @@ def record_total_observation(
     initialize_mutable_collection(metadata)
     if total is None:
         return False
+
+    metadata["authoritative_total_present"] = True
 
     previous = metadata["final_total_observed"]
     metadata["observed_total_counts"].append(total)
@@ -103,6 +106,13 @@ def finish_terminal(
 ) -> None:
     """Publish terminal evidence without claiming completeness after mutation."""
     terminal = stop_reason or complete_reason
+    record_terminal_evidence(
+        metadata,
+        "terminal_page",
+        terminal,
+        has_more=False,
+        terminal_page_observed=True,
+    )
     if metadata.get("collection_changed_during_scan"):
         metadata["terminal_evidence"] = terminal
         metadata["scan_complete"] = False

@@ -17,6 +17,7 @@ from src.scraper.company_careers.models import (
     SourceScanMetadata,
     publish_source_scan_metadata,
 )
+from src.scraper.company_careers.listing_completion import record_terminal_evidence
 
 
 MAX_RESULTS = 50
@@ -56,6 +57,7 @@ def fetch_jobs(
         pages_completed=1,
         maximum_pages=1,
         maximum_results=int(target.max_jobs),
+        detail_requests_coupled=True,
     )
     publish_source_scan_metadata(session, metadata)
     cards = root.xpath(
@@ -79,6 +81,14 @@ def fetch_jobs(
     if len(cards) > MAX_RESULTS:
         raise AdapterError("Paycor CareerHome exceeded the hard result limit")
     metadata["total_available"] = len(cards)
+    record_terminal_evidence(
+        metadata,
+        "complete_collection_response",
+        len(cards),
+        has_more=False,
+        terminal_page_observed=True,
+        complete_collection_response=True,
+    )
 
     jobs: list[JobRecord] = []
     seen_ids: set[str] = set()

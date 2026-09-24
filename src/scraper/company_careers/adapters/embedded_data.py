@@ -21,7 +21,10 @@ from src.scraper.company_careers.models import (
     SourceScanMetadata,
     publish_source_scan_metadata,
 )
-from src.scraper.company_careers.listing_completion import AdaptiveListingCompletion
+from src.scraper.company_careers.listing_completion import (
+    AdaptiveListingCompletion,
+    record_terminal_evidence,
+)
 
 
 MAX_PAGES = 2
@@ -63,11 +66,19 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
     publish_source_scan_metadata(session, metadata)
     listing_budget = AdaptiveListingCompletion(maximum_pages, maximum_jobs)
     listing_budget.record(metadata)
+    explicit_pagination = bool(target.pagination_url_template)
+    listing_budget.record_terminal_probe_decision(
+        metadata,
+        max(1, int(target.page_size)),
+        requests_completed=0,
+        results_observed=0,
+        deterministic_terminal_contract=explicit_pagination,
+    )
     jobs: list[JobRecord] = []
     seen_ids: set[str] = set()
     seen_pages: set[tuple[str, ...]] = set()
 
-    for page_index in range(maximum_pages):
+    for page_index in range(int(metadata["effective_listing_request_ceiling"])):
         url = (str(target.pagination_url_template).format(page=page_index + 1)
                if target.pagination_url_template else str(target.listing_url))
         metadata["pages_requested"] += 1
@@ -92,8 +103,8 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
             items, scripts, inspected_bytes, valid_empty = _extract(response, target)
         effective_jobs = (
             listing_budget.complete_collection_job_ceiling(len(items))
-            if not target.pagination_url_template
-            else maximum_jobs
+            if not explicit_pagination
+            else int(metadata["effective_listing_job_ceiling"])
         )
         metadata["scripts_inspected"] += scripts
         metadata["bytes_inspected"] += inspected_bytes
@@ -139,12 +150,26 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
             metadata["scan_complete"] = True
             metadata["scan_completeness_reason"] = "validated_zero_jobs"
             metadata["total_available"] = 0
+            record_terminal_evidence(
+                metadata,
+                "terminal_page",
+                "validated_zero_jobs",
+                has_more=False,
+                terminal_page_observed=True,
+            )
             break
         if not items and target.pagination_url_template and valid_empty:
             metadata["stop_reason"] = "validated_terminal_empty_page"
             metadata["scan_complete"] = True
             metadata["scan_completeness_reason"] = "validated_terminal_empty_page"
             metadata["total_available"] = len(jobs)
+            record_terminal_evidence(
+                metadata,
+                "terminal_page",
+                "validated_terminal_empty_page",
+                has_more=False,
+                terminal_page_observed=True,
+            )
             break
         if new_ids == 0:
             metadata["stop_reason"] = "no_new_stable_ids"
@@ -153,6 +178,14 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
         if not target.pagination_url_template:
             metadata["stop_reason"] = "complete_structured_collection"
             metadata["total_available"] = len(items)
+            record_terminal_evidence(
+                metadata,
+                "complete_collection_response",
+                len(items),
+                has_more=False,
+                terminal_page_observed=True,
+                complete_collection_response=True,
+            )
             if len(items) > effective_jobs:
                 metadata["scan_completeness_reason"] = "safety_limit_reached"
                 metadata["safety_limit_reached"] = True
@@ -161,7 +194,7 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                 metadata["scan_complete"] = True
                 metadata["scan_completeness_reason"] = "complete_structured_collection"
             break
-        if len(jobs) >= maximum_jobs:
+        if len(jobs) >= int(metadata["effective_listing_job_ceiling"]):
             metadata["stop_reason"] = "maximum_results_reached"
             metadata["scan_completeness_reason"] = "safety_limit_reached"
             metadata["safety_limit_reached"] = True

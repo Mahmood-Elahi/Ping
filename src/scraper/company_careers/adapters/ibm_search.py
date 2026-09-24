@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 from typing import Any, List
 
@@ -14,6 +15,7 @@ from src.scraper.company_careers.models import (
     SourceScanMetadata,
     publish_source_scan_metadata,
 )
+from src.scraper.company_careers.listing_completion import record_terminal_evidence
 
 
 SEARCH_URL = "https://www-api.ibm.com/search/api/v2"
@@ -33,10 +35,26 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
     )
     publish_source_scan_metadata(session, metadata)
     safety_limited = False
+    extra_request_allowance = 10
+    source_request_ceiling = len(search_terms) * max(1, target.max_pages) + extra_request_allowance
 
     for term in search_terms:
         term_complete = False
-        for page in range(max(1, target.max_pages)):
+        observed_total: int | None = None
+        normal_pages = max(1, target.max_pages)
+        for page in range(normal_pages + extra_request_allowance):
+            if page >= normal_pages:
+                required_pages = (
+                    math.ceil(observed_total / PAGE_SIZE)
+                    if observed_total is not None
+                    else None
+                )
+                if (
+                    required_pages is None
+                    or required_pages > normal_pages + extra_request_allowance
+                    or metadata["pages_requested"] >= source_request_ceiling
+                ):
+                    break
             metadata["pages_requested"] += 1
             response = session.post(
                 SEARCH_URL,
@@ -52,8 +70,17 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
             if response.status_code != 200:
                 raise AdapterError(f"IBM Careers search HTTP {response.status_code}")
 
-            items = ((response.json().get("hits") or {}).get("hits") or [])
+            items, current_total = _listing(response.json())
             metadata["pages_completed"] += 1
+            if current_total is not None:
+                if observed_total is not None and current_total != observed_total:
+                    raise AdapterError(
+                        "IBM Careers authoritative total changed during pagination"
+                    )
+                observed_total = current_total
+                if len(search_terms) == 1:
+                    metadata["total_available"] = current_total
+                    metadata["authoritative_total_present"] = True
             if not items:
                 term_complete = True
                 break
@@ -88,13 +115,25 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                 by_id[job_id] = job
                 jobs.append(job)
 
+            observed_results = page * PAGE_SIZE + len(items)
+            if observed_total is not None and observed_results >= observed_total:
+                term_complete = True
+                break
             if len(items) < PAGE_SIZE:
                 term_complete = True
                 break
         if not term_complete:
             safety_limited = True
 
-    metadata["total_available"] = len(jobs) if not safety_limited else None
+    if not safety_limited:
+        metadata["total_available"] = len(jobs)
+        record_terminal_evidence(
+            metadata,
+            "authoritative_total_or_short_page",
+            "all_search_terms_exhausted",
+            has_more=False,
+            terminal_page_observed=True,
+        )
     metadata["scan_complete"] = not safety_limited
     metadata["scan_completeness_reason"] = (
         "safety_limit_reached" if safety_limited else "all_search_terms_exhausted"
@@ -104,6 +143,25 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
     )
     metadata["safety_limit_reached"] = safety_limited
     return jobs
+
+
+def _listing(payload: Any) -> tuple[list[Any], int | None]:
+    if not isinstance(payload, dict) or not isinstance(payload.get("hits"), dict):
+        raise AdapterError("IBM Careers search response is missing its hits object")
+    hits = payload["hits"]
+    items = hits.get("hits")
+    if not isinstance(items, list):
+        raise AdapterError("IBM Careers search response is missing its hits list")
+    raw_total = hits.get("total")
+    if raw_total is None:
+        return items, None
+    if isinstance(raw_total, dict):
+        if raw_total.get("relation", "eq") != "eq":
+            return items, None
+        raw_total = raw_total.get("value")
+    if isinstance(raw_total, bool) or not isinstance(raw_total, int) or raw_total < 0:
+        raise AdapterError("IBM Careers hits.total must be a non-negative integer")
+    return items, raw_total
 
 
 def _request_body(term: str, page: int) -> dict:

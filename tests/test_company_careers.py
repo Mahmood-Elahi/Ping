@@ -1061,6 +1061,45 @@ class CompanyCareersTests(unittest.TestCase):
         self.assertEqual(jobs[0].source, "custom:ibm_search")
         self.assertEqual(jobs[0].departments, ["Software Engineering"])
 
+    def test_ibm_search_surfaces_authoritative_total(self):
+        session = FakeSession(
+            post_responses=[
+                FakeResponse(
+                    {
+                        "hits": {
+                            "total": {"value": 1, "relation": "eq"},
+                            "hits": [
+                                {
+                                    "_source": {
+                                        "url": "https://careers.ibm.com/careers/JobDetail?jobId=108437",
+                                        "title": "Engineering Manager - HashiCorp",
+                                        "description": "Build HashiCorp products.",
+                                        "field_keyword_08": "Software Engineering",
+                                        "field_keyword_19": "Multiple Cities",
+                                    }
+                                }
+                            ],
+                        }
+                    }
+                )
+            ]
+        )
+        jobs = ibm_search.fetch_jobs(
+            session,
+            CompanyTarget(
+                name="HashiCorp",
+                platform="ibm_search",
+                search_terms=["hashicorp"],
+                max_pages=1,
+            ),
+        )
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(len(jobs), 1)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["total_available"], 1)
+        self.assertTrue(metadata["terminal_page_observed"])
+
     def test_meta_graphql_normalization(self):
         html = (
             '<script>requireLazy(["LSD"],function(){})</script>'
@@ -1177,6 +1216,10 @@ class CompanyCareersTests(unittest.TestCase):
                     pages_completed=2,
                     stop_reason="natural_terminal_page",
                     safety_limit_reached=False,
+                    terminal_evidence_type="terminal_page",
+                    terminal_evidence_value="short_page",
+                    has_more=False,
+                    terminal_page_observed=True,
                 ),
             )
             return [self._student_job("Software Engineering Intern")]
@@ -1200,6 +1243,48 @@ class CompanyCareersTests(unittest.TestCase):
         self.assertEqual(result.scan_completeness_reason, "natural_terminal_page")
         self.assertEqual(result.pages_requested, 2)
         self.assertEqual(result.pages_completed, 2)
+        self.assertEqual(result.terminal_evidence_type, "terminal_page")
+        self.assertFalse(result.has_more)
+        self.assertTrue(result.terminal_page_observed)
+        self.assertEqual(
+            report.coverage()[0]["terminal_evidence_value"], "short_page"
+        )
+
+    def test_scanner_authoritative_total_wins_at_exact_safety_cap(self):
+        def capped_adapter(session, target, timeout):
+            publish_source_scan_metadata(
+                session,
+                SourceScanMetadata(
+                    scan_complete=False,
+                    scan_completeness_reason="safety_limit_reached",
+                    total_available=1,
+                    authoritative_total_present=True,
+                    pages_requested=1,
+                    pages_completed=1,
+                    stop_reason="maximum_results_reached",
+                    safety_limit_reached=True,
+                ),
+            )
+            return [self._student_job("Software Engineering Intern")]
+
+        old_adapter = scanner_module.ADAPTERS.get("exact_cap")
+        scanner_module.ADAPTERS["exact_cap"] = capped_adapter
+        try:
+            report = CompanyCareersScanner(
+                targets=[CompanyTarget(name="Exact Cap", platform="exact_cap")],
+                session=FakeSession(),
+            ).scan()
+        finally:
+            if old_adapter is None:
+                scanner_module.ADAPTERS.pop("exact_cap", None)
+            else:
+                scanner_module.ADAPTERS["exact_cap"] = old_adapter
+
+        result = report.results[0]
+        self.assertTrue(result.scan_complete)
+        self.assertFalse(result.safety_limit_reached)
+        self.assertEqual(result.stop_reason, "reported_total_reached")
+        self.assertTrue(result.authoritative_total_present)
 
     def test_post_filter_limit_overrides_adapter_completion(self):
         def complete_adapter(session, target, timeout):

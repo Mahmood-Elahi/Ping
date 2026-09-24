@@ -5,6 +5,8 @@ import unittest
 from src.scraper.company_careers.listing_completion import (
     AdaptiveListingCompletion,
     PageSizeObservation,
+    finish_authoritative_total,
+    record_terminal_evidence,
 )
 
 
@@ -40,6 +42,46 @@ class AdaptiveListingCompletionTests(unittest.TestCase):
 
     def test_complete_collection_needs_no_additional_listing_request(self):
         self.assertEqual(self.policy.complete_collection_job_ceiling(180), 180)
+
+    def test_complete_collection_in_memory_ignores_legacy_local_result_cap(self):
+        policy = AdaptiveListingCompletion(1, 20)
+        self.assertEqual(policy.complete_collection_job_ceiling(22), 22)
+
+    def test_authoritative_total_at_exact_cap_wins_over_safety_limit(self):
+        metadata = {
+            "scan_complete": False,
+            "scan_completeness_reason": "safety_limit_reached",
+            "stop_reason": "maximum_results_reached",
+            "safety_limit_reached": True,
+        }
+        self.assertTrue(finish_authoritative_total(metadata, 20, 20))
+        self.assertTrue(metadata["scan_complete"])
+        self.assertFalse(metadata["safety_limit_reached"])
+        self.assertEqual(metadata["stop_reason"], "reported_total_reached")
+
+    def test_explicit_has_more_false_is_terminal_evidence(self):
+        metadata = {}
+        record_terminal_evidence(
+            metadata,
+            "explicit_has_more",
+            False,
+            has_more=False,
+            terminal_page_observed=True,
+        )
+        self.assertFalse(metadata["has_more"])
+        self.assertTrue(metadata["terminal_page_observed"])
+
+    def test_next_cursor_absent_after_advancing_is_terminal_evidence(self):
+        metadata = {"pages_completed": 2}
+        record_terminal_evidence(
+            metadata,
+            "next_cursor",
+            None,
+            next_cursor_present=False,
+            terminal_page_observed=True,
+        )
+        self.assertFalse(metadata["next_cursor_present"])
+        self.assertTrue(metadata["terminal_page_observed"])
 
     def test_one_page_budget_extends_for_exactly_one_remaining_page(self):
         policy = AdaptiveListingCompletion(1, 20)
@@ -115,6 +157,64 @@ class AdaptiveListingCompletionTests(unittest.TestCase):
         self.assertEqual(policy.request_ceiling(1_000, 20), 50)
         self.assertEqual(policy.job_ceiling(1_000, 20), 1_000)
 
+    def test_listing_only_total_request_tiers_through_100_are_allowed(self):
+        policy = AdaptiveListingCompletion(
+            1,
+            1,
+            hard_request_ceiling=100,
+            hard_job_ceiling=5_000,
+            allow_listing_only_second_stage=True,
+        )
+        for requests in (25, 50, 75, 100):
+            with self.subTest(requests=requests):
+                self.assertEqual(policy.request_ceiling(requests, 1), requests)
+        self.assertEqual(policy.request_ceiling(101, 1), 1)
+
+    def test_listing_only_job_ceiling_is_inclusive_at_5000(self):
+        policy = AdaptiveListingCompletion(
+            1,
+            100,
+            allow_listing_only_second_stage=True,
+        )
+        self.assertEqual(policy.job_ceiling(4_999, 100), 4_999)
+        self.assertEqual(policy.job_ceiling(5_000, 100), 5_000)
+        self.assertEqual(policy.job_ceiling(5_001, 100), 100)
+
+    def test_detail_coupled_source_cannot_use_listing_only_expansion(self):
+        policy = AdaptiveListingCompletion(
+            1,
+            20,
+            allow_listing_only_second_stage=True,
+        )
+        self.assertEqual(policy.request_ceiling(1_000, 20), 50)
+        self.assertEqual(
+            policy.request_ceiling(1_000, 20, detail_requests_coupled=True),
+            1,
+        )
+
+    def test_request_100_without_reaching_total_remains_incomplete(self):
+        policy = AdaptiveListingCompletion(
+            1,
+            1,
+            allow_listing_only_second_stage=True,
+        )
+        metadata = {}
+        policy.record_decision(
+            metadata,
+            100,
+            1,
+            requests_completed=100,
+            results_observed=99,
+        )
+        self.assertFalse(metadata["listing_only_second_stage_eligible"])
+        self.assertFalse(finish_authoritative_total(metadata, 100, 99))
+
+    def test_authoritative_total_reached_on_request_100_is_complete(self):
+        metadata = {"pages_completed": 100, "safety_limit_reached": True}
+        self.assertTrue(finish_authoritative_total(metadata, 100, 100))
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["scan_completeness_reason"], "reported_total_reached")
+
     def test_second_stage_rejects_mutation_and_detail_coupling(self):
         policy = AdaptiveListingCompletion(
             1, 20, allow_listing_only_second_stage=True
@@ -164,12 +264,12 @@ class AdaptiveListingCompletionTests(unittest.TestCase):
         policy = AdaptiveListingCompletion(
             5, 100, allow_listing_only_second_stage=True
         )
-        self.assertEqual(policy.request_ceiling(1_100, 20), 55)
+        self.assertEqual(policy.request_ceiling(1_600, 20), 80)
 
         metadata = {}
         policy.record_decision(
             metadata,
-            1_100,
+            1_600,
             15,
             requests_completed=1,
             results_observed=15,
@@ -177,7 +277,7 @@ class AdaptiveListingCompletionTests(unittest.TestCase):
 
         self.assertFalse(metadata["listing_only_second_stage_eligible"])
         self.assertEqual(metadata["effective_listing_request_ceiling"], 5)
-        self.assertEqual(metadata["terminal_listing_requests_required"], 74)
+        self.assertEqual(metadata["terminal_listing_requests_required"], 107)
 
 
 if __name__ == "__main__":

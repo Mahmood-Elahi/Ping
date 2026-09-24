@@ -220,20 +220,20 @@ class LeverAdapterTests(unittest.TestCase):
         self.assertIn("skip=20", session.calls[1][0])
         self.assertIn("skip=40", session.calls[2][0])
 
-    def test_19_page_budget_is_incomplete(self):
+    def test_19_page_budget_gets_bounded_terminal_probe(self):
         page = [
             posting(str(index), hostedUrl=f"https://jobs.lever.co/example/{index}")
             for index in range(20)
         ]
-        session = Session(Response(page))
+        session = Session(Response(page), Response([]))
 
         jobs = lever.fetch_jobs(session, target(max_jobs=60, max_pages=1))
         metadata = source_scan_metadata(session)
 
         self.assertEqual(len(jobs), 20)
-        self.assertFalse(metadata["scan_complete"])
-        self.assertTrue(metadata["safety_limit_reached"])
-        self.assertEqual(metadata["stop_reason"], "maximum_pages_reached")
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["pages_requested"], 2)
+        self.assertEqual(metadata["stop_reason"], "natural_terminal_page")
 
     def test_20_failure_after_first_page_is_not_complete(self):
         page = [

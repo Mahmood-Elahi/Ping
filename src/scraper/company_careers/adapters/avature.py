@@ -26,6 +26,8 @@ from src.scraper.company_careers.models import (
 from src.scraper.company_careers.listing_completion import (
     AdaptiveListingCompletion,
     PageSizeObservation,
+    html_page_has_more,
+    record_terminal_evidence,
 )
 from src.scraper.company_careers.mutable_collection import (
     finish_changed,
@@ -125,7 +127,9 @@ def fetch_jobs(
         params = _page_params(target, page_index, page_size, positions_seen)
         metadata["pages_requested"] += 1
         response = _get_page(session, target, params, timeout)
-        items, total, zero_contract = _parse_page(response, target)
+        items, total, zero_contract, has_more = _parse_page(
+            response, target, page_index
+        )
         metadata["pages_completed"] += 1
         record_total_observation(
             metadata,
@@ -155,6 +159,21 @@ def fetch_jobs(
             requests_completed=int(metadata["pages_completed"]),
             results_observed=next_positions_seen,
         )
+        if total is None and has_more is not None:
+            record_terminal_evidence(
+                metadata,
+                "explicit_has_more",
+                has_more,
+                has_more=has_more,
+                terminal_page_observed=not has_more,
+            )
+            listing_budget.record_terminal_probe_decision(
+                metadata,
+                max(1, len(items)),
+                requests_completed=int(metadata["pages_completed"]),
+                results_observed=len(jobs) + len(items),
+                deterministic_terminal_contract=True,
+            )
         effective_jobs = int(metadata["effective_listing_job_ceiling"])
 
         identities = tuple(
@@ -221,6 +240,9 @@ def fetch_jobs(
         if not items:
             if metadata["collection_changed_during_scan"]:
                 finish_changed(metadata, terminal_evidence="empty_terminal_page")
+            elif has_more is True:
+                metadata["stop_reason"] = "empty_page_with_next_page"
+                metadata["scan_completeness_reason"] = "pagination_failure"
             elif total is None:
                 metadata["total_available"] = len(jobs)
                 finish_terminal(
@@ -239,7 +261,14 @@ def fetch_jobs(
         if total is not None and len(jobs) == total:
             finish_terminal(metadata, complete_reason="reported_total_reached")
             break
-        if len(items) < page_size and total is None:
+        if has_more is False:
+            metadata["total_available"] = len(jobs)
+            finish_terminal(
+                metadata,
+                complete_reason="explicit_next_page_exhausted",
+            )
+            break
+        if len(items) < page_size and total is None and has_more is None:
             if metadata["collection_changed_during_scan"]:
                 finish_changed(metadata, terminal_evidence="short_terminal_page")
             else:
@@ -355,7 +384,8 @@ def _get_page(
 def _parse_page(
     response: Any,
     target: CompanyTarget,
-) -> tuple[list[Any], Optional[int], bool]:
+    page_index: int = 0,
+) -> tuple[list[Any], Optional[int], bool, Optional[bool]]:
     content_type = str(getattr(response, "headers", {}).get("content-type", ""))
     text = str(getattr(response, "text", "") or "")
     _reject_bad_success(text, content_type)
@@ -386,7 +416,12 @@ def _parse_page(
         items = [item for item in items if item.xpath(".//a[contains(@class, 'job-search-tile__url')]")]
         total = _integer_attr(root, "data-total-results")
         zero = total == 0 or _zero_text(root)
-    return items, total, zero
+    has_more = (
+        (page_index + 1) * max(1, int(target.page_size)) < total
+        if total is not None
+        else html_page_has_more(root)
+    )
+    return items, total, zero, has_more
 
 
 def _reject_bad_success(text: str, content_type: str) -> None:

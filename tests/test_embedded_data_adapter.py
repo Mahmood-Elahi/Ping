@@ -148,9 +148,14 @@ class EmbeddedDataAdapterTests(unittest.TestCase):
 
     @patch("src.scraper.company_careers.adapters.embedded_data.time.sleep", lambda _: None)
     def test_07_deterministic_pagination(self):
-        session = Session(Response(document({"data": {"jobs": [item("1")]}})), Response(document({"data": {"jobs": [item("2", url="https://apply.example.test/jobs/2")]}})))
+        session = Session(
+            Response(document({"data": {"jobs": [item("1")]}})),
+            Response(document({"data": {"jobs": [item("2", url="https://apply.example.test/jobs/2")]}})),
+            Response(document({"data": {"jobs": []}})),
+        )
         jobs = embedded_data.fetch_jobs(session, target(max_pages=2, pagination_url_template="https://careers.example.test/jobs?page={page}"))
         self.assertEqual(len(jobs), 2)
+        self.assertEqual(len(session.calls), 3)
 
     @patch("src.scraper.company_careers.adapters.embedded_data.time.sleep", lambda _: None)
     def test_08_repeated_data_termination(self):
@@ -214,7 +219,10 @@ class EmbeddedDataAdapterTests(unittest.TestCase):
         jobs = [item(str(i), url=f"https://apply.example.test/jobs/{i}") for i in range(10)]
         session = Session(Response(document({"data": {"jobs": jobs}})))
         self.assertEqual(len(embedded_data.fetch_jobs(session, target(max_jobs=3))), 10)
-        self.assertTrue(source_scan_metadata(session)["scan_complete"])
+        metadata = source_scan_metadata(session)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertTrue(metadata["complete_collection_response"])
+        self.assertEqual(metadata["terminal_evidence_type"], "complete_collection_response")
 
     def test_18_unsupported_schema_and_path_rejection(self):
         with self.assertRaisesRegex(AdapterError, "unsupported variant"):

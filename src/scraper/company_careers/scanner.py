@@ -72,6 +72,7 @@ from src.scraper.company_careers.parent_sources import (
     load_parent_source_mappings,
     original_company_coverage,
 )
+from src.scraper.company_careers.listing_completion import finish_authoritative_total
 
 
 AdapterFn = Callable[[requests.Session, CompanyTarget, int], List[JobRecord]]
@@ -79,6 +80,31 @@ JobFilterFn = Callable[[JobRecord], Optional[str]]
 LocationFilterFn = Callable[[JobRecord], Optional[str]]
 SessionFactory = Callable[[], requests.Session]
 DEFAULT_SCAN_WORKERS = 6
+
+
+def _completion_result_fields(metadata: SourceScanMetadata) -> dict[str, Any]:
+    """Copy the stable completeness contract into persisted coverage rows."""
+    return {
+        "scan_complete": bool(metadata["scan_complete"]),
+        "scan_completeness_reason": str(metadata["scan_completeness_reason"]),
+        "total_available": metadata["total_available"],
+        "authoritative_total_present": bool(
+            metadata.get("authoritative_total_present")
+        ),
+        "pages_requested": int(metadata["pages_requested"]),
+        "pages_completed": int(metadata["pages_completed"]),
+        "stop_reason": str(metadata["stop_reason"]),
+        "safety_limit_reached": bool(metadata["safety_limit_reached"]),
+        "terminal_evidence_type": metadata.get("terminal_evidence_type"),
+        "terminal_evidence_value": metadata.get("terminal_evidence_value"),
+        "has_more": metadata.get("has_more"),
+        "next_cursor_present": metadata.get("next_cursor_present"),
+        "terminal_page_observed": bool(metadata.get("terminal_page_observed")),
+        "complete_collection_response": bool(
+            metadata.get("complete_collection_response")
+        ),
+        "detail_requests_coupled": bool(metadata.get("detail_requests_coupled")),
+    }
 
 
 ADAPTERS: dict[str, AdapterFn] = {
@@ -366,6 +392,16 @@ class CompanyCareersScanner:
                 clear_source_scan_metadata(adapter_session)
                 fetched_jobs = self._dedupe(adapter(adapter_session, target, self.timeout))
                 scan_metadata = source_scan_metadata(adapter_session)
+                if (
+                    not scan_metadata["scan_complete"]
+                    and scan_metadata.get("authoritative_total_present")
+                    and not scan_metadata.get("collection_changed_during_scan")
+                ):
+                    finish_authoritative_total(
+                        scan_metadata,
+                        scan_metadata.get("total_available"),
+                        len(fetched_jobs),
+                    )
                 fetched_jobs = [
                     annotate_child_brand_metadata(job, self.parent_source_mappings)
                     for job in fetched_jobs
@@ -403,17 +439,7 @@ class CompanyCareersScanner:
                         normalized_jobs=fetched_jobs,
                         status=status,
                         fetched_count=len(fetched_jobs),
-                        scan_complete=bool(scan_metadata["scan_complete"]),
-                        scan_completeness_reason=str(
-                            scan_metadata["scan_completeness_reason"]
-                        ),
-                        total_available=scan_metadata["total_available"],
-                        pages_requested=int(scan_metadata["pages_requested"]),
-                        pages_completed=int(scan_metadata["pages_completed"]),
-                        stop_reason=str(scan_metadata["stop_reason"]),
-                        safety_limit_reached=bool(
-                            scan_metadata["safety_limit_reached"]
-                        ),
+                        **_completion_result_fields(scan_metadata),
                         exclusion_counts=exclusion_counts,
                         mapped_child_brand_counts=mapped_child_brand_counts,
                 )
@@ -426,17 +452,7 @@ class CompanyCareersScanner:
                         error=str(exc),
                         error_type=error_type,
                         remediation=remediation,
-                        scan_complete=False,
-                        scan_completeness_reason=str(
-                            scan_metadata["scan_completeness_reason"]
-                        ),
-                        total_available=scan_metadata["total_available"],
-                        pages_requested=int(scan_metadata["pages_requested"]),
-                        pages_completed=int(scan_metadata["pages_completed"]),
-                        stop_reason=str(scan_metadata["stop_reason"]),
-                        safety_limit_reached=bool(
-                            scan_metadata["safety_limit_reached"]
-                        ),
+                        **_completion_result_fields(scan_metadata),
                 )
         except requests.RequestException as exc:
                 scan_metadata = source_scan_metadata(adapter_session)
@@ -446,17 +462,7 @@ class CompanyCareersScanner:
                         error=str(exc),
                         error_type="request_error",
                         remediation="Retry the scan and verify network access or upstream availability.",
-                        scan_complete=False,
-                        scan_completeness_reason=str(
-                            scan_metadata["scan_completeness_reason"]
-                        ),
-                        total_available=scan_metadata["total_available"],
-                        pages_requested=int(scan_metadata["pages_requested"]),
-                        pages_completed=int(scan_metadata["pages_completed"]),
-                        stop_reason=str(scan_metadata["stop_reason"]),
-                        safety_limit_reached=bool(
-                            scan_metadata["safety_limit_reached"]
-                        ),
+                        **_completion_result_fields(scan_metadata),
                 )
         except Exception as exc:
                 return CompanyScanResult(

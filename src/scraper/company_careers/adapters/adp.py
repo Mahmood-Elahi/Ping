@@ -19,7 +19,10 @@ from src.scraper.company_careers.models import (
     SourceScanMetadata,
     publish_source_scan_metadata,
 )
-from src.scraper.company_careers.listing_completion import AdaptiveListingCompletion
+from src.scraper.company_careers.listing_completion import (
+    AdaptiveListingCompletion,
+    finish_authoritative_total,
+)
 
 
 WORKFORCE_NOW = "workforce_now_requisitions_v1"
@@ -197,6 +200,7 @@ def _fetch_workforce_now(
     else:
         metadata["stop_reason"] = "maximum_pages_reached"
     metadata["total_available"] = total
+    metadata["authoritative_total_present"] = total is not None
     _finalize_metadata(metadata)
     jobs.sort(key=lambda job: (job.updated_at, job.job_id), reverse=True)
     return jobs
@@ -295,6 +299,7 @@ def _fetch_myjobs(session: requests.Session, target: CompanyTarget, timeout: int
     else:
         metadata["stop_reason"] = "maximum_pages_reached"
     metadata["total_available"] = total
+    metadata["authoritative_total_present"] = total is not None
     _finalize_metadata(metadata)
     jobs.sort(key=lambda job: (job.updated_at, job.job_id), reverse=True)
     return jobs
@@ -691,11 +696,16 @@ def _metadata(
         "endpoint_variant": target.endpoint_variant, "request_method": method,
         "page_size": page_size, "maximum_pages": int(target.max_pages),
         "maximum_results": limit, "pages": [], "jobs_normalized": 0,
+        "detail_requests_coupled": target.endpoint_variant == WORKFORCE_NOW,
         "stop_reason": "not_started",
     })
 
 
 def _finalize_metadata(metadata: SourceScanMetadata) -> None:
+    if metadata["stop_reason"] in {"maximum_results_reached", "maximum_pages_reached"} and finish_authoritative_total(
+        metadata, metadata.get("total_available"), int(metadata.get("jobs_normalized") or 0)
+    ):
+        return
     if metadata["stop_reason"] == "total_jobs_reached":
         metadata["scan_complete"] = True
         metadata["scan_completeness_reason"] = "reported_total_reached"

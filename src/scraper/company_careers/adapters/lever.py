@@ -16,6 +16,10 @@ from src.scraper.company_careers.models import (
     SourceScanMetadata,
     publish_source_scan_metadata,
 )
+from src.scraper.company_careers.listing_completion import (
+    AdaptiveListingCompletion,
+    record_terminal_evidence,
+)
 
 
 ENDPOINT_VARIANT = "postings_api_v0"
@@ -52,6 +56,15 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
     allowed_departments = {value.casefold() for value in allowed_department_values}
     scan_metadata = SourceScanMetadata(stop_reason="not_started")
     publish_source_scan_metadata(session, scan_metadata)
+    listing_budget = AdaptiveListingCompletion(maximum_pages, maximum_results)
+    listing_budget.record(scan_metadata)
+    listing_budget.record_terminal_probe_decision(
+        scan_metadata,
+        PAGE_SIZE,
+        requests_completed=0,
+        results_observed=0,
+        deterministic_terminal_contract=True,
+    )
     pagination: dict[str, Any] = {
         "endpoint_variant": target.endpoint_variant or ENDPOINT_VARIANT,
         "request_method": "GET",
@@ -73,12 +86,19 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
     offset = 0
 
     try:
-        for _page_index in range(maximum_pages):
-            remaining = maximum_results - len(jobs)
+        for _page_index in range(
+            int(scan_metadata["effective_listing_request_ceiling"])
+        ):
+            effective_results = int(scan_metadata["effective_listing_job_ceiling"])
+            remaining = effective_results - len(jobs)
             if remaining <= 0:
                 _mark_safety_limit(scan_metadata, pagination, "maximum_results_reached")
                 break
-            page_limit = min(PAGE_SIZE, remaining)
+            normal_remaining = maximum_results - len(jobs)
+            page_limit = min(
+                PAGE_SIZE,
+                normal_remaining if normal_remaining > 0 else remaining,
+            )
             query: list[tuple[str, str]] = [
                 ("mode", "json"),
                 ("limit", str(page_limit)),
@@ -171,10 +191,17 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                     total_available=offset,
                     stop_reason="natural_terminal_page",
                 )
+                record_terminal_evidence(
+                    scan_metadata,
+                    "terminal_page",
+                    "short_page",
+                    has_more=False,
+                    terminal_page_observed=True,
+                )
                 pagination["stop_reason"] = "natural_terminal_page"
                 pagination["zero_job_contract"] = offset == 0
                 break
-            if len(jobs) >= maximum_results:
+            if len(jobs) >= effective_results:
                 _mark_safety_limit(scan_metadata, pagination, "maximum_results_reached")
                 break
         else:

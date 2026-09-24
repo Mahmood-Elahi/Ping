@@ -18,6 +18,10 @@ from src.scraper.company_careers.models import (
     SourceScanMetadata,
     publish_source_scan_metadata,
 )
+from src.scraper.company_careers.listing_completion import (
+    finish_authoritative_total,
+    record_terminal_evidence,
+)
 
 
 API_HOST = "api.smartrecruiters.com"
@@ -75,6 +79,7 @@ def fetch_jobs(
         maximum_results=requested_limit,
         pages=[],
         jobs_normalized=0,
+        detail_requests_coupled=True,
     )
     setattr(session, "smartrecruiters_pagination", metadata)
     publish_source_scan_metadata(session, metadata)
@@ -94,11 +99,21 @@ def fetch_jobs(
             )
             payload = _parse_response(response, f"postings offset={offset}")
             content, total = _parse_listing(payload, identifier, target, page_size, offset)
+            if offset == 0 and len(content) == total:
+                record_terminal_evidence(
+                    metadata,
+                    "complete_collection_response",
+                    total,
+                    has_more=False,
+                    terminal_page_observed=True,
+                    complete_collection_response=True,
+                )
             metadata["pages_completed"] += 1
             if observed_total is None:
                 observed_total = total
                 metadata["initial_total_available"] = total
                 metadata["total_available"] = total
+                metadata["authoritative_total_present"] = True
             elif total != observed_total:
                 metadata["stop_reason"] = "inconsistent_total"
                 metadata["scan_completeness_reason"] = "inconsistent_total"
@@ -136,11 +151,7 @@ def fetch_jobs(
             metadata["pages_fetched"] = len(metadata["pages"])
 
             if len(jobs) == total:
-                metadata.update(
-                    scan_complete=True,
-                    scan_completeness_reason="reported_total_reached",
-                    stop_reason="reported_total_reached",
-                )
+                finish_authoritative_total(metadata, total, len(jobs))
                 break
             if len(jobs) >= requested_limit:
                 _mark_safety_limit(metadata, "maximum_results_reached")

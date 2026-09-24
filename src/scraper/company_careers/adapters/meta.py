@@ -20,6 +20,7 @@ from src.scraper.company_careers.models import (
     SourceScanMetadata,
     publish_source_scan_metadata,
 )
+from src.scraper.company_careers.listing_completion import record_terminal_evidence
 
 
 SEARCH_URL = "https://www.metacareers.com/jobsearch"
@@ -151,6 +152,13 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
         else "all_search_terms_exhausted"
     )
     metadata["safety_limit_reached"] = safety_limited
+    record_terminal_evidence(
+        metadata,
+        "search_terms_exhausted" if not safety_limited else "search_terms_incomplete",
+        not safety_limited,
+        has_more=safety_limited,
+        terminal_page_observed=not safety_limited,
+    )
     return jobs
 
 

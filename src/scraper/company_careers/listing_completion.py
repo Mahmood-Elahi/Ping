@@ -4,13 +4,107 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import ceil
+import re
 from typing import Any, MutableMapping, Optional
 
 
 ADAPTIVE_LISTING_REQUEST_ALLOWANCE = 10
 ABSOLUTE_LISTING_REQUEST_CEILING = 100
 ABSOLUTE_LISTING_JOB_CEILING = 5_000
-LISTING_ONLY_SECOND_STAGE_REQUEST_ALLOWANCE = 50
+# The second stage may consume the remainder of the existing absolute request
+# ceiling. The absolute ceiling is still a total-per-source limit, not an
+# additional-request allowance.
+LISTING_ONLY_SECOND_STAGE_REQUEST_ALLOWANCE = ABSOLUTE_LISTING_REQUEST_CEILING
+
+
+def record_terminal_evidence(
+    metadata: MutableMapping[str, Any],
+    evidence_type: str,
+    evidence_value: Any,
+    *,
+    has_more: Optional[bool] = None,
+    next_cursor_present: Optional[bool] = None,
+    terminal_page_observed: bool = False,
+    complete_collection_response: bool = False,
+) -> None:
+    """Publish adapter-neutral terminal evidence without inventing a total."""
+    if not str(evidence_type).strip():
+        raise ValueError("terminal evidence type cannot be empty")
+    if has_more is not None and not isinstance(has_more, bool):
+        raise ValueError("has_more must be boolean or None")
+    if next_cursor_present is not None and not isinstance(
+        next_cursor_present, bool
+    ):
+        raise ValueError("next_cursor_present must be boolean or None")
+    metadata["terminal_evidence_type"] = str(evidence_type)
+    metadata["terminal_evidence_value"] = evidence_value
+    if has_more is not None:
+        metadata["has_more"] = has_more
+    if next_cursor_present is not None:
+        metadata["next_cursor_present"] = next_cursor_present
+    metadata["terminal_page_observed"] = bool(terminal_page_observed)
+    metadata["complete_collection_response"] = bool(
+        complete_collection_response
+    )
+
+
+def finish_authoritative_total(
+    metadata: MutableMapping[str, Any],
+    total_available: int | None,
+    results_observed: int,
+) -> bool:
+    """Let authoritative completion win when it coincides with a safety cap."""
+    if not _valid_total(total_available):
+        return False
+    _validate_progress(0, results_observed)
+    assert total_available is not None
+    if results_observed != total_available:
+        return False
+    metadata.update(
+        scan_complete=True,
+        scan_completeness_reason="reported_total_reached",
+        total_available=total_available,
+        stop_reason="reported_total_reached",
+        safety_limit_reached=False,
+    )
+    record_terminal_evidence(
+        metadata,
+        "authoritative_total",
+        total_available,
+        has_more=False,
+        terminal_page_observed=True,
+    )
+    return True
+
+
+def html_page_has_more(root: Any) -> Optional[bool]:
+    """Read conservative next/terminal state from conventional HTML controls."""
+    next_links = root.xpath(
+        "//a[@href and (translate(@rel, 'NEXT', 'next')='next' "
+        "or contains(translate(@class, 'NEXT', 'next'), 'next') "
+        "or contains(translate(@aria-label, 'NEXT', 'next'), 'next') "
+        "or normalize-space(translate(string(.), 'NEXT', 'next'))='next')]"
+    )
+    if next_links:
+        return True
+    disabled_next = root.xpath(
+        "//*[contains(translate(@class, 'NEXTDISABLED', 'nextdisabled'), 'next') "
+        "and (contains(translate(@class, 'NEXTDISABLED', 'nextdisabled'), 'disabled') "
+        "or @aria-disabled='true')]"
+    )
+    if disabled_next:
+        return False
+    pagination_nodes = root.xpath(
+        "//*[contains(translate(@class, 'PAGINATION', 'pagination'), 'pagination') "
+        "or contains(translate(@class, 'PAGING', 'paging'), 'paging')]"
+    )
+    text = " ".join(" ".join(node.text_content().split()) for node in pagination_nodes)
+    match = re.search(
+        r"(?i)(?<!\w)page\s+(\d+)\s*(?:of|/)\s*(\d+)(?!\w)", text
+    )
+    if match:
+        return int(match.group(1)) < int(match.group(2))
+    return None
 
 
 @dataclass
@@ -373,6 +467,35 @@ class AdaptiveListingCompletion:
             self.hard_request_ceiling,
             self.normal_request_budget + self.adaptive_request_allowance,
         )
+
+    def record_terminal_probe_decision(
+        self,
+        metadata: MutableMapping[str, Any],
+        page_size: int,
+        *,
+        requests_completed: int,
+        results_observed: int,
+        deterministic_terminal_contract: bool,
+    ) -> None:
+        """Record bounded EOF probing for sources without authoritative totals."""
+        _validate_page_size(page_size, "page size")
+        _validate_progress(requests_completed, results_observed)
+        request_ceiling = self.normal_request_budget
+        if deterministic_terminal_contract:
+            request_ceiling = self.deterministic_terminal_request_ceiling()
+        remaining_requests = max(0, request_ceiling - requests_completed)
+        job_ceiling = min(
+            self.hard_job_ceiling,
+            max(
+                self.normal_job_budget,
+                results_observed + remaining_requests * page_size,
+            ),
+        )
+        metadata["deterministic_terminal_contract"] = bool(
+            deterministic_terminal_contract
+        )
+        metadata["effective_listing_request_ceiling"] = request_ceiling
+        metadata["effective_listing_job_ceiling"] = job_ceiling
 
 
 def _valid_total(value: Any) -> bool:

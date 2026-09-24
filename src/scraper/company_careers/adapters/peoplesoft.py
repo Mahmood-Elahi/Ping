@@ -18,6 +18,7 @@ from src.scraper.company_careers.models import (
     SourceScanMetadata,
     publish_source_scan_metadata,
 )
+from src.scraper.company_careers.listing_completion import record_terminal_evidence
 
 
 MAX_RESULTS = 20
@@ -134,9 +135,7 @@ def fetch_jobs(
             )
         )
     limited = total_candidates > int(target.max_jobs)
-    publish_source_scan_metadata(
-        session,
-        SourceScanMetadata(
+    metadata = SourceScanMetadata(
             scan_complete=not limited,
             scan_completeness_reason=(
                 "safety_limit_reached" if limited else "complete_listing_container"
@@ -146,8 +145,17 @@ def fetch_jobs(
             pages_completed=1,
             stop_reason=("maximum_results_reached" if limited else "complete_listing_container"),
             safety_limit_reached=limited,
-        ),
+            detail_requests_coupled=True,
+        )
+    record_terminal_evidence(
+        metadata,
+        "complete_collection_response",
+        total_candidates,
+        has_more=False,
+        terminal_page_observed=True,
+        complete_collection_response=True,
     )
+    publish_source_scan_metadata(session, metadata)
     return jobs
 
 

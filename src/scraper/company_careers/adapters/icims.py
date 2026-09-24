@@ -22,7 +22,11 @@ from src.scraper.company_careers.models import (
     SourceScanMetadata,
     publish_source_scan_metadata,
 )
-from src.scraper.company_careers.listing_completion import AdaptiveListingCompletion
+from src.scraper.company_careers.listing_completion import (
+    AdaptiveListingCompletion,
+    html_page_has_more,
+    record_terminal_evidence,
+)
 from src.scraper.company_careers.mutable_collection import (
     finish_changed,
     finish_terminal,
@@ -117,7 +121,9 @@ def fetch_jobs(
         params = _page_params(target, page_index)
         metadata["pages_requested"] += 1
         response = _get_page(session, target, params, timeout)
-        items, total, zero_contract = _parse_page(response, target)
+        items, total, zero_contract, has_more = _parse_page(
+            response, target, page_index
+        )
         metadata["pages_completed"] += 1
         record_total_observation(
             metadata,
@@ -132,6 +138,21 @@ def fetch_jobs(
             requests_completed=int(metadata["pages_completed"]),
             results_observed=page_index * page_size + len(items),
         )
+        if total is None and has_more is not None:
+            record_terminal_evidence(
+                metadata,
+                "explicit_has_more",
+                has_more,
+                has_more=has_more,
+                terminal_page_observed=not has_more,
+            )
+            listing_budget.record_terminal_probe_decision(
+                metadata,
+                max(1, len(items)),
+                requests_completed=int(metadata["pages_completed"]),
+                results_observed=len(jobs) + len(items),
+                deterministic_terminal_contract=True,
+            )
         effective_jobs = int(metadata["effective_listing_job_ceiling"])
 
         identities = tuple(
@@ -199,6 +220,12 @@ def fetch_jobs(
                 finish_changed(metadata, terminal_evidence="empty_terminal_page")
             elif total is not None and len(jobs) == total:
                 finish_terminal(metadata, complete_reason="reported_total_reached")
+            elif has_more is False:
+                metadata["total_available"] = len(jobs)
+                finish_terminal(
+                    metadata,
+                    complete_reason="explicit_next_page_exhausted",
+                )
             else:
                 metadata["stop_reason"] = "empty_page_without_terminal_contract"
                 metadata["scan_completeness_reason"] = "pagination_failure"
@@ -210,7 +237,14 @@ def fetch_jobs(
         if total is not None and len(jobs) == total:
             finish_terminal(metadata, complete_reason="reported_total_reached")
             break
-        if len(items) < page_size:
+        if has_more is False:
+            metadata["total_available"] = len(jobs)
+            finish_terminal(
+                metadata,
+                complete_reason="explicit_next_page_exhausted",
+            )
+            break
+        if len(items) < page_size and has_more is None:
             if metadata["collection_changed_during_scan"]:
                 finish_changed(metadata, terminal_evidence="short_terminal_page")
             else:
@@ -328,7 +362,8 @@ def _get_page(
 def _parse_page(
     response: Any,
     target: CompanyTarget,
-) -> tuple[list[Any], Optional[int], bool]:
+    page_index: int = 0,
+) -> tuple[list[Any], Optional[int], bool, Optional[bool]]:
     content_type = str(getattr(response, "headers", {}).get("content-type", ""))
     text = str(getattr(response, "text", "") or "")
     if target.endpoint_variant == JIBE_API:
@@ -350,7 +385,12 @@ def _parse_page(
             raise AdapterError("iCIMS Jibe count must be a non-negative integer")
         if total == 0 and items:
             raise AdapterError("iCIMS Jibe zero-job response unexpectedly contained jobs")
-        return items, total, total == 0 and count == 0 and not items
+        return (
+            items,
+            total,
+            total == 0 and count == 0 and not items,
+            (page_index + 1) * int(target.page_size) < total,
+        )
 
     _reject_bad_html_success(text, content_type)
     try:
@@ -369,6 +409,11 @@ def _parse_page(
         )
         total = _integer_attr(root, "data-results-count")
         zero = total == 0 or _zero_text(root)
+        has_more = (
+            (page_index + 1) * int(target.page_size) < total
+            if total is not None
+            else html_page_has_more(root)
+        )
     else:
         items = root.xpath(
             "//li[contains(concat(' ', normalize-space(@class), ' '), ' iCIMS_JobCardItem ')]"
@@ -377,7 +422,8 @@ def _parse_page(
         zero = _zero_text(root) or bool(
             root.xpath("//*[contains(@class, 'iCIMS_JobSearchNoResults')]")
         )
-    return items, total, zero
+        has_more = html_page_has_more(root)
+    return items, total, zero, has_more
 
 
 def _reject_bad_json_success(text: str, content_type: str) -> None:

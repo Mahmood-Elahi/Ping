@@ -87,10 +87,17 @@ class SourceScanMetadata(dict[str, Any]):
             scan_complete=False,
             scan_completeness_reason="adapter_completeness_not_proven",
             total_available=None,
+            authoritative_total_present=False,
             pages_requested=0,
             pages_completed=0,
             stop_reason="not_started",
             safety_limit_reached=False,
+            terminal_evidence_type=None,
+            terminal_evidence_value=None,
+            has_more=None,
+            next_cursor_present=None,
+            terminal_page_observed=False,
+            complete_collection_response=False,
         )
         self.update(values)
 
@@ -365,10 +372,18 @@ class CompanyScanResult:
     scan_complete: bool = False
     scan_completeness_reason: str = "not_established"
     total_available: Optional[int] = None
+    authoritative_total_present: bool = False
     pages_requested: int = 0
     pages_completed: int = 0
     stop_reason: str = "not_started"
     safety_limit_reached: bool = False
+    terminal_evidence_type: Optional[str] = None
+    terminal_evidence_value: Any = None
+    has_more: Optional[bool] = None
+    next_cursor_present: Optional[bool] = None
+    terminal_page_observed: bool = False
+    complete_collection_response: bool = False
+    detail_requests_coupled: bool = False
     exclusion_counts: Dict[str, int] = field(default_factory=dict)
     mapped_child_brand_counts: Dict[str, int] = field(default_factory=dict)
 
@@ -399,10 +414,18 @@ class CompanyScanResult:
             "scan_health": self.scan_health,
             "scan_completeness_reason": self.scan_completeness_reason,
             "total_available": self.total_available,
+            "authoritative_total_present": self.authoritative_total_present,
             "pages_requested": self.pages_requested,
             "pages_completed": self.pages_completed,
             "stop_reason": self.stop_reason,
             "safety_limit_reached": self.safety_limit_reached,
+            "terminal_evidence_type": self.terminal_evidence_type,
+            "terminal_evidence_value": self.terminal_evidence_value,
+            "has_more": self.has_more,
+            "next_cursor_present": self.next_cursor_present,
+            "terminal_page_observed": self.terminal_page_observed,
+            "complete_collection_response": self.complete_collection_response,
+            "detail_requests_coupled": self.detail_requests_coupled,
             "matched_count": self.matched_count,
             "exclusion_counts": dict(self.exclusion_counts),
             "error": self.error,

@@ -16,6 +16,7 @@ from src.scraper.company_careers.models import (
     SourceScanMetadata,
     publish_source_scan_metadata,
 )
+from src.scraper.company_careers.listing_completion import record_terminal_evidence
 
 
 MAX_JOBS = 20
@@ -49,6 +50,15 @@ def fetch_jobs(
     all_items = _parse_listing(payload)
     metadata["pages_completed"] = 1
     metadata["total_available"] = len(all_items)
+    metadata["detail_requests_coupled"] = True
+    record_terminal_evidence(
+        metadata,
+        "complete_collection_response",
+        len(all_items),
+        has_more=False,
+        terminal_page_observed=True,
+        complete_collection_response=True,
+    )
     items = all_items[: int(target.max_jobs)]
     jobs: list[JobRecord] = []
     seen_ids: set[str] = set()

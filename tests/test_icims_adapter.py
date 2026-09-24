@@ -5,7 +5,11 @@ import unittest
 from unittest.mock import patch
 
 from src.scraper.company_careers.adapters import icims
-from src.scraper.company_careers.models import AdapterError, CompanyTarget
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    source_scan_metadata,
+)
 
 
 class Response:
@@ -210,6 +214,63 @@ class ICIMSAdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(AdapterError, "apply_url_id_query_param is invalid"):
             icims.fetch_jobs(session, target(apply_url_id_query_param="job[]"))
         self.assertEqual(session.calls, [])
+
+    def test_36_page_number_terminal_without_authoritative_total(self):
+        body = """
+        <html><body>
+          <ul><li class="iCIMS_JobCardItem">
+            <div class="header left"><span>CA-AB-Calgary</span></div>
+            <div class="title"><a href="https://apply.example.com/jobs/101/engineer/job">
+              <h3>Engineer</h3></a></div>
+          </li></ul>
+          <nav class="pagination">Page 1 of 1</nav>
+        </body></html>
+        """
+        session = Session([Response(text=body, content_type="text/html")])
+        jobs = icims.fetch_jobs(
+            session,
+            target(
+                endpoint_variant=icims.LEGACY_HTML,
+                search_url="https://jobs.example.com/jobs/search",
+                endpoint_url=None,
+                page_size=20,
+                max_pages=1,
+                allowed_apply_hosts=["apply.example.com"],
+            ),
+        )
+        metadata = source_scan_metadata(session)
+        self.assertEqual(len(jobs), 1)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertFalse(metadata["has_more"])
+        self.assertTrue(metadata["terminal_page_observed"])
+        self.assertEqual(metadata["total_available"], 1)
+
+    def test_37_unknown_terminal_remains_incomplete(self):
+        body = """
+        <html><body><ul><li class="iCIMS_JobCardItem">
+          <div class="header left"><span>CA-AB-Calgary</span></div>
+          <div class="title"><a href="https://apply.example.com/jobs/101/engineer/job">
+            <h3>Engineer</h3></a></div>
+        </li></ul></body></html>
+        """
+        session = Session([Response(text=body, content_type="text/html")])
+        icims.fetch_jobs(
+            session,
+            target(
+                endpoint_variant=icims.LEGACY_HTML,
+                search_url="https://jobs.example.com/jobs/search",
+                endpoint_url=None,
+                page_size=20,
+                max_pages=1,
+                allowed_apply_hosts=["apply.example.com"],
+            ),
+        )
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(
+            metadata["scan_completeness_reason"],
+            "adapter_completeness_not_proven",
+        )
 
 
 if __name__ == "__main__":
