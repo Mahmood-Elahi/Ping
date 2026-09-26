@@ -436,6 +436,7 @@ class CompanyCareersScanner:
                     not scan_metadata["scan_complete"]
                     and scan_metadata.get("authoritative_total_present")
                     and not scan_metadata.get("collection_changed_during_scan")
+                    and not scan_metadata.get("rejected_record_count")
                 ):
                     finish_authoritative_total(
                         scan_metadata,

@@ -88,8 +88,10 @@ def wfn_target(**overrides):
     return CompanyTarget.from_dict(values)
 
 
-def wfn_item(*, item_id="123456789_1", external_id="42001", title="Systems Intern"):
-    return {
+def wfn_item(
+    *, item_id="123456789_1", external_id="42001", title="Systems Intern", **overrides
+):
+    value = {
         "itemID": item_id,
         "requisitionTitle": title,
         "postDate": "2026-08-09T12:00:00Z",
@@ -102,6 +104,23 @@ def wfn_item(*, item_id="123456789_1", external_id="42001", title="Systems Inter
             {"nameCode": {"shortName": " Calgary, AB, Canada"}}
         ],
     }
+    value.update(overrides)
+    return value
+
+
+def wfn_session(items, *, details=None, identity="Example Space", total=None):
+    detail_rows = list(details if details is not None else items)
+    return Session(gets=[
+        Response({"contentLinks": [{"contentBody": {"contentTitle": identity}}]}),
+        Response({
+            "jobRequisitions": items,
+            "meta": {
+                "startSequence": 0,
+                "totalNumber": len(items) if total is None else total,
+            },
+        }),
+        *[Response(detail) for detail in detail_rows],
+    ])
 
 
 def myjobs_target(**overrides):
@@ -323,6 +342,210 @@ class AdpAdapterTests(unittest.TestCase):
         self.assertEqual(jobs[0].raw_metadata["apply_url"], jobs[0].url)
         self.assertIn("123456789_1", jobs[0].raw_metadata["api_detail_url"])
         self.assertEqual(session.calls[1][2]["params"]["$top"], 10)
+        self.assertEqual(
+            jobs[0].job_id,
+            "adp:workforcenow.adp.com:11111111-2222-3333-4444-555555555555:123456789_1",
+        )
+        self.assertEqual(
+            jobs[0].source,
+            "adp:workforcenow.adp.com:11111111-2222-3333-4444-555555555555",
+        )
+
+    def test_workforce_now_isolates_one_identity_valid_locationless_record(self):
+        valid = wfn_item()
+        rejected = wfn_item(
+            item_id="123456789_2",
+            external_id="42002",
+            title="Controls Intern",
+            requisitionLocations=[{}],
+        )
+        session = wfn_session([valid, rejected])
+
+        jobs = adp.fetch_jobs(session, wfn_target(max_jobs=10))
+
+        self.assertEqual([job.job_id.rsplit(":", 1)[-1] for job in jobs], ["123456789_1"])
+        metadata = session.adp_pagination
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["scan_completeness_reason"], "malformed_listing_records")
+        self.assertEqual(metadata["rejected_record_count"], 1)
+        self.assertEqual(metadata["rejected_record_ids"], ["123456789_2"])
+        self.assertEqual(metadata["rejected_record_reason"], "missing_stable_location")
+
+    def test_workforce_now_retains_multiple_valid_records_without_duplicates(self):
+        first = wfn_item()
+        rejected = wfn_item(
+            item_id="123456789_2", external_id="42002",
+            requisitionLocations=[{"aliasNames": ["Calgary"]}],
+        )
+        second = wfn_item(
+            item_id="123456789_3", external_id="42003", title="Robotics Intern",
+            requisitionLocations=[{"workLocation": {"displayName": "Vancouver, BC"}}],
+        )
+        session = wfn_session([first, rejected, second])
+
+        jobs = adp.fetch_jobs(session, wfn_target(max_jobs=10))
+
+        self.assertEqual(
+            {job.raw_metadata["item_id"] for job in jobs},
+            {"123456789_1", "123456789_3"},
+        )
+        self.assertEqual(len(jobs), 2)
+        self.assertEqual(session.adp_pagination["rejected_record_count"], 1)
+
+    def test_workforce_now_all_locationless_records_fail_the_source(self):
+        rows = [
+            wfn_item(
+                item_id=f"123456789_{index}", external_id=f"4200{index}",
+                requisitionLocations=[{}],
+            )
+            for index in (1, 2)
+        ]
+        session = wfn_session(rows)
+
+        with self.assertRaisesRegex(AdapterError, "no valid jobs after rejecting"):
+            adp.fetch_jobs(session, wfn_target(max_jobs=10))
+
+        self.assertFalse(session.adp_pagination["scan_complete"])
+        self.assertEqual(session.adp_pagination["rejected_record_count"], 2)
+
+    def test_workforce_now_alias_names_alone_remain_insufficient(self):
+        row = wfn_item(requisitionLocations=[{"aliasNames": ["Calgary, AB"]}])
+        session = wfn_session([row])
+        with self.assertRaisesRegex(AdapterError, "no valid jobs after rejecting"):
+            adp.fetch_jobs(session, wfn_target())
+        self.assertEqual(
+            session.adp_pagination["rejected_record_reason"],
+            "missing_stable_location",
+        )
+
+    def test_adp_valid_location_shapes_remain_accepted(self):
+        cases = {
+            "nameCode": (
+                [{"nameCode": {"longName": "Calgary, AB, Canada"}}],
+                ["Calgary, AB, Canada"],
+            ),
+            "address": (
+                [{"address": {"cityName": "Calgary", "stateCode": "AB"}}],
+                ["Calgary, AB"],
+            ),
+            "workLocation": (
+                [{"workLocation": {"displayName": "Vancouver, BC"}}],
+                ["Vancouver, BC"],
+            ),
+        }
+        for label, (value, expected) in cases.items():
+            with self.subTest(label=label):
+                self.assertEqual(adp._location_values(value), expected)
+
+    def test_workforce_now_identity_disagreements_remain_source_fatal(self):
+        listing = wfn_item(requisitionLocations=[{}])
+        disagreements = {
+            "detail itemID": wfn_item(item_id="123456789_2", requisitionLocations=[{}]),
+            "detail title": wfn_item(title="Changed", requisitionLocations=[{}]),
+            "external job ID": wfn_item(external_id="99999", requisitionLocations=[{}]),
+        }
+        for message, detail in disagreements.items():
+            with self.subTest(message=message), self.assertRaisesRegex(AdapterError, message):
+                adp.fetch_jobs(
+                    wfn_session([listing], details=[detail]),
+                    wfn_target(),
+                )
+
+    def test_workforce_now_location_disagreement_is_not_isolated(self):
+        listing = wfn_item(requisitionLocations=[{}])
+        detail = wfn_item(
+            requisitionLocations=[{"nameCode": {"shortName": "Calgary, AB"}}]
+        )
+        session = wfn_session([listing], details=[detail])
+        with self.assertRaisesRegex(AdapterError, "detail locations"):
+            adp.fetch_jobs(session, wfn_target())
+        self.assertEqual(session.adp_pagination["rejected_record_count"], 0)
+
+    def test_workforce_now_bad_apply_host_and_malformed_id_remain_source_fatal(self):
+        with self.assertRaisesRegex(AdapterError, "allowed_apply_hosts"):
+            adp.fetch_jobs(Session(), wfn_target(allowed_apply_hosts=["evil.test"]))
+
+        malformed = wfn_item(item_id="ambiguous/id", requisitionLocations=[{}])
+        session = wfn_session([malformed])
+        with self.assertRaisesRegex(AdapterError, "itemID is missing or invalid"):
+            adp.fetch_jobs(session, wfn_target())
+        self.assertEqual(session.adp_pagination["rejected_record_count"], 0)
+
+        malformed_location = wfn_item(requisitionLocations=[{"nameCode": "Calgary"}])
+        session = wfn_session([malformed_location])
+        with self.assertRaisesRegex(AdapterError, "nameCode is malformed"):
+            adp.fetch_jobs(session, wfn_target())
+        self.assertEqual(session.adp_pagination["rejected_record_count"], 0)
+
+    def test_workforce_now_rejection_overrides_reported_total_completion(self):
+        valid = wfn_item()
+        rejected = wfn_item(
+            item_id="123456789_2", external_id="42002", requisitionLocations=[]
+        )
+        session = wfn_session([valid, rejected], total=2)
+        jobs = adp.fetch_jobs(session, wfn_target(max_jobs=10))
+
+        self.assertEqual(len(jobs), 1)
+        self.assertEqual(session.adp_pagination["stop_reason"], "total_jobs_reached")
+        self.assertFalse(session.adp_pagination["scan_complete"])
+        self.assertEqual(
+            session.adp_pagination["scan_completeness_reason"],
+            "malformed_listing_records",
+        )
+
+        # Even a contradictory upstream total that equals the retained count
+        # cannot let scanner-level authoritative-total recovery erase rejection.
+        scanner_session = wfn_session([valid, rejected], total=1)
+        result = scanner.CompanyCareersScanner(
+            targets=[wfn_target(max_jobs=10)],
+            session=scanner_session,
+            parent_source_mappings=[],
+        ).scan().results[0]
+        self.assertFalse(result.scan_complete)
+        self.assertEqual(result.scan_completeness_reason, "malformed_listing_records")
+
+    def test_workforce_now_paramount_and_novarc_namespaces_remain_tenant_bound(self):
+        tenants = (
+            (
+                "Paramount Resources", "b8dcb5ca-ab7a-4dad-b6cd-2c7a858453dd",
+                "19000101_000001", "Paramount Resources",
+            ),
+            (
+                "Novarc Technologies", "d355e8f6-9a6c-48a9-b7ba-45a41dc5daad",
+                "9200648065638_2", "WNVPD0000191809",
+            ),
+        )
+        for name, cid, cc_id, identity in tenants:
+            with self.subTest(name=name):
+                target = wfn_target(
+                    name=name,
+                    careers_url=(
+                        "https://workforcenow.adp.com/mascsr/default/mdf/recruitment/"
+                        f"recruitment.html?cid={cid}&ccId={cc_id}&lang=en_CA"
+                    ),
+                    identity_regex=identity,
+                )
+                jobs = adp.fetch_jobs(
+                    wfn_session([wfn_item()], identity=identity), target
+                )
+                self.assertEqual(
+                    jobs[0].source,
+                    f"adp:workforcenow.adp.com:{cid}",
+                )
+
+        novarc = wfn_target(
+            name="Novarc Technologies",
+            careers_url=(
+                "https://workforcenow.adp.com/mascsr/default/mdf/recruitment/"
+                "recruitment.html?cid=d355e8f6-9a6c-48a9-b7ba-45a41dc5daad"
+                "&ccId=9200648065638_2&lang=en_CA"
+            ),
+            identity_regex="WNVPD0000191809",
+        )
+        with self.assertRaisesRegex(AdapterError, "tenant identity"):
+            adp.fetch_jobs(
+                wfn_session([], identity="Paramount Resources"), novarc
+            )
 
     def test_workforce_now_fails_closed_on_identity_or_detail_drift(self):
         with self.assertRaisesRegex(AdapterError, "identity"):

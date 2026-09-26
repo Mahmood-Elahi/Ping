@@ -43,6 +43,21 @@ MYJOBS_API = "https://my.adp.com/myadp_prefix/mycareer/public/staffing/v1/job-re
 SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$")
 SAFE_SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 BLOCKED_MARKERS = ("captcha", "access denied", "verify you are human", "challenge-platform")
+MAX_REJECTED_RECORD_IDS = 20
+
+
+class _MissingStableLocationError(AdapterError):
+    """Raised only when a syntactically valid location shape has no stable display."""
+
+
+class _WfnIdentityValidatedMissingLocationError(AdapterError):
+    """Raised after a Workforce Now record's identity contract is fully validated."""
+
+    def __init__(self, item_id: str) -> None:
+        super().__init__(
+            f"ADP Workforce Now record {item_id} has no stable usable location"
+        )
+        self.item_id = item_id
 
 
 def fetch_jobs(
@@ -166,6 +181,11 @@ def _fetch_workforce_now(
     seen: set[str] = set()
     total: int | None = None
     metadata = _metadata(target, "GET", page_size, limit)
+    metadata.update(
+        rejected_record_count=0,
+        rejected_record_ids=[],
+        rejected_record_reason=None,
+    )
     setattr(session, "adp_pagination", metadata)
     publish_source_scan_metadata(session, metadata)
     for page in range(int(target.max_pages)):
@@ -183,10 +203,20 @@ def _fetch_workforce_now(
             item_id = _stable_id(row.get("itemID"), "ADP Workforce Now itemID")
             if item_id in seen:
                 raise AdapterError(f"ADP Workforce Now repeated stable job ID: {item_id}")
+            seen.add(item_id)
             detail_url = f"{target.endpoint_url}/{item_id}"
             detail = _get_json(session, detail_url, f"Workforce Now detail {item_id}", timeout, params=common, headers=headers)
-            job = _normalize_wfn(row, detail, target, query, detail_url)
-            seen.add(item_id)
+            try:
+                job = _normalize_wfn(row, detail, target, query, detail_url)
+            except _WfnIdentityValidatedMissingLocationError as exc:
+                rejected_count = int(metadata["rejected_record_count"]) + 1
+                metadata["rejected_record_count"] = rejected_count
+                metadata["malformed_records"] = rejected_count
+                rejected_ids = metadata["rejected_record_ids"]
+                if len(rejected_ids) < MAX_REJECTED_RECORD_IDS:
+                    rejected_ids.append(exc.item_id)
+                metadata["rejected_record_reason"] = "missing_stable_location"
+                continue
             jobs.append(job)
             if len(jobs) >= limit:
                 break
@@ -202,6 +232,11 @@ def _fetch_workforce_now(
     metadata["total_available"] = total
     metadata["authoritative_total_present"] = total is not None
     _finalize_metadata(metadata)
+    if metadata["rejected_record_count"] and not jobs:
+        raise AdapterError(
+            "ADP Workforce Now had no valid jobs after rejecting "
+            "identity-validated records without stable locations"
+        )
     jobs.sort(key=lambda job: (job.updated_at, job.job_id), reverse=True)
     return jobs
 
@@ -352,15 +387,18 @@ def _normalize_wfn(
     external_id = _wfn_external_id(listing)
     if _wfn_external_id(detail) != external_id:
         raise AdapterError("ADP Workforce Now external job ID changed in the detail response")
-    locations = _location_values(listing.get("requisitionLocations"))
-    if _location_values(detail.get("requisitionLocations")) != locations:
-        raise AdapterError("ADP Workforce Now detail locations did not match the listing")
-    location = " | ".join(locations)
     apply_query = urlencode(
         {"cid": query["cid"], "ccId": query["ccId"], "jobId": external_id, "lang": query["lang"]}
     )
     careers = urlparse(str(target.careers_url))
     apply_url = urlunparse(careers._replace(query=apply_query, fragment=""))
+    if (
+        urlparse(apply_url).scheme != "https"
+        or _host(apply_url) not in {_host(value) for value in target.allowed_apply_hosts}
+    ):
+        raise AdapterError("ADP Workforce Now official apply URL is not allow-listed")
+    locations = _matching_wfn_locations(listing, detail, item_id)
+    location = " | ".join(locations)
     return JobRecord(
         job_id=f"adp:{(careers.hostname or '').casefold()}:{query['cid'].casefold()}:{item_id}",
         title=title, company=target.name, location=location, url=apply_url,
@@ -439,9 +477,14 @@ def _locations(value: Any) -> str:
 
 def _location_values(value: Any) -> list[str]:
     """Return ADP's stable location displays in deterministic precedence order."""
-    if not isinstance(value, list) or not value:
-        raise AdapterError(
+    if value is None or value == []:
+        raise _MissingStableLocationError(
             "ADP job is missing requisition locations "
+            f"({_adp_location_diagnostic(value)})"
+        )
+    if not isinstance(value, list):
+        raise AdapterError(
+            "ADP requisition locations are malformed "
             f"({_adp_location_diagnostic(value)})"
         )
     locations: list[str] = []
@@ -480,11 +523,34 @@ def _location_values(value: Any) -> list[str]:
     except AdapterError as exc:
         raise AdapterError(f"{exc} ({_adp_location_diagnostic(value)})") from exc
     if not locations:
-        raise AdapterError(
+        raise _MissingStableLocationError(
             "ADP requisition location has no stable display value "
             f"({_adp_location_diagnostic(value)})"
         )
     return locations
+
+
+def _matching_wfn_locations(
+    listing: Mapping[str, Any], detail: Mapping[str, Any], item_id: str
+) -> list[str]:
+    """Validate listing/detail location agreement before classifying locationless rows."""
+    listing_locations: list[str] | None
+    detail_locations: list[str] | None
+    try:
+        listing_locations = _location_values(listing.get("requisitionLocations"))
+    except _MissingStableLocationError:
+        listing_locations = None
+    try:
+        detail_locations = _location_values(detail.get("requisitionLocations"))
+    except _MissingStableLocationError:
+        detail_locations = None
+    if listing_locations != detail_locations:
+        raise AdapterError("ADP Workforce Now detail locations did not match the listing")
+    if listing_locations is None:
+        if listing.get("requisitionLocations") != detail.get("requisitionLocations"):
+            raise AdapterError("ADP Workforce Now detail locations did not match the listing")
+        raise _WfnIdentityValidatedMissingLocationError(item_id)
+    return listing_locations
 
 
 def _structured_adp_location(value: Mapping[str, Any], label: str) -> str:
@@ -713,6 +779,9 @@ def _finalize_metadata(metadata: SourceScanMetadata) -> None:
     elif metadata["stop_reason"] in {"maximum_results_reached", "maximum_pages_reached"}:
         metadata["scan_completeness_reason"] = "safety_limit_reached"
         metadata["safety_limit_reached"] = True
+    if metadata.get("rejected_record_count"):
+        metadata["scan_complete"] = False
+        metadata["scan_completeness_reason"] = "malformed_listing_records"
 
 
 def _stable_total(previous: int | None, current: int, label: str) -> int:
