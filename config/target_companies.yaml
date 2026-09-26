@@ -1017,7 +1017,7 @@ target_companies:
     external_id_attribute: null
     location_selector: ul.job-meta li:nth-child(2)
     department_selector: ul.job-meta li:first-child
-    pagination_url_template: https://search-careers.gm.com/en/jobs/?page={page}
+    pagination_url_template: null
     next_page_selector: null
     allow_url_id_fallback: false
   - name: Mobileye
@@ -1086,7 +1086,7 @@ target_companies:
     external_id_attribute: data-id
     location_selector: ul.job-meta li:first-child
     department_selector: null
-    pagination_url_template: https://careers.caterpillar.com/en/jobs/?page={page}
+    pagination_url_template: null
     next_page_selector: null
     allow_url_id_fallback: false
   - name: Intuitive Surgical
@@ -1113,7 +1113,7 @@ target_companies:
     external_id_attribute: data-id
     location_selector: ul.job-meta li:first-child
     department_selector: ul.job-meta li:nth-child(2)
-    pagination_url_template: https://careers.intuitive.com/en/jobs/?page={page}
+    pagination_url_template: null
     next_page_selector: null
     allow_url_id_fallback: false
   - name: Coupang

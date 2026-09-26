@@ -7,7 +7,12 @@ import json
 import requests
 
 from src.scraper.company_careers.adapters import static_html
-from src.scraper.company_careers.models import AdapterError, CompanyTarget
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    source_scan_metadata,
+)
+from src.scraper.company_careers.registry import load_target_companies
 
 
 class Response:
@@ -73,6 +78,64 @@ def target(**overrides):
 
 
 class StaticHTMLAdapterTests(unittest.TestCase):
+    def test_repeated_page_sources_drop_only_the_disproven_page_template(self):
+        repaired = {
+            item.name: item
+            for item in load_target_companies(apply_reliability_repairs=True)
+        }
+        fixtures = {
+            "General Motors": {
+                "external_id": "jr-202600001",
+                "card": (
+                    "<div class='card-job'><h2 class='card-title'>"
+                    "<a href='/en/jobs/jr-202600001/engineer'>Engineer</a></h2>"
+                    "<ul class='job-meta'><li>Engineering</li><li>Detroit, MI</li></ul>"
+                    "</div>"
+                ),
+            },
+            "Caterpillar": {
+                "external_id": "R0000380757",
+                "card": (
+                    "<div class='card-job' data-id='R0000380757'>"
+                    "<h2 class='card-title'><a href='/en/jobs/r0000380757/engineer'>"
+                    "Engineer</a></h2><ul class='job-meta'><li>Peoria, IL</li></ul>"
+                    "</div>"
+                ),
+            },
+            "Intuitive Surgical": {
+                "external_id": "744000150742000",
+                "card": (
+                    "<div class='card-job' data-id='744000150742000'>"
+                    "<h2 class='card-title'><a href='/en/jobs/744000150742000/engineer'>"
+                    "Engineer</a></h2><ul class='job-meta'><li>Sunnyvale, CA</li>"
+                    "<li>Engineering</li></ul></div>"
+                ),
+            },
+        }
+
+        for company, fixture in fixtures.items():
+            with self.subTest(company=company):
+                configured = repaired[company]
+                self.assertIsNone(configured.pagination_url_template)
+                self.assertIsNone(configured.next_page_selector)
+                session = Session(Response(f"<html><body>{fixture['card']}</body></html>"))
+
+                jobs = static_html.fetch_jobs(session, configured)
+                metadata = source_scan_metadata(session)
+
+                self.assertEqual(len(jobs), 1)
+                self.assertEqual(
+                    jobs[0].job_id,
+                    f"static_html:{configured.allowed_apply_hosts[0]}:"
+                    f"{fixture['external_id']}",
+                )
+                self.assertEqual(len(session.calls), 1)
+                self.assertFalse(metadata["scan_complete"])
+                self.assertEqual(
+                    metadata["scan_completeness_reason"],
+                    "no_pagination_configured",
+                )
+
     def test_01_listing_normalization(self):
         jobs = static_html.fetch_jobs(Session(Response(page(card()))), target())
         self.assertEqual((jobs[0].title, jobs[0].location), ("Engineer", "Remote | Calgary"))

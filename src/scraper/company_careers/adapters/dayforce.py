@@ -37,12 +37,25 @@ MAX_BOOTSTRAP_BYTES = 1_000_000
 MAX_CSRF_BYTES = 10_000
 MAX_RESPONSE_BYTES = 3_000_000
 MAX_DETAIL_REQUESTS = 10
+MAX_REJECTED_RECORD_IDS = 20
 MAX_DETAIL_NODES = 10_000
 MAX_DETAIL_DEPTH = 24
 NEXT_DATA_RE = re.compile(
     r'<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>',
     re.IGNORECASE | re.DOTALL,
 )
+
+
+class _IdentityValidatedMissingStructuredLocationError(AdapterError):
+    """Raised only after Dayforce listing/detail identity has been validated."""
+
+    def __init__(self, posting_id: int, requisition_id: int) -> None:
+        super().__init__(
+            "Dayforce identity-validated posting has no structured location: "
+            f"posting={posting_id} requisition={requisition_id}"
+        )
+        self.posting_id = posting_id
+        self.requisition_id = requisition_id
 
 
 def fetch_jobs(
@@ -77,6 +90,12 @@ def fetch_jobs(
         "duplicate_requisitions_skipped": 0,
         "detail_requests": 0,
         "maximum_detail_requests": MAX_DETAIL_REQUESTS,
+        "rejected_record_count": 0,
+        "rejected_record_ids": [],
+        "rejected_posting_ids": [],
+        "rejected_requisition_ids": [],
+        "rejected_record_reason": None,
+        "malformed_records": 0,
         "total_available": None,
         "stop_reason": "not_started",
     })
@@ -153,7 +172,27 @@ def fetch_jobs(
                 detail = _fetch_detail_posting(
                     session, row, target, config, site_info, timeout
                 )
-                normalized_row = _merge_detail_location(row, detail)
+                try:
+                    normalized_row = _merge_detail_location(row, detail)
+                except _IdentityValidatedMissingStructuredLocationError as exc:
+                    rejected_count = int(metadata["rejected_record_count"]) + 1
+                    metadata["rejected_record_count"] = rejected_count
+                    metadata["malformed_records"] = rejected_count
+                    if len(metadata["rejected_record_ids"]) < MAX_REJECTED_RECORD_IDS:
+                        metadata["rejected_record_ids"].append(
+                            {
+                                "posting_id": exc.posting_id,
+                                "requisition_id": exc.requisition_id,
+                            }
+                        )
+                        metadata["rejected_posting_ids"].append(exc.posting_id)
+                        metadata["rejected_requisition_ids"].append(
+                            exc.requisition_id
+                        )
+                    metadata["rejected_record_reason"] = (
+                        "missing_structured_location"
+                    )
+                    continue
             jobs.append(_normalize(normalized_row, target, config, site_info))
 
         metadata["pages"].append(
@@ -185,6 +224,14 @@ def fetch_jobs(
             "maximum_pages_reached",
         }
         metadata["scan_completeness_reason"] = metadata["stop_reason"]
+    if metadata["rejected_record_count"]:
+        metadata["scan_complete"] = False
+        metadata["scan_completeness_reason"] = "malformed_listing_records"
+        if not jobs:
+            raise AdapterError(
+                "Dayforce had no valid jobs after rejecting identity-validated "
+                "postings with no structured location"
+            )
     return jobs[: int(target.max_jobs)]
 
 
@@ -791,6 +838,8 @@ def _merge_detail_location(
     listing: Mapping[str, Any], detail: Mapping[str, Any]
 ) -> Mapping[str, Any]:
     """Copy only explicit structured location projections from detail data."""
+    posting_id = _positive_int(listing, "jobPostingId", "posting")
+    requisition_id = _positive_int(listing, "jobReqId", "requisition")
     merged = dict(listing)
     fields = (
         "postingLocations",
@@ -824,9 +873,13 @@ def _merge_detail_location(
             merged[field] = detail[field]
             copied = True
     if not copied:
-        raise AdapterError("Dayforce job detail has no structured location fields")
+        raise _IdentityValidatedMissingStructuredLocationError(
+            posting_id, requisition_id
+        )
     if merged.get("postingLocations") is None and not _alternate_posting_locations(merged):
-        raise AdapterError("Dayforce job detail has no structured location")
+        raise _IdentityValidatedMissingStructuredLocationError(
+            posting_id, requisition_id
+        )
     try:
         locations = _posting_locations(
             merged.get("postingLocations"),
@@ -834,9 +887,13 @@ def _merge_detail_location(
             posting=merged,
         )
         if not locations:
-            raise AdapterError("Dayforce job detail has no structured location")
+            raise _IdentityValidatedMissingStructuredLocationError(
+                posting_id, requisition_id
+            )
         for location in locations:
             _posting_location_display(location)
+    except _IdentityValidatedMissingStructuredLocationError:
+        raise
     except AdapterError as exc:
         raise AdapterError(f"Dayforce job detail location is invalid: {exc}") from exc
     return merged

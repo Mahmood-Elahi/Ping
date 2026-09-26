@@ -400,7 +400,6 @@ class DayforceTests(unittest.TestCase):
         listing = posting(postingLocations=None)
         cases = (
             (posting(postingLocations=[{"cityName": 42}]), "location is invalid"),
-            (posting(postingLocations=None), "no structured location"),
         )
         for detail, message in cases:
             with self.subTest(message=message):
@@ -409,6 +408,136 @@ class DayforceTests(unittest.TestCase):
                         Session([page([listing])], details=[detail_html(detail)]),
                         target(),
                     )
+
+    def test_identity_valid_locationless_posting_isolated_from_valid_sibling(self):
+        valid = posting(101, 501)
+        locationless = posting(102, 502, postingLocations=None)
+        session = Session(
+            [page([valid, locationless], total=2)],
+            details=[detail_html(posting(102, 502, postingLocations=None))],
+        )
+
+        jobs = dayforce.fetch_jobs(session, target())
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(len(jobs), 1)
+        self.assertEqual(jobs[0].job_id, "dayforce:example:candidateportal:501")
+        self.assertEqual(jobs[0].location, "Calgary, AB, Canada")
+        self.assertEqual(metadata["rejected_record_count"], 1)
+        self.assertEqual(
+            metadata["rejected_record_ids"],
+            [{"posting_id": 102, "requisition_id": 502}],
+        )
+        self.assertEqual(metadata["rejected_posting_ids"], [102])
+        self.assertEqual(metadata["rejected_requisition_ids"], [502])
+        self.assertEqual(
+            metadata["rejected_record_reason"], "missing_structured_location"
+        )
+        self.assertEqual(metadata["malformed_records"], 1)
+        self.assertEqual(metadata["stop_reason"], "total_jobs_reached")
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(
+            metadata["scan_completeness_reason"], "malformed_listing_records"
+        )
+
+    def test_all_identity_valid_locationless_postings_fail_the_source(self):
+        listings = [
+            posting(101, 501, postingLocations=None),
+            posting(102, 502, postingLocations=None),
+        ]
+        details = [
+            detail_html(posting(101, 501, postingLocations=None)),
+            detail_html(posting(102, 502, postingLocations=[])),
+        ]
+        session = Session([page(listings, total=2)], details=details)
+
+        with self.assertRaisesRegex(AdapterError, "no structured location"):
+            dayforce.fetch_jobs(session, target())
+
+        metadata = source_scan_metadata(session)
+        self.assertEqual(metadata["rejected_record_count"], 2)
+        self.assertEqual(metadata["malformed_records"], 2)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(
+            metadata["scan_completeness_reason"], "malformed_listing_records"
+        )
+
+    def test_locationless_isolation_does_not_relax_identity_contracts(self):
+        listing = posting(postingLocations=None)
+        valid_detail = posting(
+            postingLocations=[{"formattedAddress": "Calgary, AB, Canada"}]
+        )
+        cases = (
+            (
+                posting(postingLocations=None, clientNamespace="other"),
+                valid_detail,
+                {},
+                "tenant boundaries",
+            ),
+            (
+                posting(postingLocations=None, jobBoardId=99),
+                valid_detail,
+                {},
+                "job-board boundaries",
+            ),
+            (
+                listing,
+                posting(
+                    posting_id=999,
+                    postingLocations=[{"formattedAddress": "Calgary, AB, Canada"}],
+                ),
+                {},
+                "identity mismatch",
+            ),
+            (
+                listing,
+                posting(
+                    requisition_id=999,
+                    postingLocations=[{"formattedAddress": "Calgary, AB, Canada"}],
+                ),
+                {},
+                "identity mismatch",
+            ),
+            (
+                listing,
+                posting(
+                    postingLocations=[{"formattedAddress": "Calgary, AB, Canada"}],
+                    jobTitle="Different title",
+                ),
+                {},
+                "title identity mismatch",
+            ),
+        )
+        for candidate, detail, query, message in cases:
+            with self.subTest(message=message):
+                session = Session(
+                    [page([candidate])], details=[detail_html(detail, query=query)]
+                )
+                with self.assertRaisesRegex(AdapterError, message):
+                    dayforce.fetch_jobs(session, target())
+                self.assertEqual(
+                    source_scan_metadata(session)["rejected_record_count"], 0
+                )
+
+        route_detail = posting(
+            postingLocations=[{"formattedAddress": "Calgary, AB, Canada"}]
+        )
+        route_detail.pop("jobPostingId")
+        route_detail.pop("jobReqId")
+        route_session = Session(
+            [page([listing])],
+            details=[detail_html(route_detail, query={"postingId": "999"})],
+        )
+        with self.assertRaisesRegex(AdapterError, "canonical route identity mismatch"):
+            dayforce.fetch_jobs(route_session, target())
+        self.assertEqual(
+            source_scan_metadata(route_session)["rejected_record_count"], 0
+        )
+
+        with self.assertRaisesRegex(AdapterError, "search_url"):
+            dayforce.validate_target(
+                target(search_url="https://evil.example/en-CA/example/CANDIDATEPORTAL")
+            )
 
     def test_null_listing_location_rejects_detail_identity_mismatch(self):
         listing = posting(postingLocations=None)

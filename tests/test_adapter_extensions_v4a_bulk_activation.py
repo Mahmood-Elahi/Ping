@@ -264,14 +264,18 @@ class AdapterExtensionsV4ABulkActivationTests(unittest.TestCase):
         with self.assertRaisesRegex(AdapterError, "two-page"):
             bounded.get("https://x.test/3")
 
-    def test_28_twenty_job_validation_limit(self):
+    def test_28_unpaginated_listing_does_not_claim_complete_at_job_limit(self):
         cards = "".join(card(str(index)) for index in range(25))
         session = Session([page(cards)])
         jobs = static_html.fetch_jobs(
             session, CompanyTarget.from_dict(static_entry()), 5
         )
         self.assertEqual(len(jobs), 25)
-        self.assertTrue(session.static_html_pagination["scan_complete"])
+        self.assertFalse(session.static_html_pagination["scan_complete"])
+        self.assertEqual(
+            session.static_html_pagination["scan_completeness_reason"],
+            "no_pagination_configured",
+        )
 
     @patch.object(static_html.time, "sleep", return_value=None)
     def test_29_bounded_retry_enforcement(self, _sleep):
