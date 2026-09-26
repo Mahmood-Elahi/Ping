@@ -294,6 +294,121 @@ class EmbeddedDataAdapterTests(unittest.TestCase):
                 )
             )
 
+    def test_25_public_json_uses_only_declared_result_pagination(self):
+        public_target = target(
+            endpoint_variant="public_json_endpoint",
+            embedded_script_selector=None,
+            embedded_json_path="result.list",
+            pagination_url_template="https://careers.example.test/jobs?page={page}",
+            allowed_source_hosts=["careers.example.test"],
+            job_attribution_field="client",
+            job_attribution_regex=r"^example$",
+        )
+        job = item(client="example")
+        payload = {
+            "result": {"list": [job], "total": 1},
+            "facets": {"count": 999},
+            "aggregations": {"hits": 888},
+            "analytics": {"total": 777},
+        }
+        session = Session(
+            Response(json.dumps(payload), content_type="application/json")
+        )
+
+        self.assertEqual(len(embedded_data.fetch_jobs(session, public_target)), 1)
+        metadata = source_scan_metadata(session)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["total_available"], 1)
+        self.assertEqual(metadata["terminal_evidence_type"], "authoritative_total")
+
+    def test_26_public_json_conflicting_declared_totals_stays_incomplete(self):
+        public_target = target(
+            endpoint_variant="public_json_endpoint",
+            embedded_script_selector=None,
+            embedded_json_path="result.list",
+            pagination_url_template="https://careers.example.test/jobs?page={page}",
+            allowed_source_hosts=["careers.example.test"],
+            job_attribution_field="client",
+            job_attribution_regex=r"^example$",
+        )
+        first = {
+            "result": {
+                "list": [item(client="example")],
+                "total": 1,
+                "totalCount": 2,
+            }
+        }
+        second = {
+            "result": {"list": [], "total": 1, "totalCount": 2}
+        }
+        session = Session(
+            Response(json.dumps(first), content_type="application/json"),
+            Response(json.dumps(second), content_type="application/json"),
+        )
+
+        self.assertEqual(len(embedded_data.fetch_jobs(session, public_target)), 1)
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(
+            metadata["scan_completeness_reason"],
+            "conflicting_pagination_evidence",
+        )
+
+    def test_27_public_json_string_page_number_is_diagnosed_not_coerced(self):
+        public_target = target(
+            endpoint_variant="public_json_endpoint",
+            embedded_script_selector=None,
+            embedded_json_path="result.list",
+            pagination_url_template="https://careers.example.test/jobs?page={page}",
+            allowed_source_hosts=["careers.example.test"],
+            job_attribution_field="client",
+            job_attribution_regex=r"^example$",
+        )
+        payload = {
+            "result": {
+                "list": [item(client="example")],
+                "pagination": {"currentPage": "1", "totalPages": 65},
+            }
+        }
+        session = Session(
+            Response(json.dumps(payload), content_type="application/json"),
+            Response(
+                json.dumps(
+                    {
+                        "result": {
+                            "list": [],
+                            "pagination": {
+                                "currentPage": "2",
+                                "totalPages": 65,
+                            },
+                        }
+                    }
+                ),
+                content_type="application/json",
+            ),
+        )
+
+        self.assertEqual(len(embedded_data.fetch_jobs(session, public_target)), 1)
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["page_count"], 65)
+        self.assertEqual(
+            metadata["scan_completeness_reason"],
+            "malformed_pagination_evidence",
+        )
+        self.assertEqual(
+            metadata["pagination_malformed_fields"],
+            ["result.pagination.currentPage"],
+        )
+        self.assertIn(
+            {
+                "field": "result.pagination.currentPage",
+                "type": "str",
+                "value": "2",
+            },
+            metadata["pagination_field_diagnostics"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

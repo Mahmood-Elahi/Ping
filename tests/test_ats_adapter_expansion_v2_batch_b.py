@@ -14,7 +14,11 @@ from scripts import validate_ats_adapter_expansion_v2_batch_b as batch
 from scripts import validate_company_registry as registry_validator
 from src.scraper.company_careers import scanner
 from src.scraper.company_careers.adapters import deel, talentbrew, teamtailor
-from src.scraper.company_careers.models import AdapterError, CompanyTarget
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    source_scan_metadata,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -117,6 +121,29 @@ class GenericAdapterTests(unittest.TestCase):
         self.assertEqual(len(jobs), 1)
         self.assertEqual(jobs[0].job_id, "talentbrew:jobs.example.test:98062537056")
         self.assertEqual(jobs[0].location, "Calgary, Alberta")
+
+    def test_talentbrew_active_next_conflicting_with_final_page_is_incomplete(self):
+        first_card = """<a data-job-id="1" href="/job/one/1"><h2>Engineer One</h2><span class="job-location">Calgary</span></a>"""
+        second_card = """<a data-job-id="2" href="/job/two/2"><h2>Engineer Two</h2><span class="job-location">Edmonton</span></a>"""
+        first = f"""<html><title>Example Networks careers</title>
+        <section id='search-results'>{first_card}</section>
+        <nav class='pagination'>Page 1 of 1 <a class='next' href='/page/2'>Next</a></nav></html>"""
+        second = f"""<html><title>Example Networks careers</title>
+        <section id='search-results'>{second_card}</section></html>"""
+        session = Session(
+            [
+                Response(first, url="https://jobs.example.test/search-jobs/"),
+                Response(second, url="https://jobs.example.test/page/2"),
+            ]
+        )
+
+        self.assertEqual(len(talentbrew.fetch_jobs(session, talentbrew_target())), 2)
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(
+            metadata["scan_completeness_reason"],
+            "conflicting_pagination_evidence",
+        )
 
     def test_deel_itemlist_and_jobposting_are_exact_and_bounded(self):
         job_id = "21faddcf-7ad7-43f3-83b6-8a5615416aa2"

@@ -16,6 +16,15 @@ from src.scraper.company_careers.models import (
     SourceScanMetadata,
     publish_source_scan_metadata,
 )
+from src.scraper.company_careers.listing_completion import (
+    AdaptiveListingCompletion,
+    enforce_pagination_fail_closed,
+    finish_authoritative_total,
+    html_pagination_evidence,
+    pagination_terminal_accepted,
+    publish_pagination_evidence,
+    record_terminal_evidence,
+)
 
 
 ENDPOINT_VARIANT = "search_results_data_job_id_v1"
@@ -68,12 +77,21 @@ def fetch_jobs(
     })
     setattr(session, "talentbrew_pagination", metadata)
     publish_source_scan_metadata(session, metadata)
+    listing_budget = AdaptiveListingCompletion(maximum_pages, maximum_jobs)
+    listing_budget.record(metadata)
+    listing_budget.record_terminal_probe_decision(
+        metadata,
+        max(1, int(target.page_size)),
+        requests_completed=0,
+        results_observed=0,
+        deterministic_terminal_contract=True,
+    )
     jobs: list[JobRecord] = []
     seen_ids: set[str] = set()
     seen_urls: set[str] = set()
     next_url = str(target.listing_url)
 
-    for page_index in range(maximum_pages):
+    for page_index in range(int(metadata["effective_listing_request_ceiling"])):
         if next_url in seen_urls:
             metadata["stop_reason"] = "repeated_page"
             break
@@ -83,6 +101,13 @@ def fetch_jobs(
         content = static_html._response_bytes(response, target)
         root = static_html._parse_html(content, response)
         _require_identity(root, target)
+        evidence = html_pagination_evidence(root)
+        publish_pagination_evidence(
+            metadata, evidence, prior_pagination=page_index > 0
+        )
+        if evidence.reported_total is not None:
+            metadata["total_available"] = evidence.reported_total
+            metadata["authoritative_total_present"] = True
         cards = root.xpath(
             "//*[@id='search-results' or @id='search-results-list']//a[@data-job-id and @href]"
         )
@@ -113,27 +138,62 @@ def fetch_jobs(
             seen_ids.add(job.job_id)
             jobs.append(job)
             new_jobs += 1
-            if len(jobs) >= maximum_jobs:
+            if len(jobs) >= int(metadata["effective_listing_job_ceiling"]):
                 break
         page_row["jobs_normalized"] = new_jobs
         metadata["jobs_normalized"] = len(jobs)
-        if len(jobs) >= maximum_jobs:
-            metadata["stop_reason"] = "maximum_results_reached"
+        if finish_authoritative_total(
+            metadata,
+            evidence.reported_total,
+            len(jobs),
+            evidence=evidence,
+            prior_pagination=page_index > 0,
+        ):
+            break
+        if pagination_terminal_accepted(
+            metadata, evidence, prior_pagination=page_index > 0
+        ):
+            metadata["stop_reason"] = "explicit_terminal_page"
+            metadata["scan_complete"] = True
+            metadata["scan_completeness_reason"] = "explicit_next_page_exhausted"
+            metadata["total_available"] = len(jobs)
+            record_terminal_evidence(
+                metadata,
+                "html_pagination_contract",
+                list(evidence.fields),
+                has_more=False,
+                terminal_page_observed=True,
+            )
             break
         if new_jobs == 0:
             metadata["stop_reason"] = "no_new_stable_ids"
             break
         links = root.xpath("//a[contains(concat(' ', normalize-space(@class), ' '), ' next ') and @href]")
         if not links or "disabled" in str(links[0].get("class") or "").split():
-            metadata["stop_reason"] = "no_next_page"
-            metadata["scan_complete"] = True
-            metadata["scan_completeness_reason"] = "explicit_next_page_exhausted"
-            metadata["total_available"] = len(jobs)
+            if pagination_terminal_accepted(
+                metadata,
+                evidence,
+                prior_pagination=page_index > 0,
+                additional_terminal_reason="configured_next_link_absent",
+            ):
+                metadata["stop_reason"] = "no_next_page"
+                metadata["scan_complete"] = True
+                metadata["scan_completeness_reason"] = "explicit_next_page_exhausted"
+                metadata["total_available"] = len(jobs)
+                record_terminal_evidence(
+                    metadata,
+                    "configured_next_link_absent",
+                    "a.next",
+                    has_more=False,
+                    terminal_page_observed=True,
+                )
+            else:
+                metadata["stop_reason"] = "pagination_evidence_not_terminal"
             break
         proposed = urljoin(next_url, str(links[0].get("href")))
         static_html._require_listing_host(proposed, target)
         next_url = proposed
-        if page_index + 1 < maximum_pages:
+        if page_index + 1 < int(metadata["effective_listing_request_ceiling"]):
             time.sleep(static_html.RETRY_DELAY_SECONDS)
     else:
         metadata["stop_reason"] = "maximum_pages_reached"
@@ -142,6 +202,7 @@ def fetch_jobs(
         metadata["safety_limit_reached"] = True
     elif not metadata["scan_complete"]:
         metadata["scan_completeness_reason"] = "pagination_failure"
+    enforce_pagination_fail_closed(metadata)
     return jobs
 
 

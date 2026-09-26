@@ -855,6 +855,203 @@ class CompanyCareersTests(unittest.TestCase):
         self.assertEqual(jobs[0].source, "custom:amazon")
         self.assertEqual(jobs[0].departments, ["AWS"])
 
+    def test_amazon_continuation_evidence_blocks_short_page_completion(self):
+        session = FakeSession(
+            get_responses=[
+                FakeResponse(
+                    {
+                        "hits": 2,
+                        "has_more": True,
+                        "jobs": [
+                            {
+                                "id": "amz-1",
+                                "title": "Principal SDE",
+                                "job_path": "/en/jobs/amz-1/principal-sde",
+                            }
+                        ],
+                    }
+                )
+            ]
+        )
+        jobs = amazon.fetch_jobs(
+            session,
+            CompanyTarget(
+                name="Amazon",
+                platform="amazon",
+                search_terms=["Principal SDE"],
+                max_pages=1,
+            ),
+        )
+
+        self.assertEqual(len(jobs), 1)
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(
+            metadata["scan_completeness_reason"],
+            "conflicting_pagination_evidence",
+        )
+
+    @staticmethod
+    def _amazon_jobs(count, *, start=0):
+        return [
+            {
+                "id": f"amz-{index}",
+                "title": f"Engineer {index}",
+                "job_path": f"/en/jobs/amz-{index}/engineer-{index}",
+            }
+            for index in range(start, start + count)
+        ]
+
+    def test_amazon_one_terminal_term_and_one_continuing_term_is_incomplete(self):
+        session = FakeSession(
+            get_responses=[
+                FakeResponse({"hits": 1, "jobs": self._amazon_jobs(1)}),
+                FakeResponse({"hits": 200, "jobs": self._amazon_jobs(100, start=100)}),
+            ]
+        )
+
+        amazon.fetch_jobs(
+            session,
+            CompanyTarget(
+                name="Amazon",
+                platform="amazon",
+                search_terms=["terminal", "continuing"],
+                max_pages=1,
+            ),
+        )
+
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(
+            [state["status"] for state in metadata["query_pagination"]],
+            ["terminal", "continuation"],
+        )
+        self.assertTrue(metadata["query_pagination"][1]["safety_limit_reached"])
+
+    def test_amazon_one_terminal_term_and_one_malformed_term_is_incomplete(self):
+        session = FakeSession(
+            get_responses=[
+                FakeResponse({"hits": 1, "jobs": self._amazon_jobs(1)}),
+                FakeResponse({"hits": "many", "jobs": self._amazon_jobs(1, start=10)}),
+            ]
+        )
+
+        amazon.fetch_jobs(
+            session,
+            CompanyTarget(
+                name="Amazon",
+                platform="amazon",
+                search_terms=["terminal", "malformed"],
+                max_pages=1,
+            ),
+        )
+
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["scan_completeness_reason"], "malformed_pagination_evidence")
+        self.assertEqual(metadata["query_pagination"][1]["status"], "malformed")
+
+    def test_amazon_one_terminal_term_and_one_safety_limited_term_is_incomplete(self):
+        session = FakeSession(
+            get_responses=[
+                FakeResponse({"hits": 1, "jobs": self._amazon_jobs(1)}),
+                FakeResponse({"jobs": self._amazon_jobs(100, start=100)}),
+            ]
+        )
+
+        amazon.fetch_jobs(
+            session,
+            CompanyTarget(
+                name="Amazon",
+                platform="amazon",
+                search_terms=["terminal", "unproven"],
+                max_pages=1,
+            ),
+        )
+
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["scan_completeness_reason"], "safety_limit_reached")
+        self.assertEqual(metadata["query_pagination"][1]["status"], "unproven")
+        self.assertTrue(metadata["query_pagination"][1]["safety_limit_reached"])
+
+    def test_amazon_all_terms_must_be_explicitly_terminal(self):
+        session = FakeSession(
+            get_responses=[
+                FakeResponse({"has_more": False, "jobs": self._amazon_jobs(1)}),
+                FakeResponse({"hits": 1, "jobs": self._amazon_jobs(1, start=10)}),
+            ]
+        )
+
+        jobs = amazon.fetch_jobs(
+            session,
+            CompanyTarget(
+                name="Amazon",
+                platform="amazon",
+                search_terms=["one", "two"],
+                max_pages=1,
+            ),
+        )
+
+        metadata = source_scan_metadata(session)
+        self.assertEqual(len(jobs), 2)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["scan_completeness_reason"], "all_search_terms_terminal")
+        self.assertEqual(
+            [state["status"] for state in metadata["query_pagination"]],
+            ["terminal", "terminal"],
+        )
+
+    def test_amazon_duplicate_union_jobs_do_not_replace_per_term_completion(self):
+        duplicate = self._amazon_jobs(1)
+        session = FakeSession(
+            get_responses=[
+                FakeResponse({"hits": 1, "jobs": duplicate}),
+                FakeResponse({"hits": 1, "jobs": duplicate}),
+            ]
+        )
+
+        jobs = amazon.fetch_jobs(
+            session,
+            CompanyTarget(
+                name="Amazon",
+                platform="amazon",
+                search_terms=["one", "two"],
+                max_pages=1,
+            ),
+        )
+
+        metadata = source_scan_metadata(session)
+        self.assertEqual(len(jobs), 1)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(
+            [state["rows_collected"] for state in metadata["query_pagination"]],
+            [1, 1],
+        )
+
+    def test_amazon_reported_total_larger_than_collected_rows_is_not_terminal(self):
+        session = FakeSession(
+            get_responses=[
+                FakeResponse({"hits": 2, "jobs": self._amazon_jobs(1)}),
+            ]
+        )
+
+        amazon.fetch_jobs(
+            session,
+            CompanyTarget(
+                name="Amazon",
+                platform="amazon",
+                search_terms=["underfilled"],
+                max_pages=1,
+            ),
+        )
+
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["query_pagination"][0]["status"], "conflicting")
+        self.assertEqual(metadata["query_pagination"][0]["rows_collected"], 1)
+        self.assertEqual(metadata["query_pagination"][0]["reported_total"], 2)
+
     def test_shopify_embedded_data_normalization(self):
         encoded_values = [
             {"_1": 2},
@@ -1146,6 +1343,44 @@ class CompanyCareersTests(unittest.TestCase):
         post_data = session.post_calls[0][1]["data"]
         self.assertEqual(post_data["doc_id"], "29615178951461218")
         self.assertEqual(post_data["fb_api_req_friendly_name"], "CareersJobSearchResultsDataQuery")
+
+    def test_meta_empty_page_cannot_override_has_more_true(self):
+        html = (
+            '["LSD",[],{"token":"lsd-token"}]'
+            '{"client_revision":123456789,"hsi":"987654321"}'
+        )
+        session = FakeSession(
+            get_responses=[FakeResponse({}, text=html)],
+            post_responses=[
+                FakeResponse(
+                    {
+                        "data": {
+                            "job_search_with_featured_jobs": {
+                                "all_jobs": [],
+                                "has_more": True,
+                            }
+                        }
+                    }
+                )
+            ],
+        )
+        jobs = meta.fetch_jobs(
+            session,
+            CompanyTarget(
+                name="Meta",
+                platform="meta",
+                search_terms=["Engineer"],
+                max_pages=1,
+            ),
+        )
+
+        self.assertEqual(jobs, [])
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(
+            metadata["scan_completeness_reason"],
+            "conflicting_pagination_evidence",
+        )
 
     def test_scanner_reports_failed_technical(self):
         session = FakeSession(get_responses=[FakeResponse({}, status_code=404)])
@@ -1595,6 +1830,73 @@ class CompanyCareersTests(unittest.TestCase):
             "browser_exhaustion_not_proven",
         )
         self.assertEqual(by_name["Needs Scroll"].fetched_count, 1)
+
+    def test_browser_native_terminal_contracts_and_no_growth_fail_closed(self):
+        class FakeBrowserBatch:
+            def __init__(self, timeout=30):
+                self.last_run = {}
+
+            def __enter__(self):
+                return self
+
+            def close(self):
+                return None
+
+            def fetch_jobs(self, target, timeout):
+                values = {
+                    "Disabled Load More": {
+                        "disabled_next_control": True,
+                        "terminal_page_observed": True,
+                    },
+                    "Next Present": {"has_more": True, "next_url_present": True},
+                    "Total Reached": {
+                        "total_available": 1,
+                        "authoritative_total_present": True,
+                    },
+                    "No Growth": {"stop_reason": "no_new_stable_ids"},
+                }[target.name]
+                self.last_run = {
+                    "static_parser": SourceScanMetadata(
+                        pages_requested=1,
+                        pages_completed=1,
+                        stop_reason=values.pop("stop_reason", "not_started"),
+                        **values,
+                    )
+                }
+                return [
+                    JobRecord(
+                        job_id=f"browser:{target.name}",
+                        title="Engineer",
+                        company=target.name,
+                        location="Remote",
+                        url="https://example.test/job/1",
+                        updated_at="",
+                        source="browser:test",
+                    )
+                ]
+
+        names = [
+            "Disabled Load More",
+            "Next Present",
+            "Total Reached",
+            "No Growth",
+        ]
+        with patch.object(
+            scanner_module.browser_rendered_html, "BrowserBatch", FakeBrowserBatch
+        ):
+            report = CompanyCareersScanner(
+                targets=[
+                    CompanyTarget(name=name, platform="browser_rendered_html")
+                    for name in names
+                ],
+                session=FakeSession(),
+            ).scan()
+
+        by_name = {row.target.name: row for row in report.results}
+        self.assertTrue(by_name["Disabled Load More"].scan_complete)
+        self.assertFalse(by_name["Next Present"].scan_complete)
+        self.assertTrue(by_name["Total Reached"].scan_complete)
+        self.assertFalse(by_name["No Growth"].scan_complete)
 
     def test_scanner_reports_fetched_no_matching_roles(self):
         session = FakeSession(

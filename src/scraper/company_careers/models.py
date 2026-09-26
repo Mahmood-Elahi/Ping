@@ -95,9 +95,19 @@ class SourceScanMetadata(dict[str, Any]):
             terminal_evidence_type=None,
             terminal_evidence_value=None,
             has_more=None,
+            next_url_present=None,
             next_cursor_present=None,
+            page_count=None,
+            result_count=None,
+            end_index=None,
+            disabled_next_control=False,
+            explicit_final_page=False,
             terminal_page_observed=False,
             complete_collection_response=False,
+            pagination_evidence_status="unproven",
+            pagination_evidence_conflicting=False,
+            pagination_evidence_malformed=False,
+            pagination_evidence_diagnostics=[],
         )
         self.update(values)
 
@@ -380,10 +390,20 @@ class CompanyScanResult:
     terminal_evidence_type: Optional[str] = None
     terminal_evidence_value: Any = None
     has_more: Optional[bool] = None
+    next_url_present: Optional[bool] = None
     next_cursor_present: Optional[bool] = None
+    page_count: Optional[int] = None
+    result_count: Optional[int] = None
+    end_index: Optional[int] = None
+    disabled_next_control: bool = False
+    explicit_final_page: bool = False
     terminal_page_observed: bool = False
     complete_collection_response: bool = False
     detail_requests_coupled: bool = False
+    pagination_evidence_status: str = "unproven"
+    pagination_evidence_conflicting: bool = False
+    pagination_evidence_malformed: bool = False
+    pagination_evidence_diagnostics: List[Dict[str, Any]] = field(default_factory=list)
     exclusion_counts: Dict[str, int] = field(default_factory=dict)
     mapped_child_brand_counts: Dict[str, int] = field(default_factory=dict)
 
@@ -422,10 +442,22 @@ class CompanyScanResult:
             "terminal_evidence_type": self.terminal_evidence_type,
             "terminal_evidence_value": self.terminal_evidence_value,
             "has_more": self.has_more,
+            "next_url_present": self.next_url_present,
             "next_cursor_present": self.next_cursor_present,
+            "page_count": self.page_count,
+            "result_count": self.result_count,
+            "end_index": self.end_index,
+            "disabled_next_control": self.disabled_next_control,
+            "explicit_final_page": self.explicit_final_page,
             "terminal_page_observed": self.terminal_page_observed,
             "complete_collection_response": self.complete_collection_response,
             "detail_requests_coupled": self.detail_requests_coupled,
+            "pagination_evidence_status": self.pagination_evidence_status,
+            "pagination_evidence_conflicting": self.pagination_evidence_conflicting,
+            "pagination_evidence_malformed": self.pagination_evidence_malformed,
+            "pagination_evidence_diagnostics": list(
+                self.pagination_evidence_diagnostics
+            ),
             "matched_count": self.matched_count,
             "exclusion_counts": dict(self.exclusion_counts),
             "error": self.error,

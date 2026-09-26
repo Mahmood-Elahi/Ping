@@ -98,12 +98,30 @@ def _completion_result_fields(metadata: SourceScanMetadata) -> dict[str, Any]:
         "terminal_evidence_type": metadata.get("terminal_evidence_type"),
         "terminal_evidence_value": metadata.get("terminal_evidence_value"),
         "has_more": metadata.get("has_more"),
+        "next_url_present": metadata.get("next_url_present"),
         "next_cursor_present": metadata.get("next_cursor_present"),
+        "page_count": metadata.get("page_count"),
+        "result_count": metadata.get("result_count"),
+        "end_index": metadata.get("end_index"),
+        "disabled_next_control": bool(metadata.get("disabled_next_control")),
+        "explicit_final_page": bool(metadata.get("explicit_final_page")),
         "terminal_page_observed": bool(metadata.get("terminal_page_observed")),
         "complete_collection_response": bool(
             metadata.get("complete_collection_response")
         ),
         "detail_requests_coupled": bool(metadata.get("detail_requests_coupled")),
+        "pagination_evidence_status": str(
+            metadata.get("pagination_evidence_status") or "unproven"
+        ),
+        "pagination_evidence_conflicting": bool(
+            metadata.get("pagination_evidence_conflicting")
+        ),
+        "pagination_evidence_malformed": bool(
+            metadata.get("pagination_evidence_malformed")
+        ),
+        "pagination_evidence_diagnostics": list(
+            metadata.get("pagination_evidence_diagnostics") or []
+        ),
     }
 
 
@@ -336,13 +354,35 @@ class CompanyCareersScanner:
                 )
                 metadata["rendered_collection_observed"] = True
                 terminal_stop = str(metadata.get("stop_reason") or "")
-                browser_terminal = terminal_stop in {
-                    "validated_zero_jobs",
-                    "no_next_page",
-                    "proven_structured_collection",
-                }
+                browser_terminal = bool(
+                    metadata.get("terminal_page_observed")
+                    or metadata.get("complete_collection_response")
+                    or metadata.get("has_more") is False
+                    or metadata.get("next_url_present") is False
+                    or metadata.get("disabled_next_control")
+                    or metadata.get("explicit_final_page")
+                    or terminal_stop
+                    in {
+                        "validated_zero_jobs",
+                        "no_next_page",
+                        "explicit_terminal_page",
+                        "reported_total_reached",
+                        "proven_structured_collection",
+                    }
+                )
                 metadata["browser_terminal_evidence"] = browser_terminal
-                if not browser_terminal:
+                if browser_terminal and not metadata.get(
+                    "collection_changed_during_scan"
+                ):
+                    metadata["scan_complete"] = True
+                    if metadata.get("scan_completeness_reason") in {
+                        None,
+                        "adapter_completeness_not_proven",
+                    }:
+                        metadata["scan_completeness_reason"] = (
+                            "validated_browser_terminal"
+                        )
+                elif not browser_terminal:
                     metadata["scan_complete"] = False
                     metadata["scan_completeness_reason"] = (
                         "browser_exhaustion_not_proven"

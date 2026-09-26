@@ -180,6 +180,11 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                     )
                 )
 
+            # Keep the durable scan metadata current so an independent caller
+            # can report valid partial progress if it stops the next request.
+            scan_metadata["jobs_normalized"] = len(jobs)
+            pagination["jobs_normalized"] = len(jobs)
+
             if len(payload) > page_limit:
                 _mark_safety_limit(scan_metadata, pagination, "maximum_results_reached")
                 break

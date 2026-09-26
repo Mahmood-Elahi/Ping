@@ -23,6 +23,11 @@ from src.scraper.company_careers.models import (
 )
 from src.scraper.company_careers.listing_completion import (
     AdaptiveListingCompletion,
+    enforce_pagination_fail_closed,
+    finish_authoritative_total,
+    json_pagination_evidence,
+    pagination_terminal_accepted,
+    publish_pagination_evidence,
     record_terminal_evidence,
 )
 
@@ -83,10 +88,32 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                if target.pagination_url_template else str(target.listing_url))
         metadata["pages_requested"] += 1
         response = _get(session, url, timeout)
+        pagination_evidence = None
         if target.endpoint_variant == "public_json_endpoint":
             items, scripts, inspected_bytes, valid_empty = _extract_direct_json(
                 response, target
             )
+            try:
+                payload = (
+                    response.json()
+                    if callable(getattr(response, "json", None))
+                    else json.loads(str(getattr(response, "text", "") or ""))
+                )
+            except (TypeError, ValueError):
+                payload = None
+            if isinstance(payload, Mapping):
+                pagination_evidence = json_pagination_evidence(
+                    payload,
+                    container_paths=("result", "result.pagination"),
+                )
+                publish_pagination_evidence(
+                    metadata,
+                    pagination_evidence,
+                    prior_pagination=page_index > 0,
+                )
+                if pagination_evidence.reported_total is not None:
+                    metadata["total_available"] = pagination_evidence.reported_total
+                    metadata["authoritative_total_present"] = True
         elif target.endpoint_variant == "next_flight_collection":
             items, scripts, inspected_bytes, valid_empty = _extract_next_flight(
                 response, target
@@ -142,9 +169,43 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
             raise AdapterError("Embedded-data collection contained jobs but none satisfied the reviewed schema")
         record["jobs_normalized"] = new_ids
         metadata["jobs_normalized"] = len(jobs)
+        if pagination_evidence is not None:
+            if finish_authoritative_total(
+                metadata,
+                pagination_evidence.reported_total,
+                len(jobs),
+                evidence=pagination_evidence,
+                prior_pagination=page_index > 0,
+            ):
+                break
+            if pagination_terminal_accepted(
+                metadata,
+                pagination_evidence,
+                prior_pagination=page_index > 0,
+            ):
+                metadata["scan_complete"] = True
+                metadata["scan_completeness_reason"] = "explicit_terminal_page"
+                metadata["stop_reason"] = "explicit_terminal_page"
+                metadata["total_available"] = len(jobs)
+                record_terminal_evidence(
+                    metadata,
+                    "api_pagination_contract",
+                    list(pagination_evidence.fields),
+                    has_more=False,
+                    next_cursor_present=pagination_evidence.next_cursor_present,
+                    terminal_page_observed=True,
+                )
+                break
         if page_index == 0 and not items:
             if not valid_empty:
                 raise AdapterError("Embedded-data response did not prove a valid empty collection")
+            if pagination_evidence is not None and not pagination_terminal_accepted(
+                metadata,
+                pagination_evidence,
+                additional_terminal_reason="validated_zero_jobs",
+            ):
+                metadata["stop_reason"] = "pagination_evidence_not_terminal"
+                break
             metadata["zero_job_contract"] = True
             metadata["stop_reason"] = "validated_zero_jobs"
             metadata["scan_complete"] = True
@@ -159,6 +220,14 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
             )
             break
         if not items and target.pagination_url_template and valid_empty:
+            if pagination_evidence is not None and not pagination_terminal_accepted(
+                metadata,
+                pagination_evidence,
+                prior_pagination=page_index > 0,
+                additional_terminal_reason="validated_terminal_empty_page",
+            ):
+                metadata["stop_reason"] = "pagination_evidence_not_terminal"
+                break
             metadata["stop_reason"] = "validated_terminal_empty_page"
             metadata["scan_complete"] = True
             metadata["scan_completeness_reason"] = "validated_terminal_empty_page"
@@ -205,6 +274,7 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
         metadata["stop_reason"] = "maximum_pages_reached"
         metadata["scan_completeness_reason"] = "safety_limit_reached"
         metadata["safety_limit_reached"] = True
+    enforce_pagination_fail_closed(metadata)
     return jobs
 
 

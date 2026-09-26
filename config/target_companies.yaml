@@ -3171,7 +3171,7 @@ target_companies:
     job_card_selector: div.vacancies-list div.col-lg-12
     title_selector: p.vacancy-title
     detail_link_selector: a[href*="/career/vacancies/"]
-    external_id_regex: /career/vacancies/([^/]+)/
+    external_id_regex: /career/vacancies/([^/?#]+)$
     location_selector: div.loc span
   - name: Gibson Energy
     platform: sap_successfactors

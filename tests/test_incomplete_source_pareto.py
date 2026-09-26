@@ -4,16 +4,31 @@ import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from scripts.analyze_incomplete_sources import build_report
+from scripts.build_targeted_terminal_source_table import (
+    DEFAULT_PARETO as TARGETED_PARETO,
+    build_rows as build_targeted_rows,
+)
 from scripts.validate_remaining_ats_failures import representative_targets
 from scripts.validate_targeted_terminal_evidence import (
+    HARD_REQUEST_BUDGET_PER_SOURCE,
+    SOURCE_REQUEST_BUDGETS,
+    _RequestGuard,
+    _validate_target,
     representative_targets as targeted_representative_targets,
+    request_budget_for,
 )
 from scripts.validate_large_board_recovery import (
     MAX_HTTP_REQUESTS_PER_REPRESENTATIVE,
     REPRESENTATIVES as LARGE_BOARD_REPRESENTATIVES,
     representative_targets as large_board_representative_targets,
+)
+from src.scraper.company_careers.models import (
+    CompanyTarget,
+    SourceScanMetadata,
+    publish_source_scan_metadata,
 )
 
 
@@ -88,8 +103,8 @@ class IncompleteSourceParetoTests(unittest.TestCase):
 
     def test_saved_report_uses_latest_actual_incomplete_denominator(self):
         report = build_report()
-        self.assertEqual(report["summary"]["incomplete_nonfailed_sources"], 63)
-        self.assertEqual(sum(report["summary"]["primary_category_counts"].values()), 63)
+        self.assertEqual(report["summary"]["incomplete_nonfailed_sources"], 56)
+        self.assertEqual(sum(report["summary"]["primary_category_counts"].values()), 56)
         self.assertEqual(
             [item["strategy"] for item in report["budget_strategies"]],
             [
@@ -109,13 +124,17 @@ class IncompleteSourceParetoTests(unittest.TestCase):
                 item["source_count"]
                 for item in report["groupings"]["primary_category"]
             ),
-            63,
+            56,
         )
-        self.assertEqual(report["projected_after"]["incomplete"], 57)
+        self.assertEqual(report["projected_after"]["incomplete"], 56)
         self.assertEqual(
-            sum(report["projected_after"]["remaining_breakdown"].values()), 57
+            sum(report["projected_after"]["remaining_breakdown"].values()), 56
         )
-        self.assertEqual(report["runtime_model"]["latest_actual_runtime_seconds"], 775.4)
+        self.assertEqual(report["runtime_model"]["latest_actual_runtime_seconds"], 937.7)
+        self.assertEqual(
+            report["runtime_model"]["latest_actual_runtime_source"],
+            "persisted_run_history",
+        )
         for grouping in report["groupings"].values():
             self.assertTrue(
                 all("percentage_of_incomplete" in bucket for bucket in grouping)
@@ -127,30 +146,18 @@ class IncompleteSourceParetoTests(unittest.TestCase):
     def test_exact_large_board_selection_and_cost_bands_are_deterministic(self):
         report = build_report()
         recovery = report["large_board_recovery"]
-        self.assertEqual(report["summary"]["large_api_incomplete_sources"], 7)
-        self.assertEqual(recovery["selected_source_count"], 6)
-        self.assertEqual(recovery["additional_listing_requests"], 1_555)
-        self.assertEqual(recovery["additional_jobs_enumerated"], 19_810)
-        self.assertEqual(
-            recovery["selected_sources"],
-            sorted(
-                [
-                    "ABB",
-                    "Eaton",
-                    "JPMorgan Chase",
-                    "Micron",
-                    "Qualcomm",
-                    "Schneider Electric",
-                ]
-            ),
-        )
+        self.assertEqual(report["summary"]["large_api_incomplete_sources"], 1)
+        self.assertEqual(recovery["selected_source_count"], 0)
+        self.assertEqual(recovery["additional_listing_requests"], 0)
+        self.assertEqual(recovery["additional_jobs_enumerated"], 0)
+        self.assertEqual(recovery["selected_sources"], [])
         self.assertEqual(
             sum(len(names) for names in recovery["cost_bands"].values()),
-            7,
+            1,
         )
         self.assertEqual(len(recovery["cost_bands"]["<=150"]), 0)
-        self.assertEqual(len(recovery["cost_bands"]["151-300"]), 5)
-        self.assertEqual(len(recovery["cost_bands"]["301-500"]), 2)
+        self.assertEqual(recovery["cost_bands"]["151-300"], ["Apple"])
+        self.assertEqual(len(recovery["cost_bands"]["301-500"]), 0)
 
     def test_cumulative_recovery_tiers_expose_cost_cliff_and_runtime(self):
         report = build_report()
@@ -162,45 +169,43 @@ class IncompleteSourceParetoTests(unittest.TestCase):
         )
         self.assertEqual(
             [tier["sources_recovered"] for tier in tiers],
-            [0, 4, 6, 6, 6],
+            [0, 0, 0, 0, 0],
         )
         self.assertEqual(
             [tier["extra_requests"] for tier in tiers],
-            [0, 899, 1_555, 1_555, 1_555],
+            [0, 0, 0, 0, 0],
         )
         self.assertEqual(
             [tier["extra_jobs"] for tier in tiers],
-            [0, 8_977, 19_810, 19_810, 19_810],
+            [0, 0, 0, 0, 0],
         )
         self.assertEqual(
             tiers[3]["incremental_from_previous_tier"]["sources_recovered"],
             0,
         )
         self.assertEqual(
-            tiers[4]["projected_total_audit_runtime_seconds"], 905.0
+            tiers[4]["projected_total_audit_runtime_seconds"], 937.7
         )
         self.assertEqual(
-            tiers[4]["projected_runtime_percentage_of_timeout"], 33.52
+            tiers[4]["projected_runtime_percentage_of_timeout"], 34.73
         )
         self.assertEqual(
             [
                 row["company"]
                 for row in report["runtime_model"]["request_cost_dominators"][:3]
             ],
-            ["Schneider Electric", "JPMorgan Chase", "Micron"],
+            [],
         )
 
     def test_large_board_table_uses_effective_page_size_for_projection(self):
         report = build_report()
         table = report["large_board_recovery"]["table"]
-        schneider = next(
-            row for row in table if row["company"] == "Schneider Electric"
-        )
+        apple = next(row for row in table if row["company"] == "Apple")
 
-        self.assertEqual(schneider["effective_server_page_size"], 10)
-        self.assertEqual(schneider["authoritative_total"], 3_511)
-        self.assertEqual(schneider["exact_total_listing_requests_required"], 352)
-        self.assertTrue(schneider["projected_completion_possible_at_500"])
+        self.assertEqual(apple["effective_server_page_size"], 20)
+        self.assertEqual(apple["authoritative_total"], 4_566)
+        self.assertEqual(apple["exact_total_listing_requests_required"], 229)
+        self.assertFalse(apple["projected_completion_possible_at_500"])
 
     def test_runtime_is_extracted_from_current_artifact_when_present(self):
         coverage = {"runtime_seconds": 123.4, "coverage": [row("Alpha")]}
@@ -217,12 +222,22 @@ class IncompleteSourceParetoTests(unittest.TestCase):
     def test_primary_categories_are_mutually_exclusive(self):
         report = build_report()
         sources = report["sources"]
-        self.assertEqual(len(sources), 63)
+        self.assertEqual(len(sources), 56)
         self.assertEqual(
             len(sources),
             sum(report["summary"]["primary_category_counts"].values()),
         )
         self.assertTrue(all(isinstance(row["primary_category"], str) for row in sources))
+        reasons = {row["structural_incomplete_reason"] for row in sources}
+        self.assertTrue(
+            {
+                "static_terminal_unproven",
+                "browser_terminal_unproven",
+                "api_terminal_metadata_missing",
+                "authoritative_total_not_reached",
+                "pagination_contract_unknown",
+            }.issubset(reasons)
+        )
 
     def test_detail_coupled_target_remains_excluded_from_recovery(self):
         report = build_report()
@@ -235,8 +250,8 @@ class IncompleteSourceParetoTests(unittest.TestCase):
         report = build_report()
         families = {item["platform"]: item for item in report["page_size_families"]}
         self.assertEqual(
-            families["phenom"]["maximum_safely_supported_page_sizes"],
-            [10],
+            families["avature"]["maximum_safely_supported_page_sizes"],
+            [20],
         )
         self.assertEqual(
             report["runtime_model"]["requests_avoided_through_larger_page_sizes"],
@@ -252,23 +267,132 @@ class IncompleteSourceParetoTests(unittest.TestCase):
 
     def test_targeted_manual_validator_covers_every_changed_family(self):
         targets = targeted_representative_targets()
-        self.assertEqual(len(targets), 13)
+        self.assertEqual(len(targets), 9)
         self.assertEqual(
             {target.platform for target in targets},
             {
-                "adp",
                 "amazon",
                 "avature",
-                "bamboohr",
-                "google",
-                "ibm_search",
+                "browser_rendered_html",
                 "icims",
                 "javascript_embedded_data",
                 "lever",
-                "meta",
-                "paycor",
-                "peoplesoft",
-                "smartrecruiters",
+                "static_html",
+                "talentbrew",
+            },
+        )
+
+    def test_targeted_manual_validator_has_an_independent_hard_request_guard(self):
+        guard = _RequestGuard()
+        for _ in range(HARD_REQUEST_BUDGET_PER_SOURCE):
+            guard.consume()
+        self.assertEqual(guard.count, HARD_REQUEST_BUDGET_PER_SOURCE)
+        with self.assertRaisesRegex(RuntimeError, "hard request budget exceeded"):
+            guard.consume()
+
+    def test_targeted_validator_uses_explicit_source_specific_budgets(self):
+        targets = {target.name: target for target in targeted_representative_targets()}
+        self.assertEqual(
+            SOURCE_REQUEST_BUDGETS,
+            {
+                "Applied Materials": 140,
+                "Amazon": 25,
+                "Continental": 70,
+                "Veeva Systems": 40,
+            },
+        )
+        for company, budget in SOURCE_REQUEST_BUDGETS.items():
+            self.assertEqual(request_budget_for(targets[company]), budget)
+        self.assertEqual(
+            request_budget_for(targets["Palo Alto Networks"]),
+            HARD_REQUEST_BUDGET_PER_SOURCE,
+        )
+
+    def test_targeted_validator_budget_exhaustion_preserves_partial_state(self):
+        target = CompanyTarget(
+            name="Amazon",
+            platform="amazon",
+            search_terms=["bounded"],
+            max_pages=30,
+        )
+
+        def interrupted_adapter(session, _target, _timeout):
+            metadata = SourceScanMetadata(
+                terminal_evidence_type="api_pagination_contract",
+                terminal_evidence_value="continuation",
+                has_more=True,
+                pagination_evidence_status="continuation",
+            )
+            publish_source_scan_metadata(session, metadata)
+            while True:
+                session.guard.consume()
+                metadata["pages_requested"] += 1
+                metadata["pages_completed"] += 1
+                metadata["jobs_normalized"] = metadata["pages_completed"] * 3
+
+        with patch(
+            "scripts.validate_targeted_terminal_evidence.ADAPTERS",
+            {"amazon": interrupted_adapter},
+        ):
+            result = _validate_target(target)
+
+        self.assertNotIn("error", result)
+        self.assertEqual(result["request_budget"], 25)
+        self.assertEqual(result["effective_request_count"], 25)
+        self.assertEqual(result["jobs_fetched"], 75)
+        self.assertEqual(result["pages_requested"], 25)
+        self.assertFalse(result["scan_complete"])
+        self.assertEqual(result["reason"], "validator_request_budget_reached")
+        self.assertEqual(result["stop_reason"], "validator_request_budget_reached")
+        self.assertTrue(result["validator_request_budget_reached"])
+        self.assertEqual(
+            result["terminal_evidence"]["type"], "api_pagination_contract"
+        )
+        self.assertTrue(result["terminal_evidence"]["has_more"])
+
+    def test_exact_29_source_terminal_target_table(self):
+        rows = build_targeted_rows(TARGETED_PARETO)
+        grouped = {}
+        for item in rows:
+            grouped.setdefault(item["source_type"], []).append(item["company"])
+        self.assertEqual(
+            grouped,
+            {
+                "api_listing": [
+                    "Amazon",
+                    "Bank of America",
+                    "Continental",
+                    "Google",
+                    "Hexagon Autonomy & Positioning / NovAtel",
+                    "Kinaxis",
+                    "Lenovo",
+                    "MaxLinear",
+                    "Meta",
+                    "SECURE Energy Services",
+                    "TSMC",
+                    "Veeva Systems",
+                ],
+                "browser_rendered": [
+                    "ASML",
+                    "Aurora Innovation",
+                    "ByteDance",
+                    "Deliveroo",
+                    "Figure AI",
+                    "LINE",
+                    "MDA Space",
+                ],
+                "static_html": [
+                    "Applied Materials",
+                    "BlackRock",
+                    "Caterpillar",
+                    "Coupang",
+                    "General Motors",
+                    "Intuitive Surgical",
+                    "Palo Alto Networks",
+                    "Rakuten",
+                    "SharkNinja",
+                    "Siemens",
+                ],
             },
         )
 

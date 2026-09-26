@@ -2,12 +2,20 @@ from __future__ import annotations
 
 import unittest
 
+from lxml import html
+
 from src.scraper.company_careers.listing_completion import (
     AdaptiveListingCompletion,
     MAX_LISTING_REQUESTS_PER_SOURCE,
     MAX_RAW_JOBS_PER_SOURCE,
     PageSizeObservation,
+    PaginationEvidence,
+    enforce_pagination_fail_closed,
     finish_authoritative_total,
+    html_pagination_evidence,
+    json_pagination_evidence,
+    pagination_terminal_accepted,
+    publish_pagination_evidence,
     record_terminal_evidence,
 )
 
@@ -265,7 +273,195 @@ class AdaptiveListingCompletionTests(unittest.TestCase):
 
     def test_explicit_terminal_scan_gets_only_first_stage_allowance(self):
         policy = AdaptiveListingCompletion(2, 20)
-        self.assertEqual(policy.deterministic_terminal_request_ceiling(), 12)
+        self.assertEqual(policy.deterministic_terminal_request_ceiling(), 1_000)
+
+    def test_disabled_next_is_authoritative_html_terminal(self):
+        evidence = html_pagination_evidence(
+            html.fromstring(
+                "<nav class='pagination'><a class='next disabled' "
+                "aria-disabled='true' href='/page/2'>Next</a></nav>"
+            )
+        )
+        self.assertFalse(evidence.has_more)
+        self.assertTrue(evidence.disabled_next_control)
+        self.assertTrue(evidence.terminal())
+
+    def test_explicit_next_link_is_not_html_terminal(self):
+        evidence = html_pagination_evidence(
+            html.fromstring(
+                "<nav class='pagination'><a rel='next' href='/page/2'>Next</a></nav>"
+            )
+        )
+        self.assertTrue(evidence.has_more)
+        self.assertFalse(evidence.terminal())
+
+    def test_html_result_range_reaches_authoritative_total(self):
+        evidence = html_pagination_evidence(
+            html.fromstring(
+                "<div class='results-summary'>Showing 21-25 of 25 jobs</div>"
+            )
+        )
+        self.assertEqual(evidence.reported_total, 25)
+        self.assertEqual(evidence.end_index, 25)
+        self.assertTrue(evidence.terminal())
+
+    def test_api_has_more_contract(self):
+        self.assertTrue(
+            json_pagination_evidence({"has_more": False}).terminal()
+        )
+        self.assertFalse(
+            json_pagination_evidence({"has_more": True}).terminal()
+        )
+
+    def test_api_cursor_absence_requires_prior_pagination(self):
+        evidence = json_pagination_evidence(
+            {"pageInfo": {"nextCursor": None}}
+        )
+        self.assertFalse(evidence.terminal(prior_pagination=False))
+        self.assertTrue(evidence.terminal(prior_pagination=True))
+
+    def test_api_total_and_page_count_terminal_evidence(self):
+        total = json_pagination_evidence(
+            {"pagination": {"total": 20, "endIndex": 20}}
+        )
+        self.assertTrue(total.terminal())
+        not_reached = json_pagination_evidence(
+            {"pagination": {"total": 21, "endIndex": 20}}
+        )
+        self.assertFalse(not_reached.terminal())
+        final_page = json_pagination_evidence(
+            {"pagination": {"currentPage": 3, "totalPages": 3}}
+        )
+        self.assertTrue(final_page.terminal())
+
+    def test_continuation_dominates_contradictory_terminal_hints(self):
+        cases = (
+            PaginationEvidence(has_more=True, disabled_next_control=True),
+            json_pagination_evidence(
+                {"pagination": {"has_more": True, "currentPage": 3, "totalPages": 3}}
+            ),
+            json_pagination_evidence(
+                {"pagination": {"next": "/page/4", "currentPage": 3, "totalPages": 3}}
+            ),
+            json_pagination_evidence(
+                {"pagination": {"has_more": False, "currentPage": 2, "totalPages": 3}}
+            ),
+            json_pagination_evidence(
+                {"pagination": {"has_more": False, "nextCursor": "continue"}}
+            ),
+        )
+        for evidence in cases:
+            with self.subTest(evidence=evidence):
+                self.assertEqual(evidence.status(), "conflicting")
+                self.assertFalse(evidence.terminal())
+
+    def test_compatible_terminal_evidence_is_accepted(self):
+        cases = (
+            json_pagination_evidence({"has_more": False}),
+            PaginationEvidence(disabled_next_control=True),
+            json_pagination_evidence(
+                {"pagination": {"currentPage": 3, "totalPages": 3}}
+            ),
+            json_pagination_evidence(
+                {"pagination": {"total": 25, "endIndex": 25}}
+            ),
+        )
+        for evidence in cases:
+            with self.subTest(evidence=evidence):
+                self.assertEqual(evidence.status(), "terminal")
+                self.assertTrue(evidence.terminal())
+        cursor = json_pagination_evidence({"pageInfo": {"nextCursor": None}})
+        self.assertEqual(cursor.status(prior_pagination=True), "terminal")
+
+    def test_json_extraction_is_source_scoped(self):
+        payload = {
+            "facets": {"count": 99},
+            "aggregations": {"hits": 88},
+            "analytics": {"total": 77},
+            "results": [{"total": 66}],
+        }
+        evidence = json_pagination_evidence(payload)
+        self.assertIsNone(evidence.reported_total)
+        self.assertEqual(evidence.fields, ())
+
+        declared = json_pagination_evidence(
+            {"result": {"total": 12}}, container_paths=("result",)
+        )
+        self.assertEqual(declared.reported_total, 12)
+
+    def test_conflicting_declared_totals_fail_closed(self):
+        evidence = json_pagination_evidence(
+            {"pagination": {"total": 10, "totalCount": 11}}
+        )
+        self.assertIsNone(evidence.reported_total)
+        self.assertEqual(evidence.status(), "conflicting")
+
+    def test_malformed_pagination_values_fail_closed(self):
+        cases = (
+            json_pagination_evidence({"has_more": "maybe"}),
+            json_pagination_evidence({"total": "many"}),
+            json_pagination_evidence({"pagination": {"totalPages": -1}}),
+            json_pagination_evidence({"pageInfo": {"nextCursor": {"id": 1}}}),
+            html_pagination_evidence(
+                html.fromstring(
+                    "<div class='results-summary'>Showing one-two of many jobs</div>"
+                )
+            ),
+        )
+        for evidence in cases:
+            with self.subTest(evidence=evidence):
+                self.assertEqual(evidence.status(), "malformed")
+                self.assertFalse(evidence.terminal())
+
+    def test_json_pagination_diagnostics_are_field_scoped_and_sanitized(self):
+        evidence = json_pagination_evidence(
+            {
+                "result": {
+                    "pagination": {
+                        "currentPage": "1",
+                        "totalPages": 65,
+                        "nextCursor": {"token": "must-not-be-dumped"},
+                    }
+                }
+            },
+            container_paths=("result", "result.pagination"),
+        )
+
+        self.assertEqual(evidence.status(), "malformed")
+        self.assertEqual(
+            evidence.field_diagnostics,
+            (
+                ("result.pagination.nextCursor", "dict", "<dict length=1>"),
+                ("result.pagination.totalPages", "int", 65),
+                ("result.pagination.currentPage", "str", "1"),
+            ),
+        )
+        metadata = {}
+        publish_pagination_evidence(metadata, evidence)
+        self.assertEqual(metadata["page_count"], 65)
+        self.assertIn("result.pagination.currentPage", metadata["pagination_malformed_fields"])
+        self.assertNotIn("must-not-be-dumped", repr(metadata))
+
+    def test_conflict_and_malformed_status_are_durable_metadata(self):
+        conflict = PaginationEvidence(has_more=True, disabled_next_control=True)
+        metadata = {"scan_complete": True}
+        publish_pagination_evidence(metadata, conflict)
+        self.assertFalse(pagination_terminal_accepted(metadata, conflict))
+        self.assertTrue(enforce_pagination_fail_closed(metadata))
+        self.assertEqual(
+            metadata["scan_completeness_reason"],
+            "conflicting_pagination_evidence",
+        )
+        self.assertTrue(metadata["pagination_evidence_diagnostics"])
+
+        malformed = json_pagination_evidence({"has_more": "maybe"})
+        metadata = {"scan_complete": True}
+        publish_pagination_evidence(metadata, malformed)
+        enforce_pagination_fail_closed(metadata)
+        self.assertEqual(
+            metadata["scan_completeness_reason"],
+            "malformed_pagination_evidence",
+        )
 
     def test_observed_page_size_tracks_clamps_expansion_and_variation(self):
         downward = PageSizeObservation(20)

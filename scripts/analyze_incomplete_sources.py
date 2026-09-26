@@ -6,6 +6,7 @@ import argparse
 import csv
 import json
 import math
+import re
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -26,14 +27,14 @@ from src.scraper.company_careers.listing_completion import (
 
 JOBS = ROOT / "jobs"
 OUTPUT = ROOT / "output"
-SAVED_STAMP = "20260924_000612"
+SAVED_STAMP = "20260924_005547"
 DEFAULT_COVERAGE = JOBS / f"company_careers_coverage_{SAVED_STAMP}.json"
 DEFAULT_FAILURES = JOBS / f"company_careers_failures_{SAVED_STAMP}.json"
 DEFAULT_DIAGNOSTICS = JOBS / f"student_search_diagnostics_{SAVED_STAMP}.json"
 DEFAULT_OUTPUT = OUTPUT / f"incomplete_source_pareto_{SAVED_STAMP}.json"
 DEFAULT_LARGE_BOARD_OUTPUT = OUTPUT / f"large_api_incomplete_recovery_{SAVED_STAMP}.json"
 DEFAULT_LARGE_BOARD_CSV = OUTPUT / f"large_api_incomplete_recovery_{SAVED_STAMP}.csv"
-LATEST_ARTIFACT_RUNTIME_SECONDS = {SAVED_STAMP: 775.4}
+RUNTIME_HISTORY = ROOT / "config" / "job_radar_run_history.json"
 ABSOLUTE_JOB_CEILING = MAX_RAW_JOBS_PER_SOURCE
 CURRENT_REQUEST_CEILING = 150
 ABSOLUTE_REQUEST_CEILING = MAX_LISTING_REQUESTS_PER_SOURCE
@@ -94,7 +95,11 @@ def _find_runtime_seconds(value: Any) -> float | None:
 
 
 def _runtime_seconds(
-    coverage_payload: Mapping[str, Any], diagnostics_path: Path | None
+    coverage_payload: Mapping[str, Any],
+    diagnostics_path: Path | None,
+    *,
+    coverage_path: Path | None = None,
+    runtime_history_path: Path = RUNTIME_HISTORY,
 ) -> tuple[float, str]:
     runtime = _find_runtime_seconds(coverage_payload)
     if runtime is not None:
@@ -104,13 +109,28 @@ def _runtime_seconds(
         runtime = _find_runtime_seconds(diagnostics)
         if runtime is not None:
             return runtime, "diagnostics_artifact"
-    stamp = coverage_payload.get("artifact_stamp") or SAVED_STAMP
-    runtime = LATEST_ARTIFACT_RUNTIME_SECONDS.get(str(stamp))
-    if runtime is None:
-        raise ValueError(
-            "Saved audit has no persisted runtime and no artifact-set runtime baseline"
-        )
-    return runtime, "artifact_set_baseline"
+    stamp = str(coverage_payload.get("artifact_stamp") or "").strip()
+    if not stamp and coverage_path is not None:
+        match = re.search(r"(\d{8}_\d{6})", coverage_path.name)
+        stamp = match.group(1) if match else ""
+    if runtime_history_path.exists():
+        history = json.loads(runtime_history_path.read_text(encoding="utf-8"))
+        runs = history.get("runs") if isinstance(history, Mapping) else None
+        if isinstance(runs, list):
+            candidates = [
+                item
+                for item in runs
+                if isinstance(item, Mapping)
+                and (not stamp or str(item.get("artifact_stamp") or "") == stamp)
+                and _number(item.get("runtime_seconds")) is not None
+            ]
+            if candidates:
+                runtime = _number(candidates[-1].get("runtime_seconds"))
+                assert runtime is not None
+                return runtime, "persisted_run_history"
+    raise ValueError(
+        "Saved audit has no persisted runtime in its artifacts or run history"
+    )
 
 
 def _is_hard_failed(row: Mapping[str, Any]) -> bool:
@@ -240,8 +260,47 @@ def _terminal_evidence_present(row: Mapping[str, Any]) -> bool:
         row.get("terminal_page_observed")
         or row.get("complete_collection_response")
         or row.get("has_more") is False
+        or row.get("next_url_present") is False
         or row.get("next_cursor_present") is False
+        or row.get("disabled_next_control")
+        or row.get("explicit_final_page")
     )
+
+
+def _pagination_metadata_present(row: Mapping[str, Any]) -> bool:
+    return any(
+        row.get(key) is not None
+        for key in (
+            "has_more",
+            "next_url_present",
+            "next_cursor_present",
+            "page_count",
+            "result_count",
+            "end_index",
+        )
+    ) or bool(row.get("terminal_evidence_type"))
+
+
+def _structural_incomplete_reason(row: Mapping[str, Any], target: Any) -> str:
+    platform = str(row.get("platform") or "")
+    reason = str(row.get("scan_completeness_reason") or "")
+    total = _integer(row.get("total_available"))
+    fetched = _integer(row.get("fetched_count")) or 0
+    if reason in MUTABLE_REASONS:
+        return "collection_changed_during_scan"
+    if reason in MALFORMED_REASONS:
+        return "malformed_partial_collection"
+    if _detail_coupled(row, target):
+        return "detail_coupled_limit"
+    if platform in STATIC_PLATFORMS:
+        return "static_terminal_unproven"
+    if platform in BROWSER_PLATFORMS:
+        return "browser_terminal_unproven"
+    if total is not None and fetched < total:
+        return "authoritative_total_not_reached"
+    if _pagination_metadata_present(row):
+        return "pagination_contract_unknown"
+    return "api_terminal_metadata_missing"
 
 
 def _static_browser_status(row: Mapping[str, Any], target: Any) -> str:
@@ -426,6 +485,9 @@ def _source_metrics(
         "page_ceiling_hit": str(row.get("stop_reason")) in MAX_PAGE_STOPS,
         "result_ceiling_hit": str(row.get("stop_reason")) in MAX_JOB_STOPS,
         "primary_category": _primary_category(row, target),
+        "structural_incomplete_reason": _structural_incomplete_reason(
+            row, target
+        ),
     }
     capability_row = {**row, **metrics}
     hard_ceiling_eligible = _projected_completion_possible(
@@ -645,7 +707,7 @@ def build_report(
 ) -> dict[str, Any]:
     payload = json.loads(coverage_path.read_text(encoding="utf-8"))
     latest_runtime_seconds, runtime_source = _runtime_seconds(
-        payload, diagnostics_path
+        payload, diagnostics_path, coverage_path=coverage_path
     )
     coverage = payload.get("coverage")
     if not isinstance(coverage, list):
@@ -802,7 +864,7 @@ def build_report(
     }
 
     return {
-        "report_version": 6,
+        "report_version": 7,
         "source_artifacts": {"coverage": str(coverage_path), "failures": str(failures_path) if failures_path else None, "student_search_diagnostics": str(diagnostics_path) if diagnostics_path else None},
         "summary": {
             "complete_sources": complete_count,
@@ -819,6 +881,9 @@ def build_report(
             "stop_reason": _grouping(enriched, lambda row: row.get("stop_reason")),
             "platform": _grouping(enriched, lambda row: row.get("platform")),
             "primary_category": _grouping(enriched, lambda row: row.get("primary_category")),
+            "structural_incomplete_reason": _grouping(
+                enriched, lambda row: row.get("structural_incomplete_reason")
+            ),
             "static_browser_status": _grouping(enriched, lambda row: row.get("static_browser_status")),
             "detail_cost": _grouping(enriched, lambda row: row.get("cost_mode")),
         },

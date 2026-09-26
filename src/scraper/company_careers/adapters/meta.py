@@ -20,7 +20,13 @@ from src.scraper.company_careers.models import (
     SourceScanMetadata,
     publish_source_scan_metadata,
 )
-from src.scraper.company_careers.listing_completion import record_terminal_evidence
+from src.scraper.company_careers.listing_completion import (
+    enforce_pagination_fail_closed,
+    json_pagination_evidence,
+    pagination_terminal_accepted,
+    publish_pagination_evidence,
+    record_terminal_evidence,
+)
 
 
 SEARCH_URL = "https://www.metacareers.com/jobsearch"
@@ -122,8 +128,23 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
             )
             metadata["pages_completed"] += 1
             page_jobs = _extract_jobs(payload, target.name)
+            job_search = payload.get("data", {}).get(
+                "job_search_with_featured_jobs", {}
+            )
+            evidence = json_pagination_evidence(
+                job_search,
+                container_paths=("", "pageInfo", "page_info", "pagination"),
+            )
+            publish_pagination_evidence(
+                metadata, evidence, prior_pagination=page > 1
+            )
             if not page_jobs:
-                term_complete = True
+                term_complete = pagination_terminal_accepted(
+                    metadata,
+                    evidence,
+                    prior_pagination=page > 1,
+                    additional_terminal_reason="empty_page",
+                )
                 break
 
             for job in page_jobs:
@@ -138,6 +159,11 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                 if len(jobs) >= maximum_jobs:
                     safety_limited = True
                     break
+            if pagination_terminal_accepted(
+                metadata, evidence, prior_pagination=page > 1
+            ):
+                term_complete = True
+                break
         if not term_complete:
             safety_limited = True
 
@@ -159,6 +185,7 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
         has_more=safety_limited,
         terminal_page_observed=not safety_limited,
     )
+    enforce_pagination_fail_closed(metadata)
     return jobs
 
 

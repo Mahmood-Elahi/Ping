@@ -175,6 +175,25 @@ company_careers_reliability_repairs:
     evidence_source: https://www.parkland.ca/careers
     evidence_confidence: high
     evidence_timestamp: '2026-08-29T00:00:00+00:00'
+  - name: TEKTELIC Communications
+    platform: static_html
+    careers_url: https://tektelic.com/career/
+    source_identity_regex: TEKTELIC
+    allowed_apply_hosts:
+      - tektelic.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://tektelic.com/career/vacancies/
+    listing_url: https://tektelic.com/career/vacancies/
+    endpoint_variant: server_rendered_cards
+    listing_selector: div.vacancies-list
+    job_card_selector: div.vacancies-list div.col-lg-12
+    title_selector: p.vacancy-title
+    detail_link_selector: a[href*="/career/vacancies/"]
+    external_id_regex: /career/vacancies/([^/?#]+)$
+    location_selector: div.loc span
   - name: Apple
     platform: apple
     careers_url: https://www.apple.com/careers/us/

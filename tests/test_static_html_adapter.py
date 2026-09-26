@@ -133,6 +133,25 @@ class StaticHTMLAdapterTests(unittest.TestCase):
         self.assertEqual(session.static_html_pagination["stop_reason"], "repeated_page")
 
     @patch("src.scraper.company_careers.adapters.static_html.time.sleep", lambda _: None)
+    def test_empty_followup_without_terminal_contract_remains_incomplete(self):
+        session = Session(
+            Response(page(card("1", href="/jobs/1"))),
+            Response(page()),
+        )
+        static_html.fetch_jobs(
+            session,
+            target(
+                max_pages=1,
+                pagination_url_template="https://jobs.example.test/jobs?page={page}",
+            ),
+        )
+        self.assertFalse(session.static_html_pagination["scan_complete"])
+        self.assertEqual(
+            session.static_html_pagination["stop_reason"],
+            "empty_page_without_terminal_contract",
+        )
+
+    @patch("src.scraper.company_careers.adapters.static_html.time.sleep", lambda _: None)
     def test_11_repeated_stable_id_with_conflicting_url_fails_closed(self):
         session = Session(Response(page(card("1", href="/jobs/a"))), Response(page(card("1", href="/jobs/b"))))
         with self.assertRaisesRegex(AdapterError, "identity_conflict"):
@@ -181,8 +200,23 @@ class StaticHTMLAdapterTests(unittest.TestCase):
         many = "".join(card(str(i), href=f"/jobs/{i}") for i in range(30))
         session = Session(Response(page(many)))
         self.assertEqual(len(static_html.fetch_jobs(session, target(max_jobs=4))), 30)
-        self.assertTrue(session.static_html_pagination["scan_complete"])
+        self.assertFalse(session.static_html_pagination["scan_complete"])
+        self.assertEqual(
+            session.static_html_pagination["scan_completeness_reason"],
+            "no_pagination_configured",
+        )
         self.assertEqual(session.static_html_pagination["total_available"], 30)
+
+    def test_no_pagination_config_with_active_load_more_is_incomplete(self):
+        body = page(
+            card("1", href="/jobs/1"),
+            "<a class='load-more' href='/jobs?page=2'>Load More</a>",
+        )
+        session = Session(Response(body))
+
+        self.assertEqual(len(static_html.fetch_jobs(session, target())), 1)
+        self.assertFalse(session.static_html_pagination["scan_complete"])
+        self.assertTrue(session.static_html_pagination["has_more"])
 
     def test_20_unsupported_selector_and_regex_contracts(self):
         with self.assertRaisesRegex(AdapterError, "unsupported construct"):
