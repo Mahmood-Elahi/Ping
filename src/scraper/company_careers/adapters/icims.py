@@ -48,6 +48,7 @@ MAX_TIMEOUT_SECONDS = 30
 MAX_ATTEMPTS = 2
 RETRY_DELAY_SECONDS = 0.5
 PAGE_DELAY_SECONDS = 0.2
+MAX_REJECTED_RECORD_DIAGNOSTICS = 5
 TRANSIENT_STATUSES = {408, 425, 429, 500, 502, 503, 504}
 HEADERS_JSON = {
     "Accept": "application/json",
@@ -97,6 +98,10 @@ def fetch_jobs(
         "stop_reason": "not_started",
         "repeated_page": False,
         "zero_job_contract": False,
+        "rejected_record_count": 0,
+        "rejected_record_ids": [],
+        "rejected_record_reason": None,
+        "rejected_record_diagnostics": [],
         "diagnostics": [],
         "warnings": [],
     })
@@ -176,11 +181,13 @@ def fetch_jobs(
 
         parsed_on_page = 0
         new_ids = 0
+        rejected_on_page = 0
         for item in items:
             try:
                 job = _normalize_item(item, target)
             except AdapterError as exc:
-                metadata["diagnostics"].append({"page": page_index + 1, "error": str(exc)})
+                rejected_on_page += 1
+                _record_rejected_item(metadata, item, target, page_index, exc)
                 continue
             parsed_on_page += 1
             if job.job_id in seen_ids:
@@ -200,10 +207,15 @@ def fetch_jobs(
             new_ids += 1
             if len(jobs) >= effective_jobs:
                 break
-        if items and parsed_on_page == 0:
-            raise AdapterError("iCIMS page contained jobs but none were valid")
         page_record["jobs_normalized"] = new_ids
+        page_record["jobs_rejected"] = rejected_on_page
         metadata["jobs_normalized"] = len(jobs)
+        if items and parsed_on_page == 0:
+            metadata["stop_reason"] = "all_records_rejected"
+            metadata["scan_completeness_reason"] = "record_validation_failure"
+            if target.endpoint_variant == JIBE_API and jobs:
+                break
+            raise AdapterError("iCIMS page contained jobs but none were valid")
 
         if page_index == 0 and not items:
             if not zero_contract:
@@ -267,7 +279,44 @@ def fetch_jobs(
             finish_changed(metadata, terminal_evidence=metadata["stop_reason"])
         else:
             metadata["scan_completeness_reason"] = "safety_limit_reached"
+    if metadata["rejected_record_count"]:
+        metadata["scan_complete"] = False
+        metadata["scan_completeness_reason"] = "record_validation_failure"
+        if metadata["stop_reason"] in {
+            "reported_total_reached",
+            "explicit_next_page_exhausted",
+        }:
+            metadata["stop_reason"] = "terminal_reached_with_rejected_records"
     return jobs
+
+
+def _record_rejected_item(
+    metadata: SourceScanMetadata,
+    item: Any,
+    target: CompanyTarget,
+    page_index: int,
+    error: AdapterError,
+) -> None:
+    """Retain bounded row diagnostics without treating rejection as exhaustion."""
+    record_id = _item_identity(item, target.endpoint_variant) or "<unknown>"
+    reason = str(error)
+    metadata["rejected_record_count"] += 1
+    if len(metadata["rejected_record_ids"]) < MAX_REJECTED_RECORD_DIAGNOSTICS:
+        metadata["rejected_record_ids"].append(record_id)
+    diagnostics = metadata["rejected_record_diagnostics"]
+    if len(diagnostics) < MAX_REJECTED_RECORD_DIAGNOSTICS:
+        diagnostic = {
+            "page": page_index + 1,
+            "record_id": record_id,
+            "error": reason,
+        }
+        diagnostics.append(diagnostic)
+        metadata["diagnostics"].append(diagnostic)
+    existing = metadata.get("rejected_record_reason")
+    if existing is None:
+        metadata["rejected_record_reason"] = reason
+    elif existing != reason:
+        metadata["rejected_record_reason"] = "multiple_record_validation_errors"
 
 
 def validate_target(target: CompanyTarget) -> None:
@@ -463,6 +512,9 @@ def _normalize_jibe(item: Mapping[str, Any], target: CompanyTarget) -> JobRecord
     data = item.get("data")
     if not isinstance(data, Mapping):
         raise AdapterError("iCIMS Jibe job must contain a data object")
+    client_code = _clean(data.get("client_code"))
+    if client_code and client_code.casefold() != str(target.tenant).casefold():
+        raise AdapterError("iCIMS Jibe client_code does not match the configured tenant")
     external_id = _clean(data.get("slug")) or _clean(data.get("req_id"))
     title = _clean(data.get("title"))
     if not external_id or not title:
