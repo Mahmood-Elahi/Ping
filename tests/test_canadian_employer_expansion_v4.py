@@ -22,6 +22,12 @@ EXPECTED_PLATFORMS = {
     "static_html": 2,
     "talentbrew": 1,
 }
+RECOVERED_SMARTRECRUITERS_BOUNDS = {
+    "Assent": (1, 30),
+    "Arista Networks": (3, 300),
+    "Gameloft": (1, 75),
+    "Ubisoft": (4, 350),
+}
 
 
 class CanadianEmployerExpansionV4Tests(unittest.TestCase):
@@ -62,8 +68,12 @@ class CanadianEmployerExpansionV4Tests(unittest.TestCase):
             target = CompanyTarget.from_dict(entry)
             self.assertTrue(target.name)
             self.assertTrue(target.careers_url)
-            self.assertLessEqual(target.max_pages, 1)
-            self.assertLessEqual(target.max_jobs, 20)
+            recovered = RECOVERED_SMARTRECRUITERS_BOUNDS.get(target.name)
+            if recovered:
+                self.assertEqual((target.max_pages, target.max_jobs), recovered)
+            else:
+                self.assertLessEqual(target.max_pages, 1)
+                self.assertLessEqual(target.max_jobs, 20)
 
     def test_no_new_defense_or_manual_sources(self) -> None:
         forbidden = {"boeing", "lockheed martin", "raytheon", "ultra maritime", "pratt & whitney"}

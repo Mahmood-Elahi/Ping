@@ -4746,7 +4746,7 @@ target_companies:
     - recruitingbypaycor.com
     original_workbook_rank: null
     max_pages: 1
-    max_jobs: 20
+    max_jobs: 30
   - name: Weir Group
     platform: workday
     careers_url: https://www.global.weir/careers/
@@ -6346,8 +6346,8 @@ target_companies:
     identity_regex: Ubisoft
     allowed_apply_hosts: [jobs.smartrecruiters.com]
     page_size: 20
-    max_pages: 1
-    max_jobs: 20
+    max_pages: 4
+    max_jobs: 350
   - name: SGS
     platform: smartrecruiters
     careers_url: https://www.sgs.com/en/careers-at-sgs
@@ -6391,7 +6391,7 @@ target_companies:
     allowed_apply_hosts: [jobs.smartrecruiters.com]
     page_size: 20
     max_pages: 1
-    max_jobs: 20
+    max_jobs: 75
   - name: Arista Networks
     platform: smartrecruiters
     careers_url: https://www.arista.com/en/careers
@@ -6401,8 +6401,8 @@ target_companies:
     identity_regex: Arista Networks
     allowed_apply_hosts: [jobs.smartrecruiters.com]
     page_size: 20
-    max_pages: 1
-    max_jobs: 20
+    max_pages: 3
+    max_jobs: 300
   - name: Assent
     platform: smartrecruiters
     careers_url: https://www.assent.com/company/careers/
@@ -6413,7 +6413,7 @@ target_companies:
     allowed_apply_hosts: [jobs.smartrecruiters.com]
     page_size: 20
     max_pages: 1
-    max_jobs: 20
+    max_jobs: 30
   - name: Lumentum
     platform: workday
     careers_url: https://www.lumentum.com/en/careers

@@ -306,3 +306,61 @@ company_careers_reliability_repairs:
     pagination_url_template: null
     next_page_selector: null
     allow_url_id_fallback: false
+  - name: Calfrac Well Services
+    platform: paycor
+    careers_url: https://calfrac.com/careers/
+    endpoint_url: https://recruitingbypaycor.com/career/CareerHome.action?clientId=8a7883d0676d10a101678af01334303a
+    identity_regex: Calfrac Well Services
+    allowed_apply_hosts:
+      - recruitingbypaycor.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 30
+  - name: Ubisoft
+    platform: smartrecruiters
+    careers_url: https://www.ubisoft.com/en-us/company/careers
+    slug: Ubisoft2
+    endpoint_url: https://api.smartrecruiters.com/v1/companies/Ubisoft2/postings
+    endpoint_variant: companies_postings_v1
+    identity_regex: Ubisoft
+    allowed_apply_hosts:
+      - jobs.smartrecruiters.com
+    page_size: 20
+    max_pages: 4
+    max_jobs: 350
+  - name: Gameloft
+    platform: smartrecruiters
+    careers_url: https://www.gameloft.com/careers
+    slug: Gameloft
+    endpoint_url: https://api.smartrecruiters.com/v1/companies/Gameloft/postings
+    endpoint_variant: companies_postings_v1
+    identity_regex: Gameloft
+    allowed_apply_hosts:
+      - jobs.smartrecruiters.com
+    page_size: 20
+    max_pages: 1
+    max_jobs: 75
+  - name: Arista Networks
+    platform: smartrecruiters
+    careers_url: https://www.arista.com/en/careers
+    slug: AristaNetworks
+    endpoint_url: https://api.smartrecruiters.com/v1/companies/AristaNetworks/postings
+    endpoint_variant: companies_postings_v1
+    identity_regex: Arista Networks
+    allowed_apply_hosts:
+      - jobs.smartrecruiters.com
+    page_size: 20
+    max_pages: 3
+    max_jobs: 300
+  - name: Assent
+    platform: smartrecruiters
+    careers_url: https://www.assent.com/company/careers/
+    slug: Assent
+    endpoint_url: https://api.smartrecruiters.com/v1/companies/Assent/postings
+    endpoint_variant: companies_postings_v1
+    identity_regex: Assent
+    allowed_apply_hosts:
+      - jobs.smartrecruiters.com
+    page_size: 20
+    max_pages: 1
+    max_jobs: 30

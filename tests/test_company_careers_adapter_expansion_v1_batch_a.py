@@ -363,6 +363,35 @@ class PaycorAdapterTests(unittest.TestCase):
         self.assertEqual(job.raw_metadata["client_id"], PAYCOR_CLIENT)
         self.assertEqual(job.description, "Lead enterprise technology modernization.")
 
+    def test_result_cap_remains_intentionally_incomplete(self):
+        second_id = "8a7887a89efb878a019f23fa4cac3270"
+        first_page = paycor_page()
+        second_card = f"""
+        <div class="gnewtonCareerGroupRowClass">
+          <div class="gnewtonCareerGroupJobTitleClass">
+            <a href="https://recruitingbypaycor.com/career/JobIntroduction.action?clientId={PAYCOR_CLIENT}&amp;id={second_id}">
+              Senior Systems Engineer
+            </a>
+          </div>
+          <div class="gnewtonCareerGroupJobDescriptionClass">Calgary, Alberta</div>
+        </div>
+        """
+        listing = Response(
+            first_page.text.replace("</body>", second_card + "</body>"),
+            url=first_page.url,
+        )
+        session = Session([listing, paycor_detail()])
+
+        jobs = paycor.fetch_jobs(session, paycor_target(max_jobs=1))
+
+        self.assertEqual(len(jobs), 1)
+        metadata = source_scan_metadata(session)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertTrue(metadata["safety_limit_reached"])
+        self.assertEqual(metadata["scan_completeness_reason"], "safety_limit_reached")
+        self.assertEqual(metadata["stop_reason"], "maximum_results_reached")
+        self.assertEqual(metadata["total_available"], 2)
+
     def test_cross_client_unstable_identity_and_captcha_fail_closed(self):
         with self.assertRaisesRegex(AdapterError, "cross-client"):
             paycor.fetch_jobs(Session([paycor_page(job_id="not-stable")]), paycor_target())
