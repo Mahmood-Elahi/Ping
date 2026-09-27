@@ -98,7 +98,15 @@ def _fetch_jobs(
     # responses are HTML and always take the compact-index path below.
     legacy_data = _legacy_payload(document)
     if legacy_data is not None:
-        return _legacy_jobs(session, target, legacy_data, listing_bytes)
+        jobs = _legacy_jobs(session, target, legacy_data, listing_bytes)
+        metadata.update(
+            source_identity_status="validated",
+            source_identity_diagnostic=(
+                "Ashby jobs matched the configured hosted-board slug, stable IDs, "
+                "and exact board-owned URLs"
+            ),
+        )
+        return jobs
 
     app_data = _app_data(document, "response")
     _validate_board_identity(app_data, target, "response")
@@ -114,6 +122,13 @@ def _fetch_jobs(
         for item in job_board["jobPostings"]
     ]
     _reject_duplicate_ids([record for _item, record in summaries])
+    metadata.update(
+        source_identity_status="validated",
+        source_identity_diagnostic=(
+            "Ashby application data matched the configured hosted-board slug and "
+            "all listing records had stable board-owned identities"
+        ),
+    )
 
     maximum_results = int(target.max_jobs)
     prioritized, candidate_count = _prioritized_pairs(summaries, maximum_results)
@@ -123,6 +138,16 @@ def _fetch_jobs(
         summary.job_id for _item, summary in detail_priority[:MAX_DETAIL_REQUESTS]
     }
     jobs: list[JobRecord] = []
+    # Publish validated listing progress before optional detail enrichment.
+    # A validation-only request budget may interrupt the detail loop; retaining
+    # this metadata lets the canary report already-normalized records without
+    # changing the production adapter's return or completion semantics.
+    metadata.update(
+        total_available=len(summaries),
+        jobs_normalized=0,
+        candidates_selected=len(selected),
+        detail_requests_planned=len(detail_candidate_ids),
+    )
     detail_bytes = 0
     detail_limit = min(
         int(target.max_response_bytes), MAX_DETAIL_RESPONSE_BYTES
@@ -130,6 +155,7 @@ def _fetch_jobs(
     for _item, summary in selected:
         if summary.job_id not in detail_candidate_ids:
             jobs.append(summary)
+            metadata["jobs_normalized"] = len(jobs)
             continue
         detail_document, response_bytes = _get_document(
             session,
@@ -143,6 +169,7 @@ def _fetch_jobs(
         detail_data = _app_data(detail_document, "detail response")
         _validate_board_identity(detail_data, target, "detail response")
         jobs.append(_detail_record(detail_data.get("posting"), summary, target))
+        metadata["jobs_normalized"] = len(jobs)
 
     _set_pagination(
         session,

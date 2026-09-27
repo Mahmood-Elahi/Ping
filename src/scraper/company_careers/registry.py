@@ -8,6 +8,7 @@ from typing import Any, List, Mapping, Optional
 import yaml
 
 from src.scraper.company_careers.models import CompanyTarget
+from src.scraper.company_careers.source_integrity import assess_registry
 
 
 DEFAULT_REGISTRY_PATH = "config/target_companies.yaml"
@@ -32,13 +33,26 @@ def load_target_companies(
             raise ValueError("Reliability repairs may only be applied to the production registry")
         entries = _apply_reliability_repairs(entries, Path(DEFAULT_RELIABILITY_REPAIRS_PATH))
     migrate_legacy_safety_defaults = _is_default_registry(registry_path)
-    return [
+    targets = [
         CompanyTarget.from_dict(
             dict(entry),
             apply_legacy_safety_defaults=migrate_legacy_safety_defaults,
         )
         for entry in entries
     ]
+    assessments = assess_registry(
+        entries,
+        effective_bounds_by_company={
+            " ".join(target.name.casefold().split()): {
+                "max_pages": target.max_pages,
+                "max_jobs": target.max_jobs,
+            }
+            for target in targets
+        },
+    )
+    for target, assessment in zip(targets, assessments, strict=True):
+        target.source_activation = assessment.activation_state.value
+    return targets
 
 
 def _is_default_registry(path: Path) -> bool:

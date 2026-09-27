@@ -21,7 +21,6 @@ ACTIVE = "active"
 POSSIBLY_MISSING = "possibly_missing"
 REMOVED = "removed"
 LIFECYCLE_STATUSES = frozenset({ACTIVE, POSSIBLY_MISSING, REMOVED})
-TRUSTED_SCAN_STATUSES = frozenset({"fetched", "fetched_no_matching_roles"})
 FRESHNESS_BANDS = ("new", "fresh", "normal", "aging", "stale")
 URGENCY_BANDS = ("apply_now", "high", "normal", "low", "closed")
 
@@ -506,7 +505,7 @@ class FreshnessRuntime:
     def process_report(self, report: Any) -> ReconciliationResult:
         complete_companies = [
             result.target.name for result in report.results
-            if result.status in TRUSTED_SCAN_STATUSES and bool(result.scan_complete)
+            if bool(getattr(result, "authoritative_for_absence", False))
         ]
         self.result = reconcile_lifecycle(
             report.normalized_jobs, self.previous_state,

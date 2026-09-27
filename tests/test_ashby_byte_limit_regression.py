@@ -37,6 +37,13 @@ class StreamingSession:
         return self.responses.pop(0)
 
 
+class InterruptedStreamingSession(StreamingSession):
+    def get(self, url, **kwargs):
+        if not self.responses:
+            raise RuntimeError("validation request budget reached")
+        return super().get(url, **kwargs)
+
+
 def html_page(data):
     payload = json.dumps(data, separators=(",", ":"))
     return f"<!doctype html><script>window.__appData = {payload};</script>"
@@ -171,6 +178,24 @@ class AshbyByteLimitRegressionTests(unittest.TestCase):
         self.assertFalse(metadata["scan_complete"])
         self.assertTrue(metadata["safety_limit_reached"])
         self.assertEqual(metadata["stop_reason"], "maximum_results_reached")
+
+    def test_validation_interruption_preserves_normalized_detail_progress(self):
+        listings = [summary(f"id-{index}") for index in range(3)]
+        session = InterruptedStreamingSession(
+            [
+                StreamingResponse(board("example", listings)),
+                StreamingResponse(detail("example", "id-0")),
+            ]
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "validation request budget"):
+            ashby.fetch_jobs(session, self.target(max_jobs=3))
+
+        metadata = source_scan_metadata(session)
+        self.assertEqual(metadata["total_available"], 3)
+        self.assertEqual(metadata["jobs_normalized"], 1)
+        self.assertEqual(metadata["detail_requests_planned"], 3)
+        self.assertEqual(metadata["source_identity_status"], "validated")
 
     def test_collection_equal_to_safety_ceiling_is_not_declared_complete(self):
         listings = [summary(f"id-{index}") for index in range(2)]

@@ -20,7 +20,6 @@ from src.scraper.company_careers.candidate_profile import (
     DEFAULT_CANDIDATE_PROFILE_PATH,
     load_candidate_profile,
 )
-from src.scraper.company_careers.models import CoverageStatus
 from src.scraper.company_careers.freshness import (
     DEFAULT_FRESHNESS_CONFIG_PATH,
     FreshnessRuntime,
@@ -164,7 +163,10 @@ def print_summary(summary: dict[str, Any] | None, *, dry_run: bool) -> None:
     print(f"  Companies checked: {summary['companies_checked']}")
     print(f"  Jobs fetched: {summary['jobs_fetched']}")
     print(f"  Jobs retained: {summary['jobs_retained']}")
-    print(f"  Source health: {summary.get('scan_health_counts', {})}")
+    source_health = summary.get("scan_health_counts", {})
+    print(f"  Process status: {source_health.get('process_status', 'unknown')}")
+    print(f"  Coverage health: {source_health.get('coverage_health', 'unknown')}")
+    print(f"  Source health: {source_health}")
     print(f"  Jobs excluded by seniority: {exclusions.get('seniority', 0)}")
     print(f"  Jobs excluded by student job type: {exclusions.get('job_type', 0)}")
     print(f"  Jobs excluded by location: {exclusions.get('location', 0)}")
@@ -282,9 +284,7 @@ def main(argv: list[str] | None = None) -> int:
         successful_companies = [
             result.target.name
             for result in report.results
-            if result.status
-            in {CoverageStatus.FETCHED, CoverageStatus.FETCHED_NO_MATCHING_ROLES}
-            and result.scan_complete
+            if result.authoritative_for_absence
         ]
         sync_result = job_store.sync_student_jobs(
             ranked_jobs,

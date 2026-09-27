@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional
 
@@ -104,6 +105,18 @@ class SourceScanMetadata(dict[str, Any]):
             explicit_final_page=False,
             terminal_page_observed=False,
             complete_collection_response=False,
+            scan_state="incomplete",
+            source_health_code="pagination_unproven",
+            source_activation_state="active",
+            jobs_collected=0,
+            original_configured_url=None,
+            final_url=None,
+            final_host=None,
+            redirect_count=0,
+            host_remained_approved=None,
+            source_identity_status="unproven",
+            rejected_record_count=0,
+            collection_changed_during_scan=False,
             pagination_evidence_status="unproven",
             pagination_evidence_conflicting=False,
             pagination_evidence_malformed=False,
@@ -270,6 +283,10 @@ class CompanyTarget:
     max_pages: int = 5
     max_jobs: int = 20
     page_size: int = 10
+    # Derived by the offline registry integrity contract. It is intentionally
+    # not a completion claim; non-active sources can be scanned for useful jobs
+    # but can never produce authoritative absence evidence.
+    source_activation: str = "active"
 
     @classmethod
     def from_dict(
@@ -399,6 +416,18 @@ class CompanyScanResult:
     explicit_final_page: bool = False
     terminal_page_observed: bool = False
     complete_collection_response: bool = False
+    scan_state: str = "incomplete"
+    source_health_code: str = "pagination_unproven"
+    source_activation_state: str = "active"
+    jobs_collected: int = 0
+    original_configured_url: Optional[str] = None
+    final_url: Optional[str] = None
+    final_host: Optional[str] = None
+    redirect_count: int = 0
+    host_remained_approved: Optional[bool] = None
+    source_identity_status: str = "unproven"
+    rejected_record_count: int = 0
+    collection_changed_during_scan: bool = False
     detail_requests_coupled: bool = False
     pagination_evidence_status: str = "unproven"
     pagination_evidence_conflicting: bool = False
@@ -407,18 +436,46 @@ class CompanyScanResult:
     exclusion_counts: Dict[str, int] = field(default_factory=dict)
     mapped_child_brand_counts: Dict[str, int] = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        trusted = self.status in {
+            CoverageStatus.FETCHED,
+            CoverageStatus.FETCHED_NO_MATCHING_ROLES,
+        }
+        if not trusted:
+            self.scan_state = "failed"
+        elif self.scan_complete and self.scan_state == "incomplete":
+            # Backward-compatible construction for tests/callers that predate
+            # the canonical state field. Runtime scanner results already carry
+            # an explicitly finalized state and health code.
+            self.scan_state = "complete"
+            if self.source_health_code == "pagination_unproven":
+                self.source_health_code = "healthy"
+        if self.source_activation_state == "active":
+            self.source_activation_state = self.target.source_activation
+
     @property
     def matched_count(self) -> int:
         return len(self.jobs)
 
     @property
+    def authoritative_for_absence(self) -> bool:
+        return bool(
+            self.status
+            in {CoverageStatus.FETCHED, CoverageStatus.FETCHED_NO_MATCHING_ROLES}
+            and self.scan_complete
+            and self.scan_state == "complete"
+            and self.source_health_code == "healthy"
+            and self.source_activation_state == "active"
+        )
+
+    @property
     def scan_health(self) -> str:
-        if self.status in {
+        if self.status not in {
             CoverageStatus.FETCHED,
             CoverageStatus.FETCHED_NO_MATCHING_ROLES,
         }:
-            return "complete" if self.scan_complete else "incomplete"
-        return "failed"
+            return "failed"
+        return self.scan_state
 
     def to_coverage_dict(self) -> Dict[str, Any]:
         return {
@@ -451,6 +508,19 @@ class CompanyScanResult:
             "explicit_final_page": self.explicit_final_page,
             "terminal_page_observed": self.terminal_page_observed,
             "complete_collection_response": self.complete_collection_response,
+            "scan_state": self.scan_health,
+            "authoritative_for_absence": self.authoritative_for_absence,
+            "source_health_code": self.source_health_code,
+            "source_activation_state": self.source_activation_state,
+            "jobs_collected": self.jobs_collected,
+            "original_configured_url": self.original_configured_url,
+            "final_url": self.final_url,
+            "final_host": self.final_host,
+            "redirect_count": self.redirect_count,
+            "host_remained_approved": self.host_remained_approved,
+            "source_identity_status": self.source_identity_status,
+            "rejected_record_count": self.rejected_record_count,
+            "collection_changed_during_scan": self.collection_changed_during_scan,
             "detail_requests_coupled": self.detail_requests_coupled,
             "pagination_evidence_status": self.pagination_evidence_status,
             "pagination_evidence_conflicting": self.pagination_evidence_conflicting,
@@ -480,6 +550,24 @@ class CompanyCareersReport:
     def normalized_jobs(self) -> List[JobRecord]:
         """Return all normalized jobs, including jobs later excluded by filters."""
         return [job for result in self.results for job in result.normalized_jobs]
+
+    def source_health_summary(self) -> Dict[str, Any]:
+        states = Counter(result.scan_health for result in self.results)
+        codes = Counter(result.source_health_code for result in self.results)
+        if not states["incomplete"] and not states["failed"]:
+            coverage_health = "healthy"
+        elif not states["complete"] and states["failed"]:
+            coverage_health = "failed"
+        else:
+            coverage_health = "degraded"
+        return {
+            "process_status": "succeeded",
+            "coverage_health": coverage_health,
+            "complete": states["complete"],
+            "incomplete": states["incomplete"],
+            "failed": states["failed"],
+            "by_health_code": dict(sorted(codes.items())),
+        }
 
     def coverage(self) -> List[Dict[str, Any]]:
         return [result.to_coverage_dict() for result in self.results] + [

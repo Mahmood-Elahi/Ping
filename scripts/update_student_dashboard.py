@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -18,7 +19,6 @@ if str(REPOSITORY_ROOT) not in sys.path:
 
 from src.integrations.google_sheets_publisher import GoogleSheetsPublisher
 from src.integrations.supabase_job_store import SupabaseJobStore
-from src.scraper.company_careers.models import CoverageStatus
 from src.scraper.company_careers.freshness import (
     DEFAULT_FRESHNESS_CONFIG_PATH,
     FreshnessRuntime,
@@ -304,9 +304,7 @@ def run_update(args: argparse.Namespace) -> int:
         successful_companies = [
             result.target.name
             for result in report.results
-            if result.status
-            in {CoverageStatus.FETCHED, CoverageStatus.FETCHED_NO_MATCHING_ROLES}
-            and result.scan_complete
+            if result.authoritative_for_absence
         ]
         sync_result = job_store.sync_student_jobs(
             ranked_jobs,
@@ -454,10 +452,30 @@ def print_summary(
     print(f"  Eligible/student jobs: {summary.get('eligible_student_jobs', summary['jobs_retained'])}")
     print(f"  Final ranked jobs: {summary.get('final_ranked_jobs', summary['jobs_retained'])}")
     health = summary.get("scan_health_counts", {})
+    coverage_health = health.get("coverage_health", "unknown")
+    print(f"  Process status: {health.get('process_status', 'succeeded')}")
+    print(f"  Coverage health: {coverage_health}")
     print(f"  Sources attempted: {summary['companies_checked']}")
     print(f"  Complete sources: {health.get('complete', 0)}")
     print(f"  Incomplete sources: {health.get('incomplete', 0)}")
     print(f"  Failed sources: {health.get('failed', 0)}")
+    if coverage_health != "healthy" and os.environ.get("GITHUB_ACTIONS") == "true":
+        print(
+            "::warning title=Job Radar source coverage degraded::"
+            f"coverage_health={coverage_health}, complete={health.get('complete', 0)}, "
+            f"incomplete={health.get('incomplete', 0)}, failed={health.get('failed', 0)}"
+        )
+    step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if step_summary:
+        with Path(step_summary).open("a", encoding="utf-8") as summary_file:
+            summary_file.write(
+                "## Job Radar source coverage\n\n"
+                f"- Process result: success\n"
+                f"- Coverage health: **{coverage_health}**\n"
+                f"- Complete: {health.get('complete', 0)}\n"
+                f"- Incomplete: {health.get('incomplete', 0)}\n"
+                f"- Failed: {health.get('failed', 0)}\n\n"
+            )
     print(f"  Exclusion counts: {exclusions}")
     print(f"  Supabase inserts: {sync_result.inserted}")
     print(f"  Supabase updates: {sync_result.updated}")

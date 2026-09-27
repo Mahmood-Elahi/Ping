@@ -74,6 +74,9 @@ jobs:
 
       - name: Preflight production configuration
         run: |
+          python scripts/validate_source_integrity.py \
+            --strict-onboarding \
+            --retained-pattern "__no_ci_retained_coverage__"
           python - <<'PY'
           import os
           from pathlib import Path

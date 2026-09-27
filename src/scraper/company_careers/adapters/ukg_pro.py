@@ -24,6 +24,12 @@ from src.scraper.company_careers.listing_completion import AdaptiveListingComple
 PAGE_SIZE = 50
 MAX_PAGES = 2
 MAX_RESULTS = 100
+SOURCE_SPECIFIC_MAXIMUMS = {
+    "mnp5000mnpl:d1e870eb-9c8c-4ce5-88ee-9f042cf2a12f": {
+        "max_pages": 3,
+        "max_jobs": 150,
+    },
+}
 MAX_TIMEOUT_SECONDS = 30
 MAX_ATTEMPTS = 2
 MAX_RESPONSE_BYTES = 3_000_000
@@ -193,10 +199,21 @@ def validate_target(target: CompanyTarget) -> dict[str, str]:
                 re.compile(str(value), re.IGNORECASE)
             except re.error as exc:
                 raise AdapterError(f"UKG Pro {field} is invalid: {exc}") from exc
-    if not 1 <= int(target.max_pages) <= MAX_PAGES:
-        raise AdapterError(f"UKG Pro max_pages cannot exceed {MAX_PAGES}")
-    if not 1 <= int(target.max_jobs) <= MAX_RESULTS:
-        raise AdapterError(f"UKG Pro max_jobs cannot exceed {MAX_RESULTS}")
+    source_key = f"{match.group('tenant').casefold()}:{match.group('board').casefold()}"
+    source_maximums = SOURCE_SPECIFIC_MAXIMUMS.get(
+        source_key,
+        {"max_pages": MAX_PAGES, "max_jobs": MAX_RESULTS},
+    )
+    if not 1 <= int(target.max_pages) <= source_maximums["max_pages"]:
+        raise AdapterError(
+            f"UKG Pro max_pages cannot exceed {source_maximums['max_pages']} "
+            f"for {target.name}"
+        )
+    if not 1 <= int(target.max_jobs) <= source_maximums["max_jobs"]:
+        raise AdapterError(
+            f"UKG Pro max_jobs cannot exceed {source_maximums['max_jobs']} "
+            f"for {target.name}"
+        )
     board_url = urlunparse(parsed._replace(path=parsed.path.rstrip("/"), query="", fragment=""))
     return {
         "board_url": board_url,

@@ -341,6 +341,10 @@ class PhenomAdapterTests(unittest.TestCase):
 
         jobs, session = self.fetch(responses, max_pages=10, max_jobs=100)
 
+        self.assertEqual(
+            session.phenom_pagination["source_identity_status"], "validated"
+        )
+
         external_ids = {
             record.raw_metadata["external_job_id"] for record in jobs
         }

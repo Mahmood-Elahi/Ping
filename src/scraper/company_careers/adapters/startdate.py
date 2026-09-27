@@ -21,6 +21,7 @@ from src.scraper.company_careers.listing_completion import AdaptiveListingComple
 
 
 MAX_JOBS = 20
+SOURCE_SPECIFIC_MAX_JOBS = {"tricanwellservice.startdate.ca": 50}
 MAX_COLLECTION_ITEMS = 500
 MAX_TIMEOUT_SECONDS = 30
 MAX_ATTEMPTS = 2
@@ -101,8 +102,13 @@ def validate_target(target: CompanyTarget) -> dict[str, str]:
         raise AdapterError("StartDate endpoint_url is not the reviewed public active-jobs endpoint")
     if int(target.max_pages) != 1:
         raise AdapterError("StartDate supports exactly one bounded collection page")
-    if not 1 <= int(target.max_jobs) <= MAX_JOBS:
-        raise AdapterError(f"StartDate max_jobs cannot exceed {MAX_JOBS}")
+    source_max_jobs = SOURCE_SPECIFIC_MAX_JOBS.get(
+        careers.hostname.casefold(), MAX_JOBS
+    )
+    if not 1 <= int(target.max_jobs) <= source_max_jobs:
+        raise AdapterError(
+            f"StartDate max_jobs cannot exceed {source_max_jobs} for {target.name}"
+        )
     if not target.job_attribution_regex:
         raise AdapterError("StartDate requires exact per-job attribution")
     try:

@@ -72,7 +72,7 @@ from src.scraper.company_careers.parent_sources import (
     load_parent_source_mappings,
     original_company_coverage,
 )
-from src.scraper.company_careers.listing_completion import finish_authoritative_total
+from src.scraper.company_careers.source_health import finalize_source_scan
 
 
 AdapterFn = Callable[[requests.Session, CompanyTarget, int], List[JobRecord]]
@@ -108,6 +108,26 @@ def _completion_result_fields(metadata: SourceScanMetadata) -> dict[str, Any]:
         "terminal_page_observed": bool(metadata.get("terminal_page_observed")),
         "complete_collection_response": bool(
             metadata.get("complete_collection_response")
+        ),
+        "scan_state": str(metadata.get("scan_state") or "incomplete"),
+        "source_health_code": str(
+            metadata.get("source_health_code") or "pagination_unproven"
+        ),
+        "source_activation_state": str(
+            metadata.get("source_activation_state") or "active"
+        ),
+        "jobs_collected": int(metadata.get("jobs_collected") or 0),
+        "original_configured_url": metadata.get("original_configured_url"),
+        "final_url": metadata.get("final_url"),
+        "final_host": metadata.get("final_host"),
+        "redirect_count": int(metadata.get("redirect_count") or 0),
+        "host_remained_approved": metadata.get("host_remained_approved"),
+        "source_identity_status": str(
+            metadata.get("source_identity_status") or "unproven"
+        ),
+        "rejected_record_count": int(metadata.get("rejected_record_count") or 0),
+        "collection_changed_during_scan": bool(
+            metadata.get("collection_changed_during_scan")
         ),
         "detail_requests_coupled": bool(metadata.get("detail_requests_coupled")),
         "pagination_evidence_status": str(
@@ -405,6 +425,9 @@ class CompanyCareersScanner:
                 scan_complete=False,
                 scan_completeness_reason="browser_batch_startup_failure",
                 stop_reason="browser_batch_startup_failure",
+                scan_state="failed",
+                source_health_code="source_unreachable",
+                source_activation_state=target.source_activation,
             )
         if target.platform in {"manual", "manual_review"}:
             return CompanyScanResult(
@@ -413,6 +436,9 @@ class CompanyCareersScanner:
                 error=f"Manual review required for platform: {target.platform}",
                 error_type="manual_review_required",
                 remediation="Add a reusable adapter or verify this company manually.",
+                scan_state="failed",
+                source_health_code="pagination_unproven",
+                source_activation_state=target.source_activation,
             )
         if adapter is None:
             return CompanyScanResult(
@@ -421,6 +447,9 @@ class CompanyCareersScanner:
                 error=f"No adapter registered for platform: {target.platform}",
                 error_type="not_implemented",
                 remediation="Register an adapter for this platform or mark the company manual_review.",
+                scan_state="failed",
+                source_health_code="source_unreachable",
+                source_activation_state=target.source_activation,
             )
 
         adapter_session: Optional[requests.Session] = None
@@ -432,17 +461,7 @@ class CompanyCareersScanner:
                 clear_source_scan_metadata(adapter_session)
                 fetched_jobs = self._dedupe(adapter(adapter_session, target, self.timeout))
                 scan_metadata = source_scan_metadata(adapter_session)
-                if (
-                    not scan_metadata["scan_complete"]
-                    and scan_metadata.get("authoritative_total_present")
-                    and not scan_metadata.get("collection_changed_during_scan")
-                    and not scan_metadata.get("rejected_record_count")
-                ):
-                    finish_authoritative_total(
-                        scan_metadata,
-                        scan_metadata.get("total_available"),
-                        len(fetched_jobs),
-                    )
+                scan_metadata["original_configured_url"] = _configured_source_url(target)
                 fetched_jobs = [
                     annotate_child_brand_metadata(job, self.parent_source_mappings)
                     for job in fetched_jobs
@@ -474,6 +493,11 @@ class CompanyCareersScanner:
                     if matched_jobs
                     else CoverageStatus.FETCHED_NO_MATCHING_ROLES
                 )
+                finalize_source_scan(
+                    scan_metadata,
+                    jobs_collected=len(fetched_jobs),
+                    activation_state=target.source_activation,
+                )
                 return CompanyScanResult(
                         target=target,
                         jobs=matched_jobs,
@@ -486,7 +510,15 @@ class CompanyCareersScanner:
                 )
         except AdapterError as exc:
                 scan_metadata = source_scan_metadata(adapter_session)
+                scan_metadata["original_configured_url"] = _configured_source_url(target)
                 error_type, remediation = self._adapter_failure_details(str(exc))
+                finalize_source_scan(
+                    scan_metadata,
+                    jobs_collected=int(scan_metadata.get("jobs_normalized") or 0),
+                    failed=True,
+                    failure_code=error_type,
+                    activation_state=target.source_activation,
+                )
                 return CompanyScanResult(
                         target=target,
                         status=CoverageStatus.FAILED_TECHNICAL,
@@ -497,6 +529,14 @@ class CompanyCareersScanner:
                 )
         except requests.RequestException as exc:
                 scan_metadata = source_scan_metadata(adapter_session)
+                scan_metadata["original_configured_url"] = _configured_source_url(target)
+                finalize_source_scan(
+                    scan_metadata,
+                    jobs_collected=int(scan_metadata.get("jobs_normalized") or 0),
+                    failed=True,
+                    failure_code="request_error",
+                    activation_state=target.source_activation,
+                )
                 return CompanyScanResult(
                         target=target,
                         status=CoverageStatus.FAILED_TECHNICAL,
@@ -506,12 +546,22 @@ class CompanyCareersScanner:
                         **_completion_result_fields(scan_metadata),
                 )
         except Exception as exc:
+                scan_metadata = source_scan_metadata(adapter_session)
+                scan_metadata["original_configured_url"] = _configured_source_url(target)
+                finalize_source_scan(
+                    scan_metadata,
+                    jobs_collected=int(scan_metadata.get("jobs_normalized") or 0),
+                    failed=True,
+                    failure_code="unexpected_error",
+                    activation_state=target.source_activation,
+                )
                 return CompanyScanResult(
                         target=target,
                         status=CoverageStatus.FAILED_TECHNICAL,
                         error=f"{exc.__class__.__name__}: {exc}",
                         error_type="unexpected_error",
                         remediation="Inspect the adapter stack locally; the scanner contained the failure to this company.",
+                        **_completion_result_fields(scan_metadata),
                 )
         finally:
             if close_adapter_session and adapter_session is not None:
@@ -575,7 +625,7 @@ class CompanyCareersScanner:
                 "probable_ats_migration",
                 "The official careers page no longer corroborates the configured ATS identity; verify a replacement before migrating the registry.",
             )
-        if re.search(r"\bhttp 404\b", lowered):
+        if re.search(r"\bhttp (404|410)\b", lowered):
             return (
                 "stale_board_identifier",
                 "Verify the current official career board or ATS and migrate the registry only with strong identity evidence.",
@@ -587,6 +637,11 @@ class CompanyCareersScanner:
             return (
                 "transient_upstream_http",
                 "Retry later; the bounded public source returned a transient HTTP failure.",
+            )
+        if re.search(r"\bhttp 202\b", lowered):
+            return (
+                "unexpected_upstream_http",
+                "Retry later; the listing request was accepted but did not return the reviewed response contract.",
             )
         if (
             "official careers page" in lowered
@@ -773,3 +828,15 @@ class CompanyCareersScanner:
             seen.add(key)
             unique_jobs.append(job)
         return unique_jobs
+
+
+def _configured_source_url(target: CompanyTarget) -> Optional[str]:
+    for value in (
+        target.endpoint_url,
+        target.search_url,
+        target.listing_url,
+        target.careers_url,
+    ):
+        if str(value or "").strip():
+            return str(value).strip()
+    return None

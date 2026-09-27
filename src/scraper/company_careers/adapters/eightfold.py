@@ -173,6 +173,14 @@ def fetch_jobs(
         if positions and normalized_count == 0:
             raise AdapterError("Eightfold page contained jobs but none were valid")
 
+        metadata.update(
+            source_identity_status="validated",
+            source_identity_diagnostic=(
+                "Eightfold response matched the configured same-host PCSx endpoint, "
+                "organization contract, response schema, and official job URLs"
+            ),
+        )
+
         metadata["pages"].append(
             {
                 "offset": offset,

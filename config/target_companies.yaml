@@ -3242,7 +3242,7 @@ target_companies:
     - recruiting.ultipro.ca
     original_workbook_rank: null
     max_pages: 1
-    max_jobs: 20
+    max_jobs: 50
     max_response_bytes: 3000000
     identity_url: https://recruiting.ultipro.ca/PAS5000PASON/JobBoard/736c1025-c469-4ece-a487-4884545272a7
     job_attribution_regex: '\bPason(?: Systems)?\b'
@@ -3256,7 +3256,7 @@ target_companies:
     - tricanwellservice.startdate.ca
     original_workbook_rank: null
     max_pages: 1
-    max_jobs: 20
+    max_jobs: 50
     max_response_bytes: 3000000
     identity_url: https://tricanwellservice.com/
     endpoint_url: https://api.startdate.ca/jobs/active?page=candidate_dashboard
@@ -3560,8 +3560,8 @@ target_companies:
     allowed_apply_hosts:
     - recruiting.ultipro.ca
     original_workbook_rank: null
-    max_pages: 1
-    max_jobs: 20
+    max_pages: 3
+    max_jobs: 150
     max_response_bytes: 3000000
     identity_url: https://www.mnp.ca/en/careers
   - name: Absorb Software

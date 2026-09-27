@@ -1,5 +1,8 @@
 # Architecture
 
+Source enumeration, terminal evidence, registry activation, and lifecycle
+absence invariants are documented in [SOURCE_INTEGRITY.md](SOURCE_INTEGRITY.md).
+
 RoleRadar has one orchestration layer and two primary acquisition paths:
 
 - LinkedIn scraping through the existing Playwright scraper

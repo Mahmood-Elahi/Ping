@@ -349,6 +349,22 @@ class EightfoldAdapterTests(unittest.TestCase):
         )
         self.assertFalse(session.eightfold_pagination["scan_complete"])
 
+    def test_validation_interruption_preserves_completed_page_progress(self):
+        first = [position(index) for index in range(1, 11)]
+        session = FakeSession([FakeResponse(payload(first, count=2_324))])
+
+        with patch.object(eightfold.time, "sleep", return_value=None), self.assertRaises(
+            IndexError
+        ):
+            eightfold.fetch_jobs(session, target(max_pages=2))
+
+        self.assertEqual(session.eightfold_pagination["jobs_normalized"], 10)
+        self.assertEqual(session.eightfold_pagination["total_available"], 2_324)
+        self.assertEqual(session.eightfold_pagination["pages_completed"], 1)
+        self.assertEqual(
+            session.eightfold_pagination["source_identity_status"], "validated"
+        )
+
     def test_maximum_page_configuration_is_rejected_without_network(self):
         session = FakeSession([])
         with self.assertRaisesRegex(AdapterError, "max_pages cannot exceed"):

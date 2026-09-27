@@ -67,11 +67,38 @@ def fetch_jobs(
     config = validate_target(target)
     timeout = min(max(1, int(timeout)), MAX_TIMEOUT_SECONDS)
 
+    metadata = SourceScanMetadata(**{
+        "endpoint_variant": ENDPOINT_VARIANT,
+        "request_method": "POST",
+        "page_size": PAGE_SIZE,
+        "maximum_pages": int(target.max_pages),
+        "maximum_results": int(target.max_jobs),
+        "configured_careers_url": str(target.careers_url),
+        "configured_search_url": str(target.search_url),
+        "configured_endpoint_url": str(target.endpoint_url),
+        "configured_tenant": str(target.tenant),
+        "configured_site": str(target.site_id),
+        "pages": [],
+        "jobs_normalized": 0,
+        "total_available": None,
+        "stop_reason": "not_started",
+    })
+    setattr(session, "cornerstone_csod_pagination", metadata)
+    publish_source_scan_metadata(session, metadata)
+
     official = _get_html(session, str(target.careers_url), timeout, "official careers page")
+    metadata["final_url"] = str(getattr(official, "url", target.careers_url) or target.careers_url)
+    metadata["final_host"] = (urlparse(metadata["final_url"]).hostname or "").casefold()
     official_html = str(getattr(official, "text", "") or "")
     if not re.search(str(target.identity_regex), official_html, re.IGNORECASE):
         raise AdapterError("Cornerstone CSOD official careers identity did not match identity_regex")
     if not _official_page_links_target(official_html, config):
+        metadata["scan_completeness_reason"] = "source_migration_suspected"
+        metadata["stop_reason"] = "configured_source_identity_not_corroborated"
+        metadata["source_identity_status"] = "failed"
+        metadata["source_identity_diagnostic"] = (
+            "official careers page did not link the configured tenant and site"
+        )
         raise AdapterError("Cornerstone CSOD official careers page did not link the configured tenant and site")
 
     shell = _get_html(session, str(target.search_url), timeout, "public career-site shell")
@@ -83,19 +110,6 @@ def fetch_jobs(
     if endpoint != config["endpoint_url"]:
         raise AdapterError("Cornerstone CSOD shell changed its configured official search endpoint")
 
-    metadata = SourceScanMetadata(**{
-        "endpoint_variant": ENDPOINT_VARIANT,
-        "request_method": "POST",
-        "page_size": PAGE_SIZE,
-        "maximum_pages": int(target.max_pages),
-        "maximum_results": int(target.max_jobs),
-        "pages": [],
-        "jobs_normalized": 0,
-        "total_available": None,
-        "stop_reason": "not_started",
-    })
-    setattr(session, "cornerstone_csod_pagination", metadata)
-    publish_source_scan_metadata(session, metadata)
     listing_budget = AdaptiveListingCompletion(
         int(target.max_pages),
         int(target.max_jobs),

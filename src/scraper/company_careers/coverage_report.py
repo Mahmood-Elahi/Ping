@@ -43,6 +43,7 @@ def coverage_markdown(
 ) -> str:
     coverage = report.coverage()
     counts = Counter(item["status"] for item in coverage)
+    source_health = report.source_health_summary()
     lines = [
         f"# {title}",
         "",
@@ -51,6 +52,10 @@ def coverage_markdown(
         f"- Canonical sources checked: {len(report.results)}",
         f"- Mapped child brands represented: {len(report.mapped_coverage)}",
         f"- Matched jobs: {len(report.jobs)}",
+        f"- Coverage health: {source_health['coverage_health']}",
+        f"- Complete sources: {source_health['complete']}",
+        f"- Incomplete sources: {source_health['incomplete']}",
+        f"- Failed sources: {source_health['failed']}",
     ]
     if report.original_coverage:
         lines.extend(
@@ -179,6 +184,14 @@ def _write_coverage_csv(coverage: Iterable[dict], csv_path: str) -> None:
         "status",
         "matched_count",
         "fetched_count",
+        "scan_state",
+        "source_health_code",
+        "source_activation_state",
+        "authoritative_for_absence",
+        "scan_completeness_reason",
+        "stop_reason",
+        "terminal_evidence_type",
+        "total_available",
         "platform",
         "source",
         "error",
@@ -202,6 +215,14 @@ def _write_coverage_csv(coverage: Iterable[dict], csv_path: str) -> None:
                     "status": item["status"],
                     "matched_count": item["matched_count"],
                     "fetched_count": item["fetched_count"],
+                    "scan_state": item.get("scan_state") or item.get("scan_health") or "",
+                    "source_health_code": item.get("source_health_code") or "",
+                    "source_activation_state": item.get("source_activation_state") or "",
+                    "authoritative_for_absence": item.get("authoritative_for_absence", False),
+                    "scan_completeness_reason": item.get("scan_completeness_reason") or "",
+                    "stop_reason": item.get("stop_reason") or "",
+                    "terminal_evidence_type": item.get("terminal_evidence_type") or "",
+                    "total_available": item.get("total_available", ""),
                     "platform": item["platform"],
                     "source": _source_label(item),
                     "error": item.get("error") or "",

@@ -13,7 +13,11 @@ from scripts import validate_ats_adapter_expansion_v2_batch_a as batch
 from scripts import validate_company_registry as registry_validator
 from src.scraper.company_careers import scanner
 from src.scraper.company_careers.adapters import cornerstone_csod, dayforce, sap_successfactors
-from src.scraper.company_careers.models import AdapterError, CompanyTarget
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    source_scan_metadata,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -181,11 +185,24 @@ class CornerstoneCsodAdapterTests(unittest.TestCase):
         self.assertTrue(post[2]["headers"]["Authorization"].startswith("Bearer "))
 
     def test_attribution_anonymity_challenge_and_bounds_fail_closed(self):
+        migrated_session = Session(
+            gets=[
+                official_page(
+                    href="https://other.csod.com/ux/ats/careersite/4/home?c=other"
+                )
+            ]
+        )
         with self.assertRaisesRegex(AdapterError, "did not link"):
             cornerstone_csod.fetch_jobs(
-                Session(gets=[official_page(href="https://other.csod.com/ux/ats/careersite/4/home?c=other")]),
+                migrated_session,
                 csod_target(),
             )
+        metadata = source_scan_metadata(migrated_session)
+        self.assertEqual(metadata["configured_tenant"], "example")
+        self.assertEqual(metadata["configured_site"], "4")
+        self.assertEqual(metadata["source_identity_status"], "failed")
+        self.assertEqual(metadata["scan_completeness_reason"], "source_migration_suspected")
+        self.assertIn("did not link", metadata["source_identity_diagnostic"])
         with self.assertRaisesRegex(AdapterError, "anonymous"):
             cornerstone_csod.fetch_jobs(
                 Session(gets=[official_page(), csod_shell(token=_token(subject=42))]), csod_target()

@@ -294,10 +294,7 @@ class JobSearchPipeline:
             "normalized_jobs": len(report.normalized_jobs),
             "jobs_retained": len(report.jobs),
             "eligible_student_jobs": len(report.jobs),
-            "scan_health_counts": {
-                state: sum(1 for item in report.results if item.scan_health == state)
-                for state in ("complete", "incomplete", "failed")
-            },
+            "scan_health_counts": report.source_health_summary(),
             "exclusion_counts": exclusion_counts,
             "database_inserts": successful_saves,
             "existing_duplicates": skipped_existing,

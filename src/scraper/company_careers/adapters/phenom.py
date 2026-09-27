@@ -112,6 +112,13 @@ def fetch_jobs(
         try:
             response = _get_page(session, target, params, request_timeout)
             items, total, hits, response_config = _parse_page(response, target, offset)
+            metadata.update(
+                source_identity_status="validated",
+                source_identity_diagnostic=(
+                    "Phenom page configuration matched the configured host, tenant, "
+                    "locale, external site, and search-results contract"
+                ),
+            )
         except Exception as exc:
             message = str(exc).casefold()
             if metadata["stop_reason"] == "not_started":

@@ -364,3 +364,44 @@ company_careers_reliability_repairs:
     page_size: 20
     max_pages: 1
     max_jobs: 30
+  - name: Pason Systems
+    platform: ukg_pro
+    careers_url: https://recruiting.ultipro.ca/PAS5000PASON/JobBoard/736c1025-c469-4ece-a487-4884545272a7
+    source_identity_regex: Pason
+    identity_regex: Pason
+    allowed_apply_hosts:
+      - recruiting.ultipro.ca
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 50
+    max_response_bytes: 3000000
+    identity_url: https://recruiting.ultipro.ca/PAS5000PASON/JobBoard/736c1025-c469-4ece-a487-4884545272a7
+    job_attribution_regex: '\bPason(?: Systems)?\b'
+    job_attribution_exclude_regex: \b(?:Intelligent Wellhead Systems|IWS)\b
+  - name: Trican Well Service
+    platform: startdate
+    careers_url: https://tricanwellservice.startdate.ca/
+    source_identity_regex: \bTrican\b
+    identity_regex: \bTrican\b
+    allowed_apply_hosts:
+      - tricanwellservice.startdate.ca
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 50
+    max_response_bytes: 3000000
+    identity_url: https://tricanwellservice.com/
+    endpoint_url: https://api.startdate.ca/jobs/active?page=candidate_dashboard
+    locale: en
+    job_attribution_regex: '\bTrican(?: Well Service)?\b'
+  - name: MNP
+    platform: ukg_pro
+    careers_url: https://recruiting.ultipro.ca/MNP5000MNPL/JobBoard/d1e870eb-9c8c-4ce5-88ee-9f042cf2a12f
+    source_identity_regex: MNP
+    identity_regex: ^Campus Career Opportunities$
+    allowed_apply_hosts:
+      - recruiting.ultipro.ca
+    original_workbook_rank: null
+    max_pages: 3
+    max_jobs: 150
+    max_response_bytes: 3000000
+    identity_url: https://www.mnp.ca/en/careers
