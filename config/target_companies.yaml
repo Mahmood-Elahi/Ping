@@ -1714,29 +1714,20 @@ target_companies:
     evidence_confidence: high
     evidence_timestamp: '2026-08-30T00:00:00+00:00'
   - name: Figure AI
-    platform: browser_rendered_html
+    platform: greenhouse
     careers_url: https://www.figure.ai/careers
-    listing_url: https://www.figure.ai/careers
-    endpoint_variant: browser_rendered_html_v1
-    browser_wait_selector: a.careers-listing-module-job
-    browser_scroll_steps: 2
-    browser_static_variant: server_rendered_links
-    browser_identity_selector: title
-    browser_identity_regex: Figure
-    listing_selector: a.careers-listing-module-job
-    job_card_selector: a.careers-listing-module-job
-    title_selector: h1.careers-listing-module-job__heading
-    location_selector: address.careers-listing-module-job__location
-    detail_link_selector: :self
-    external_id_regex: /jobs/([0-9]+)(?:[/?#]|$)
-    department_selector: null
-    date_selector: null
+    source_identity_regex: Figure AI|Figure
     allowed_apply_hosts:
     - job-boards.greenhouse.io
     original_workbook_rank: 154
     max_pages: 1
     max_jobs: 20
     max_response_bytes: 3000000
+    slug: figureai
+    search_url: https://job-boards.greenhouse.io/figureai
+    evidence_source: output/browser_pilot_v1_validation.json
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-24T00:55:47+00:00'
   - name: LINE
     platform: browser_rendered_html
     careers_url: https://careers.linecorp.com/
@@ -1922,30 +1913,18 @@ target_companies:
     evidence_confidence: high
     evidence_timestamp: '2026-08-28T00:00:00+00:00'
   - name: MDA Space
-    platform: browser_rendered_html
-    careers_url: https://mda.space/careers
-    listing_url: https://recruiting.ultipro.ca/MAC5000MCDW/JobBoard/664818ff-3594-4bec-9f30-3394e59e19f3/
-    endpoint_variant: browser_rendered_html_v1
-    browser_wait_selector: a[data-automation='job-title']
-    browser_scroll_steps: 0
-    browser_static_variant: server_rendered_links
-    browser_identity_selector: body
-    browser_identity_regex: MDA Space
-    listing_selector: div#Opportunities
-    job_card_selector: a[data-automation=job-title]
-    title_selector: :self
-    location_selector: null
-    detail_link_selector: :self
-    external_id_regex: '[?&]opportunityId=([0-9a-f-]+)'
-    external_id_attribute: null
-    department_selector: null
-    date_selector: null
+    platform: ukg_pro
+    careers_url: https://recruiting.ultipro.ca/MAC5000MCDW/JobBoard/664818ff-3594-4bec-9f30-3394e59e19f3/
+    identity_regex: MDA Space
     allowed_apply_hosts:
     - recruiting.ultipro.ca
     original_workbook_rank: 192
     max_pages: 1
     max_jobs: 20
     max_response_bytes: 3000000
+    evidence_source: output/browser_expansion_v1b_validation.json
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-24T00:55:47+00:00'
   - name: JD.com
     platform: workday
     careers_url: https://corporate.jd.com/careers

@@ -57,7 +57,7 @@ REPRESENTATIVES = (
     ("static", "static_html", "Applied Materials"),
     ("static", "talentbrew", "Palo Alto Networks"),
     ("browser", "browser_rendered_html", "ASML"),
-    ("browser", "browser_rendered_html", "Figure AI"),
+    ("browser", "browser_rendered_html", "LINE"),
     ("terminal_api", "avature", "Bank of America"),
     ("terminal_api", "javascript_embedded_data", "Continental"),
     ("terminal_api", "lever", "Veeva Systems"),

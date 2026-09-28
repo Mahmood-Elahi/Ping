@@ -19,6 +19,7 @@ from src.scraper.company_careers.models import (
     source_scan_metadata,
 )
 from src.scraper.company_careers.parent_sources import load_parent_source_mappings
+from src.scraper.company_careers.source_health import finalize_source_scan
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -263,6 +264,10 @@ class UKGProAdapterTests(unittest.TestCase):
         )
         self.assertEqual(session.calls[1][0], "post")
         self.assertEqual(session.calls[1][2]["json"]["opportunitySearch"]["Top"], 50)
+        metadata = source_scan_metadata(session)
+        self.assertTrue(metadata["authoritative_total_present"])
+        self.assertEqual(metadata["terminal_evidence_type"], "authoritative_total")
+        self.assertEqual(metadata["terminal_evidence_value"], 1)
 
     def test_mixed_or_third_party_board_fails_before_search(self):
         for response in (ukg_board(third_party=True), ukg_board(name="Pason & IWS Career Opportunities")):
@@ -331,6 +336,14 @@ class UKGProAdapterTests(unittest.TestCase):
         self.assertEqual(metadata["effective_listing_request_ceiling"], 2)
         self.assertEqual(metadata["effective_listing_job_ceiling"], 26)
         self.assertEqual(metadata["listing_results_observed_at_decision"], 26)
+        self.assertFalse(metadata["authoritative_total_present"])
+        self.assertEqual(metadata["terminal_evidence_type"], "api_pagination_contract")
+        self.assertEqual(
+            metadata["terminal_evidence_value"],
+            {"reported_total": 26, "raw_results_observed": 26},
+        )
+        finalized = finalize_source_scan(metadata, jobs_collected=len(jobs))
+        self.assertEqual(finalized["scan_state"], "complete")
         self.assertEqual([call[0] for call in session.calls], ["get", "post", "post"])
         self.assertEqual(
             session.calls[1][2]["json"]["opportunitySearch"]["Top"], 20

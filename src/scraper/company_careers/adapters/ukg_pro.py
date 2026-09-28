@@ -18,7 +18,11 @@ from src.scraper.company_careers.models import (
     SourceScanMetadata,
     publish_source_scan_metadata,
 )
-from src.scraper.company_careers.listing_completion import AdaptiveListingCompletion
+from src.scraper.company_careers.listing_completion import (
+    AdaptiveListingCompletion,
+    finish_authoritative_total,
+    record_terminal_evidence,
+)
 
 
 PAGE_SIZE = 50
@@ -146,10 +150,34 @@ def fetch_jobs(
 
         raw_offset += len(opportunities)
         metadata["total_available"] = total
+        metadata["raw_results_observed"] = raw_offset
         if skip + len(opportunities) == total:
-            metadata["scan_complete"] = True
-            metadata["scan_completeness_reason"] = "reported_total_reached"
-            metadata["stop_reason"] = "reported_total_reached"
+            attribution_filtered = bool(
+                target.job_attribution_regex
+                or target.job_attribution_exclude_regex
+            )
+            if not attribution_filtered:
+                metadata["authoritative_total_present"] = True
+                if not finish_authoritative_total(metadata, total, len(jobs)):
+                    raise AdapterError(
+                        "UKG Pro normalized inventory did not match totalCount"
+                    )
+            else:
+                # The raw collection reached its authoritative boundary, but
+                # the company-specific result count is intentionally smaller
+                # after reviewed per-row attribution.  Preserve the terminal
+                # traversal evidence without mislabelling totalCount as the
+                # normalized company inventory size.
+                metadata["scan_complete"] = True
+                metadata["scan_completeness_reason"] = "reported_total_reached"
+                metadata["stop_reason"] = "reported_total_reached"
+                record_terminal_evidence(
+                    metadata,
+                    "api_pagination_contract",
+                    {"reported_total": total, "raw_results_observed": raw_offset},
+                    has_more=False,
+                    terminal_page_observed=True,
+                )
             break
         if len(opportunities) < top:
             metadata["stop_reason"] = "short_page_before_reported_total"

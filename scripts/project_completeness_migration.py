@@ -192,15 +192,35 @@ def build_projection(
     ]
     targets = load_target_companies(str(registry_path) if registry_path else None)
     by_key = {(target.name, target.platform): target for target in targets}
+    by_name = {target.name: target for target in targets}
     missing = [
         (str(row.get("company")), str(row.get("platform")))
         for row in rows
-        if (row.get("company"), row.get("platform")) not in by_key
+        if str(row.get("company")) not in by_name
     ]
     if missing:
         raise ValueError(f"Saved avoidable sources missing from active registry: {missing}")
 
-    remaining_after_prior = [row for row in rows if row.get("platform") not in PRIOR_MIGRATED]
+    # A retained audit can legitimately name an older adapter after an exact
+    # source has moved to a stronger reviewed contract.  Do not feed that stale
+    # platform row back into the old-family projection, and do not silently
+    # treat an actually removed company the same way.
+    contract_migrations = [
+        row
+        for row in rows
+        if (row.get("company"), row.get("platform")) not in by_key
+    ]
+    current_contract_rows = [
+        row
+        for row in rows
+        if (row.get("company"), row.get("platform")) in by_key
+    ]
+
+    remaining_after_prior = [
+        row
+        for row in current_contract_rows
+        if row.get("platform") not in PRIOR_MIGRATED
+    ]
     grouped: dict[str, list[Mapping[str, Any]]] = defaultdict(list)
     for row in remaining_after_prior:
         grouped[str(row.get("platform"))].append(row)
@@ -252,6 +272,14 @@ def build_projection(
         "summary": {
             "original_adapter_completeness_not_proven": len(rows),
             "migrated_prior_oracle_smartrecruiters": prior_count,
+            "migrated_to_stronger_active_contract": len(contract_migrations),
+            "active_contract_migrations": sorted(
+                {
+                    f"{row.get('company')}: {row.get('platform')} -> "
+                    f"{by_name[str(row.get('company'))].platform}"
+                    for row in contract_migrations
+                }
+            ),
             "remaining_avoidable_before_this_pass": len(remaining_after_prior),
             "additional_sources_migrated_this_pass": additional_count,
             "projected_adapter_completeness_not_proven_remaining": sum(

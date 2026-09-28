@@ -50,6 +50,34 @@ company_careers_reliability_repairs:
     evidence_source: https://www.asml.com/en/careers/find-your-job
     evidence_confidence: high
     evidence_timestamp: '2026-08-28T00:00:00+00:00'
+  - name: Figure AI
+    platform: greenhouse
+    careers_url: https://www.figure.ai/careers
+    source_identity_regex: Figure AI|Figure
+    allowed_apply_hosts:
+      - job-boards.greenhouse.io
+    original_workbook_rank: 154
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    slug: figureai
+    search_url: https://job-boards.greenhouse.io/figureai
+    evidence_source: output/browser_pilot_v1_validation.json
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-24T00:55:47+00:00'
+  - name: MDA Space
+    platform: ukg_pro
+    careers_url: https://recruiting.ultipro.ca/MAC5000MCDW/JobBoard/664818ff-3594-4bec-9f30-3394e59e19f3/
+    identity_regex: MDA Space
+    allowed_apply_hosts:
+      - recruiting.ultipro.ca
+    original_workbook_rank: 192
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: output/browser_expansion_v1b_validation.json
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-24T00:55:47+00:00'
   - name: Tourmaline Oil
     platform: javascript_embedded_data
     careers_url: https://www.tourmalineoil.com/careers
