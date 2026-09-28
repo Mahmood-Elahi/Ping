@@ -588,6 +588,58 @@ class AdpAdapterTests(unittest.TestCase):
                     ]),
                     wfn_target(),
                 )
+
+    def test_workforce_now_authoritative_total_adapts_detail_coupled_first_stage(self):
+        for total, normal_pages in ((26, 2), (88, 3)):
+            with self.subTest(total=total):
+                rows = [
+                    wfn_item(
+                        item_id=f"123456789_{index}",
+                        external_id=f"42{index:03d}",
+                        title=f"Systems Intern {index}",
+                    )
+                    for index in range(total)
+                ]
+                responses = [
+                    Response(
+                        {
+                            "contentLinks": [
+                                {"contentBody": {"contentTitle": "Example Space"}}
+                            ]
+                        }
+                    )
+                ]
+                for offset in range(0, total, 10):
+                    page_rows = rows[offset : offset + 10]
+                    responses.append(
+                        Response(
+                            {
+                                "jobRequisitions": page_rows,
+                                "meta": {
+                                    "startSequence": offset,
+                                    "totalNumber": total,
+                                },
+                            }
+                        )
+                    )
+                    responses.extend(Response(row) for row in page_rows)
+                session = Session(gets=responses)
+
+                jobs = adp.fetch_jobs(
+                    session,
+                    wfn_target(max_pages=normal_pages, max_jobs=20),
+                )
+
+                self.assertEqual(len(jobs), total)
+                self.assertTrue(session.adp_pagination["scan_complete"])
+                self.assertFalse(session.adp_pagination["safety_limit_reached"])
+                self.assertEqual(
+                    session.adp_pagination["pages_completed"], (total + 9) // 10
+                )
+                self.assertTrue(
+                    session.adp_pagination["adaptive_completion_eligible"]
+                )
+
     def test_myjobs_requires_exact_site_attribution_and_apply_action(self):
         session = Session(gets=[
             Response(myjobs_config()),

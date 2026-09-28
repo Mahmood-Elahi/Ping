@@ -16,6 +16,10 @@ from src.scraper.company_careers.models import (
     SourceScanMetadata,
     publish_source_scan_metadata,
 )
+from src.scraper.company_careers.listing_completion import (
+    AdaptiveListingCompletion,
+    finish_authoritative_total,
+)
 
 
 SEARCH_ENDPOINT = "https://jobs.apple.com/api/v1/search"
@@ -68,7 +72,7 @@ def fetch_jobs(
     target: CompanyTarget,
     timeout: int = 20,
 ) -> list[JobRecord]:
-    """Fetch and normalize a bounded slice of Apple's public search results."""
+    """Enumerate Apple's public search results to its authoritative total."""
     validate_target(target)
     maximum_pages = int(target.max_pages)
     maximum_jobs = int(target.max_jobs)
@@ -88,6 +92,12 @@ def fetch_jobs(
     })
     setattr(session, "apple_pagination", metadata)
     publish_source_scan_metadata(session, metadata)
+    listing_budget = AdaptiveListingCompletion(
+        maximum_pages,
+        maximum_jobs,
+        allow_listing_only_second_stage=True,
+    )
+    listing_budget.record(metadata)
 
     jobs: list[JobRecord] = []
     by_stable_id: dict[str, JobRecord] = {}
@@ -95,7 +105,15 @@ def fetch_jobs(
     records_seen = 0
     expected_total: int | None = None
 
-    for page in range(1, maximum_pages + 1):
+    for page in range(1, listing_budget.hard_request_ceiling + 1):
+        effective_jobs = int(
+            metadata.get(
+                "effective_listing_job_ceiling", listing_budget.normal_job_budget
+            )
+        )
+        if len(jobs) >= effective_jobs:
+            metadata["stop_reason"] = "maximum_results_reached"
+            break
         body = {
             "query": "",
             "filters": {
@@ -121,11 +139,22 @@ def fetch_jobs(
         items, total = _search_page(payload)
         metadata["pages_completed"] += 1
         metadata["total_available"] = total
+        metadata["authoritative_total_present"] = True
         if expected_total is None:
             expected_total = total
             metadata["total_records"] = total
         elif total != expected_total:
             raise AdapterError("Apple pagination totalRecords changed between pages")
+
+        projected_records_seen = records_seen + len(items)
+        listing_budget.record_decision(
+            metadata,
+            total,
+            PAGE_SIZE,
+            requests_completed=int(metadata["pages_completed"]),
+            results_observed=projected_records_seen,
+        )
+        effective_jobs = int(metadata["effective_listing_job_ceiling"])
 
         normalized_page = [_normalize(item, target, locale) for item in items]
         signature = tuple(
@@ -145,9 +174,10 @@ def fetch_jobs(
             if existing is not None:
                 if existing.to_dict() != job.to_dict():
                     raise AdapterError("Apple returned a conflicting duplicate stable ID")
+                metadata["collection_changed_during_scan"] = True
                 continue
             by_stable_id[job.job_id] = job
-            if len(jobs) < maximum_jobs:
+            if len(jobs) < effective_jobs:
                 jobs.append(job)
                 new_jobs += 1
 
@@ -162,26 +192,23 @@ def fetch_jobs(
         metadata["pages_fetched"] = len(metadata["pages"])
         metadata["jobs_normalized"] = len(jobs)
 
-        if not items:
-            if page == 1 and total == 0:
-                metadata["zero_job_contract"] = True
-                metadata["stop_reason"] = "validated_zero_jobs"
-                metadata["scan_complete"] = True
-                metadata["scan_completeness_reason"] = "reported_total_reached"
-                break
-            if records_seen < total:
-                raise AdapterError("Apple pagination ended before totalRecords was satisfied")
-            metadata["stop_reason"] = "total_records_reached"
-            metadata["scan_complete"] = True
-            metadata["scan_completeness_reason"] = "reported_total_reached"
+        if not items and records_seen < total:
+            raise AdapterError("Apple pagination ended before totalRecords was satisfied")
+        if metadata.get("collection_changed_during_scan"):
+            metadata["stop_reason"] = "collection_changed_during_scan"
+            metadata["scan_completeness_reason"] = "collection_changed_during_scan"
             break
-        if len(jobs) >= maximum_jobs:
+        if finish_authoritative_total(metadata, total, records_seen):
+            metadata["zero_job_contract"] = total == 0
+            metadata["stop_reason"] = (
+                "validated_zero_jobs" if total == 0 else "total_records_reached"
+            )
+            break
+        if len(jobs) >= effective_jobs:
             metadata["stop_reason"] = "maximum_results_reached"
             break
-        if records_seen >= total:
-            metadata["stop_reason"] = "total_records_reached"
-            metadata["scan_complete"] = True
-            metadata["scan_completeness_reason"] = "reported_total_reached"
+        if page >= int(metadata["effective_listing_request_ceiling"]):
+            metadata["stop_reason"] = "maximum_pages_reached"
             break
     else:
         metadata["stop_reason"] = "maximum_pages_reached"

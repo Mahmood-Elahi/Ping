@@ -196,6 +196,34 @@ class AvatureAdapterTests(unittest.TestCase):
         self.assertTrue(session.avature_pagination["page_size_was_clamped"])
         self.assertTrue(session.avature_pagination["scan_complete"])
 
+    @patch.object(avature.time, "sleep", return_value=None)
+    def test_18_reviewed_offset_contract_reaches_short_eof_without_next_link(
+        self, _sleep
+    ):
+        rows = [
+            (
+                str(200 + index),
+                f"Role {index}",
+                "Calgary",
+                "Engineering",
+                "08/01/2026",
+            )
+            for index in range(7)
+        ]
+        session = Session(
+            [page(*rows[offset : offset + 2]) for offset in range(0, 7, 2)]
+        )
+
+        jobs = avature.fetch_jobs(session, target())
+
+        self.assertEqual(len(jobs), 7)
+        self.assertEqual(len(session.calls), 4)
+        self.assertTrue(session.avature_pagination["scan_complete"])
+        self.assertEqual(
+            session.avature_pagination["scan_completeness_reason"],
+            "natural_terminal_page",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

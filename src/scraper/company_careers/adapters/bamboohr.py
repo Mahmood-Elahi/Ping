@@ -16,10 +16,14 @@ from src.scraper.company_careers.models import (
     SourceScanMetadata,
     publish_source_scan_metadata,
 )
-from src.scraper.company_careers.listing_completion import record_terminal_evidence
+from src.scraper.company_careers.listing_completion import (
+    AdaptiveListingCompletion,
+    record_terminal_evidence,
+)
 
 
 MAX_JOBS = 20
+MAX_DETAIL_REQUESTS = 20
 MAX_TIMEOUT_SECONDS = 30
 MAX_ATTEMPTS = 2
 MAX_RESPONSE_BYTES = 3_000_000
@@ -50,7 +54,7 @@ def fetch_jobs(
     all_items = _parse_listing(payload)
     metadata["pages_completed"] = 1
     metadata["total_available"] = len(all_items)
-    metadata["detail_requests_coupled"] = True
+    metadata["detail_requests_coupled"] = False
     record_terminal_evidence(
         metadata,
         "complete_collection_response",
@@ -59,20 +63,32 @@ def fetch_jobs(
         terminal_page_observed=True,
         complete_collection_response=True,
     )
-    items = all_items[: int(target.max_jobs)]
+    listing_budget = AdaptiveListingCompletion(1, int(target.max_jobs))
+    listing_budget.record(metadata)
+    effective_jobs = listing_budget.complete_collection_job_ceiling(len(all_items))
+    items = all_items[:effective_jobs]
     jobs: list[JobRecord] = []
     seen_ids: set[str] = set()
-    for item in items:
+    detail_requests = 0
+    for item_index, item in enumerate(items):
         job_id = str(item.get("id") or "").strip()
         if not ID_RE.fullmatch(job_id) or job_id in seen_ids:
             raise AdapterError("BambooHR returned a missing or duplicate stable job ID")
         seen_ids.add(job_id)
-        detail_url = f"{contract['careers_url']}/{job_id}/detail"
-        detail = _parse_detail(_json_get(session, detail_url, timeout), item, contract, job_id)
-        jobs.append(_normalize(item, detail, target, contract, job_id))
+        if item_index < min(int(target.max_jobs), MAX_DETAIL_REQUESTS):
+            detail_url = f"{contract['careers_url']}/{job_id}/detail"
+            detail = _parse_detail(
+                _json_get(session, detail_url, timeout), item, contract, job_id
+            )
+            detail_requests += 1
+            jobs.append(_normalize(item, detail, target, contract, job_id))
+        else:
+            jobs.append(_normalize_summary(item, target, contract, job_id))
     metadata["jobs_normalized"] = len(jobs)
+    metadata["detail_requests"] = detail_requests
+    metadata["maximum_detail_requests"] = MAX_DETAIL_REQUESTS
     metadata["zero_job_contract"] = not all_items
-    if len(all_items) > int(target.max_jobs):
+    if len(all_items) > effective_jobs:
         metadata["stop_reason"] = "maximum_results_reached"
         metadata["scan_completeness_reason"] = "safety_limit_reached"
         metadata["safety_limit_reached"] = True
@@ -81,6 +97,35 @@ def fetch_jobs(
         metadata["scan_completeness_reason"] = "complete_collection_response"
         metadata["scan_complete"] = True
     return jobs
+
+
+def _normalize_summary(
+    summary: Mapping[str, Any],
+    target: CompanyTarget,
+    contract: Mapping[str, str],
+    job_id: str,
+) -> JobRecord:
+    """Normalize the complete public list; details are optional enrichment."""
+    title = str(summary.get("jobOpeningName") or "").strip()
+    if not title:
+        raise AdapterError("BambooHR listing job is missing its title")
+    location = _location(summary.get("atsLocation")) or _location(
+        summary.get("location")
+    )
+    department = str(summary.get("departmentLabel") or "").strip()
+    return JobRecord(
+        job_id=job_id,
+        title=title,
+        company=target.name,
+        location=location,
+        url=f"{contract['careers_url']}/{job_id}",
+        updated_at=str(summary.get("datePosted") or "").strip(),
+        source=f"bamboohr:{contract['slug']}",
+        departments=[department] if department else [],
+        offices=[location] if location else [],
+        description=str(summary.get("description") or "").strip() or None,
+        raw_metadata={"platform": "bamboohr"},
+    )
 
 
 def validate_target(target: CompanyTarget) -> dict[str, str]:

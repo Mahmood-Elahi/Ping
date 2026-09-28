@@ -15,6 +15,7 @@ from src.scraper.company_careers.models import (
     publish_source_scan_metadata,
 )
 from src.scraper.company_careers.listing_completion import (
+    AdaptiveListingCompletion,
     enforce_pagination_fail_closed,
     json_pagination_evidence,
     pagination_terminal_accepted,
@@ -49,8 +50,19 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
         maximum_pages=max(1, target.max_pages),
     )
     publish_source_scan_metadata(session, metadata)
+    normal_request_budget = max(1, target.max_pages) * max(1, len(search_terms))
+    try:
+        listing_budget = AdaptiveListingCompletion(
+            normal_request_budget,
+            max(1, int(target.max_jobs)),
+            allow_listing_only_second_stage=True,
+        )
+    except ValueError as exc:
+        raise AdapterError(f"Amazon search-term budget is invalid: {exc}") from exc
+    listing_budget.record(metadata)
     term_states: list[dict[str, object]] = []
     query_totals: dict[str, int] = {}
+    raw_results_observed = 0
 
     for term in search_terms:
         raw_term_count = 0
@@ -68,7 +80,43 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
             "pagination_evidence_malformed": False,
         }
         term_states.append(term_state)
-        for page in range(max(1, target.max_pages)):
+        term_seen_ids: set[str] = set()
+        term_page_signatures: set[tuple[str, ...]] = set()
+        deterministic_terminal_contract = False
+        for page in range(listing_budget.hard_request_ceiling):
+            if page >= max(1, target.max_pages) and not deterministic_terminal_contract:
+                term_state["safety_limit_reached"] = True
+                term_state["stop_reason"] = "maximum_pages_reached"
+                break
+            if (
+                int(metadata["pages_requested"])
+                >= int(
+                    metadata.get(
+                        "effective_listing_request_ceiling",
+                        listing_budget.normal_request_budget,
+                    )
+                )
+                or raw_results_observed
+                >= int(
+                    metadata.get(
+                        "effective_listing_job_ceiling",
+                        listing_budget.normal_job_budget,
+                    )
+                )
+            ):
+                term_state["safety_limit_reached"] = True
+                term_state["stop_reason"] = (
+                    "maximum_results_reached"
+                    if raw_results_observed
+                    >= int(
+                        metadata.get(
+                            "effective_listing_job_ceiling",
+                            listing_budget.normal_job_budget,
+                        )
+                    )
+                    else "maximum_pages_reached"
+                )
+                break
             offset = page * 100
             metadata["pages_requested"] += 1
             term_state["pages_requested"] = int(term_state["pages_requested"]) + 1
@@ -87,12 +135,20 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                 raise AdapterError(f"Amazon HTTP {response.status_code}")
 
             payload = response.json()
+            if not isinstance(payload, dict):
+                raise AdapterError("Amazon response is missing its search result object")
             evidence = json_pagination_evidence(
                 payload,
                 container_paths=("",),
                 field_map={"reported_total": ("hits", "total")},
             )
-            items = payload.get("jobs", []) or []
+            items = payload.get("jobs")
+            if not isinstance(items, list) or any(
+                not isinstance(item, dict) for item in items
+            ):
+                raise AdapterError("Amazon jobs must be a list of job objects")
+            if len(items) > 100:
+                raise AdapterError("Amazon jobs exceeded the requested page size")
             projected_term_count = raw_term_count + len(items)
             if evidence.reported_total is not None:
                 if observed_total is not None and evidence.reported_total != observed_total:
@@ -110,12 +166,33 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                     query_totals[term] = evidence.reported_total
                     term_state["reported_total"] = evidence.reported_total
                 evidence = replace(evidence, end_index=projected_term_count)
+                if (
+                    not evidence.conflicting_fields
+                    and sum(query_totals.values()) <= listing_budget.hard_job_ceiling
+                ):
+                    deterministic_terminal_contract = True
+                    listing_budget.record_terminal_probe_decision(
+                        metadata,
+                        100,
+                        requests_completed=int(metadata["pages_completed"]) + 1,
+                        results_observed=raw_results_observed + len(items),
+                        deterministic_terminal_contract=True,
+                    )
             publish_pagination_evidence(
                 term_state, evidence, prior_pagination=page > 0
             )
             publish_pagination_evidence(metadata, evidence, prior_pagination=page > 0)
             metadata["pages_completed"] += 1
             term_state["pages_completed"] = int(term_state["pages_completed"]) + 1
+            if raw_results_observed + len(items) > int(
+                metadata.get(
+                    "effective_listing_job_ceiling",
+                    listing_budget.normal_job_budget,
+                )
+            ):
+                term_state["safety_limit_reached"] = True
+                term_state["stop_reason"] = "maximum_results_reached"
+                break
             if not items:
                 terminal = pagination_terminal_accepted(
                     term_state,
@@ -131,12 +208,27 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                 )
                 break
             raw_term_count += len(items)
+            raw_results_observed += len(items)
             term_state["rows_collected"] = raw_term_count
+
+            signature = tuple(
+                str(item.get("id", "") or item.get("id_icims", ""))
+                for item in items
+            )
+            if signature in term_page_signatures:
+                raise AdapterError("Amazon pagination repeated a page for one search term")
+            term_page_signatures.add(signature)
+            prior_term_ids = set(term_seen_ids)
 
             for item in items:
                 job_id = str(item.get("id", "") or item.get("id_icims", ""))
                 if not job_id:
                     raise AdapterError("Amazon returned a job without a stable ID")
+                if job_id in prior_term_ids:
+                    raise AdapterError(
+                        "Amazon pagination repeated a stable ID for one search term"
+                    )
+                term_seen_ids.add(job_id)
                 location = item.get("normalized_location", "") or item.get("location", "")
                 job = JobRecord(
                         job_id=job_id,
@@ -278,6 +370,7 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
     metadata["safety_limit_reached"] = safety_limited
     metadata["query_reported_totals"] = query_totals
     metadata["query_pagination"] = term_states
+    metadata["raw_results_observed"] = raw_results_observed
     record_terminal_evidence(
         metadata,
         "search_terms_terminal" if all_terms_terminal else "search_terms_incomplete",

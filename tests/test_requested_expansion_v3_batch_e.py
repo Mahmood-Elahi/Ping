@@ -27,7 +27,11 @@ from tests.company_careers_reliability_assertions import (
 from scripts import validate_requested_expansion_v3_batch_e as batch
 from scripts.refingerprint_uncovered_companies import load_master_workbook, reconcile_master
 from src.scraper.company_careers.adapters import bamboohr, startdate, ukg_pro
-from src.scraper.company_careers.models import AdapterError, CompanyTarget
+from src.scraper.company_careers.models import (
+    AdapterError,
+    CompanyTarget,
+    source_scan_metadata,
+)
 from src.scraper.company_careers.parent_sources import load_parent_source_mappings
 from src.scraper.company_careers.registry import load_target_companies
 
@@ -240,6 +244,96 @@ class RequestedExpansionV3BatchEAdapterTests(unittest.TestCase):
         jobs = bamboohr.fetch_jobs(session, target)
         self.assertEqual([(job.job_id, job.url) for job in jobs], [("46", "https://sensorup.bamboohr.com/careers/46")])
         self.assertEqual(jobs[0].location, "Remote, Texas, United States")
+
+    def test_12b_bamboohr_complete_collection_exceeds_detail_enrichment_budget(self):
+        target = next(
+            item
+            for item in load_target_companies(apply_reliability_repairs=True)
+            if item.name == "Berkshire Grey"
+        )
+        summaries = [
+            {
+                "id": str(index),
+                "jobOpeningName": f"Engineer {index}",
+                "departmentLabel": "Engineering",
+                "atsLocation": {"city": "Bedford", "state": "Massachusetts"},
+            }
+            for index in range(1, 23)
+        ]
+        details = [
+            Response(
+                {
+                    "result": {
+                        "jobOpening": {
+                            **summary,
+                            "jobOpeningShareUrl": (
+                                "https://berkshiregrey.bamboohr.com/careers/"
+                                + summary["id"]
+                            ),
+                            "jobOpeningStatus": "Open",
+                        }
+                    }
+                }
+            )
+            for summary in summaries[: bamboohr.MAX_DETAIL_REQUESTS]
+        ]
+        session = Session(
+            [
+                Response(
+                    {"meta": {"totalCount": len(summaries)}, "result": summaries}
+                ),
+                *details,
+            ]
+        )
+
+        jobs = bamboohr.fetch_jobs(session, target)
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(len(jobs), 22)
+        self.assertEqual(metadata["detail_requests"], bamboohr.MAX_DETAIL_REQUESTS)
+        self.assertFalse(metadata["detail_requests_coupled"])
+        self.assertTrue(metadata["scan_complete"])
+        self.assertTrue(metadata["complete_collection_response"])
+        self.assertEqual(jobs[-1].url, "https://berkshiregrey.bamboohr.com/careers/22")
+
+    def test_12c_bamboohr_unenriched_malformed_summary_fails_closed(self):
+        target = CompanyTarget.from_dict(
+            {
+                "name": "Example",
+                "platform": "bamboohr",
+                "slug": "example",
+                "listing_url": "https://example.bamboohr.com/careers/list",
+                "allowed_apply_hosts": ["example.bamboohr.com"],
+                "max_pages": 1,
+                "max_jobs": 1,
+            }
+        )
+        summaries = [
+            {"id": "1", "jobOpeningName": "Engineer"},
+            {"id": "2", "jobOpeningName": ""},
+        ]
+        detail = {
+            "result": {
+                "jobOpening": {
+                    **summaries[0],
+                    "jobOpeningShareUrl": "https://example.bamboohr.com/careers/1",
+                    "jobOpeningStatus": "Open",
+                }
+            }
+        }
+
+        with self.assertRaisesRegex(AdapterError, "missing its title"):
+            bamboohr.fetch_jobs(
+                Session(
+                    [
+                        Response(
+                            {"meta": {"totalCount": 2}, "result": summaries}
+                        ),
+                        Response(detail),
+                    ]
+                ),
+                target,
+            )
 
     def test_13_startdate_sends_only_public_origin_and_builds_stable_route(self):
         item = {

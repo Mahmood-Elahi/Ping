@@ -21,6 +21,7 @@ from src.scraper.company_careers.models import (
     publish_source_scan_metadata,
 )
 from src.scraper.company_careers.listing_completion import (
+    AdaptiveListingCompletion,
     enforce_pagination_fail_closed,
     json_pagination_evidence,
     pagination_terminal_accepted,
@@ -111,22 +112,77 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
         maximum_results=maximum_jobs,
     )
     publish_source_scan_metadata(session, metadata)
+    normal_request_budget = int(target.max_pages) * max(1, len(search_terms))
+    try:
+        listing_budget = AdaptiveListingCompletion(
+            normal_request_budget,
+            maximum_jobs,
+            allow_listing_only_second_stage=True,
+        )
+    except ValueError as exc:
+        raise AdapterError(f"Meta search-term budget is invalid: {exc}") from exc
+    listing_budget.record(metadata)
     safety_limited = False
+    raw_results_observed = 0
+    term_states: list[dict[str, Any]] = []
 
     for term in search_terms:
-        if len(jobs) >= maximum_jobs:
-            safety_limited = True
-            break
         term_complete = False
-        for page in range(1, max(1, target.max_pages) + 1):
-            if len(jobs) >= maximum_jobs:
+        deterministic_terminal_contract = False
+        term_state: dict[str, Any] = {
+            "term": term,
+            "status": "unproven",
+            "stop_reason": "not_started",
+            "pages_requested": 0,
+            "pages_completed": 0,
+            "safety_limit_reached": False,
+        }
+        term_states.append(term_state)
+        term_seen_ids: set[str] = set()
+        term_page_signatures: set[tuple[str, ...]] = set()
+        for page in range(1, listing_budget.hard_request_ceiling + 1):
+            if page > int(target.max_pages) and not deterministic_terminal_contract:
+                term_state["safety_limit_reached"] = True
+                term_state["stop_reason"] = "maximum_pages_reached"
+                safety_limited = True
+                break
+            if (
+                int(metadata["pages_requested"])
+                >= int(
+                    metadata.get(
+                        "effective_listing_request_ceiling",
+                        listing_budget.normal_request_budget,
+                    )
+                )
+                or raw_results_observed
+                >= int(
+                    metadata.get(
+                        "effective_listing_job_ceiling",
+                        listing_budget.normal_job_budget,
+                    )
+                )
+            ):
+                term_state["safety_limit_reached"] = True
+                term_state["stop_reason"] = (
+                    "maximum_results_reached"
+                    if raw_results_observed
+                    >= int(
+                        metadata.get(
+                            "effective_listing_job_ceiling",
+                            listing_budget.normal_job_budget,
+                        )
+                    )
+                    else "maximum_pages_reached"
+                )
                 safety_limited = True
                 break
             metadata["pages_requested"] += 1
+            term_state["pages_requested"] += 1
             payload = _fetch_results_page(
                 session, term, page, page_context, timeout, pacer=pacer
             )
             metadata["pages_completed"] += 1
+            term_state["pages_completed"] += 1
             page_jobs = _extract_jobs(payload, target.name)
             job_search = payload.get("data", {}).get(
                 "job_search_with_featured_jobs", {}
@@ -135,20 +191,62 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                 job_search,
                 container_paths=("", "pageInfo", "page_info", "pagination"),
             )
+            evidence_status = evidence.status(prior_pagination=page > 1)
+            if evidence.fields and evidence_status in {"continuation", "terminal"}:
+                deterministic_terminal_contract = True
+                listing_budget.record_terminal_probe_decision(
+                    metadata,
+                    MAX_RESULTS,
+                    requests_completed=int(metadata["pages_completed"]),
+                    results_observed=raw_results_observed + len(page_jobs),
+                    deterministic_terminal_contract=True,
+                )
             publish_pagination_evidence(
-                metadata, evidence, prior_pagination=page > 1
+                term_state, evidence, prior_pagination=page > 1
             )
+            publish_pagination_evidence(metadata, evidence, prior_pagination=page > 1)
             if not page_jobs:
                 term_complete = pagination_terminal_accepted(
-                    metadata,
+                    term_state,
                     evidence,
                     prior_pagination=page > 1,
                     additional_terminal_reason="empty_page",
                 )
+                term_state["status"] = term_state.get(
+                    "pagination_evidence_status", "unproven"
+                )
+                term_state["stop_reason"] = (
+                    "empty_page" if term_complete else "pagination_evidence_not_terminal"
+                )
                 break
+
+            effective_job_ceiling = int(
+                metadata.get(
+                    "effective_listing_job_ceiling",
+                    listing_budget.normal_job_budget,
+                )
+            )
+            remaining_job_capacity = max(
+                0, effective_job_ceiling - raw_results_observed
+            )
+            page_truncated = len(page_jobs) > remaining_job_capacity
+            if page_truncated:
+                page_jobs = page_jobs[:remaining_job_capacity]
+            raw_results_observed += len(page_jobs)
+            signature = tuple(job.job_id for job in page_jobs)
+            if signature in term_page_signatures:
+                raise AdapterError(
+                    "Meta Careers pagination repeated a page for one search term"
+                )
+            term_page_signatures.add(signature)
 
             for job in page_jobs:
                 key = job.job_id or job.url or job.title
+                if key in term_seen_ids:
+                    raise AdapterError(
+                        "Meta Careers pagination repeated a stable ID for one search term"
+                    )
+                term_seen_ids.add(key)
                 if key in seen:
                     if by_id[key].to_dict() != job.to_dict():
                         raise AdapterError("Meta Careers returned a conflicting duplicate stable ID")
@@ -156,34 +254,74 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                 seen.add(key)
                 by_id[key] = job
                 jobs.append(job)
-                if len(jobs) >= maximum_jobs:
-                    safety_limited = True
-                    break
+            if page_truncated:
+                term_state["safety_limit_reached"] = True
+                term_state["stop_reason"] = "maximum_results_reached"
+                safety_limited = True
+                break
             if pagination_terminal_accepted(
-                metadata, evidence, prior_pagination=page > 1
+                term_state, evidence, prior_pagination=page > 1
             ):
                 term_complete = True
+                term_state["status"] = "terminal"
+                term_state["stop_reason"] = "explicit_terminal_evidence"
                 break
+            term_state["status"] = term_state.get(
+                "pagination_evidence_status", "unproven"
+            )
         if not term_complete:
             safety_limited = True
 
-    metadata["total_available"] = len(jobs) if not safety_limited else None
-    metadata["scan_complete"] = not safety_limited
+    all_terms_terminal = bool(term_states) and all(
+        state.get("status") == "terminal"
+        and not state.get("pagination_evidence_conflicting")
+        and not state.get("pagination_evidence_malformed")
+        and not state.get("safety_limit_reached")
+        for state in term_states
+    )
+    metadata["pagination_evidence_malformed"] = any(
+        bool(state.get("pagination_evidence_malformed")) for state in term_states
+    )
+    metadata["pagination_evidence_conflicting"] = any(
+        bool(state.get("pagination_evidence_conflicting")) for state in term_states
+    )
+    metadata["pagination_malformed_fields"] = list(
+        dict.fromkeys(
+            field
+            for state in term_states
+            for field in state.get("pagination_malformed_fields", [])
+        )
+    )
+    metadata["pagination_conflicting_fields"] = list(
+        dict.fromkeys(
+            field
+            for state in term_states
+            for field in state.get("pagination_conflicting_fields", [])
+        )
+    )
+    safety_limited = safety_limited or not all_terms_terminal
+
+    metadata["total_available"] = len(jobs) if all_terms_terminal else None
+    metadata["scan_complete"] = all_terms_terminal
     metadata["scan_completeness_reason"] = (
         "safety_limit_reached" if safety_limited else "all_search_terms_exhausted"
     )
     metadata["stop_reason"] = (
-        "maximum_results_reached" if len(jobs) >= maximum_jobs
+        "maximum_results_reached"
+        if raw_results_observed
+        >= int(metadata.get("effective_listing_job_ceiling", maximum_jobs))
         else "maximum_pages_reached" if safety_limited
         else "all_search_terms_exhausted"
     )
     metadata["safety_limit_reached"] = safety_limited
+    metadata["query_pagination"] = term_states
+    metadata["raw_results_observed"] = raw_results_observed
     record_terminal_evidence(
         metadata,
-        "search_terms_exhausted" if not safety_limited else "search_terms_incomplete",
-        not safety_limited,
-        has_more=safety_limited,
-        terminal_page_observed=not safety_limited,
+        "search_terms_exhausted" if all_terms_terminal else "search_terms_incomplete",
+        all_terms_terminal,
+        has_more=not all_terms_terminal,
+        terminal_page_observed=all_terms_terminal,
     )
     enforce_pagination_fail_closed(metadata)
     return jobs
@@ -358,16 +496,15 @@ def _extract_jobs(payload: Dict[str, Any], company: str) -> List[JobRecord]:
     items = job_search.get("all_jobs")
     if not isinstance(items, list):
         raise AdapterError("Meta Careers response did not include an all_jobs list")
-
     jobs: List[JobRecord] = []
     for item in items:
         if not isinstance(item, dict):
-            continue
+            raise AdapterError("Meta Careers all_jobs contained a malformed record")
 
         job_id = str(item.get("id") or "").strip()
         title = str(item.get("title") or "").strip()
         if not job_id or not title:
-            continue
+            raise AdapterError("Meta Careers job lacked a stable ID or title")
 
         locations = _clean_strings(item.get("locations"))
         teams = _clean_strings(item.get("teams"))

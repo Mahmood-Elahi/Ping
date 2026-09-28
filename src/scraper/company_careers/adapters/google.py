@@ -17,7 +17,10 @@ from src.scraper.company_careers.models import (
     SourceScanMetadata,
     publish_source_scan_metadata,
 )
-from src.scraper.company_careers.listing_completion import record_terminal_evidence
+from src.scraper.company_careers.listing_completion import (
+    AdaptiveListingCompletion,
+    record_terminal_evidence,
+)
 
 
 SEARCH_URL = "https://www.google.com/about/careers/applications/jobs/results/"
@@ -38,11 +41,39 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
         maximum_pages=max(1, target.max_pages),
     )
     publish_source_scan_metadata(session, metadata)
+    normal_request_budget = max(1, target.max_pages) * max(1, len(search_terms))
+    try:
+        listing_budget = AdaptiveListingCompletion(
+            normal_request_budget,
+            max(1, int(target.max_jobs)),
+            allow_listing_only_second_stage=True,
+        )
+    except ValueError as exc:
+        raise AdapterError(f"Google search-term budget is invalid: {exc}") from exc
+    listing_budget.record(metadata)
+    listing_budget.record_terminal_probe_decision(
+        metadata,
+        max(1, int(target.page_size)),
+        requests_completed=0,
+        results_observed=0,
+        deterministic_terminal_contract=True,
+    )
     safety_limited = False
+    raw_results_observed = 0
 
     for term in search_terms:
         term_complete = False
-        for page in range(1, max(1, target.max_pages) + 1):
+        term_seen_ids: set[str] = set()
+        term_page_signatures: set[tuple[str, ...]] = set()
+        for page in range(1, listing_budget.hard_request_ceiling + 1):
+            if (
+                int(metadata["pages_requested"])
+                >= int(metadata["effective_listing_request_ceiling"])
+                or raw_results_observed
+                >= int(metadata["effective_listing_job_ceiling"])
+            ):
+                safety_limited = True
+                break
             metadata["pages_requested"] += 1
             response = session.get(
                 SEARCH_URL,
@@ -62,8 +93,26 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                 term_complete = True
                 break
 
+            if raw_results_observed + len(page_jobs) > int(
+                metadata["effective_listing_job_ceiling"]
+            ):
+                safety_limited = True
+                break
+            raw_results_observed += len(page_jobs)
+            signature = tuple(job.job_id for job in page_jobs)
+            if signature in term_page_signatures:
+                raise AdapterError(
+                    "Google Careers pagination repeated a page for one search term"
+                )
+            term_page_signatures.add(signature)
+
             for job in page_jobs:
                 key = job.job_id or job.url or job.title
+                if key in term_seen_ids:
+                    raise AdapterError(
+                        "Google Careers pagination repeated a stable ID for one search term"
+                    )
+                term_seen_ids.add(key)
                 if key in seen:
                     if by_id[key].to_dict() != job.to_dict():
                         raise AdapterError("Google Careers returned a conflicting duplicate stable ID")
@@ -83,6 +132,7 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
         "maximum_pages_reached" if safety_limited else "all_search_terms_exhausted"
     )
     metadata["safety_limit_reached"] = safety_limited
+    metadata["raw_results_observed"] = raw_results_observed
     record_terminal_evidence(
         metadata,
         "search_terms_exhausted" if not safety_limited else "search_terms_incomplete",
@@ -95,7 +145,11 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
 
 def _extract_jobs(html: str, company: str) -> List[JobRecord]:
     data = _extract_af_data(html, "ds:1")
-    if not data or not isinstance(data, list) or not data[0]:
+    if data is None:
+        raise AdapterError("Google Careers response is missing its reviewed data contract")
+    if not isinstance(data, list) or not data or not isinstance(data[0], list):
+        raise AdapterError("Google Careers data contract is malformed")
+    if not data[0]:
         return []
 
     jobs = []

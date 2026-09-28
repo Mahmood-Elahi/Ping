@@ -259,6 +259,14 @@ class AppleAdapterTests(unittest.TestCase):
         )
         jobs = apple.fetch_jobs(session, target(max_jobs=3))
         self.assertEqual(len(jobs), 2)
+        self.assertFalse(session.apple_pagination["scan_complete"])
+        self.assertTrue(
+            session.apple_pagination["collection_changed_during_scan"]
+        )
+        self.assertEqual(
+            session.apple_pagination["scan_completeness_reason"],
+            "collection_changed_during_scan",
+        )
 
     def test_response_and_job_caps_are_hard_limits(self):
         with self.assertRaisesRegex(AdapterError, "max_jobs"):
@@ -302,6 +310,52 @@ class AppleAdapterTests(unittest.TestCase):
         for item, message in cases:
             with self.subTest(message=message), self.assertRaisesRegex(AdapterError, message):
                 apple.fetch_jobs(Session([Response(page([item]))]), target())
+
+    def test_authoritative_total_can_cross_normal_budget_within_shared_ceiling(self):
+        total = 261  # Fourteen pages: beyond the normal + first-stage allowance.
+        items = [
+            job(
+                f"2008{index:05d}-0157",
+                title=f"Role {index}",
+                slug=f"role-{index}",
+            )
+            for index in range(total)
+        ]
+        responses = [
+            Response(page(items[offset : offset + apple.PAGE_SIZE], total=total))
+            for offset in range(0, total, apple.PAGE_SIZE)
+        ]
+        session = Session(responses)
+
+        jobs = apple.fetch_jobs(session, target())
+
+        self.assertEqual(len(jobs), total)
+        self.assertTrue(session.apple_pagination["scan_complete"])
+        self.assertEqual(
+            session.apple_pagination["terminal_evidence_type"],
+            "authoritative_total",
+        )
+        self.assertTrue(session.apple_pagination["listing_only_second_stage_eligible"])
+
+    def test_total_above_shared_job_ceiling_remains_incomplete(self):
+        items = [
+            job(
+                f"2009{index:05d}-0157",
+                title=f"Role {index}",
+                slug=f"role-{index}",
+            )
+            for index in range(apple.PAGE_SIZE)
+        ]
+        session = Session([Response(page(items, total=20_001))])
+
+        jobs = apple.fetch_jobs(session, target())
+
+        self.assertEqual(len(jobs), apple.MAX_RESULTS)
+        self.assertFalse(session.apple_pagination["scan_complete"])
+        self.assertTrue(session.apple_pagination["safety_limit_reached"])
+        self.assertEqual(
+            session.apple_pagination["stop_reason"], "maximum_results_reached"
+        )
 
 
 if __name__ == "__main__":

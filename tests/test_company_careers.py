@@ -906,7 +906,9 @@ class CompanyCareersTests(unittest.TestCase):
         session = FakeSession(
             get_responses=[
                 FakeResponse({"hits": 1, "jobs": self._amazon_jobs(1)}),
-                FakeResponse({"hits": 200, "jobs": self._amazon_jobs(100, start=100)}),
+                # The reported set cannot fit under the shared raw-record
+                # ceiling, so the normal one-page budget remains fail-closed.
+                FakeResponse({"hits": 20_001, "jobs": self._amazon_jobs(100, start=100)}),
             ]
         )
 
@@ -1052,6 +1054,55 @@ class CompanyCareersTests(unittest.TestCase):
         self.assertEqual(metadata["query_pagination"][0]["rows_collected"], 1)
         self.assertEqual(metadata["query_pagination"][0]["reported_total"], 2)
 
+    def test_amazon_reported_total_can_cross_normal_per_term_page_budget(self):
+        session = FakeSession(
+            get_responses=[
+                FakeResponse({"hits": 101, "jobs": self._amazon_jobs(100)}),
+                FakeResponse(
+                    {"hits": 101, "jobs": self._amazon_jobs(1, start=100)}
+                ),
+            ]
+        )
+
+        jobs = amazon.fetch_jobs(
+            session,
+            CompanyTarget(
+                name="Amazon",
+                platform="amazon",
+                search_terms=["intern"],
+                max_pages=1,
+            ),
+        )
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(len(jobs), 101)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["pages_completed"], 2)
+        self.assertEqual(
+            metadata["query_pagination"][0]["stop_reason"],
+            "short_page",
+        )
+        self.assertEqual(metadata["query_pagination"][0]["reported_total"], 101)
+
+    def test_amazon_cross_page_repeated_id_fails_closed(self):
+        session = FakeSession(
+            get_responses=[
+                FakeResponse({"hits": 101, "jobs": self._amazon_jobs(100)}),
+                FakeResponse({"hits": 101, "jobs": self._amazon_jobs(1)}),
+            ]
+        )
+
+        with self.assertRaisesRegex(AdapterError, "repeated a stable ID"):
+            amazon.fetch_jobs(
+                session,
+                CompanyTarget(
+                    name="Amazon",
+                    platform="amazon",
+                    search_terms=["intern"],
+                    max_pages=1,
+                ),
+            )
+
     def test_shopify_embedded_data_normalization(self):
         encoded_values = [
             {"_1": 2},
@@ -1143,6 +1194,66 @@ class CompanyCareersTests(unittest.TestCase):
         self.assertEqual(jobs[0].source, "custom:google")
         self.assertEqual(jobs[0].departments, ["Google"])
         self.assertIn("Build large scale systems.", jobs[0].description)
+
+    def test_google_stable_page_contract_can_cross_normal_term_budget(self):
+        def google_html(job_id: str | None) -> str:
+            rows = []
+            if job_id is not None:
+                rows.append(
+                    [
+                        job_id,
+                        f"Intern {job_id}",
+                        f"https://www.google.com/about/careers/jobs/{job_id}",
+                        None,
+                        None,
+                        "path",
+                        None,
+                        "Engineering",
+                        "en-US",
+                        [["Calgary, AB, Canada"]],
+                    ]
+                )
+            data = [rows, None, len(rows), 20]
+            return (
+                "AF_initDataCallback({key: 'ds:1', hash: '2', data:"
+                + json.dumps(data)
+                + "});"
+            )
+
+        session = FakeSession(
+            get_responses=[
+                FakeResponse({}, text=google_html("g-1")),
+                FakeResponse({}, text=google_html("g-2")),
+                FakeResponse({}, text=google_html(None)),
+            ]
+        )
+        jobs = google.fetch_jobs(
+            session,
+            CompanyTarget(
+                name="Google",
+                platform="google",
+                search_terms=["intern"],
+                max_pages=1,
+            ),
+        )
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual([job.job_id for job in jobs], ["g-1", "g-2"])
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["pages_completed"], 3)
+
+    def test_google_missing_data_contract_is_not_empty_terminal_evidence(self):
+        session = FakeSession(get_responses=[FakeResponse({}, text="<html>blocked</html>")])
+        with self.assertRaisesRegex(AdapterError, "missing its reviewed data contract"):
+            google.fetch_jobs(
+                session,
+                CompanyTarget(
+                    name="Google",
+                    platform="google",
+                    search_terms=["intern"],
+                    max_pages=1,
+                ),
+            )
 
     def test_atlassian_normalization(self):
         session = FakeSession(
@@ -1381,6 +1492,81 @@ class CompanyCareersTests(unittest.TestCase):
             metadata["scan_completeness_reason"],
             "conflicting_pagination_evidence",
         )
+
+    @patch.object(meta, "REQUEST_PACE_SECONDS", 0)
+    def test_meta_explicit_continuation_can_cross_normal_caps(self):
+        html = (
+            '["LSD",[],{"token":"lsd-token"}]'
+            '{"client_revision":123456789,"hsi":"987654321"}'
+        )
+
+        def row(index: int) -> dict:
+            return {
+                "id": f"meta-{index}",
+                "title": f"Software Intern {index}",
+                "locations": ["Remote, US"],
+                "teams": ["Engineering"],
+                "sub_teams": [],
+            }
+
+        session = FakeSession(
+            get_responses=[FakeResponse({}, text=html)],
+            post_responses=[
+                FakeResponse(
+                    {
+                        "data": {
+                            "job_search_with_featured_jobs": {
+                                "all_jobs": [row(index) for index in range(20)],
+                                "has_more": True,
+                            }
+                        }
+                    }
+                ),
+                FakeResponse(
+                    {
+                        "data": {
+                            "job_search_with_featured_jobs": {
+                                "all_jobs": [row(20)],
+                                "has_more": False,
+                            }
+                        }
+                    }
+                ),
+            ],
+        )
+
+        jobs = meta.fetch_jobs(
+            session,
+            CompanyTarget(
+                name="Meta",
+                platform="meta",
+                search_terms=["intern"],
+                max_pages=1,
+                max_jobs=20,
+            ),
+        )
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(len(jobs), 21)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["pages_completed"], 2)
+        self.assertEqual(
+            metadata["query_pagination"][0]["stop_reason"],
+            "explicit_terminal_evidence",
+        )
+
+    def test_meta_job_looking_malformed_record_fails_closed(self):
+        with self.assertRaisesRegex(AdapterError, "stable ID or title"):
+            meta._extract_jobs(
+                {
+                    "data": {
+                        "job_search_with_featured_jobs": {
+                            "all_jobs": [{"id": "meta-1", "title": ""}]
+                        }
+                    }
+                },
+                "Meta",
+            )
 
     def test_scanner_reports_failed_technical(self):
         session = FakeSession(get_responses=[FakeResponse({}, status_code=404)])

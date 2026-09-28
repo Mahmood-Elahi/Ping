@@ -188,8 +188,15 @@ def _fetch_workforce_now(
     )
     setattr(session, "adp_pagination", metadata)
     publish_source_scan_metadata(session, metadata)
-    for page in range(int(target.max_pages)):
-        if len(jobs) >= limit:
+    listing_budget = AdaptiveListingCompletion(int(target.max_pages), limit)
+    listing_budget.record(metadata)
+    for page in range(listing_budget.hard_request_ceiling):
+        effective_limit = int(
+            metadata.get(
+                "effective_listing_job_ceiling", listing_budget.normal_job_budget
+            )
+        )
+        if len(jobs) >= effective_limit:
             metadata["stop_reason"] = "maximum_results_reached"
             break
         offset = page * page_size
@@ -199,6 +206,15 @@ def _fetch_workforce_now(
         rows, current_total = _wfn_listing(payload, offset, page_size)
         metadata["pages_completed"] += 1
         total = _stable_total(total, current_total, "ADP Workforce Now")
+        listing_budget.record_decision(
+            metadata,
+            current_total,
+            page_size,
+            requests_completed=int(metadata["pages_completed"]),
+            results_observed=offset + len(rows),
+            detail_requests_coupled=True,
+        )
+        effective_limit = int(metadata["effective_listing_job_ceiling"])
         for row in rows:
             item_id = _stable_id(row.get("itemID"), "ADP Workforce Now itemID")
             if item_id in seen:
@@ -218,7 +234,7 @@ def _fetch_workforce_now(
                 metadata["rejected_record_reason"] = "missing_stable_location"
                 continue
             jobs.append(job)
-            if len(jobs) >= limit:
+            if len(jobs) >= effective_limit:
                 break
         metadata["pages"].append({"offset": offset, "jobs_returned": len(rows)})
         metadata["jobs_normalized"] = len(jobs)
@@ -227,6 +243,9 @@ def _fetch_workforce_now(
             break
         if not rows:
             raise AdapterError("ADP Workforce Now ended before its reported total")
+        if page + 1 >= int(metadata["effective_listing_request_ceiling"]):
+            metadata["stop_reason"] = "maximum_pages_reached"
+            break
     else:
         metadata["stop_reason"] = "maximum_pages_reached"
     metadata["total_available"] = total

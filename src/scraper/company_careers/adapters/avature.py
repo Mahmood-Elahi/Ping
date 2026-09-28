@@ -106,6 +106,15 @@ def fetch_jobs(
     setattr(session, "avature_pagination", metadata)
     publish_source_scan_metadata(session, metadata)
     listing_budget.record(metadata)
+    # Every supported variant uses a reviewed page/offset request contract and
+    # proves EOF with a short/empty page even when the HTML has no next link.
+    listing_budget.record_terminal_probe_decision(
+        metadata,
+        page_size,
+        requests_completed=0,
+        results_observed=0,
+        deterministic_terminal_contract=True,
+    )
     page_sizes = PageSizeObservation(page_size)
     page_sizes.record(metadata)
     initialize_mutable_collection(metadata)
@@ -152,13 +161,14 @@ def fetch_jobs(
             ),
         )
         page_sizes.record(metadata)
-        listing_budget.record_decision(
-            metadata,
-            total,
-            page_sizes.effective_size,
-            requests_completed=int(metadata["pages_completed"]),
-            results_observed=next_positions_seen,
-        )
+        if total is not None:
+            listing_budget.record_decision(
+                metadata,
+                total,
+                page_sizes.effective_size,
+                requests_completed=int(metadata["pages_completed"]),
+                results_observed=next_positions_seen,
+            )
         if total is None and has_more is not None:
             record_terminal_evidence(
                 metadata,
