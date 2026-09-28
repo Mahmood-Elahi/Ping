@@ -87,7 +87,7 @@ def fetch_jobs(
         deterministic_terminal_contract=True,
     )
     jobs: list[JobRecord] = []
-    seen_ids: set[str] = set()
+    seen_external_ids: set[str] = set()
     seen_urls: set[str] = set()
     next_url = str(target.listing_url)
 
@@ -131,17 +131,29 @@ def fetch_jobs(
             static_html._reject_non_listing(root, content, False)
 
         new_jobs = 0
+        page_fully_processed = True
+        cross_page_duplicate = False
         for card in unique_cards:
-            job = _normalize(card, target, next_url)
-            if job.job_id in seen_ids:
+            external_id = str(card.get("data-job-id") or "").strip()
+            if external_id in seen_external_ids:
+                cross_page_duplicate = True
                 continue
-            seen_ids.add(job.job_id)
+            if len(jobs) >= int(metadata["effective_listing_job_ceiling"]):
+                page_fully_processed = False
+                break
+            job = _normalize(card, target, next_url)
+            seen_external_ids.add(external_id)
             jobs.append(job)
             new_jobs += 1
-            if len(jobs) >= int(metadata["effective_listing_job_ceiling"]):
-                break
         page_row["jobs_normalized"] = new_jobs
         metadata["jobs_normalized"] = len(jobs)
+        if cross_page_duplicate:
+            metadata["repeated_stable_ids"] = True
+            metadata["stop_reason"] = "repeated_stable_ids"
+            break
+        if not page_fully_processed:
+            metadata["stop_reason"] = "maximum_results_reached"
+            break
         if finish_authoritative_total(
             metadata,
             evidence.reported_total,
@@ -164,6 +176,9 @@ def fetch_jobs(
                 has_more=False,
                 terminal_page_observed=True,
             )
+            break
+        if len(jobs) >= int(metadata["effective_listing_job_ceiling"]):
+            metadata["stop_reason"] = "maximum_results_reached"
             break
         if new_jobs == 0:
             metadata["stop_reason"] = "no_new_stable_ids"
@@ -197,7 +212,11 @@ def fetch_jobs(
             time.sleep(static_html.RETRY_DELAY_SECONDS)
     else:
         metadata["stop_reason"] = "maximum_pages_reached"
-    if metadata["stop_reason"] in {"maximum_results_reached", "maximum_pages_reached"}:
+    if metadata["scan_complete"]:
+        # Independently observed exhaustion wins over a provisional configured
+        # limit, but never over malformed, conflicting, or truncated evidence.
+        metadata["safety_limit_reached"] = False
+    elif metadata["stop_reason"] in {"maximum_results_reached", "maximum_pages_reached"}:
         metadata["scan_completeness_reason"] = "safety_limit_reached"
         metadata["safety_limit_reached"] = True
     elif not metadata["scan_complete"]:

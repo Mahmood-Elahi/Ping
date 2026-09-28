@@ -2070,6 +2070,8 @@ target_companies:
     title_selector: p:first-child
     detail_link_selector: a[href^=/sanctuary-ai/]
     external_id_regex: /sanctuary-ai/([0-9]+)/?
+    allow_structural_linkless_cards: true
+    single_page_collection: true
   - name: Instacart
     platform: greenhouse
     careers_url: https://www.instacart.careers/en-ca/current-openings
@@ -4950,8 +4952,8 @@ target_companies:
     allowed_apply_hosts:
     - jobs.smartrecruiters.com
     original_workbook_rank: null
-    max_pages: 1
-    max_jobs: 20
+    max_pages: 4
+    max_jobs: 400
     max_response_bytes: 3000000
     slug: WesternDigital
     endpoint_url: https://api.smartrecruiters.com/v1/companies/WesternDigital/postings
@@ -5422,8 +5424,8 @@ target_companies:
     platform: smartrecruiters
     careers_url: https://www.lifeatcanva.com/en/jobs/
     original_workbook_rank: null
-    max_pages: 1
-    max_jobs: 20
+    max_pages: 3
+    max_jobs: 300
     max_response_bytes: 3000000
     slug: Canva
     endpoint_url: https://api.smartrecruiters.com/v1/companies/Canva/postings
@@ -6368,8 +6370,8 @@ target_companies:
     identity_regex: Avery Dennison
     allowed_apply_hosts: [jobs.smartrecruiters.com]
     page_size: 20
-    max_pages: 1
-    max_jobs: 20
+    max_pages: 5
+    max_jobs: 500
   - name: Genetec
     platform: smartrecruiters
     careers_url: https://www.genetec.com/careers

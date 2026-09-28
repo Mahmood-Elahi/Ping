@@ -242,6 +242,8 @@ class CompanyTarget:
     next_page_selector: Optional[str] = None
     empty_selector: Optional[str] = None
     allow_url_id_fallback: bool = False
+    allow_structural_linkless_cards: bool = False
+    single_page_collection: bool = False
     browser_wait_selector: Optional[str] = None
     browser_scroll_steps: int = 0
     browser_static_variant: Optional[str] = None
@@ -328,6 +330,10 @@ class CompanyTarget:
             next_page_selector=data.get("next_page_selector"),
             empty_selector=data.get("empty_selector"),
             allow_url_id_fallback=bool(data.get("allow_url_id_fallback", False)),
+            allow_structural_linkless_cards=bool(
+                data.get("allow_structural_linkless_cards", False)
+            ),
+            single_page_collection=bool(data.get("single_page_collection", False)),
             browser_wait_selector=data.get("browser_wait_selector"),
             browser_scroll_steps=int(data.get("browser_scroll_steps") or 0),
             browser_static_variant=data.get("browser_static_variant"),

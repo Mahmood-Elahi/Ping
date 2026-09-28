@@ -244,7 +244,14 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
             metadata["pages_completed"] += 1
             break
 
-        records = _listing_records(listing_containers, cards, target, next_url)
+        records = _listing_records(
+            listing_containers,
+            cards,
+            target,
+            next_url,
+            metadata=metadata,
+            page_number=page_index + 1,
+        )
         raw_records_observed += len(records)
         if not records:
             metadata["zero_job_contract"] = page_index == 0
@@ -292,6 +299,8 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
 
         new_ids = 0
         parsed = 0
+        page_job_ids: set[str] = set()
+        cross_page_duplicate = False
         for record_index, record in enumerate(records):
             try:
                 job = _normalize(record, target, next_url)
@@ -321,6 +330,9 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                         "reason": str(exc)[:240],
                     },
                 )
+                metadata["malformed_records"] = int(
+                    metadata.get("malformed_records", 0)
+                ) + 1
                 continue
             parsed += 1
             previous = seen_jobs.get(job.job_id)
@@ -332,12 +344,16 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                         "identity_conflict",
                         f"duplicate stable ID exposed conflicting listing data: {job.job_id}",
                     )
+                if job.job_id not in page_job_ids:
+                    cross_page_duplicate = True
                 metadata["equivalent_duplicate_records"] = int(
                     metadata.get("equivalent_duplicate_records", 0)
                 ) + 1
                 _merge_optional_job_data(previous, job)
+                page_job_ids.add(job.job_id)
                 continue
             seen_jobs[job.job_id] = job
+            page_job_ids.add(job.job_id)
             jobs.append(job)
             new_ids += 1
             if len(jobs) >= effective_jobs:
@@ -349,6 +365,20 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
         page_record["jobs_normalized"] = new_ids
         metadata["jobs_normalized"] = len(jobs)
         metadata["raw_results_observed"] = raw_records_observed
+        if cross_page_duplicate:
+            metadata["repeated_stable_ids"] = True
+            metadata["stop_reason"] = "repeated_stable_ids"
+            break
+        page_fully_processed = parsed == len(records)
+        if not page_fully_processed:
+            # A terminal marker cannot prove collection completeness when the
+            # final response itself was only partially normalized.
+            metadata["stop_reason"] = (
+                "maximum_results_reached"
+                if len(jobs) >= effective_jobs
+                else "malformed_listing_records"
+            )
+            break
         if finish_authoritative_total(
             metadata,
             pagination_evidence.reported_total,
@@ -372,6 +402,25 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                 list(pagination_evidence.fields),
                 has_more=False,
                 terminal_page_observed=True,
+            )
+            break
+        if target.single_page_collection and pagination_terminal_accepted(
+            metadata,
+            pagination_evidence,
+            prior_pagination=page_index > 0,
+            additional_terminal_reason="configured_single_page_collection",
+        ):
+            metadata["stop_reason"] = "configured_single_page_collection"
+            metadata["scan_complete"] = True
+            metadata["scan_completeness_reason"] = "validated_single_page_collection"
+            metadata["total_available"] = len(jobs)
+            record_terminal_evidence(
+                metadata,
+                "configured_single_page_collection",
+                True,
+                has_more=False,
+                terminal_page_observed=True,
+                complete_collection_response=True,
             )
             break
         if new_ids == 0:
@@ -429,6 +478,7 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
         "explicit_terminal_page",
         "no_next_page",
         "reported_total_reached",
+        "configured_single_page_collection",
     }
     metadata["scan_complete"] = (
         metadata["stop_reason"] in complete_reasons
@@ -436,7 +486,11 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
         and not metadata.get("malformed_records")
     )
     metadata["scan_completeness_reason"] = (
-        "validated_html_terminal"
+        (
+            "validated_single_page_collection"
+            if metadata["stop_reason"] == "configured_single_page_collection"
+            else "validated_html_terminal"
+        )
         if metadata["scan_complete"]
         else (
             "bounded_html_prefix_only"
@@ -455,6 +509,10 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
     )
     if metadata["scan_complete"]:
         metadata["total_available"] = len(jobs)
+        # A source-visible terminal contract supersedes only a provisional
+        # coincident budget marker.  Truncated and malformed collections were
+        # excluded from scan_complete above and therefore cannot reach here.
+        metadata["safety_limit_reached"] = False
     elif metadata["safety_limit_reached"]:
         metadata["scan_completeness_reason"] = "safety_limit_reached"
     enforce_pagination_fail_closed(metadata)
@@ -477,6 +535,12 @@ def validate_target(target: CompanyTarget) -> None:
         if str(target.pagination_url_template).count("{page}") != 1:
             raise AdapterError("Static HTML pagination_url_template must contain one {page} placeholder")
         _require_https(str(target.pagination_url_template).replace("{page}", "1"), "pagination_url_template")
+    if target.single_page_collection and (
+        target.pagination_url_template or target.next_page_selector
+    ):
+        raise AdapterError(
+            "Static HTML single_page_collection cannot define pagination"
+        )
     for value in (target.listing_selector, target.job_card_selector, target.title_selector,
                   target.location_selector, target.detail_link_selector, target.date_selector,
                   target.department_selector, target.next_page_selector, target.empty_selector,
@@ -928,16 +992,39 @@ def _listing_records(
     configured_cards: list[Any],
     target: CompanyTarget,
     page_url: str,
+    *,
+    metadata: SourceScanMetadata | None = None,
+    page_number: int = 1,
 ) -> list[_ListingRecord]:
     """Bind canonical links to the smallest useful record inside a listing."""
     link_origins: list[tuple[Any, Any]] = []
     missing_link_cards: list[Any] = []
     ambiguous_link_cards: list[_ListingRecord] = []
     seen_links: set[int] = set()
-    for card in configured_cards:
+    for card_index, card in enumerate(configured_cards, start=1):
         links = select(card, str(target.detail_link_selector))
         if not links:
-            if not _is_structural_non_job_card(card, target):
+            structural = _is_structural_non_job_card(card, target)
+            if target.allow_structural_linkless_cards:
+                structural = structural or not _card_has_stable_identity_signal(
+                    card, target
+                )
+            if structural:
+                if metadata is not None:
+                    metadata["structural_non_job_count"] = int(
+                        metadata.get("structural_non_job_count", 0)
+                    ) + 1
+                    _append_record_diagnostic(
+                        metadata,
+                        {
+                            "page": page_number,
+                            "record": card_index,
+                            "reason": "linkless_structural_non_job",
+                            "listing_card_selector": str(target.job_card_selector),
+                            "sample": " ".join(_text(card).split())[:160],
+                        },
+                    )
+            else:
                 missing_link_cards.append(card)
             continue
         link_keys = _unique(
@@ -1057,6 +1144,29 @@ def _is_structural_non_job_card(card: Any, target: CompanyTarget) -> bool:
             if reference and _generic_url_identity(_canonical_job_url(reference)):
                 return False
     return True
+
+
+def _card_has_stable_identity_signal(card: Any, target: CompanyTarget) -> bool:
+    if target.external_id_attribute:
+        attribute = str(target.external_id_attribute)
+        if any(str(node.get(attribute) or "").strip() for node in card.iter()):
+            return True
+    if target.external_id_selector and any(
+        _normalized_text(_text(node))
+        for node in select(card, str(target.external_id_selector))
+    ):
+        return True
+    if target.external_id_regex:
+        pattern = _safe_regex(str(target.external_id_regex))
+        evidence = [_text(card)]
+        evidence.extend(
+            str(value)
+            for node in card.iter()
+            for value in node.attrib.values()
+            if str(value).strip()
+        )
+        return any(pattern.search(value) for value in evidence)
+    return False
 
 
 def _scope_has_configured_title(scope: Any, target: CompanyTarget) -> bool:

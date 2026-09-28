@@ -114,6 +114,7 @@ def fetch_jobs(
     seen_ids: set[str] = set()
     seen_fingerprints: dict[str, tuple[Any, ...]] = {}
     seen_pages: set[tuple[str, ...]] = set()
+    contiguous_nonempty_pages: list[int] = []
     for page_index in range(listing_budget.hard_request_ceiling):
         effective_jobs = int(
             metadata.get(
@@ -126,7 +127,7 @@ def fetch_jobs(
         params = _page_params(target, page_index)
         metadata["pages_requested"] += 1
         response = _get_page(session, target, params, timeout)
-        items, total, zero_contract, has_more = _parse_page(
+        items, total, zero_contract, has_more, listing_contract = _parse_page(
             response, target, page_index
         )
         metadata["pages_completed"] += 1
@@ -238,6 +239,20 @@ def fetch_jobs(
                     metadata,
                     complete_reason="explicit_next_page_exhausted",
                 )
+            elif _legacy_terminal_empty_page(
+                response,
+                target,
+                page_index,
+                has_more=has_more,
+                listing_contract=listing_contract,
+                contiguous_nonempty_pages=contiguous_nonempty_pages,
+                rejected_record_count=int(metadata["rejected_record_count"]),
+            ):
+                metadata["total_available"] = len(jobs)
+                finish_terminal(
+                    metadata,
+                    complete_reason="validated_terminal_empty_page",
+                )
             else:
                 metadata["stop_reason"] = "empty_page_without_terminal_contract"
                 metadata["scan_completeness_reason"] = "pagination_failure"
@@ -246,6 +261,7 @@ def fetch_jobs(
             metadata["stop_reason"] = "no_new_stable_ids"
             metadata["scan_completeness_reason"] = "pagination_failure"
             raise AdapterError("iCIMS pagination returned no new stable job IDs")
+        contiguous_nonempty_pages.append(page_index)
         if total is not None and len(jobs) == total:
             finish_terminal(metadata, complete_reason="reported_total_reached")
             break
@@ -412,7 +428,7 @@ def _parse_page(
     response: Any,
     target: CompanyTarget,
     page_index: int = 0,
-) -> tuple[list[Any], Optional[int], bool, Optional[bool]]:
+) -> tuple[list[Any], Optional[int], bool, Optional[bool], bool]:
     content_type = str(getattr(response, "headers", {}).get("content-type", ""))
     text = str(getattr(response, "text", "") or "")
     if target.endpoint_variant == JIBE_API:
@@ -439,6 +455,7 @@ def _parse_page(
             total,
             total == 0 and count == 0 and not items,
             (page_index + 1) * int(target.page_size) < total,
+            True,
         )
 
     _reject_bad_html_success(text, content_type)
@@ -463,6 +480,13 @@ def _parse_page(
             if total is not None
             else html_page_has_more(root)
         )
+        listing_contract = bool(
+            items
+            or root.xpath(
+                "//*[contains(concat(' ', normalize-space(@class), ' '), "
+                "' search-results-list ')]"
+            )
+        )
     else:
         items = root.xpath(
             "//li[contains(concat(' ', normalize-space(@class), ' '), ' iCIMS_JobCardItem ')]"
@@ -472,7 +496,42 @@ def _parse_page(
             root.xpath("//*[contains(@class, 'iCIMS_JobSearchNoResults')]")
         )
         has_more = html_page_has_more(root)
-    return items, total, zero, has_more
+        listing_contract = bool(
+            items
+            or root.xpath(
+                "//*[contains(concat(' ', normalize-space(@class), ' '), "
+                "' iCIMS_JobsList ') or contains(concat(' ', "
+                "normalize-space(@class), ' '), ' iCIMS_JobsTable ') "
+                "or contains(concat(' ', normalize-space(@class), ' '), "
+                "' iCIMS_JobSearchResults ')]"
+            )
+        )
+    return items, total, zero, has_more, listing_contract
+
+
+def _legacy_terminal_empty_page(
+    response: Any,
+    target: CompanyTarget,
+    page_index: int,
+    *,
+    has_more: Optional[bool],
+    listing_contract: bool,
+    contiguous_nonempty_pages: list[int],
+    rejected_record_count: int,
+) -> bool:
+    """Accept only a correctly indexed empty legacy result collection as EOF."""
+    if (
+        target.endpoint_variant != LEGACY_HTML
+        or page_index < 1
+        or has_more is not None
+        or not listing_contract
+        or rejected_record_count
+        or contiguous_nonempty_pages != list(range(page_index))
+    ):
+        return False
+    query = parse_qs(urlparse(str(getattr(response, "url", "") or "")).query)
+    requested_pages = query.get("pr")
+    return requested_pages == [str(page_index)]
 
 
 def _reject_bad_json_success(text: str, content_type: str) -> None:

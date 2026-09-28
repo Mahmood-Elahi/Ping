@@ -57,6 +57,7 @@ _LOOP_REASONS = {
     "repeated_page",
     "no_new_stable_ids",
     "repeated_cursor",
+    "repeated_stable_ids",
     "cursor_not_advancing",
     "page_number_ignored",
 }
