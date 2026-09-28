@@ -50,6 +50,92 @@ company_careers_reliability_repairs:
     evidence_source: https://www.asml.com/en/careers/find-your-job
     evidence_confidence: high
     evidence_timestamp: '2026-08-28T00:00:00+00:00'
+  - name: LINE
+    platform: javascript_embedded_data
+    careers_url: https://careers.linecorp.com/
+    listing_url: https://careers.linecorp.com/page-data/jobs/page-data.json?ca=All
+    endpoint_variant: public_json_endpoint
+    embedded_json_path: result.data.allStrapiJobs.edges
+    complete_collection_total_field: result.data.allStrapiJobs.totalCount
+    id_field: node.strapiId
+    title_field: node.title
+    url_field: node.strapiId
+    apply_url_template: https://careers.linecorp.com/jobs/{id}/
+    location_fields:
+      - node.cities
+      - node.regions
+    department_field: node.job_fields
+    date_field: node.start_date
+    job_attribution_field: node.is_public
+    job_attribution_regex: ^True$
+    item_filter_field: node.publish
+    item_filter_regex: ^True$
+    allowed_source_hosts:
+      - careers.linecorp.com
+    allowed_apply_hosts:
+      - careers.linecorp.com
+    original_workbook_rank: 237
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+  - name: Applied Materials
+    platform: static_html
+    careers_url: https://jobs.appliedmaterials.com/en/search-jobs
+    listing_url: https://jobs.appliedmaterials.com/en/search-jobs
+    endpoint_variant: server_rendered_cards
+    original_workbook_rank: 27
+    allowed_apply_hosts:
+      - jobs.appliedmaterials.com
+    max_pages: 1
+    max_jobs: 20
+    max_scripts: 20
+    max_response_bytes: 4000000
+    max_script_bytes: 1000000
+    evidence_source: config/company_remaining_inventory_v2.csv
+    evidence_confidence: medium
+    evidence_timestamp: '2026-08-05T01:24:24+00:00'
+    listing_selector: li.search-results-list__item
+    job_card_selector: li.search-results-list__item
+    title_selector: h2.search-results-list__job-title a
+    detail_link_selector: h2.search-results-list__job-title a
+    external_id_regex: /(\d+)(?:[?#].*)?$
+    external_id_attribute: null
+    location_selector: .search-results-list__location
+    department_selector: null
+    pagination_url_template: https://jobs.appliedmaterials.com/en/search-jobs?p={page}
+    next_page_selector: null
+    allow_url_id_fallback: false
+  - name: Continental
+    platform: javascript_embedded_data
+    careers_url: https://jobs.continental.com/en/
+    source_identity_regex: '"client"\s*:\s*"continental"'
+    identity_regex: '"client"\s*:\s*"continental"'
+    allowed_apply_hosts:
+      - jobs.continental.com
+    original_workbook_rank: 124
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://jobs.continental.com/en/api/result-list/pagetype-jobs/?tx_conjobs_api%5BcurrentPage%5D=1&tx_conjobs_api%5BitemsPerPage%5D=10
+    listing_url: https://jobs.continental.com/en/api/result-list/pagetype-jobs/?tx_conjobs_api%5BcurrentPage%5D=1&tx_conjobs_api%5BitemsPerPage%5D=10
+    pagination_url_template: https://jobs.continental.com/en/api/result-list/pagetype-jobs/?tx_conjobs_api%5BcurrentPage%5D={page}&tx_conjobs_api%5BitemsPerPage%5D=10
+    endpoint_variant: public_json_endpoint
+    pagination_contract: numeric_page_index
+    embedded_json_path: result.list
+    id_field: uuid
+    title_field: title
+    location_fields:
+      - cityLabel
+      - countryLabel
+      - jobFlexibilityLabel
+    url_field: absoluteUrl
+    date_field: publicationDate
+    department_field: fieldOfWorkLabel
+    job_attribution_field: client
+    job_attribution_regex: ^continental$
+    allowed_source_hosts:
+      - jobs.continental.com
+    page_size: 10
   - name: Figure AI
     platform: greenhouse
     careers_url: https://www.figure.ai/careers

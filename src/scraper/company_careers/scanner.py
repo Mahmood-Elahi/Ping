@@ -100,6 +100,7 @@ def _completion_result_fields(metadata: SourceScanMetadata) -> dict[str, Any]:
         "has_more": metadata.get("has_more"),
         "next_url_present": metadata.get("next_url_present"),
         "next_cursor_present": metadata.get("next_cursor_present"),
+        "next_page": metadata.get("next_page"),
         "page_count": metadata.get("page_count"),
         "result_count": metadata.get("result_count"),
         "end_index": metadata.get("end_index"),

@@ -98,6 +98,7 @@ class SourceScanMetadata(dict[str, Any]):
             has_more=None,
             next_url_present=None,
             next_cursor_present=None,
+            next_page=None,
             page_count=None,
             result_count=None,
             end_index=None,
@@ -265,6 +266,10 @@ class CompanyTarget:
     remote_field: Optional[str] = None
     job_attribution_field: Optional[str] = None
     job_attribution_selector: Optional[str] = None
+    pagination_contract: Optional[str] = None
+    complete_collection_total_field: Optional[str] = None
+    item_filter_field: Optional[str] = None
+    item_filter_regex: Optional[str] = None
     department_allowlist: List[str] = field(default_factory=list)
     max_scripts: int = 20
     max_response_bytes: int = 3_000_000
@@ -355,6 +360,12 @@ class CompanyTarget:
             remote_field=data.get("remote_field"),
             job_attribution_field=data.get("job_attribution_field"),
             job_attribution_selector=data.get("job_attribution_selector"),
+            pagination_contract=data.get("pagination_contract"),
+            complete_collection_total_field=data.get(
+                "complete_collection_total_field"
+            ),
+            item_filter_field=data.get("item_filter_field"),
+            item_filter_regex=data.get("item_filter_regex"),
             department_allowlist=list(data.get("department_allowlist") or []),
             max_scripts=int(data.get("max_scripts") or 20),
             max_response_bytes=int(data.get("max_response_bytes") or 3_000_000),
@@ -415,6 +426,7 @@ class CompanyScanResult:
     has_more: Optional[bool] = None
     next_url_present: Optional[bool] = None
     next_cursor_present: Optional[bool] = None
+    next_page: Optional[int] = None
     page_count: Optional[int] = None
     result_count: Optional[int] = None
     end_index: Optional[int] = None
@@ -507,6 +519,7 @@ class CompanyScanResult:
             "has_more": self.has_more,
             "next_url_present": self.next_url_present,
             "next_cursor_present": self.next_cursor_present,
+            "next_page": self.next_page,
             "page_count": self.page_count,
             "result_count": self.result_count,
             "end_index": self.end_index,

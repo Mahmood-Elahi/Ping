@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -23,13 +24,16 @@ from src.scraper.company_careers.source_health import finalize_source_scan
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = ROOT / "config" / "target_companies.yaml"
 REPAIRS = ROOT / "config" / "company_careers_reliability_repairs_v1.yaml"
-RECOVERED = {"Figure AI": "greenhouse", "MDA Space": "ukg_pro"}
+RECOVERED = {
+    "Figure AI": "greenhouse",
+    "MDA Space": "ukg_pro",
+    "LINE": "javascript_embedded_data",
+}
 UNRESOLVED = {
     "ASML",
     "Aurora Innovation",
     "ByteDance",
     "Deliveroo",
-    "LINE",
 }
 
 
@@ -101,18 +105,19 @@ class SevenBrowserSourceRecoveryTests(unittest.TestCase):
             projection["summary"]["active_contract_migrations"],
             [
                 "Figure AI: browser_rendered_html -> greenhouse",
+                "LINE: browser_rendered_html -> javascript_embedded_data",
                 "MDA Space: browser_rendered_html -> ukg_pro",
             ],
         )
         self.assertEqual(
-            projection["summary"]["migrated_to_stronger_active_contract"], 2
+            projection["summary"]["migrated_to_stronger_active_contract"], 3
         )
         browser_representatives = {
             target.name
             for target in representative_targets()
             if target.platform == "browser_rendered_html"
         }
-        self.assertEqual(browser_representatives, {"ASML", "LINE"})
+        self.assertEqual(browser_representatives, {"ASML"})
 
     def test_figure_ai_uses_retained_exact_greenhouse_board_and_complete_response(self):
         target = configured_targets()["Figure AI"]
@@ -206,13 +211,15 @@ class SevenBrowserSourceRecoveryTests(unittest.TestCase):
         self.assertEqual(metadata["has_more"], False)
         self.assertEqual(metadata["scan_state"], "complete")
 
-    def test_one_render_and_fixed_scroll_count_are_not_terminal_evidence(self):
-        target = configured_targets()["LINE"]
+    def test_one_render_without_pagination_is_not_terminal_evidence(self):
+        target = configured_targets()["ASML"]
+        target = replace(target, pagination_url_template=None, max_pages=1)
         body = (
-            "<!doctype html><html><head><title>LINE CAREERS</title></head><body>"
-            "<a href='/jobs/3050/'><h3 class='title'>Engineer</h3>"
-            "<div class='text_filter'><span>Tokyo</span><span>x</span>"
-            "<span>Engineering</span></div><span class='date'>2026-09-24</span></a>"
+            "<!doctype html><html><head><title>ASML careers</title></head><body>"
+            "<a class='search-results__item' href='/en/careers/find-your-job/engineer-j1'>"
+            "<h3 class='search-results-title-text'>Engineer</h3>"
+            "<ul class='search-results__fields'><li>Veldhoven</li>"
+            "<li>Engineering</li></ul></a>"
             "</body></html>"
         )
         session = Mock()
@@ -230,7 +237,7 @@ class SevenBrowserSourceRecoveryTests(unittest.TestCase):
         metadata = source_scan_metadata(session)
 
         self.assertEqual(len(jobs), 1)
-        self.assertEqual(target.browser_scroll_steps, 1)
+        self.assertEqual(target.browser_scroll_steps, 0)
         self.assertFalse(metadata["scan_complete"])
         self.assertEqual(metadata["stop_reason"], "no_pagination_configured")
         self.assertIsNone(metadata["terminal_evidence_type"])

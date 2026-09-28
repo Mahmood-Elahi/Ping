@@ -11,6 +11,7 @@ import yaml
 
 from scripts import validate_original_master_recovery_batch_h as batch
 from scripts import refingerprint_uncovered_companies as reconciliation
+from tests.company_careers_reliability_assertions import with_reliability_repairs
 from src.scraper.company_careers.adapters import beesite, embedded_data, mcloud_cws
 from src.scraper.company_careers.models import AdapterError, CompanyTarget
 from src.scraper.company_careers.scanner import ADAPTERS
@@ -66,7 +67,10 @@ class OriginalMasterRecoveryBatchHArtifactTests(unittest.TestCase):
         self.assertEqual(VALIDATED, [item["name"] for item in self.candidates[-5:]])
         self.assertEqual(VALIDATED, [item["name"] for item in self.validated[-5:]])
         self.assertEqual(VALIDATED, [item["name"] for item in self.production[325:330]])
-        self.assertEqual(self.validated[-5:], self.production[325:330])
+        self.assertEqual(
+            with_reliability_repairs(self.validated[-5:]),
+            self.production[325:330],
+        )
         historical_production_names = [item["name"] for item in self.production[:330]]
         self.assertTrue(EXCLUDED.isdisjoint(historical_production_names))
         production_names = [item["name"] for item in self.production]

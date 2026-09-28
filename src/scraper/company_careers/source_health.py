@@ -102,6 +102,7 @@ def finalize_source_scan(
 
     _normalize_started_stop_reason(metadata, jobs_collected)
     _normalize_legacy_terminal_evidence(metadata, jobs_collected)
+    _reconcile_provisional_terminal(metadata, jobs_collected)
     code = _completion_contradiction(metadata, jobs_collected)
     if str(activation_state or "active").casefold() != "active":
         code = code or SourceHealthCode.PAGINATION_UNPROVEN
@@ -140,6 +141,39 @@ def finalize_source_scan(
             code or _incomplete_health_code(metadata, jobs_collected)
         ).value
     return metadata
+
+
+def _reconcile_provisional_terminal(
+    metadata: MutableMapping[str, Any], jobs_collected: int
+) -> None:
+    """Promote only a fully processed authoritative EOF past a provisional cap."""
+    if metadata.get("scan_complete") or not metadata.get("safety_limit_reached"):
+        return
+    if str(metadata.get("scan_completeness_reason") or "") != "safety_limit_reached":
+        return
+    if metadata.get("terminal_page_fully_processed") is not True:
+        return
+    if not _independent_terminal_evidence(metadata, jobs_collected):
+        return
+    if any(
+        (
+            int(metadata.get("rejected_record_count") or 0) > 0,
+            int(metadata.get("malformed_records") or 0) > 0,
+            metadata.get("repeated_page"),
+            metadata.get("repeated_stable_ids"),
+            metadata.get("duplicate_ids"),
+            metadata.get("total_count_changed"),
+            metadata.get("collection_changed_during_scan"),
+            metadata.get("has_more") is True,
+            metadata.get("next_url_present") is True,
+            metadata.get("next_cursor_present") is True,
+            metadata.get("next_page") is not None,
+        )
+    ):
+        return
+    metadata["scan_complete"] = True
+    metadata["scan_completeness_reason"] = "validated_terminal_page"
+    metadata["safety_limit_reached"] = False
 
 
 def _normalize_started_stop_reason(
@@ -247,9 +281,12 @@ def _completion_contradiction(
     # the outcome by the artificial safety bound that actually stopped it.
     if reason == "canary_budget_reached":
         return SourceHealthCode.SAFETY_LIMIT_REACHED
-    if metadata.get("has_more") is True or metadata.get("next_url_present") is True or metadata.get(
-        "next_cursor_present"
-    ) is True:
+    if (
+        metadata.get("has_more") is True
+        or metadata.get("next_url_present") is True
+        or metadata.get("next_cursor_present") is True
+        or metadata.get("next_page") is not None
+    ):
         return SourceHealthCode.TERMINAL_CONTRADICTION
 
     total = metadata.get("total_available")

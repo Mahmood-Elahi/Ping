@@ -36,7 +36,7 @@ MAX_PAGES = 2
 MAX_RESULTS = 20
 MAX_ATTEMPTS = 2
 MAX_TIMEOUT_SECONDS = 60
-MAX_RESPONSE_BYTES = 3_000_000
+MAX_RESPONSE_BYTES = 4_000_000
 MAX_STREAM_CHUNK_BYTES = 64_000
 MAX_STRUCTURED_SCRIPTS = 20
 MAX_STRUCTURED_SCRIPT_BYTES = 1_000_000
@@ -370,6 +370,7 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
             metadata["stop_reason"] = "repeated_stable_ids"
             break
         page_fully_processed = parsed == len(records)
+        metadata["terminal_page_fully_processed"] = page_fully_processed
         if not page_fully_processed:
             # A terminal marker cannot prove collection completeness when the
             # final response itself was only partially normalized.

@@ -82,6 +82,8 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
     jobs: list[JobRecord] = []
     seen_ids: set[str] = set()
     seen_pages: set[tuple[str, ...]] = set()
+    numeric_page_count: int | None = None
+    rejected_record_count = 0
 
     for page_index in range(int(metadata["effective_listing_request_ceiling"])):
         url = (str(target.pagination_url_template).format(page=page_index + 1)
@@ -90,9 +92,12 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
         response = _get(session, url, timeout)
         pagination_evidence = None
         if target.endpoint_variant == "public_json_endpoint":
-            items, scripts, inspected_bytes, valid_empty = _extract_direct_json(
+            items, scripts, inspected_bytes, valid_empty, source_collection_total = _extract_direct_json(
                 response, target
             )
+            if source_collection_total is not None:
+                metadata["source_collection_total"] = source_collection_total
+                metadata["filtered_collection_total"] = len(items)
             try:
                 payload = (
                     response.json()
@@ -101,11 +106,22 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                 )
             except (TypeError, ValueError):
                 payload = None
-            if isinstance(payload, Mapping):
+            if isinstance(payload, Mapping) and target.pagination_contract:
                 pagination_evidence = json_pagination_evidence(
                     payload,
                     container_paths=("result", "result.pagination"),
+                    numeric_page_index_contract=(
+                        target.pagination_contract == "numeric_page_index"
+                    ),
+                    expected_current_page=page_index + 1,
+                    expected_page_count=numeric_page_count,
                 )
+                if (
+                    numeric_page_count is None
+                    and pagination_evidence.page_count is not None
+                    and not pagination_evidence.malformed_fields
+                ):
+                    numeric_page_count = pagination_evidence.page_count
                 publish_pagination_evidence(
                     metadata,
                     pagination_evidence,
@@ -152,6 +168,8 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                 job = _normalize(item, target, url)
             except AdapterError as exc:
                 metadata["diagnostics"].append({"page": page_index + 1, "error": str(exc)})
+                rejected_record_count += 1
+                metadata["rejected_record_count"] = rejected_record_count
                 continue
             parsed += 1
             if job.job_id in seen_ids:
@@ -169,8 +187,10 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
             raise AdapterError("Embedded-data collection contained jobs but none satisfied the reviewed schema")
         record["jobs_normalized"] = new_ids
         metadata["jobs_normalized"] = len(jobs)
+        page_fully_processed = parsed == len(items)
+        metadata["terminal_page_fully_processed"] = page_fully_processed
         if pagination_evidence is not None:
-            if finish_authoritative_total(
+            if page_fully_processed and not rejected_record_count and finish_authoritative_total(
                 metadata,
                 pagination_evidence.reported_total,
                 len(jobs),
@@ -178,10 +198,14 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                 prior_pagination=page_index > 0,
             ):
                 break
-            if pagination_terminal_accepted(
+            if (
+                page_fully_processed
+                and not rejected_record_count
+                and pagination_terminal_accepted(
                 metadata,
                 pagination_evidence,
                 prior_pagination=page_index > 0,
+                )
             ):
                 metadata["scan_complete"] = True
                 metadata["scan_completeness_reason"] = "explicit_terminal_page"
@@ -195,6 +219,10 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                     next_cursor_present=pagination_evidence.next_cursor_present,
                     terminal_page_observed=True,
                 )
+                break
+            if pagination_evidence.terminal(prior_pagination=page_index > 0):
+                metadata["stop_reason"] = "terminal_reached_with_rejected_records"
+                metadata["scan_completeness_reason"] = "record_validation_failure"
                 break
         if page_index == 0 and not items:
             if not valid_empty:
@@ -255,7 +283,10 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                 terminal_page_observed=True,
                 complete_collection_response=True,
             )
-            if len(items) > effective_jobs:
+            if rejected_record_count:
+                metadata["scan_completeness_reason"] = "record_validation_failure"
+                metadata["stop_reason"] = "terminal_reached_with_rejected_records"
+            elif len(items) > effective_jobs or not page_fully_processed:
                 metadata["scan_completeness_reason"] = "safety_limit_reached"
                 metadata["safety_limit_reached"] = True
                 metadata["stop_reason"] = "maximum_results_reached"
@@ -330,6 +361,8 @@ def validate_target(target: CompanyTarget) -> None:
             raise AdapterError(
                 "Embedded-data public JSON endpoint requires a per-job attribution field and regex"
             )
+        if target.pagination_contract not in {None, "numeric_page_index"}:
+            raise AdapterError("Embedded-data pagination_contract is unsupported")
     if target.endpoint_variant == "public_json_reference":
         if not target.endpoint_url or not target.reference_url_attribute:
             raise AdapterError("Embedded-data public JSON reference requires endpoint_url and reference_url_attribute")
@@ -340,7 +373,9 @@ def validate_target(target: CompanyTarget) -> None:
                               ("location_field", target.location_field), ("url_field", target.url_field),
                               ("date_field", target.date_field), ("department_field", target.department_field),
                               ("remote_field", target.remote_field),
-                              ("job_attribution_field", target.job_attribution_field)):
+                              ("job_attribution_field", target.job_attribution_field),
+                              ("complete_collection_total_field", target.complete_collection_total_field),
+                              ("item_filter_field", target.item_filter_field)):
         if value and not _FIELD_RE.fullmatch(str(value)):
             raise AdapterError(f"Embedded-data {field_name} is invalid")
     for value in target.location_fields:
@@ -358,6 +393,12 @@ def validate_target(target: CompanyTarget) -> None:
         static_html._safe_regex(str(target.job_attribution_regex))
     if target.job_attribution_exclude_regex:
         static_html._safe_regex(str(target.job_attribution_exclude_regex))
+    if target.item_filter_regex:
+        static_html._safe_regex(str(target.item_filter_regex))
+    if bool(target.item_filter_field) != bool(target.item_filter_regex):
+        raise AdapterError(
+            "Embedded-data item filter requires both item_filter_field and item_filter_regex"
+        )
     if target.apply_url_template:
         try:
             parsed_template = list(string.Formatter().parse(str(target.apply_url_template)))
@@ -588,7 +629,7 @@ def _extract_attribute_json(
 
 def _extract_direct_json(
     response: Any, target: CompanyTarget
-) -> tuple[list[Mapping[str, Any]], int, int, bool]:
+) -> tuple[list[Mapping[str, Any]], int, int, bool, int | None]:
     _validate_source_response(response, target)
     content = _bounded_content(response, target, expected="json")
     try:
@@ -599,7 +640,27 @@ def _extract_direct_json(
     if not isinstance(found, list) or not all(isinstance(item, Mapping) for item in found):
         raise AdapterError("Embedded-data reviewed JSON path is not a job-object list")
     _require_exact_attribution(found, target)
-    return list(found), 0, len(content), not found
+    source_total = None
+    if target.complete_collection_total_field:
+        source_total = json_path(payload, str(target.complete_collection_total_field))
+        if (
+            isinstance(source_total, bool)
+            or not isinstance(source_total, int)
+            or source_total < 0
+            or source_total != len(found)
+        ):
+            raise AdapterError(
+                "Embedded-data complete collection total does not match returned records"
+            )
+    filtered = list(found)
+    if target.item_filter_field:
+        item_filter = static_html._safe_regex(str(target.item_filter_regex))
+        filtered = [
+            item
+            for item in filtered
+            if item_filter.search(_string(_field(item, target.item_filter_field)))
+        ]
+    return filtered, 0, len(content), not filtered, source_total
 
 
 def _require_exact_attribution(
@@ -772,7 +833,11 @@ def _values(value: Any) -> list[str]:
     if value is None:
         return []
     if isinstance(value, list):
-        return _unique(_string(item) for item in value)
+        return _unique(
+            item
+            for member in value
+            for item in _values(member)
+        )
     if isinstance(value, Mapping):
         for key in ("name", "value", "label"):
             if key in value:

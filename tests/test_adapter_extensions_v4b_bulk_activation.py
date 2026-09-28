@@ -18,7 +18,10 @@ from unittest.mock import patch
 
 import yaml
 
-from tests.company_careers_reliability_assertions import assert_historical_prefix
+from tests.company_careers_reliability_assertions import (
+    assert_historical_prefix,
+    with_reliability_repairs,
+)
 
 from scripts import validate_adapter_extensions_v4b as rollout
 from scripts import validate_browser_pilot_v1 as browser_pilot
@@ -200,8 +203,9 @@ class AdapterExtensionsV4BArtifactTests(unittest.TestCase):
             if registry_validator._name_key(entry) == "line"
         ]
         self.assertEqual(len(pilot_line), 1)
-        self.assertEqual(production_line, pilot_line)
-        pilot_line_source = browser_pilot.source_key(pilot_line[0])
+        repaired_pilot_line = with_reliability_repairs(pilot_line)
+        self.assertEqual(production_line, repaired_pilot_line)
+        pilot_line_source = browser_pilot.source_key(repaired_pilot_line[0])
         self.assertEqual(
             sum(browser_pilot.source_key(entry) == pilot_line_source for entry in production),
             1,

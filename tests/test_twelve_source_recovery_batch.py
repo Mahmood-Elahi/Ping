@@ -108,6 +108,9 @@ class TwelveSourceRecoveryBatchTests(unittest.TestCase):
                             "list": rows,
                             "pagination": {
                                 "currentPage": page_number,
+                                "nextPage": (
+                                    page_number + 1 if page_number < 13 else None
+                                ),
                                 "totalPages": 13,
                             },
                         }

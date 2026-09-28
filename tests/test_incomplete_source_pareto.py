@@ -298,7 +298,7 @@ class IncompleteSourceParetoTests(unittest.TestCase):
                 "Applied Materials": 140,
                 "Amazon": 25,
                 "Continental": 70,
-                "Veeva Systems": 40,
+                "Veeva Systems": 60,
             },
         )
         for company, budget in SOURCE_REQUEST_BUDGETS.items():

@@ -49,6 +49,7 @@ MAX_ATTEMPTS = 2
 RETRY_DELAY_SECONDS = 0.5
 PAGE_DELAY_SECONDS = 0.2
 MAX_REJECTED_RECORD_DIAGNOSTICS = 5
+MAX_COLLECTION_RESTARTS = 1
 TRANSIENT_STATUSES = {408, 425, 429, 500, 502, 503, 504}
 HEADERS_JSON = {
     "Accept": "application/json",
@@ -65,6 +66,44 @@ HOST_RE = re.compile(
 
 
 def fetch_jobs(
+    session: requests.Session,
+    target: CompanyTarget,
+    timeout: int = 20,
+) -> List[JobRecord]:
+    """Return one internally consistent traversal, with one mutation restart."""
+    first_jobs = _fetch_jobs_once(session, target, timeout)
+    first_metadata = getattr(session, "icims_pagination", SourceScanMetadata())
+    if not first_metadata.get("collection_changed_during_scan"):
+        return first_jobs
+
+    first_ids = {job.job_id for job in first_jobs}
+    first_requests = int(first_metadata.get("pages_requested") or 0)
+    first_pages = int(first_metadata.get("pages_completed") or 0)
+    second_jobs = _fetch_jobs_once(session, target, timeout)
+    metadata = getattr(session, "icims_pagination", SourceScanMetadata())
+    second_ids = {job.job_id for job in second_jobs}
+    metadata.update(
+        collection_restart_count=MAX_COLLECTION_RESTARTS,
+        first_traversal_jobs=len(first_jobs),
+        first_traversal_pages=first_pages,
+        stable_id_set_match_across_restart=first_ids == second_ids,
+        stable_ids_added_after_restart=len(second_ids - first_ids),
+        stable_ids_removed_after_restart=len(first_ids - second_ids),
+        total_pages_requested_across_traversals=(
+            first_requests + int(metadata.get("pages_requested") or 0)
+        ),
+    )
+    if metadata.get("collection_changed_during_scan"):
+        metadata["collection_retry_exhausted"] = True
+        metadata["scan_complete"] = False
+        metadata["scan_completeness_reason"] = "collection_changed_during_scan"
+        metadata["stop_reason"] = "collection_changed_during_scan"
+    elif metadata.get("scan_complete"):
+        metadata["stabilized_after_collection_retry"] = True
+    return second_jobs
+
+
+def _fetch_jobs_once(
     session: requests.Session,
     target: CompanyTarget,
     timeout: int = 20,
@@ -173,6 +212,11 @@ def fetch_jobs(
         }
         metadata["pages"].append(page_record)
         metadata["pages_fetched"] = len(metadata["pages"])
+        if items and len(set(identities)) != len(identities):
+            metadata["duplicate_ids"] = True
+            metadata["stop_reason"] = "duplicate_stable_ids"
+            metadata["scan_completeness_reason"] = "pagination_failure"
+            raise AdapterError("iCIMS page contained duplicate stable job IDs")
         if items and identities in seen_pages:
             metadata["repeated_page"] = True
             metadata["stop_reason"] = "repeated_page"
@@ -258,6 +302,9 @@ def fetch_jobs(
                 metadata["scan_completeness_reason"] = "pagination_failure"
             break
         if new_ids == 0:
+            if metadata["collection_changed_during_scan"]:
+                finish_changed(metadata, terminal_evidence="no_new_stable_ids")
+                break
             metadata["stop_reason"] = "no_new_stable_ids"
             metadata["scan_completeness_reason"] = "pagination_failure"
             raise AdapterError("iCIMS pagination returned no new stable job IDs")

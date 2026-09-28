@@ -148,6 +148,7 @@ class PaginationEvidence:
     has_more: bool | None = None
     next_url_present: bool | None = None
     next_cursor_present: bool | None = None
+    next_page: int | None = None
     page_count: int | None = None
     current_page: int | None = None
     result_count: int | None = None
@@ -167,6 +168,8 @@ class PaginationEvidence:
             reasons.append("active_next_url")
         if self.next_cursor_present is True:
             reasons.append("next_cursor_present")
+        if self.next_page is not None:
+            reasons.append("next_page_present")
         if (
             self.current_page is not None
             and self.page_count is not None
@@ -350,6 +353,7 @@ _JSON_PAGINATION_FIELDS: Mapping[str, tuple[str, ...]] = {
     "has_more": ("hasMore", "has_more", "hasNextPage", "has_next_page"),
     "next_url": ("next", "nextPage", "next_page", "nextUrl", "next_url"),
     "next_cursor": ("nextCursor", "next_cursor"),
+    "next_page": (),
     "page_count": ("totalPages", "total_pages", "pageCount", "page_count", "lastPage", "last_page"),
     "current_page": ("currentPage", "current_page", "page", "pageNumber", "page_number"),
     "result_count": ("resultCount", "result_count"),
@@ -362,6 +366,9 @@ def json_pagination_evidence(
     *,
     container_paths: tuple[str, ...] = ("", "pagination", "pageInfo", "page_info", "paging"),
     field_map: Mapping[str, tuple[str, ...]] | None = None,
+    numeric_page_index_contract: bool = False,
+    expected_current_page: int | None = None,
+    expected_page_count: int | None = None,
 ) -> PaginationEvidence:
     """Read pagination only from explicitly reviewed containers and fields.
 
@@ -370,6 +377,13 @@ def json_pagination_evidence(
     result, facet, aggregation, analytics, or filter objects.
     """
     configured_fields = dict(_JSON_PAGINATION_FIELDS)
+    if numeric_page_index_contract:
+        configured_fields["next_url"] = tuple(
+            name
+            for name in configured_fields["next_url"]
+            if name not in {"nextPage", "next_page"}
+        )
+        configured_fields["next_page"] = ("nextPage", "next_page")
     if field_map:
         for field_name, names in field_map.items():
             if field_name not in configured_fields:
@@ -450,6 +464,23 @@ def json_pagination_evidence(
     end_index = integer("end_index")
     has_more = scalar("has_more", bool)
 
+    def optional_integer(field_name: str) -> int | None:
+        values = candidates[field_name]
+        parsed: list[int | None] = []
+        for source, value in values:
+            if value is None:
+                parsed.append(None)
+            elif isinstance(value, int) and not isinstance(value, bool) and value >= 1:
+                parsed.append(value)
+            else:
+                malformed.append(source)
+        if len({repr(value) for value in parsed}) > 1:
+            conflicts.extend(source for source, _value in values)
+            return None
+        return parsed[0] if parsed else None
+
+    next_page = optional_integer("next_page")
+
     def presence(field_name: str, *, cursor: bool = False) -> bool | None:
         values = candidates[field_name]
         parsed: list[bool] = []
@@ -474,11 +505,25 @@ def json_pagination_evidence(
             malformed.append("page_count_relationship")
     if reported_total is not None and end_index is not None and end_index > reported_total:
         malformed.append("result_range_relationship")
+    if numeric_page_index_contract:
+        for required in ("current_page", "page_count", "next_page"):
+            if not candidates[required]:
+                malformed.append(f"missing_{required}")
+        if expected_current_page is not None and current_page != expected_current_page:
+            malformed.append("current_page_sequence")
+        if expected_page_count is not None and page_count != expected_page_count:
+            conflicts.append("page_count_changed")
+        if current_page is not None and page_count is not None:
+            if current_page < page_count and next_page != current_page + 1:
+                malformed.append("next_page_relationship")
+            elif current_page == page_count and next_page is not None:
+                malformed.append("terminal_next_page_relationship")
     return PaginationEvidence(
         reported_total=reported_total,
         has_more=has_more,
         next_url_present=next_url_present,
         next_cursor_present=next_cursor_present,
+        next_page=next_page,
         page_count=page_count,
         current_page=current_page,
         result_count=result_count,
@@ -507,6 +552,7 @@ def publish_pagination_evidence(
         has_more=evidence.has_more,
         next_url_present=evidence.next_url_present,
         next_cursor_present=evidence.next_cursor_present,
+        next_page=evidence.next_page,
         page_count=evidence.page_count,
         result_count=evidence.result_count,
         end_index=evidence.end_index,

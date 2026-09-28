@@ -123,20 +123,41 @@ class ICIMSAdapterTests(unittest.TestCase):
             page(item("1"), item("2"), total=4),
             page(item("1"), item("1", "Duplicate"), total=4),
         ])
-        with self.assertRaisesRegex(AdapterError, "no new stable job IDs"):
+        with self.assertRaisesRegex(AdapterError, "duplicate stable job IDs"):
             icims.fetch_jobs(session, target())
-        self.assertEqual(session.icims_pagination["stop_reason"], "no_new_stable_ids")
+        self.assertEqual(session.icims_pagination["stop_reason"], "duplicate_stable_ids")
 
     @patch.object(icims.time, "sleep", return_value=None)
-    def test_24a_overlap_and_total_decrease_is_usable_incomplete(self, _sleep):
+    def test_24a_overlap_and_total_decrease_stabilizes_on_one_restart(self, _sleep):
         session = Session([
             page(item("1"), item("2"), total=4),
             page(item("2"), item("3"), total=3),
+            page(item("1"), item("2"), total=3),
+            page(item("3"), total=3),
         ])
         jobs = icims.fetch_jobs(session, target())
         self.assertEqual([job.raw_metadata["external_job_id"] for job in jobs], ["1", "2", "3"])
         metadata = session.icims_pagination
-        self.assertEqual(metadata["overlapping_jobs_skipped"], 1)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertTrue(metadata["stabilized_after_collection_retry"])
+        self.assertEqual(metadata["collection_restart_count"], 1)
+        self.assertTrue(metadata["stable_id_set_match_across_restart"])
+        self.assertEqual(metadata["total_pages_requested_across_traversals"], 4)
+
+    @patch.object(icims.time, "sleep", return_value=None)
+    def test_24b_repeated_mutation_after_restart_remains_incomplete(self, _sleep):
+        session = Session([
+            page(item("1"), item("2"), total=4),
+            page(item("2"), item("3"), total=3),
+            page(item("1"), item("2"), total=4),
+            page(item("2"), item("3"), total=3),
+        ])
+        jobs = icims.fetch_jobs(session, target())
+        metadata = session.icims_pagination
+
+        self.assertEqual([job.raw_metadata["external_job_id"] for job in jobs], ["1", "2", "3"])
+        self.assertFalse(metadata["scan_complete"])
+        self.assertTrue(metadata["collection_retry_exhausted"])
         self.assertEqual(metadata["scan_completeness_reason"], "collection_changed_during_scan")
 
     def test_25_valid_zero_job_response(self):

@@ -265,6 +265,41 @@ class LeverAdapterTests(unittest.TestCase):
         self.assertFalse(metadata["scan_complete"])
         self.assertEqual(metadata["stop_reason"], "repeated_page")
 
+    def test_22_board_beyond_adapter_hard_ceiling_remains_incomplete(self):
+        real_policy = lever.AdaptiveListingCompletion
+        pages = []
+        for page_index in range(2):
+            start = page_index * 20
+            pages.append(
+                Response(
+                    [
+                        posting(
+                            str(index),
+                            hostedUrl=f"https://jobs.lever.co/example/{index}",
+                        )
+                        for index in range(start, start + 20)
+                    ]
+                )
+            )
+        session = Session(*pages)
+        with patch.object(
+            lever,
+            "AdaptiveListingCompletion",
+            side_effect=lambda requests, jobs: real_policy(
+                requests,
+                jobs,
+                hard_request_ceiling=2,
+                hard_job_ceiling=40,
+            ),
+        ):
+            jobs = lever.fetch_jobs(session, target())
+
+        metadata = source_scan_metadata(session)
+        self.assertEqual(len(jobs), 40)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertTrue(metadata["safety_limit_reached"])
+        self.assertEqual(metadata["stop_reason"], "maximum_results_reached")
+
 
 if __name__ == "__main__":
     unittest.main()

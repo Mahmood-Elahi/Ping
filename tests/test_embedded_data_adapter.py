@@ -300,13 +300,18 @@ class EmbeddedDataAdapterTests(unittest.TestCase):
             embedded_script_selector=None,
             embedded_json_path="result.list",
             pagination_url_template="https://careers.example.test/jobs?page={page}",
+            pagination_contract="numeric_page_index",
             allowed_source_hosts=["careers.example.test"],
             job_attribution_field="client",
             job_attribution_regex=r"^example$",
         )
         job = item(client="example")
         payload = {
-            "result": {"list": [job], "total": 1},
+            "result": {
+                "list": [job],
+                "total": 1,
+                "pagination": {"currentPage": 1, "nextPage": None, "lastPage": 1},
+            },
             "facets": {"count": 999},
             "aggregations": {"hits": 888},
             "analytics": {"total": 777},
@@ -327,6 +332,7 @@ class EmbeddedDataAdapterTests(unittest.TestCase):
             embedded_script_selector=None,
             embedded_json_path="result.list",
             pagination_url_template="https://careers.example.test/jobs?page={page}",
+            pagination_contract="numeric_page_index",
             allowed_source_hosts=["careers.example.test"],
             job_attribution_field="client",
             job_attribution_regex=r"^example$",
@@ -336,10 +342,16 @@ class EmbeddedDataAdapterTests(unittest.TestCase):
                 "list": [item(client="example")],
                 "total": 1,
                 "totalCount": 2,
+                "pagination": {"currentPage": 1, "nextPage": None, "lastPage": 1},
             }
         }
         second = {
-            "result": {"list": [], "total": 1, "totalCount": 2}
+            "result": {
+                "list": [],
+                "total": 1,
+                "totalCount": 2,
+                "pagination": {"currentPage": 2, "nextPage": None, "lastPage": 2},
+            }
         }
         session = Session(
             Response(json.dumps(first), content_type="application/json"),
@@ -360,6 +372,7 @@ class EmbeddedDataAdapterTests(unittest.TestCase):
             embedded_script_selector=None,
             embedded_json_path="result.list",
             pagination_url_template="https://careers.example.test/jobs?page={page}",
+            pagination_contract="numeric_page_index",
             allowed_source_hosts=["careers.example.test"],
             job_attribution_field="client",
             job_attribution_regex=r"^example$",
@@ -367,7 +380,7 @@ class EmbeddedDataAdapterTests(unittest.TestCase):
         payload = {
             "result": {
                 "list": [item(client="example")],
-                "pagination": {"currentPage": "1", "totalPages": 65},
+                "pagination": {"currentPage": "1", "nextPage": 2, "totalPages": 65},
             }
         }
         session = Session(
@@ -379,6 +392,7 @@ class EmbeddedDataAdapterTests(unittest.TestCase):
                             "list": [],
                             "pagination": {
                                 "currentPage": "2",
+                                "nextPage": 3,
                                 "totalPages": 65,
                             },
                         }
@@ -396,9 +410,9 @@ class EmbeddedDataAdapterTests(unittest.TestCase):
             metadata["scan_completeness_reason"],
             "malformed_pagination_evidence",
         )
-        self.assertEqual(
+        self.assertIn(
+            "result.pagination.currentPage",
             metadata["pagination_malformed_fields"],
-            ["result.pagination.currentPage"],
         )
         self.assertIn(
             {
@@ -408,6 +422,165 @@ class EmbeddedDataAdapterTests(unittest.TestCase):
             },
             metadata["pagination_field_diagnostics"],
         )
+
+    def test_28_public_json_numeric_page_contract_reaches_explicit_final_page(self):
+        public_target = target(
+            endpoint_variant="public_json_endpoint",
+            embedded_script_selector=None,
+            embedded_json_path="result.list",
+            pagination_url_template="https://careers.example.test/jobs?page={page}",
+            pagination_contract="numeric_page_index",
+            allowed_source_hosts=["careers.example.test"],
+            job_attribution_field="client",
+            job_attribution_regex=r"^example$",
+        )
+        first = {
+            "result": {
+                "list": [item("1", client="example")],
+                "pagination": {"currentPage": 1, "nextPage": 2, "lastPage": 2},
+            }
+        }
+        second = {
+            "result": {
+                "list": [
+                    item("2", url="https://apply.example.test/jobs/2", client="example")
+                ],
+                "pagination": {"currentPage": 2, "nextPage": None, "lastPage": 2},
+            }
+        }
+        session = Session(
+            Response(json.dumps(first), content_type="application/json"),
+            Response(json.dumps(second), content_type="application/json"),
+        )
+
+        jobs = embedded_data.fetch_jobs(session, public_target)
+        metadata = source_scan_metadata(session)
+        self.assertEqual(len(jobs), 2)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["stop_reason"], "explicit_terminal_page")
+        self.assertEqual(metadata["next_page"], None)
+
+    def test_29_public_json_malformed_final_record_blocks_terminal_completion(self):
+        public_target = target(
+            endpoint_variant="public_json_endpoint",
+            embedded_script_selector=None,
+            embedded_json_path="result.list",
+            pagination_url_template="https://careers.example.test/jobs?page={page}",
+            pagination_contract="numeric_page_index",
+            allowed_source_hosts=["careers.example.test"],
+            job_attribution_field="client",
+            job_attribution_regex=r"^example$",
+        )
+        malformed = item(
+            "2", title="", url="https://apply.example.test/jobs/2", client="example"
+        )
+        payload = {
+            "result": {
+                "list": [item("1", client="example"), malformed],
+                "pagination": {"currentPage": 1, "nextPage": None, "lastPage": 1},
+            }
+        }
+        session = Session(Response(json.dumps(payload), content_type="application/json"))
+
+        jobs = embedded_data.fetch_jobs(session, public_target)
+        metadata = source_scan_metadata(session)
+        self.assertEqual(len(jobs), 1)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["rejected_record_count"], 1)
+        self.assertEqual(metadata["stop_reason"], "terminal_reached_with_rejected_records")
+
+    def test_30_complete_collection_total_and_record_filter_are_authoritative(self):
+        public_target = target(
+            endpoint_variant="public_json_endpoint",
+            embedded_script_selector=None,
+            embedded_json_path="result.data.jobs.edges",
+            complete_collection_total_field="result.data.jobs.totalCount",
+            id_field="node.strapiId",
+            title_field="node.title",
+            url_field="node.strapiId",
+            apply_url_template="https://apply.example.test/jobs/{id}",
+            location_field="node.cities",
+            date_field="node.start_date",
+            department_field="node.job_fields",
+            remote_field=None,
+            allowed_source_hosts=["careers.example.test"],
+            job_attribution_field="node.is_public",
+            job_attribution_regex=r"^True$",
+            item_filter_field="node.publish",
+            item_filter_regex=r"^True$",
+        )
+        edges = [
+            {
+                "node": {
+                    "strapiId": index,
+                    "title": f"Engineer {index}",
+                    "publish": published,
+                    "is_public": True,
+                    "start_date": "2026-09-01",
+                    "cities": [{"name": "Calgary"}],
+                    "job_fields": [{"name": "Engineering"}],
+                }
+            }
+            for index, published in ((1, True), (2, False), (3, True))
+        ]
+        payload = {
+            "result": {"data": {"jobs": {"totalCount": 3, "edges": edges}}}
+        }
+        session = Session(
+            Response(json.dumps(payload), content_type="application/json")
+        )
+
+        jobs = embedded_data.fetch_jobs(session, public_target)
+        metadata = source_scan_metadata(session)
+        self.assertEqual([job.title for job in jobs], ["Engineer 1", "Engineer 3"])
+        self.assertEqual(jobs[0].offices, ["Calgary"])
+        self.assertEqual(jobs[0].departments, ["Engineering"])
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["source_collection_total"], 3)
+        self.assertEqual(metadata["filtered_collection_total"], 2)
+        self.assertTrue(metadata["complete_collection_response"])
+
+    def test_31_complete_collection_total_mismatch_fails_closed(self):
+        public_target = target(
+            endpoint_variant="public_json_endpoint",
+            embedded_script_selector=None,
+            embedded_json_path="result.jobs",
+            complete_collection_total_field="result.totalCount",
+            allowed_source_hosts=["careers.example.test"],
+            job_attribution_field="client",
+            job_attribution_regex=r"^example$",
+        )
+        payload = {"result": {"totalCount": 2, "jobs": [item(client="example")]}}
+        with self.assertRaisesRegex(AdapterError, "total does not match"):
+            embedded_data.fetch_jobs(
+                Session(Response(json.dumps(payload), content_type="application/json")),
+                public_target,
+            )
+
+    def test_32_complete_collection_with_rejected_record_remains_incomplete(self):
+        public_target = target(
+            endpoint_variant="public_json_endpoint",
+            embedded_script_selector=None,
+            embedded_json_path="result.jobs",
+            complete_collection_total_field="result.totalCount",
+            allowed_source_hosts=["careers.example.test"],
+            job_attribution_field="client",
+            job_attribution_regex=r"^example$",
+        )
+        payload = {
+            "result": {
+                "totalCount": 2,
+                "jobs": [item("1", client="example"), item("2", title="", client="example")],
+            }
+        }
+        session = Session(Response(json.dumps(payload), content_type="application/json"))
+
+        jobs = embedded_data.fetch_jobs(session, public_target)
+        metadata = source_scan_metadata(session)
+        self.assertEqual(len(jobs), 1)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["rejected_record_count"], 1)
+        self.assertEqual(metadata["stop_reason"], "terminal_reached_with_rejected_records")
 
 
 if __name__ == "__main__":

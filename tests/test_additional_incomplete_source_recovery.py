@@ -101,6 +101,7 @@ class AdditionalIncompleteSourceRecoveryTests(unittest.TestCase):
         self, _sleep
     ):
         target = self.targets["Applied Materials"]
+        self.assertEqual(target.max_response_bytes, 4_000_000)
         first = (
             "<html><body><li class='search-results-list__item'><h2 "
             "class='search-results-list__job-title'><a href='/en/job/engineer/101'>"
@@ -190,12 +191,13 @@ class AdditionalIncompleteSourceRecoveryTests(unittest.TestCase):
 
     def test_source_health_reconciles_only_independently_proven_terminal_state(self):
         proven = SourceScanMetadata(
-            scan_complete=True,
-            scan_completeness_reason="validated_html_terminal",
+            scan_complete=False,
+            scan_completeness_reason="safety_limit_reached",
             stop_reason="explicit_terminal_page",
             safety_limit_reached=True,
             terminal_evidence_type="html_pagination_contract",
             terminal_page_observed=True,
+            terminal_page_fully_processed=True,
             has_more=False,
         )
         finalize_source_scan(proven, jobs_collected=25)
@@ -211,6 +213,64 @@ class AdditionalIncompleteSourceRecoveryTests(unittest.TestCase):
         finalize_source_scan(unproven, jobs_collected=25)
         self.assertFalse(unproven["scan_complete"])
         self.assertTrue(unproven["safety_limit_reached"])
+
+        partial = SourceScanMetadata(
+            scan_complete=False,
+            scan_completeness_reason="safety_limit_reached",
+            stop_reason="explicit_terminal_page",
+            safety_limit_reached=True,
+            terminal_evidence_type="html_pagination_contract",
+            terminal_page_observed=True,
+            terminal_page_fully_processed=False,
+            has_more=False,
+        )
+        finalize_source_scan(partial, jobs_collected=25)
+        self.assertFalse(partial["scan_complete"])
+
+        malformed = SourceScanMetadata(
+            scan_complete=False,
+            scan_completeness_reason="safety_limit_reached",
+            stop_reason="explicit_terminal_page",
+            safety_limit_reached=True,
+            terminal_evidence_type="html_pagination_contract",
+            terminal_page_observed=True,
+            terminal_page_fully_processed=True,
+            has_more=False,
+            malformed_records=1,
+        )
+        finalize_source_scan(malformed, jobs_collected=25)
+        self.assertFalse(malformed["scan_complete"])
+        self.assertEqual(malformed["source_health_code"], "malformed_records")
+
+        mutation = SourceScanMetadata(
+            scan_complete=False,
+            scan_completeness_reason="safety_limit_reached",
+            stop_reason="explicit_terminal_page",
+            safety_limit_reached=True,
+            terminal_evidence_type="html_pagination_contract",
+            terminal_page_observed=True,
+            terminal_page_fully_processed=True,
+            has_more=False,
+            collection_changed_during_scan=True,
+        )
+        finalize_source_scan(mutation, jobs_collected=25)
+        self.assertFalse(mutation["scan_complete"])
+        self.assertEqual(mutation["source_health_code"], "collection_changed")
+
+        continuing = SourceScanMetadata(
+            scan_complete=False,
+            scan_completeness_reason="safety_limit_reached",
+            stop_reason="explicit_terminal_page",
+            safety_limit_reached=True,
+            terminal_evidence_type="html_pagination_contract",
+            terminal_page_observed=True,
+            terminal_page_fully_processed=True,
+            has_more=False,
+            next_page=26,
+        )
+        finalize_source_scan(continuing, jobs_collected=25)
+        self.assertFalse(continuing["scan_complete"])
+        self.assertEqual(continuing["source_health_code"], "terminal_contradiction")
 
         repeated = SourceScanMetadata(
             scan_complete=False,

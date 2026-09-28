@@ -442,6 +442,57 @@ class AdaptiveListingCompletionTests(unittest.TestCase):
         self.assertIn("result.pagination.currentPage", metadata["pagination_malformed_fields"])
         self.assertNotIn("must-not-be-dumped", repr(metadata))
 
+    def test_numeric_page_index_contract_accepts_successor_and_terminal_null(self):
+        continuing = json_pagination_evidence(
+            {"result": {"pagination": {"currentPage": 42, "nextPage": 43, "lastPage": 63}}},
+            container_paths=("result.pagination",),
+            numeric_page_index_contract=True,
+            expected_current_page=42,
+            expected_page_count=63,
+        )
+        self.assertEqual(continuing.status(), "continuation")
+        self.assertEqual(continuing.next_page, 43)
+
+        terminal = json_pagination_evidence(
+            {"result": {"pagination": {"currentPage": 63, "nextPage": None, "lastPage": 63}}},
+            container_paths=("result.pagination",),
+            numeric_page_index_contract=True,
+            expected_current_page=63,
+            expected_page_count=63,
+        )
+        self.assertEqual(terminal.status(), "terminal")
+        self.assertTrue(terminal.explicit_final_page)
+
+    def test_numeric_page_index_contract_rejects_gaps_repeats_and_missing_fields(self):
+        cases = (
+            {"currentPage": 10, "nextPage": 15, "lastPage": 20},
+            {"currentPage": 10, "nextPage": 10, "lastPage": 20},
+            {"currentPage": 10, "nextPage": 9, "lastPage": 20},
+            {"currentPage": 10, "lastPage": 20},
+        )
+        for pagination in cases:
+            with self.subTest(pagination=pagination):
+                evidence = json_pagination_evidence(
+                    {"pagination": pagination},
+                    container_paths=("pagination",),
+                    numeric_page_index_contract=True,
+                    expected_current_page=10,
+                    expected_page_count=20,
+                )
+                self.assertEqual(evidence.status(), "malformed")
+                self.assertFalse(evidence.terminal())
+
+    def test_numeric_page_index_contract_rejects_changed_final_page(self):
+        evidence = json_pagination_evidence(
+            {"pagination": {"currentPage": 2, "nextPage": 3, "lastPage": 64}},
+            container_paths=("pagination",),
+            numeric_page_index_contract=True,
+            expected_current_page=2,
+            expected_page_count=63,
+        )
+        self.assertEqual(evidence.status(), "conflicting")
+        self.assertIn("page_count_changed", evidence.conflicting_fields)
+
     def test_conflict_and_malformed_status_are_durable_metadata(self):
         conflict = PaginationEvidence(has_more=True, disabled_next_control=True)
         metadata = {"scan_complete": True}

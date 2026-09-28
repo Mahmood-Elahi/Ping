@@ -40,8 +40,10 @@ SOURCE_REQUEST_BUDGETS = {
     # The current contract exposes about 65 pages.  This diagnostic allowance
     # does not make its malformed pagination metadata acceptable terminal proof.
     "Continental": 70,
-    # The retained 20260924 scan required 35 listing requests.
-    "Veeva Systems": 40,
+    # The current board exceeded 800 rows (40 full Lever pages).  Sixty requests
+    # conservatively permits 1,200 rows while remaining far below the production
+    # adapter's unchanged 1,000-request / 20,000-row hard ceilings.
+    "Veeva Systems": 60,
 }
 SOURCE_REQUEST_BUDGET_RATIONALES = {
     "Applied Materials": "observed page_count approximately 132; bounded at 140",
@@ -50,14 +52,14 @@ SOURCE_REQUEST_BUDGET_RATIONALES = {
         "diagnostic traversal for observed page_count approximately 65; malformed "
         "metadata remains non-terminal"
     ),
-    "Veeva Systems": "retained enumeration used 35 requests; bounded at 40",
+    "Veeva Systems": "live board exceeded 40 full pages; bounded at 60 (1,200 rows)",
 }
 
 REPRESENTATIVES = (
     ("static", "static_html", "Applied Materials"),
     ("static", "talentbrew", "Palo Alto Networks"),
     ("browser", "browser_rendered_html", "ASML"),
-    ("browser", "browser_rendered_html", "LINE"),
+    ("terminal_api", "javascript_embedded_data", "LINE"),
     ("terminal_api", "avature", "Bank of America"),
     ("terminal_api", "javascript_embedded_data", "Continental"),
     ("terminal_api", "lever", "Veeva Systems"),
@@ -159,6 +161,7 @@ def _summary(
             "has_more": metadata.get("has_more"),
             "next_url_present": metadata.get("next_url_present"),
             "next_cursor_present": metadata.get("next_cursor_present"),
+            "next_page": metadata.get("next_page"),
             "page_count": metadata.get("page_count"),
             "disabled_next_control": metadata.get("disabled_next_control"),
             "explicit_final_page": metadata.get("explicit_final_page"),
