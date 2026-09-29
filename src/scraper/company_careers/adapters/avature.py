@@ -30,6 +30,7 @@ from src.scraper.company_careers.listing_completion import (
     record_terminal_evidence,
 )
 from src.scraper.company_careers.mutable_collection import (
+    fetch_with_mutation_restart,
     finish_changed,
     finish_terminal,
     immutable_job_fingerprint,
@@ -62,6 +63,16 @@ HOST_RE = re.compile(
 
 
 def fetch_jobs(
+    session: requests.Session,
+    target: CompanyTarget,
+    timeout: int = 20,
+) -> List[JobRecord]:
+    return fetch_with_mutation_restart(
+        session, lambda: _fetch_jobs_once(session, target, timeout)
+    )
+
+
+def _fetch_jobs_once(
     session: requests.Session,
     target: CompanyTarget,
     timeout: int = 20,

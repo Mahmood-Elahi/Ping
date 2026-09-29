@@ -1285,7 +1285,7 @@ class CompanyCareersTests(unittest.TestCase):
         self.assertEqual(jobs[0].departments, ["Engineering"])
         self.assertIn("Build products.", jobs[0].description)
 
-    def test_atlassian_identical_duplicate_is_retained_as_mutable_incomplete(self):
+    def test_atlassian_identical_duplicate_on_both_traversals_is_incomplete(self):
         item = {
             "id": 24880,
             "title": "Principal Software Engineer",
@@ -1294,7 +1294,12 @@ class CompanyCareersTests(unittest.TestCase):
             "applyUrl": "https://careers-americas.icims.com/jobs/24880/job?mode=apply",
             "portalJobPost": {"updatedDate": "2026-04-13 03:26 AM"},
         }
-        session = FakeSession(get_responses=[FakeResponse([item, dict(item)])])
+        session = FakeSession(
+            get_responses=[
+                FakeResponse([item, dict(item)]),
+                FakeResponse([item, dict(item)]),
+            ]
+        )
 
         jobs = atlassian.fetch_jobs(
             session, CompanyTarget(name="Atlassian", platform="atlassian")
@@ -1308,6 +1313,33 @@ class CompanyCareersTests(unittest.TestCase):
             metadata["scan_completeness_reason"],
             "collection_changed_during_scan",
         )
+        self.assertTrue(metadata["collection_retry_exhausted"])
+
+    def test_atlassian_duplicate_then_stable_replacement_recovers(self):
+        item = {
+            "id": 24880,
+            "title": "Principal Software Engineer",
+            "locations": ["Remote - Remote"],
+            "category": "Engineering",
+            "applyUrl": "https://careers-americas.icims.com/jobs/24880/job?mode=apply",
+            "portalJobPost": {"updatedDate": "2026-04-13 03:26 AM"},
+        }
+        session = FakeSession(
+            get_responses=[
+                FakeResponse([item, dict(item)]),
+                FakeResponse([item]),
+            ]
+        )
+
+        jobs = atlassian.fetch_jobs(
+            session, CompanyTarget(name="Atlassian", platform="atlassian")
+        )
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual([job.job_id for job in jobs], ["24880"])
+        self.assertTrue(metadata["scan_complete"])
+        self.assertTrue(metadata["stabilized_after_collection_retry"])
+        self.assertEqual(metadata["collection_restart_count"], 1)
 
     def test_uber_normalization(self):
         listing = """<!doctype html><html><body>

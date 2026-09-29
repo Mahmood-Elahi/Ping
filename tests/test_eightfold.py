@@ -226,30 +226,41 @@ class EightfoldAdapterTests(unittest.TestCase):
         self.assertFalse(session.eightfold_pagination["total_count_changed"])
         self.assertEqual(session.eightfold_pagination["warnings"], [])
 
-    def test_total_count_increase_is_usable_incomplete(self):
+    def test_total_count_increase_then_stable_restart_recovers(self):
         first = [position(index) for index in range(1, 11)]
         second = [position(index) for index in range(11, 16)]
         jobs, session = self.fetch(
-            [FakeResponse(payload(first, count=30)), FakeResponse(payload(second, count=31))]
+            [
+                FakeResponse(payload(first, count=30)),
+                FakeResponse(payload(second, count=31)),
+                FakeResponse(payload(first, count=15)),
+                FakeResponse(payload(second, count=15)),
+            ]
         )
         self.assertEqual(len(jobs), 15)
         metadata = session.eightfold_pagination
-        self.assertFalse(metadata["scan_complete"])
-        self.assertEqual(metadata["scan_completeness_reason"], "collection_changed_during_scan")
-        self.assertEqual(metadata["minimum_total_observed"], 30)
-        self.assertEqual(metadata["maximum_total_observed"], 31)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertTrue(metadata["stabilized_after_collection_retry"])
+        self.assertEqual(metadata["observed_total_counts"], [15, 15])
+        self.assertEqual(metadata["total_pages_requested_across_traversals"], 4)
 
-    def test_total_count_decrease_is_usable_incomplete(self):
+    def test_total_count_decrease_on_both_traversals_is_incomplete(self):
         first = [position(index) for index in range(1, 11)]
         second = [position(index) for index in range(11, 20)]
         jobs, session = self.fetch(
-            [FakeResponse(payload(first, count=30)), FakeResponse(payload(second, count=19))]
+            [
+                FakeResponse(payload(first, count=30)),
+                FakeResponse(payload(second, count=19)),
+                FakeResponse(payload(first, count=30)),
+                FakeResponse(payload(second, count=19)),
+            ]
         )
         self.assertEqual(len(jobs), 19)
         metadata = session.eightfold_pagination
         self.assertFalse(metadata["scan_complete"])
         self.assertEqual(metadata["scan_completeness_reason"], "collection_changed_during_scan")
         self.assertEqual(metadata["final_total_observed"], 19)
+        self.assertTrue(metadata["collection_retry_exhausted"])
 
     def test_later_page_missing_count_fails_closed(self):
         first = [position(index) for index in range(1, 11)]
@@ -288,7 +299,12 @@ class EightfoldAdapterTests(unittest.TestCase):
         first = [position(index) for index in range(1, 11)]
         second = [position(10)] + [position(index) for index in range(11, 20)]
         jobs, session = self.fetch(
-            [FakeResponse(payload(first, count=19)), FakeResponse(payload(second, count=19))]
+            [
+                FakeResponse(payload(first, count=19)),
+                FakeResponse(payload(second, count=19)),
+                FakeResponse(payload(first, count=19)),
+                FakeResponse(payload(second, count=19)),
+            ]
         )
         self.assertEqual(len(jobs), 19)
         metadata = session.eightfold_pagination
@@ -306,6 +322,9 @@ class EightfoldAdapterTests(unittest.TestCase):
 
     def test_multiple_total_changes_are_diagnostic_and_incomplete(self):
         pages = [
+            FakeResponse(payload([position(index) for index in range(1, 11)], count=30)),
+            FakeResponse(payload([position(index) for index in range(11, 21)], count=31)),
+            FakeResponse(payload([position(index) for index in range(21, 30)], count=29)),
             FakeResponse(payload([position(index) for index in range(1, 11)], count=30)),
             FakeResponse(payload([position(index) for index in range(11, 21)], count=31)),
             FakeResponse(payload([position(index) for index in range(21, 30)], count=29)),
@@ -456,7 +475,12 @@ class EightfoldValidationTests(unittest.TestCase):
         first = [position(index) for index in range(1, 11)]
         second = [position(index) for index in range(11, 21)]
         session = FakeSession(
-            [FakeResponse(payload(first, count=1790)), FakeResponse(payload(second, count=1789))]
+            [
+                FakeResponse(payload(first, count=1790)),
+                FakeResponse(payload(second, count=1789)),
+                FakeResponse(payload(first, count=1790)),
+                FakeResponse(payload(second, count=1789)),
+            ]
         )
         result = validator.validate_company(
             registry_entry(),
@@ -475,7 +499,12 @@ class EightfoldValidationTests(unittest.TestCase):
         first = [position(index) for index in range(1, 11)]
         second = [position(index) for index in range(11, 21)]
         session = FakeSession(
-            [FakeResponse(payload(first, count=1790)), FakeResponse(payload(second, count=1789))]
+            [
+                FakeResponse(payload(first, count=1790)),
+                FakeResponse(payload(second, count=1789)),
+                FakeResponse(payload(first, count=1790)),
+                FakeResponse(payload(second, count=1789)),
+            ]
         )
         microsoft = target(
             name="Microsoft",

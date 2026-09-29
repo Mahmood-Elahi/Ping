@@ -126,6 +126,42 @@ class AvatureAdapterTests(unittest.TestCase):
             avature.fetch_jobs(session, target())
         self.assertEqual(session.avature_pagination["stop_reason"], "no_new_stable_ids")
 
+    @patch.object(avature.time, "sleep", return_value=None)
+    def test_08a_mutation_then_stable_restart_recovers(self, _sleep):
+        job3 = ("103", "Third", "Remote", "IT", "08/03/2026")
+        session = Session(
+            [
+                page(JOB1, JOB2, total=4),
+                page(job3, total=3),
+                page(JOB1, JOB2, total=3),
+                page(job3, total=3),
+            ]
+        )
+
+        jobs = avature.fetch_jobs(session, target())
+        metadata = session.avature_pagination
+
+        self.assertEqual(len(jobs), 3)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertTrue(metadata["stabilized_after_collection_retry"])
+        self.assertEqual(metadata["collection_restart_count"], 1)
+
+    @patch.object(avature.time, "sleep", return_value=None)
+    def test_08b_mutation_on_both_traversals_remains_incomplete(self, _sleep):
+        job3 = ("103", "Third", "Remote", "IT", "08/03/2026")
+        mutation = [
+            page(JOB1, JOB2, total=4),
+            page(job3, total=3),
+        ]
+        session = Session([*mutation, *mutation])
+
+        jobs = avature.fetch_jobs(session, target())
+        metadata = session.avature_pagination
+
+        self.assertEqual(len(jobs), 3)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertTrue(metadata["collection_retry_exhausted"])
+
     def test_09_valid_zero_job_response(self):
         response = Response('<html><body><section data-total-job-results="0">0 jobs found</section></body></html>')
         session = Session([response])

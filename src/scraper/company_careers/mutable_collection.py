@@ -2,14 +2,61 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 from urllib.parse import parse_qsl, urlparse
 
-from src.scraper.company_careers.models import JobRecord, SourceScanMetadata
+from src.scraper.company_careers.models import (
+    JobRecord,
+    SourceScanMetadata,
+    source_scan_metadata,
+)
 from src.scraper.company_careers.listing_completion import record_terminal_evidence
 
 
 COLLECTION_CHANGED_REASON = "collection_changed_during_scan"
+MAX_COLLECTION_RESTARTS = 1
+
+
+def fetch_with_mutation_restart(
+    session: Any,
+    fetch_once: Callable[[], list[JobRecord]],
+) -> list[JobRecord]:
+    """Return one internally consistent traversal after at most one restart.
+
+    The first traversal is never unioned with the replacement traversal.  A
+    replacement can prove completeness only from its own pagination evidence.
+    The first traversal's ID set is retained solely as bounded diagnostics.
+    """
+    first_jobs = fetch_once()
+    first_metadata = source_scan_metadata(session)
+    if not first_metadata.get("collection_changed_during_scan"):
+        return first_jobs
+
+    first_ids = {job.job_id for job in first_jobs}
+    first_requests = int(first_metadata.get("pages_requested") or 0)
+    first_pages = int(first_metadata.get("pages_completed") or 0)
+    second_jobs = fetch_once()
+    metadata = source_scan_metadata(session)
+    second_ids = {job.job_id for job in second_jobs}
+    metadata.update(
+        collection_restart_count=MAX_COLLECTION_RESTARTS,
+        first_traversal_jobs=len(first_jobs),
+        first_traversal_pages=first_pages,
+        stable_id_set_match_across_restart=first_ids == second_ids,
+        stable_ids_added_after_restart=len(second_ids - first_ids),
+        stable_ids_removed_after_restart=len(first_ids - second_ids),
+        total_pages_requested_across_traversals=(
+            first_requests + int(metadata.get("pages_requested") or 0)
+        ),
+    )
+    if metadata.get("collection_changed_during_scan"):
+        metadata["collection_retry_exhausted"] = True
+        metadata["scan_complete"] = False
+        metadata["scan_completeness_reason"] = COLLECTION_CHANGED_REASON
+        metadata["stop_reason"] = COLLECTION_CHANGED_REASON
+    elif metadata.get("scan_complete"):
+        metadata["stabilized_after_collection_retry"] = True
+    return second_jobs
 
 
 def initialize_mutable_collection(metadata: SourceScanMetadata) -> None:

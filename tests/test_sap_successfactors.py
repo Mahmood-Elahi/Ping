@@ -1319,10 +1319,32 @@ class SapSuccessFactorsTests(unittest.TestCase):
         self.assertEqual(metadata["pages_completed"], 1)
 
     @patch.object(sf.time, "sleep", return_value=None)
+    def test_changing_total_then_stable_restart_recovers(self, _sleep):
+        first = [table_job(index) for index in range(1, 26)]
+        second = [table_job(index) for index in range(26, 31)]
+        session = FakeSession([
+            FakeResponse(table_html(first, total=31, next_offset=25)),
+            FakeResponse(table_html(second, total=30, offset=25)),
+            FakeResponse(table_html(first, total=30, next_offset=25)),
+            FakeResponse(table_html(second, total=30, offset=25)),
+        ])
+
+        jobs = sf.fetch_jobs(session, target(max_pages=2))
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(len(jobs), 30)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertTrue(metadata["stabilized_after_collection_retry"])
+        self.assertEqual(metadata["collection_restart_count"], 1)
+        self.assertEqual(metadata["total_pages_requested_across_traversals"], 4)
+
+    @patch.object(sf.time, "sleep", return_value=None)
     def test_changing_positive_total_is_usable_incomplete(self, _sleep):
         first = [table_job(index) for index in range(1, 26)]
         second = [table_job(index) for index in range(26, 31)]
         session = FakeSession([
+            FakeResponse(table_html(first, total=30, next_offset=25)),
+            FakeResponse(table_html(second, total=31, offset=25)),
             FakeResponse(table_html(first, total=30, next_offset=25)),
             FakeResponse(table_html(second, total=31, offset=25)),
         ])
@@ -1333,6 +1355,7 @@ class SapSuccessFactorsTests(unittest.TestCase):
         self.assertEqual(metadata["scan_completeness_reason"], "collection_changed_during_scan")
         self.assertEqual(metadata["minimum_total_observed"], 30)
         self.assertEqual(metadata["maximum_total_observed"], 31)
+        self.assertTrue(metadata["collection_retry_exhausted"])
 
     def test_short_page_before_reported_total_is_not_a_natural_terminal(self):
         session = FakeSession([

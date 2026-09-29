@@ -1858,30 +1858,19 @@ target_companies:
     max_jobs: 20
     max_response_bytes: 3000000
   - name: Aurora Innovation
-    platform: browser_rendered_html
+    platform: public_json
     careers_url: https://aurora.tech/careers
-    listing_url: https://aurora.tech/careers
-    endpoint_variant: browser_rendered_html_v1
-    browser_wait_selector: div.section-job-board__list-item
-    browser_scroll_steps: 0
-    browser_static_variant: server_rendered_links
-    browser_identity_selector: body
-    browser_identity_regex: Aurora
-    listing_selector: div.section-job-board__list-item
-    job_card_selector: div.section-job-board__list-item
-    title_selector: p.section-job-board__list-item-heading
-    location_selector: p.section-job-board__list-item-meta span:nth-child(2)
-    detail_link_selector: a.section-job-board__link
-    external_id_regex: /careers/([0-9a-f-]+)$
-    external_id_attribute: null
-    department_selector: p.section-job-board__list-item-meta span:first-child
-    date_selector: null
+    endpoint_url: https://aurora.tech/api/jobs-index
+    endpoint_variant: aurora_jobs_index_v1
     allowed_apply_hosts:
     - aurora.tech
     original_workbook_rank: 131
     max_pages: 1
-    max_jobs: 20
-    max_response_bytes: 3000000
+    max_jobs: 20000
+    max_response_bytes: 4000000
+    evidence_source: https://aurora.tech/api/jobs-index
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-28T00:00:00+00:00'
   - name: Dassault Systèmes
     platform: exalead
     careers_url: https://www.3ds.com/careers
@@ -2080,30 +2069,20 @@ target_companies:
     slug: faire
     search_url: https://boards.greenhouse.io/faire
   - name: Deliveroo
-    platform: browser_rendered_html
+    platform: public_json
     careers_url: https://careers.deliveroo.co.uk/
-    listing_url: https://careers.deliveroo.co.uk/join-the-team/
-    endpoint_variant: browser_rendered_html_v1
-    browser_wait_selector: a[href*='/role/']
-    browser_scroll_steps: 0
-    browser_static_variant: server_rendered_links
-    browser_identity_selector: head title
-    browser_identity_regex: Deliveroo
-    listing_selector: a[href*=/role/]
-    job_card_selector: a[href*=/role/]
-    title_selector: h4
-    location_selector: null
-    detail_link_selector: :self
-    external_id_regex: /role/[^/?#]+-([0-9a-f]{12})/?
-    external_id_attribute: null
-    department_selector: null
-    date_selector: null
+    endpoint_url: https://careers.deliveroo.co.uk/wp-json/wp/v2/roles
+    endpoint_variant: wordpress_roles_v1
     allowed_apply_hosts:
     - careers.deliveroo.co.uk
     original_workbook_rank: 220
-    max_pages: 1
-    max_jobs: 20
+    page_size: 20
+    max_pages: 9
+    max_jobs: 20000
     max_response_bytes: 3000000
+    evidence_source: https://careers.deliveroo.co.uk/wp-json/wp/v2/roles
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-28T00:00:00+00:00'
   - name: ByteDance
     platform: browser_rendered_html
     careers_url: https://jobs.bytedance.com/en/

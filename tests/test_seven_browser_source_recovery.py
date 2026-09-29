@@ -25,15 +25,15 @@ ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = ROOT / "config" / "target_companies.yaml"
 REPAIRS = ROOT / "config" / "company_careers_reliability_repairs_v1.yaml"
 RECOVERED = {
+    "Aurora Innovation": "public_json",
+    "Deliveroo": "public_json",
     "Figure AI": "greenhouse",
     "MDA Space": "ukg_pro",
     "LINE": "javascript_embedded_data",
 }
 UNRESOLVED = {
     "ASML",
-    "Aurora Innovation",
     "ByteDance",
-    "Deliveroo",
 }
 
 
@@ -104,13 +104,14 @@ class SevenBrowserSourceRecoveryTests(unittest.TestCase):
         self.assertEqual(
             projection["summary"]["active_contract_migrations"],
             [
+                "Aurora Innovation: browser_rendered_html -> public_json",
                 "Figure AI: browser_rendered_html -> greenhouse",
                 "LINE: browser_rendered_html -> javascript_embedded_data",
                 "MDA Space: browser_rendered_html -> ukg_pro",
             ],
         )
         self.assertEqual(
-            projection["summary"]["migrated_to_stronger_active_contract"], 3
+            projection["summary"]["migrated_to_stronger_active_contract"], 4
         )
         browser_representatives = {
             target.name

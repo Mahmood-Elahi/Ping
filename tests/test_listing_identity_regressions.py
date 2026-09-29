@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 
 from src.scraper.company_careers.adapters import browser_rendered_html, static_html
-from src.scraper.company_careers.models import AdapterError
+from src.scraper.company_careers.models import AdapterError, CompanyTarget
 from src.scraper.company_careers.registry import load_target_companies
 
 
@@ -316,7 +316,28 @@ class ListingIdentityRegressionTests(unittest.TestCase):
             "<a href='/role/data-engineer-123456abcdef'>View role</a></article>"
             "</section></body></html>"
         )
-        jobs = self.parse("Deliveroo", body)
+        historical = CompanyTarget.from_dict(
+            {
+                "name": "Deliveroo",
+                "platform": "browser_rendered_html",
+                "careers_url": "https://careers.deliveroo.co.uk/",
+                "listing_url": "https://careers.deliveroo.co.uk/join-the-team/",
+                "endpoint_variant": "browser_rendered_html_v1",
+                "browser_wait_selector": "a[href*='/role/']",
+                "browser_static_variant": "server_rendered_links",
+                "browser_identity_selector": "head title",
+                "browser_identity_regex": "Deliveroo",
+                "listing_selector": "a[href*=/role/]",
+                "job_card_selector": "a[href*=/role/]",
+                "title_selector": "h4",
+                "detail_link_selector": ":self",
+                "external_id_regex": r"/role/[^/?#]+-([0-9a-f]{12})/?",
+                "allowed_apply_hosts": ["careers.deliveroo.co.uk"],
+            }
+        )
+        jobs = static_html.fetch_jobs(
+            Session(body), browser_rendered_html._static_target(historical)
+        )
         self.assertEqual(
             [(job.title, job.raw_metadata["external_job_id"]) for job in jobs],
             [("Software Engineer", "a1b2c3d4e5f6"), ("Data Engineer", "123456abcdef")],

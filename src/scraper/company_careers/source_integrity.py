@@ -109,6 +109,12 @@ PLATFORM_SOURCE_CONTRACTS: dict[str, PlatformSourceContract] = {
     "icims": _contract("authoritative_total_or_explicit_terminal", ("board_id",), urls=("endpoint_url", "search_url"), hosts=True),
     "static_html": _contract("reviewed_structural_terminal", ("external_id_attribute", "external_id_selector", "external_id_regex", "allow_url_id_fallback"), urls=("listing_url",), hosts=True),
     "browser_rendered_html": _contract("reviewed_browser_structural_terminal", ("browser_identity_selector", "browser_identity_regex"), ("external_id_attribute", "external_id_selector", "external_id_regex"), urls=("listing_url",), hosts=True),
+    "public_json": _contract(
+        "authoritative_complete_response_or_total_pages",
+        ("endpoint_variant",),
+        urls=("endpoint_url",),
+        hosts=True,
+    ),
     "javascript_embedded_data": _contract("validated_complete_embedded_collection", ("id_field", "external_id_regex"), ("embedded_json_path",), urls=("listing_url",), hosts=True),
     "adp": _contract("authoritative_total_or_terminal_page", ("slug", "organization_id", "endpoint_variant"), urls=("careers_url",), hosts=True),
     "apple": _contract("authoritative_total_or_terminal_page", urls=("endpoint_url",), hosts=True),
