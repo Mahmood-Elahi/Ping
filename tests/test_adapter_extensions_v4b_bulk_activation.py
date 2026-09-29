@@ -182,6 +182,7 @@ class AdapterExtensionsV4BArtifactTests(unittest.TestCase):
         self.assertEqual([registry_validator.source_key(entry) for entry in promoted], SOURCES)
         production_sources = [registry_validator.source_key(entry) for entry in production]
         for expected in promoted:
+            expected = with_reliability_repairs([expected])[0]
             matches = [
                 entry for entry in production
                 if registry_validator._name_key(entry) == registry_validator._name_key(expected)

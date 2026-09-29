@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import string
 import time
@@ -39,6 +40,7 @@ MAX_TIMEOUT_SECONDS = 60
 MAX_RESPONSE_BYTES = 3_000_000
 MAX_SCRIPT_BYTES = 1_000_000
 MAX_SCRIPTS = 20
+MAX_FLIGHT_WRAPPERS = 100
 RETRY_DELAY_SECONDS = 0.1
 TRANSIENT_STATUSES = {202, 408, 425, 500, 502, 503, 504}
 HEADERS = {"Accept": "text/html,application/xhtml+xml", "User-Agent": "job-radar/1.0"}
@@ -97,7 +99,6 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
             )
             if source_collection_total is not None:
                 metadata["source_collection_total"] = source_collection_total
-                metadata["filtered_collection_total"] = len(items)
             try:
                 payload = (
                     response.json()
@@ -144,6 +145,14 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
             )
         else:
             items, scripts, inspected_bytes, valid_empty = _extract(response, target)
+        source_items_present = bool(items)
+        source_collection_count = len(items)
+        if target.item_filter_field:
+            metadata.setdefault("source_collection_total", source_collection_count)
+        items = _filter_items(items, target)
+        if target.item_filter_field:
+            metadata["filtered_collection_total"] = len(items)
+            valid_empty = valid_empty or (source_items_present and not items)
         effective_jobs = (
             listing_budget.complete_collection_job_ceiling(len(items))
             if not explicit_pagination
@@ -489,19 +498,24 @@ def _extract_next_flight(
         raise AdapterError(f"Embedded-data malformed HTTP 200 response: {exc}") from exc
     _reject_page(root)
 
-    selected = static_html.select(root, str(target.embedded_script_selector))
     prefix = "self.__next_f.push("
-    scripts = [node for node in selected if (node.text or "").strip().startswith(prefix)]
-    if len(scripts) > int(target.max_scripts):
-        raise AdapterError("Embedded-data script-count limit exceeded")
-    if not scripts:
-        raise AdapterError("Embedded-data reviewed Flight script selector did not match")
-
     collection_name = str(target.embedded_json_path)
     marker = json.dumps(collection_name) + ":"
+    selected = static_html.select(root, str(target.embedded_script_selector))
+    wrappers = [
+        node
+        for node in selected
+        if (node.text or "").strip().startswith(prefix)
+    ]
+    if len(wrappers) > MAX_FLIGHT_WRAPPERS:
+        raise AdapterError("Embedded-data Flight wrapper-count limit exceeded")
+    if not wrappers:
+        raise AdapterError("Embedded-data reviewed Flight script selector did not match")
+
     collections: list[list[Any]] = []
     inspected = len(content)
-    for script in scripts:
+    matching_streams: list[str] = []
+    for script in wrappers:
         if script.get("src"):
             raise AdapterError("Embedded-data generic external script bundles are unsupported")
         body = (script.text or "").strip()
@@ -523,6 +537,14 @@ def _extract_next_flight(
         ):
             raise AdapterError("Embedded-data unsupported Next.js Flight wrapper")
         stream = wrapper[1]
+        if marker in stream:
+            matching_streams.append(stream)
+    if len(matching_streams) > int(target.max_scripts):
+        raise AdapterError("Embedded-data script-count limit exceeded")
+    if not matching_streams:
+        raise AdapterError("Embedded-data reviewed Flight collection did not match")
+
+    for stream in matching_streams:
         start = 0
         while True:
             index = stream.find(marker, start)
@@ -552,7 +574,7 @@ def _extract_next_flight(
         raise AdapterError(
             "Embedded-data reviewed Next.js Flight collection contains unsupported values"
         )
-    return list(found), len(scripts), inspected, not found
+    return list(found), len(matching_streams), inspected, not found
 
 
 def _extract_public_json(
@@ -652,15 +674,51 @@ def _extract_direct_json(
             raise AdapterError(
                 "Embedded-data complete collection total does not match returned records"
             )
-    filtered = list(found)
-    if target.item_filter_field:
-        item_filter = static_html._safe_regex(str(target.item_filter_regex))
-        filtered = [
-            item
-            for item in filtered
-            if item_filter.search(_string(_field(item, target.item_filter_field)))
-        ]
-    return filtered, 0, len(content), not filtered, source_total
+    return list(found), 0, len(content), not found, source_total
+
+
+def _filter_items(
+    items: Iterable[Mapping[str, Any]], target: CompanyTarget
+) -> list[Mapping[str, Any]]:
+    values = list(items)
+    if not target.item_filter_field:
+        return values
+    item_filter = static_html._safe_regex(str(target.item_filter_regex))
+    filtered: list[Mapping[str, Any]] = []
+    for index, item in enumerate(values):
+        try:
+            evidence = _field(item, target.item_filter_field)
+        except AdapterError as exc:
+            raise AdapterError(
+                "Embedded-data item filter evidence is structurally invalid "
+                f"at source item {index}: {exc}"
+            ) from exc
+        if evidence is None:
+            raise AdapterError(
+                "Embedded-data item filter evidence is null or empty "
+                f"at source item {index}"
+            )
+        if isinstance(evidence, bool):
+            evidence_text = str(evidence)
+        elif isinstance(evidence, str):
+            evidence_text = " ".join(evidence.split())
+        elif isinstance(evidence, int):
+            evidence_text = str(evidence)
+        elif isinstance(evidence, float) and math.isfinite(evidence):
+            evidence_text = str(evidence)
+        else:
+            raise AdapterError(
+                "Embedded-data item filter evidence has an unsupported or ambiguous "
+                f"type at source item {index}"
+            )
+        if not evidence_text:
+            raise AdapterError(
+                "Embedded-data item filter evidence is null or empty "
+                f"at source item {index}"
+            )
+        if item_filter.search(evidence_text):
+            filtered.append(item)
+    return filtered
 
 
 def _require_exact_attribution(

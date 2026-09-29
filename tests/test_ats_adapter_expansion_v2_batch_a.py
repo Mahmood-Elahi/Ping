@@ -8,6 +8,8 @@ from pathlib import Path
 
 import yaml
 
+from tests.company_careers_reliability_assertions import with_reliability_repairs
+
 from scripts import company_watchlist_common, investigate_remaining_companies, investigate_unknown_companies
 from scripts import validate_ats_adapter_expansion_v2_batch_a as batch
 from scripts import validate_company_registry as registry_validator
@@ -259,7 +261,10 @@ class BatchArtifactTests(unittest.TestCase):
             [row["name"] for row in self.production[:336]],
             [row["name"] for row in self.validated[:336]],
         )
-        self.assertEqual(self.production[336:338], self.validated[336:])
+        self.assertEqual(
+            self.production[336:338],
+            with_reliability_repairs(self.validated[336:]),
+        )
         production_names = [row["name"] for row in self.production]
         self.assertEqual(production_names[338], "Carbon Upcycling")
         for name in ("CN Rail", "OHB SE"):

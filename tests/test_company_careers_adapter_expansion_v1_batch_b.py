@@ -273,23 +273,28 @@ class SmartRecruitersAdapterTests(unittest.TestCase):
             )
 
     @patch.object(smartrecruiters.time, "sleep", return_value=None)
-    def test_pagination_is_bounded_and_total_must_not_change(self, _sleep):
+    def test_total_change_restarts_once_without_union(self, _sleep):
         first_id = "744000142609254"
         second_id = "744000142609255"
         responses = [
             smartrecruiters_listing(first_id, total=2, offset=0),
             smartrecruiters_detail(first_id),
             smartrecruiters_listing(second_id, total=3, offset=1),
+            smartrecruiters_listing(first_id, total=2, offset=0),
+            smartrecruiters_detail(first_id),
+            smartrecruiters_listing(second_id, total=2, offset=1),
+            smartrecruiters_detail(second_id),
         ]
         session = Session(responses)
-        with self.assertRaisesRegex(AdapterError, "changed during pagination"):
-            smartrecruiters.fetch_jobs(
-                session,
-                smartrecruiters_target(max_pages=2, max_jobs=2),
-            )
+        jobs = smartrecruiters.fetch_jobs(
+            session,
+            smartrecruiters_target(max_pages=2, max_jobs=2),
+        )
         metadata = source_scan_metadata(session)
-        self.assertFalse(metadata["scan_complete"])
-        self.assertEqual(metadata["scan_completeness_reason"], "inconsistent_total")
+        self.assertEqual([job.job_id for job in jobs], [first_id, second_id])
+        self.assertTrue(metadata["scan_complete"])
+        self.assertTrue(metadata["stabilized_after_collection_retry"])
+        self.assertEqual(metadata["collection_restart_count"], 1)
 
     def test_result_cap_remains_intentionally_incomplete(self):
         session = Session(
@@ -309,24 +314,29 @@ class SmartRecruitersAdapterTests(unittest.TestCase):
         self.assertEqual(len(session.calls), 2)
 
     @patch.object(smartrecruiters.time, "sleep", return_value=None)
-    def test_repeated_pagination_id_fails_closed(self, _sleep):
+    def test_repeated_pagination_id_twice_stays_incomplete(self, _sleep):
         job_id = "744000142609254"
         session = Session(
             [
                 smartrecruiters_listing(job_id, total=2, offset=0),
                 smartrecruiters_detail(job_id),
                 smartrecruiters_listing(job_id, total=2, offset=1),
+                smartrecruiters_listing(job_id, total=2, offset=0),
+                smartrecruiters_detail(job_id),
+                smartrecruiters_listing(job_id, total=2, offset=1),
             ]
         )
 
-        with self.assertRaisesRegex(AdapterError, "repeated stable job ID"):
-            smartrecruiters.fetch_jobs(
-                session, smartrecruiters_target(max_pages=2, max_jobs=2)
-            )
+        jobs = smartrecruiters.fetch_jobs(
+            session, smartrecruiters_target(max_pages=2, max_jobs=2)
+        )
 
         metadata = source_scan_metadata(session)
+        self.assertEqual([job.job_id for job in jobs], [job_id])
         self.assertFalse(metadata["scan_complete"])
-        self.assertEqual(metadata["stop_reason"], "repeated_job_id")
+        self.assertEqual(metadata["collection_restart_count"], 1)
+        self.assertTrue(metadata["collection_retry_exhausted"])
+        self.assertEqual(metadata["stop_reason"], "collection_changed_during_scan")
 
     def test_captcha_shape_and_invalid_limits_fail_without_fallback(self):
         with self.assertRaisesRegex(AdapterError, "CAPTCHA"):
@@ -335,7 +345,7 @@ class SmartRecruitersAdapterTests(unittest.TestCase):
                 smartrecruiters_target(),
             )
         with self.assertRaisesRegex(AdapterError, "max_pages"):
-            smartrecruiters.fetch_jobs(Session([]), smartrecruiters_target(max_pages=6))
+            smartrecruiters.fetch_jobs(Session([]), smartrecruiters_target(max_pages=11))
 
 
 class HawkSearchV2AdapterTests(unittest.TestCase):
@@ -537,7 +547,8 @@ class BatchBRecoveryValidationTests(unittest.TestCase):
 
         renesas = next(row for row in production_data if row["name"] == "Renesas Electronics")
         self.assertEqual(names.count("Renesas Electronics"), 1)
-        self.assertEqual(renesas["platform"], "static_html")
+        self.assertEqual(renesas["platform"], "smartrecruiters")
+        self.assertEqual(renesas["slug"], "RenesasElectronics")
 
     def test_additional_smartrecruiters_candidates_are_safely_classified(self):
         rows = {

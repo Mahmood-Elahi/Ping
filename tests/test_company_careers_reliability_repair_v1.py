@@ -29,6 +29,7 @@ class Response:
         self.text = text if text is not None else json.dumps(payload)
         self.headers = dict(headers or {})
         self.url = url
+        self.content = self.text.encode("utf-8")
 
     def json(self):
         return self.payload
@@ -59,10 +60,10 @@ class CompanyCareersReliabilityRepairV1Tests(unittest.TestCase):
         "data": {"job_search_with_featured_jobs": {"all_jobs": []}}
     }
 
-    def test_uber_server_rendered_contract_fails_closed_on_unproven_empty_page(self):
+    def test_uber_api_contract_rejects_non_json_response(self):
         target = CompanyTarget(name="Uber", platform="uber", max_pages=1)
         session = Session(gets=[Response(text="<!doctype html><html><body>changed</body></html>")])
-        with self.assertRaisesRegex(AdapterError, "did not prove an empty"):
+        with self.assertRaisesRegex(AdapterError, "non-JSON"):
             uber.fetch_jobs(session, target)
 
     def test_meta_reuses_one_context_for_all_parent_inventory_terms(self):

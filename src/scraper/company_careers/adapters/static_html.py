@@ -1512,8 +1512,11 @@ def _require_card_attribution(card: Any, target: CompanyTarget) -> None:
 def _official_url(url: str, target: CompanyTarget) -> str:
     parsed = urlparse(url)
     host = (parsed.hostname or "").casefold()
-    listing_host = (urlparse(str(target.listing_url)).hostname or "").casefold()
-    if parsed.scheme == "http" and host == listing_host and _allowed_host(host, target.allowed_apply_hosts):
+    # Some reviewed first-party listings still emit an ``http`` link for an
+    # explicitly allowlisted ATS host even though that host serves HTTPS.  The
+    # allowlist is the source contract; upgrading its scheme does not broaden
+    # host trust and avoids accepting an insecure apply URL.
+    if parsed.scheme == "http" and _allowed_host(host, target.allowed_apply_hosts):
         parsed = parsed._replace(scheme="https")
     if parsed.scheme != "https" or not _allowed_host(host, target.allowed_apply_hosts):
         raise AdapterError("Static HTML job has no official allowed-host apply URL")

@@ -610,3 +610,281 @@ company_careers_reliability_repairs:
     external_id_regex: /sanctuary-ai/([0-9]+)/?
     allow_structural_linkless_cards: true
     single_page_collection: true
+  - name: ClickHouse
+    platform: ashby
+    careers_url: https://clickhouse.com/company/careers
+    slug: clickhouse
+    source_identity_regex: \bClickHouse\b
+    allowed_apply_hosts:
+      - jobs.ashbyhq.com
+    max_pages: 1
+    max_jobs: 10000
+    max_response_bytes: 3000000
+    evidence_source: https://clickhouse.com/company/careers
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00+00:00'
+  - name: Zoom
+    platform: public_json
+    careers_url: https://www.careers.zoom.us/job-results
+    endpoint_url: https://shazamme.io/job-results/a5bcebfa-981b-46cd-b46f-ad91a50505b8
+    endpoint_variant: shazamme_job_results_v1
+    site_id: a5bcebfa-981b-46cd-b46f-ad91a50505b8
+    identity_regex: '\bZoom(?: Careers)?\b'
+    job_attribution_regex: ^Zoom$
+    apply_url_template: https://www.careers.zoom.us{path}
+    allowed_source_hosts:
+      - shazamme.io
+    allowed_apply_hosts:
+      - www.careers.zoom.us
+    max_pages: 1
+    max_jobs: 20000
+    max_response_bytes: 3000000
+    evidence_source: https://www.careers.zoom.us/job-results
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00+00:00'
+  - name: CN Rail
+    platform: sap_successfactors
+    careers_url: https://www.cn.ca/en/careers
+    search_url: https://careers.cn.ca/search/
+    endpoint_url: https://careers.cn.ca/services/recruiting/v1/jobs
+    endpoint_variant: rmk_columnized
+    source_identity_regex: Canadian National|\bCN\b
+    identity_regex: Canadian National|\bCN\b
+    allowed_apply_hosts:
+      - careers.cn.ca
+    locale: en_US
+    page_size: 10
+    max_pages: 20
+    max_jobs: 500
+    max_response_bytes: 3000000
+    evidence_source: https://www.cn.ca/en/careers
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00+00:00'
+  - name: Dell Technologies
+    platform: oracle_recruiting
+    careers_url: https://enterpriseplatform.dell.com/hcmUI/CandidateExperience/en/sites/careers/jobs
+    endpoint_url: https://enterpriseplatform.dell.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+    endpoint_variant: recruiting_ce_v1
+    site_number: CX_1001
+    locale: en
+    source_identity_regex: Dell Technologies|Dell Careers
+    identity_regex: Dell Technologies|Dell Careers
+    allowed_source_hosts:
+      - enterpriseplatform.dell.com
+    allowed_apply_hosts:
+      - enterpriseplatform.dell.com
+    max_pages: 5
+    max_jobs: 120
+    max_response_bytes: 3000000
+    evidence_source: https://jobs.dell.com/en/search-jobs
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00+00:00'
+  - name: Goldman Sachs
+    platform: browser_rendered_html
+    careers_url: https://www.goldmansachs.com/careers
+    listing_url: https://higher.gs.com/results
+    endpoint_variant: browser_rendered_html_v1
+    browser_wait_selector: a[href^='/roles/']
+    browser_scroll_steps: 0
+    browser_static_variant: server_rendered_links
+    browser_identity_selector: head title
+    browser_identity_regex: Goldman Sachs
+    listing_selector: a[href^=/roles/]
+    job_card_selector: a[href^=/roles/]
+    title_selector: span.gs-uitk-mb-1
+    location_selector: div[data-testid=location]
+    detail_link_selector: :self
+    external_id_regex: /roles/([0-9]+)$
+    allowed_apply_hosts:
+      - higher.gs.com
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: https://higher.gs.com/results
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00+00:00'
+  - name: Lightspeed Commerce
+    platform: static_html
+    careers_url: https://www.lightspeedhq.com/careers/
+    identity_url: https://www.lightspeedhq.com/careers/openings/
+    listing_url: https://www.lightspeedhq.com/careers/openings/
+    endpoint_variant: server_rendered_cards
+    source_identity_regex: Lightspeed
+    identity_regex: Lightspeed
+    listing_selector: ul.filter__results__list
+    job_card_selector: li.job
+    title_selector: span.job-title
+    location_selector: span.job-office
+    department_selector: span.job-dept
+    detail_link_selector: a[href*=/careers/job/]
+    external_id_regex: /([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})(?:[/?]|$)
+    allowed_apply_hosts:
+      - www.lightspeedhq.com
+    single_page_collection: true
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: https://www.lightspeedhq.com/careers/openings/
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00+00:00'
+  - name: MediaTek
+    platform: browser_rendered_html
+    careers_url: https://careers.mediatek.com/en/jobs
+    listing_url: https://careers.mediatek.com/en/jobs?query=&locations=
+    endpoint_variant: browser_rendered_html_v1
+    browser_wait_selector: a[href*='/en/jobs/']
+    browser_scroll_steps: 0
+    browser_static_variant: server_rendered_links
+    browser_identity_selector: head title
+    browser_identity_regex: MediaTek
+    listing_selector: a[href*=/en/jobs/]
+    job_card_selector: a[href*=/en/jobs/]
+    title_selector: h1.h3
+    detail_link_selector: :self
+    external_id_regex: /jobs/([A-Z]{3}[0-9]+)(?:[/?]|$)
+    allowed_apply_hosts:
+      - careers.mediatek.com
+    single_page_collection: true
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: https://careers.mediatek.com/en/jobs
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00+00:00'
+  - name: Stantec
+    platform: browser_rendered_html
+    careers_url: https://www.stantec.com/en/careers
+    listing_url: https://stantec.jobs/jobs/?q=Calgary
+    endpoint_variant: browser_rendered_html_v1
+    source_identity_regex: Stantec
+    browser_wait_selector: a[href*="/job/"]
+    browser_scroll_steps: 0
+    browser_static_variant: server_rendered_links
+    browser_identity_selector: title
+    browser_identity_regex: Stantec
+    listing_selector: main
+    job_card_selector: a[href*="/job/"]
+    title_selector: h2
+    location_selector: p:nth-child(3)
+    detail_link_selector: :self
+    external_id_regex: /([0-9A-F]{32})/job$
+    allowed_apply_hosts:
+      - stantec.jobs
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: https://stantec.jobs/jobs/?q=Calgary
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00+00:00'
+  - name: Renesas Electronics
+    platform: smartrecruiters
+    careers_url: https://jobs.renesas.com
+    slug: RenesasElectronics
+    endpoint_url: https://api.smartrecruiters.com/v1/companies/RenesasElectronics/postings
+    endpoint_variant: companies_postings_v1
+    identity_regex: ^Renesas Electronics$
+    source_identity_regex: Renesas Electronics
+    allowed_apply_hosts:
+      - jobs.smartrecruiters.com
+    page_size: 100
+    max_pages: 10
+    max_jobs: 1000
+    max_response_bytes: 3000000
+    evidence_source: https://api.smartrecruiters.com/v1/companies/RenesasElectronics/postings
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00+00:00'
+  - name: Yaskawa Electric
+    platform: static_html
+    careers_url: https://www.yaskawa-global.com/jobs
+    identity_url: https://www.yaskawa.com/about-us/careers/search-jobs
+    listing_url: https://www.yaskawa.com/about-us/careers/search-jobs
+    endpoint_variant: server_rendered_cards
+    source_identity_regex: Search Jobs - Yaskawa|Yaskawa America
+    identity_regex: Search Jobs - Yaskawa|Yaskawa America
+    listing_selector: tbody.table-data
+    job_card_selector: tbody.table-data tr
+    title_selector: td:nth-child(2) a[href*=opportunityId=]
+    location_selector: td:nth-child(3)
+    date_selector: td:nth-child(4)
+    department_selector: td:nth-child(5)
+    detail_link_selector: td:nth-child(2) a[href*=opportunityId=]
+    external_id_regex: opportunityId=([0-9a-f-]{36})
+    allowed_apply_hosts:
+      - recruiting.ultipro.com
+    single_page_collection: true
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: https://www.yaskawa.com/about-us/careers/search-jobs
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00+00:00'
+  - name: IMC Trading
+    platform: javascript_embedded_data
+    careers_url: https://www.imc.com/us/careers
+    listing_url: https://www.imc.com/us/search-careers
+    endpoint_variant: next_flight_collection
+    embedded_script_selector: script
+    embedded_json_path: jobs
+    id_field: id
+    title_field: title
+    url_field: id
+    apply_url_template: https://www.imc.com/us/careers/jobs/{id}
+    item_filter_field: metadata[3].value
+    item_filter_regex: ^us$
+    location_fields:
+      - offices
+    department_field: departments
+    date_field: updated_at
+    source_identity_regex: \bIMC\b
+    allowed_apply_hosts:
+      - www.imc.com
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    max_scripts: 20
+    max_script_bytes: 1000000
+    evidence_source: https://www.imc.com/us/search-careers
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00+00:00'
+  - name: Mercedes-Benz
+    platform: beesite
+    careers_url: https://jobs.mercedes-benz.com/en
+    identity_url: https://jobs.mercedes-benz.com/en
+    endpoint_url: https://jobs.api.mercedes-benz.com/search
+    endpoint_variant: gjb_search_v1
+    locale: en
+    source_identity_regex: Mercedes-Benz
+    identity_regex: Mercedes-Benz
+    job_attribution_regex: '(?i)(Mercedes(?:[- ]Benz|[- ]AMG| pay)?|Daimler|Athlon|Star Assembly|CARS Technik|Anota)'
+    allowed_source_hosts:
+      - jobs.api.mercedes-benz.com
+    allowed_apply_hosts:
+      - jobs.mercedes-benz.com
+    page_size: 10
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: https://jobs.mercedes-benz.com/en
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00+00:00'
+  - name: Porsche
+    platform: beesite
+    careers_url: https://jobs.porsche.com/
+    identity_url: https://jobs.porsche.com/
+    endpoint_url: https://porsche-beesite-production-gjb.app.beesite.de/search/
+    endpoint_variant: gjb_search_v1
+    locale: en
+    source_identity_regex: Porsche
+    identity_regex: Porsche
+    job_attribution_regex: '(?i)(Porsche|MHP|V4Smart)'
+    allowed_source_hosts:
+      - porsche-beesite-production-gjb.app.beesite.de
+    allowed_apply_hosts:
+      - jobs.porsche.com
+    page_size: 10
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: https://jobs.porsche.com/
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00+00:00'

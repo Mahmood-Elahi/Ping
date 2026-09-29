@@ -17,6 +17,15 @@ from src.scraper.company_careers.models import (
     publish_source_scan_metadata,
 )
 from src.scraper.company_careers.listing_completion import AdaptiveListingCompletion
+from src.scraper.company_careers.mutable_collection import (
+    fetch_with_mutation_restart,
+    finish_changed,
+    finish_terminal,
+    immutable_job_fingerprint,
+    initialize_mutable_collection,
+    mark_collection_changed,
+    record_total_observation,
+)
 
 
 PAGE_SIZE = 24
@@ -40,12 +49,24 @@ def fetch_jobs(
     """Fetch a bounded, deterministically paginated Oracle job collection."""
     validate_target(target)
     timeout = max(1, min(int(timeout), MAX_TIMEOUT_SECONDS))
+    return fetch_with_mutation_restart(
+        session, lambda: _fetch_jobs_once(session, target, timeout)
+    )
+
+
+def _fetch_jobs_once(
+    session: requests.Session,
+    target: CompanyTarget,
+    timeout: int,
+) -> List[JobRecord]:
+    """Traverse one Oracle snapshot, marking observable mutation incomplete."""
     max_pages = max(1, int(target.max_pages))
     if max_pages > MAX_PAGES:
         raise AdapterError(f"Oracle Recruiting max_pages cannot exceed {MAX_PAGES}")
 
     jobs: List[JobRecord] = []
     seen_ids: set[str] = set()
+    seen_fingerprints: dict[str, tuple[Any, ...]] = {}
     expected_total: Optional[int] = None
     metadata = SourceScanMetadata(
         endpoint_variant="recruiting_ce_job_requisitions",
@@ -61,6 +82,7 @@ def fetch_jobs(
         allow_listing_only_second_stage=True,
     )
     listing_budget.record(metadata)
+    initialize_mutable_collection(metadata)
     publish_source_scan_metadata(session, metadata)
 
     try:
@@ -80,16 +102,13 @@ def fetch_jobs(
             metadata["pages_completed"] += 1
             page_jobs = envelope["requisitionList"]
             total = envelope["TotalJobsCount"]
-            if expected_total is None:
-                expected_total = total
-                metadata["total_available"] = total
-            elif total != expected_total:
-                metadata["stop_reason"] = "inconsistent_total"
-                metadata["scan_completeness_reason"] = "inconsistent_total"
-                raise AdapterError(
-                    "Oracle Recruiting TotalJobsCount changed during pagination: "
-                    f"{expected_total} -> {total}"
-                )
+            total_changed = record_total_observation(
+                metadata,
+                total,
+                offset=offset,
+                source_label="Oracle Recruiting",
+            )
+            expected_total = total
             listing_budget.record_decision(
                 metadata,
                 expected_total,
@@ -99,34 +118,67 @@ def fetch_jobs(
             )
 
             page_ids: set[str] = set()
+            page_normalized = 0
+            page_overlap = 0
             for item in page_jobs:
                 job = _normalize_job(item, target)
-                if job.job_id in seen_ids or job.job_id in page_ids:
+                if job.job_id in page_ids:
                     metadata["stop_reason"] = "repeated_job_id"
                     metadata["scan_completeness_reason"] = "pagination_failure"
                     raise AdapterError(
-                        f"Oracle Recruiting repeated stable job ID: {job.job_id}"
+                        "Oracle Recruiting repeated stable job ID within one page: "
+                        f"{job.job_id}"
                     )
                 page_ids.add(job.job_id)
+                fingerprint = immutable_job_fingerprint(job)
+                if job.job_id in seen_ids:
+                    if seen_fingerprints[job.job_id] != fingerprint:
+                        metadata["stop_reason"] = "conflicting_repeated_job_id"
+                        metadata["scan_completeness_reason"] = "pagination_failure"
+                        raise AdapterError(
+                            "Oracle Recruiting returned conflicting records for "
+                            f"stable job ID: {job.job_id}"
+                        )
+                    page_overlap += 1
+                    continue
                 seen_ids.add(job.job_id)
+                seen_fingerprints[job.job_id] = fingerprint
                 jobs.append(job)
+                page_normalized += 1
+
+            if page_overlap:
+                mark_collection_changed(
+                    metadata, offset=offset, overlap_count=page_overlap
+                )
 
             metadata["pages"].append(
                 {
                     "offset": offset,
                     "jobs_returned": len(page_jobs),
-                    "jobs_normalized": len(page_ids),
+                    "jobs_normalized": page_normalized,
                     "reported_total": total,
                 }
             )
             metadata["pages_fetched"] = len(metadata["pages"])
             metadata["jobs_normalized"] = len(jobs)
 
-            if len(jobs) == total:
-                metadata.update(
-                    scan_complete=True,
-                    scan_completeness_reason="reported_total_reached",
-                    stop_reason="reported_total_reached",
+            enumerated = offset + len(page_jobs)
+            if total_changed or page_overlap:
+                finish_changed(
+                    metadata, terminal_evidence="collection_changed_during_scan"
+                )
+                break
+            if total > offset and not page_jobs:
+                mark_collection_changed(metadata, offset=offset)
+                finish_changed(metadata, terminal_evidence="premature_terminal_page")
+                break
+            if len(page_jobs) < PAGE_SIZE and enumerated < total:
+                mark_collection_changed(metadata, offset=offset)
+                finish_changed(metadata, terminal_evidence="premature_short_page")
+                break
+            if enumerated == total and len(jobs) == total:
+                finish_terminal(
+                    metadata, complete_reason="reported_total_reached"
                 )
                 break
             if page_index + 1 >= int(metadata["effective_listing_request_ceiling"]):
@@ -170,17 +222,35 @@ def validate_target(target: CompanyTarget) -> None:
         raise AdapterError(f"Oracle Recruiting target is missing {', '.join(missing)}")
 
     endpoint = urlparse(str(target.endpoint_url))
+    careers = urlparse(str(target.careers_url))
+    endpoint_host = (endpoint.hostname or "").casefold()
+    allowed_source_hosts = {
+        str(value).strip().casefold() for value in target.allowed_source_hosts
+    }
+    if any(
+        not value
+        or "://" in value
+        or "/" in value
+        or "@" in value
+        or value.startswith(".")
+        for value in allowed_source_hosts
+    ):
+        raise AdapterError("Oracle Recruiting allowed_source_hosts contains an invalid host")
+    supported_source_host = endpoint_host.endswith(
+        ".oraclecloud.com"
+    ) or endpoint_host in allowed_source_hosts
     if (
         endpoint.scheme != "https"
         or not endpoint.hostname
-        or not endpoint.hostname.casefold().endswith(".oraclecloud.com")
+        or endpoint.username
+        or endpoint.password
+        or not supported_source_host
         or endpoint.path.rstrip("/") != EXPECTED_ENDPOINT_PATH
         or endpoint.query
         or endpoint.fragment
     ):
         raise AdapterError("Oracle Recruiting endpoint_url is not a supported public Oracle endpoint")
 
-    careers = urlparse(str(target.careers_url))
     path_parts = [part for part in careers.path.split("/") if part]
     locale = str(target.locale).strip()
     if (
@@ -276,15 +346,8 @@ def _parse_envelope(response: Any, target: CompanyTarget, offset: int) -> Mappin
         raise AdapterError("Oracle Recruiting response site number does not match configuration")
     if envelope["TotalJobsCount"] == 0 and requisitions:
         raise AdapterError("Oracle Recruiting zero-job envelope unexpectedly contained requisitions")
-    if envelope["TotalJobsCount"] > offset and not requisitions:
-        raise AdapterError("Oracle Recruiting response ended before its reported total job count")
     if offset + len(requisitions) > envelope["TotalJobsCount"]:
         raise AdapterError("Oracle Recruiting page exceeded its reported total job count")
-    if (
-        len(requisitions) < PAGE_SIZE
-        and offset + len(requisitions) < envelope["TotalJobsCount"]
-    ):
-        raise AdapterError("Oracle Recruiting short page ended before its reported total job count")
     return envelope
 
 

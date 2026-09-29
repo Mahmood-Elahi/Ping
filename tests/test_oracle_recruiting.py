@@ -284,7 +284,7 @@ class OracleRecruitingAdapterTests(unittest.TestCase):
         self.assertTrue(source_scan_metadata(session)["scan_complete"])
 
     @patch.object(oracle_recruiting.time, "sleep", return_value=None)
-    def test_changing_total_and_repeated_ids_fail_closed(self, _sleep):
+    def test_changing_total_and_repeated_ids_restart_without_union(self, _sleep):
         first = [requisition(str(index)) for index in range(24)]
         changed = FakeSession(
             [
@@ -296,33 +296,54 @@ class OracleRecruitingAdapterTests(unittest.TestCase):
                         offset=24,
                     )
                 ),
+                FakeResponse(payload(first, total=48, offset=0)),
+                FakeResponse(
+                    payload(
+                        [requisition(str(index)) for index in range(24, 48)],
+                        total=48,
+                        offset=24,
+                    )
+                ),
             ]
         )
-        with self.assertRaisesRegex(AdapterError, "changed during pagination"):
-            oracle_recruiting.fetch_jobs(changed, target(max_pages=2))
+        changed_jobs = oracle_recruiting.fetch_jobs(changed, target(max_pages=2))
         changed_metadata = source_scan_metadata(changed)
-        self.assertFalse(changed_metadata["scan_complete"])
-        self.assertEqual(changed_metadata["scan_completeness_reason"], "inconsistent_total")
+        self.assertEqual(len(changed_jobs), 48)
+        self.assertTrue(changed_metadata["scan_complete"])
+        self.assertTrue(changed_metadata["stabilized_after_collection_retry"])
+        self.assertEqual(changed_metadata["collection_restart_count"], 1)
 
         repeated = FakeSession(
             [
                 FakeResponse(payload(first, total=25, offset=0)),
                 FakeResponse(payload([requisition("0")], total=25, offset=24)),
+                FakeResponse(payload(first, total=25, offset=0)),
+                FakeResponse(payload([requisition("24")], total=25, offset=24)),
             ]
         )
-        with self.assertRaisesRegex(AdapterError, "repeated stable job ID"):
-            oracle_recruiting.fetch_jobs(repeated, target(max_pages=2))
+        repeated_jobs = oracle_recruiting.fetch_jobs(repeated, target(max_pages=2))
         repeated_metadata = source_scan_metadata(repeated)
-        self.assertFalse(repeated_metadata["scan_complete"])
-        self.assertEqual(repeated_metadata["stop_reason"], "repeated_job_id")
+        self.assertEqual(len(repeated_jobs), 25)
+        self.assertTrue(repeated_metadata["scan_complete"])
+        self.assertTrue(repeated_metadata["stabilized_after_collection_retry"])
 
-    def test_short_page_before_reported_total_fails_closed(self):
+    def test_short_page_before_reported_total_retries_then_stays_incomplete(self):
         session = FakeSession(
-            [FakeResponse(payload([requisition("1")], total=2, offset=0))]
+            [
+                FakeResponse(payload([requisition("1")], total=2, offset=0)),
+                FakeResponse(payload([requisition("1")], total=2, offset=0)),
+            ]
         )
-        with self.assertRaisesRegex(AdapterError, "short page ended before"):
-            oracle_recruiting.fetch_jobs(session, target(max_pages=1))
-        self.assertFalse(source_scan_metadata(session)["scan_complete"])
+        jobs = oracle_recruiting.fetch_jobs(session, target(max_pages=1))
+        metadata = source_scan_metadata(session)
+        self.assertEqual([job.job_id for job in jobs], ["1"])
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["collection_restart_count"], 1)
+        self.assertTrue(metadata["collection_retry_exhausted"])
+        self.assertEqual(
+            metadata["scan_completeness_reason"],
+            "collection_changed_during_scan",
+        )
 
     def test_malformed_http_200_is_rejected(self):
         with self.assertRaisesRegex(AdapterError, "search envelope"):
@@ -339,6 +360,46 @@ class OracleRecruitingAdapterTests(unittest.TestCase):
                 target(endpoint_url="https://example.test/jobs"),
             )
         self.assertEqual(session.calls, [])
+
+    def test_arbitrary_same_host_endpoint_is_not_implicitly_trusted(self):
+        same_host = target(
+            careers_url=(
+                "https://careers.example.test/"
+                "hcmUI/CandidateExperience/en/sites/CX_1/jobs"
+            ),
+            endpoint_url=(
+                "https://careers.example.test/"
+                "hcmRestApi/resources/latest/recruitingCEJobRequisitions"
+            ),
+        )
+
+        with self.assertRaisesRegex(AdapterError, "supported public Oracle endpoint"):
+            oracle_recruiting.validate_target(same_host)
+
+    def test_explicit_vanity_source_host_still_requires_exact_oracle_path(self):
+        vanity = target(
+            careers_url=(
+                "https://enterpriseplatform.dell.com/"
+                "hcmUI/CandidateExperience/en/sites/careers/jobs"
+            ),
+            endpoint_url=(
+                "https://enterpriseplatform.dell.com/"
+                "hcmRestApi/resources/latest/recruitingCEJobRequisitions"
+            ),
+            site_number="CX_1001",
+            allowed_source_hosts=["enterpriseplatform.dell.com"],
+        )
+        oracle_recruiting.validate_target(vanity)
+
+        with self.assertRaisesRegex(AdapterError, "supported public Oracle endpoint"):
+            oracle_recruiting.validate_target(
+                target(
+                    careers_url=vanity.careers_url,
+                    endpoint_url="https://enterpriseplatform.dell.com/jobs",
+                    site_number="CX_1001",
+                    allowed_source_hosts=["enterpriseplatform.dell.com"],
+                )
+            )
 
     @patch.object(oracle_recruiting.time, "sleep", return_value=None)
     def test_retryable_failure_is_bounded_and_recovers(self, sleep):

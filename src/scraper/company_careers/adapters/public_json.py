@@ -32,7 +32,8 @@ from src.scraper.company_careers.mutable_collection import (
 
 AURORA_JOBS_INDEX = "aurora_jobs_index_v1"
 WORDPRESS_ROLES = "wordpress_roles_v1"
-SUPPORTED_VARIANTS = {AURORA_JOBS_INDEX, WORDPRESS_ROLES}
+SHAZAMME_JOB_RESULTS = "shazamme_job_results_v1"
+SUPPORTED_VARIANTS = {AURORA_JOBS_INDEX, WORDPRESS_ROLES, SHAZAMME_JOB_RESULTS}
 HEADERS = {
     "Accept": "application/json",
     "User-Agent": "job-radar/1.0 (read-only public careers scan)",
@@ -41,6 +42,44 @@ UUID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
     re.I,
 )
+SHAZAMME_ATOMIC_COLLECTIONS = {
+    "a5bcebfa-981b-46cd-b46f-ad91a50505b8": {
+        "careers_host": "www.careers.zoom.us",
+        "endpoint_host": "shazamme.io",
+        "source_job_host": "careers.zoom.com",
+        "advertiser": "Zoom",
+        "site_name": "Zoom Careers",
+    }
+}
+SHAZAMME_PAGINATION_HEADERS = {
+    "content-range",
+    "link",
+    "x-has-more",
+    "x-limit",
+    "x-next-page",
+    "x-offset",
+    "x-page",
+    "x-page-count",
+    "x-per-page",
+    "x-total-pages",
+}
+SHAZAMME_TOTAL_HEADERS = ("x-total-count", "x-total")
+SHAZAMME_PAGINATION_FIELDS = {
+    "count",
+    "cursor",
+    "hasmore",
+    "limit",
+    "next",
+    "nextcursor",
+    "nextpage",
+    "offset",
+    "page",
+    "pagecount",
+    "pagesize",
+    "total",
+    "totalcount",
+    "totalpages",
+}
 
 
 def fetch_jobs(
@@ -49,6 +88,8 @@ def fetch_jobs(
     timeout: int = 20,
 ) -> list[JobRecord]:
     validate_target(target)
+    if target.endpoint_variant == SHAZAMME_JOB_RESULTS:
+        return _fetch_shazamme_collection(session, target, timeout)
     if target.endpoint_variant == WORDPRESS_ROLES:
         return fetch_with_mutation_restart(
             session, lambda: _fetch_wordpress_once(session, target, timeout)
@@ -63,6 +104,9 @@ def validate_target(target: CompanyTarget) -> None:
         raise AdapterError("Public JSON target requires endpoint_url and allowed_apply_hosts")
     endpoint = urlparse(str(target.endpoint_url))
     careers = urlparse(str(target.careers_url or ""))
+    if target.endpoint_variant == SHAZAMME_JOB_RESULTS:
+        _validate_shazamme_target(target, endpoint, careers)
+        return
     if (
         endpoint.scheme != "https"
         or not endpoint.hostname
@@ -83,6 +127,49 @@ def validate_target(target: CompanyTarget) -> None:
         raise AdapterError("Public JSON endpoint path does not match its reviewed variant")
 
 
+def _validate_shazamme_target(
+    target: CompanyTarget, endpoint: Any, careers: Any
+) -> None:
+    site_id = str(target.site_id or "").strip()
+    contract = SHAZAMME_ATOMIC_COLLECTIONS.get(site_id.casefold())
+    allowed_source = {str(value).casefold() for value in target.allowed_source_hosts}
+    allowed_apply = {str(value).casefold() for value in target.allowed_apply_hosts}
+    if (
+        contract is None
+        or endpoint.username
+        or endpoint.password
+        or endpoint.scheme != "https"
+        or (endpoint.hostname or "").casefold() != contract["endpoint_host"]
+        or endpoint.path != f"/job-results/{site_id}"
+        or endpoint.params
+        or endpoint.query
+        or endpoint.fragment
+        or not UUID_RE.fullmatch(site_id)
+        or careers.scheme != "https"
+        or (careers.hostname or "").casefold() != contract["careers_host"]
+        or allowed_source != {contract["endpoint_host"]}
+        or allowed_apply != {contract["careers_host"]}
+    ):
+        raise AdapterError("Shazamme target does not bind one reviewed site and official host")
+    if not target.identity_regex or not target.job_attribution_regex:
+        raise AdapterError("Shazamme target requires page and per-job identity contracts")
+    try:
+        re.compile(str(target.identity_regex), re.I)
+        re.compile(str(target.job_attribution_regex), re.I)
+    except re.error as exc:
+        raise AdapterError(f"Shazamme identity regex is invalid: {exc}") from exc
+    template = str(target.apply_url_template or "")
+    parsed_template = urlparse(template.replace("{path}", "/job"))
+    if (
+        template.count("{path}") != 1
+        or parsed_template.scheme != "https"
+        or (parsed_template.hostname or "").casefold() not in allowed_apply
+        or parsed_template.query
+        or parsed_template.fragment
+    ):
+        raise AdapterError("Shazamme apply_url_template must bind {path} to an official host")
+
+
 def _metadata(target: CompanyTarget) -> SourceScanMetadata:
     metadata = SourceScanMetadata(
         endpoint_variant=target.endpoint_variant,
@@ -95,6 +182,214 @@ def _metadata(target: CompanyTarget) -> SourceScanMetadata:
     )
     initialize_mutable_collection(metadata)
     return metadata
+
+
+def _fetch_shazamme_collection(
+    session: requests.Session,
+    target: CompanyTarget,
+    timeout: int,
+) -> list[JobRecord]:
+    """Fetch a complete client-side collection after proving its official embed."""
+    metadata = _metadata(target)
+    publish_source_scan_metadata(session, metadata)
+    metadata["pages_requested"] = 1
+    identity_response = session.get(
+        str(target.careers_url),
+        headers={**HEADERS, "Accept": "text/html,application/xhtml+xml"},
+        timeout=min(max(1, int(timeout)), 30),
+    )
+    if identity_response.status_code != 200:
+        raise AdapterError(
+            f"Shazamme official careers identity HTTP {identity_response.status_code}"
+        )
+    identity_content = bytes(getattr(identity_response, "content", b"") or b"")
+    if not identity_content or len(identity_content) > int(target.max_response_bytes):
+        raise AdapterError("Shazamme official careers identity response exceeded its bound")
+    final_host = (
+        urlparse(str(getattr(identity_response, "url", target.careers_url))).hostname
+        or ""
+    ).casefold()
+    if final_host not in {str(value).casefold() for value in target.allowed_apply_hosts}:
+        raise AdapterError("Shazamme official careers page redirected outside allowed hosts")
+    identity_text = identity_content.decode("utf-8", errors="replace")
+    if (
+        str(target.site_id) not in identity_text
+        or not re.search(str(target.identity_regex), identity_text, re.I)
+    ):
+        raise AdapterError("Shazamme official careers page did not bind the configured site")
+
+    metadata["pages_requested"] += 1
+    response = _get(session, str(target.endpoint_url), timeout)
+    payload = _json(response, target)
+    metadata["pages_completed"] = 2
+    authoritative_total = _validate_shazamme_atomic_response(response, payload, target)
+    if len(payload) > MAX_RAW_JOBS_PER_SOURCE:
+        raise AdapterError("Shazamme job results exceeded the hard job ceiling")
+
+    jobs: list[JobRecord] = []
+    seen_ids: set[str] = set()
+    seen_urls: set[str] = set()
+    for row in payload:
+        job = _normalize_shazamme(row, target)
+        if job.job_id in seen_ids or job.url in seen_urls:
+            raise AdapterError("Shazamme job results repeated a stable ID or canonical URL")
+        seen_ids.add(job.job_id)
+        seen_urls.add(job.url)
+        jobs.append(job)
+    total = len(jobs)
+    if authoritative_total is not None:
+        record_total_observation(
+            metadata,
+            authoritative_total,
+            offset=0,
+            source_label="Shazamme job results",
+        )
+    metadata.update(
+        jobs_normalized=total,
+        total_available=total,
+        scan_complete=True,
+        scan_completeness_reason="shazamme_atomic_collection_contract",
+        stop_reason="shazamme_atomic_collection_contract",
+        complete_collection_response=True,
+        atomic_collection_contract=True,
+        source_identity_status="verified",
+    )
+    record_terminal_evidence(
+        metadata,
+        "shazamme_atomic_collection_contract",
+        str(target.endpoint_url),
+        has_more=False,
+        terminal_page_observed=True,
+        complete_collection_response=True,
+    )
+    return jobs
+
+
+def _normalize_shazamme(row: Mapping[str, Any], target: CompanyTarget) -> JobRecord:
+    contract = SHAZAMME_ATOMIC_COLLECTIONS[str(target.site_id).casefold()]
+    data = row.get("data")
+    if not isinstance(data, Mapping):
+        raise AdapterError("Shazamme row is missing its data object")
+    external_id = str(data.get("jobID") or "").strip()
+    reference = str(data.get("referenceNumber") or "").strip()
+    title = _html_text(data.get("jobName"))
+    if not UUID_RE.fullmatch(external_id) or not reference or not title:
+        raise AdapterError("Shazamme job is missing a stable UUID, requisition, or title")
+    if data.get("activeStatus") is not True:
+        raise AdapterError("Shazamme complete collection contained a non-active job")
+    if str(data.get("siteID") or "").casefold() != str(target.site_id).casefold():
+        raise AdapterError("Shazamme job crossed configured site identity")
+    attribution = str(data.get("advertiserName") or "").strip()
+    if (
+        attribution.casefold() != contract["advertiser"].casefold()
+        or not re.fullmatch(str(target.job_attribution_regex), attribution, re.I)
+    ):
+        raise AdapterError("Shazamme job failed exact advertiser attribution")
+    site_name = str(data.get("siteName") or "").strip()
+    if (
+        site_name.casefold() != contract["site_name"].casefold()
+        or not re.search(str(target.identity_regex), site_name, re.I)
+    ):
+        raise AdapterError("Shazamme job failed exact site attribution")
+    source_url = urlparse(str(data.get("jobURL") or ""))
+    path = source_url.path
+    if (
+        source_url.scheme != "https"
+        or (source_url.hostname or "").casefold() != contract["source_job_host"]
+        or not re.fullmatch(r"/job-details/[a-z0-9-]+-jobs-[0-9]+", path, re.I)
+        or source_url.query
+        or source_url.fragment
+    ):
+        raise AdapterError("Shazamme job did not expose one canonical detail path")
+    url = str(target.apply_url_template).replace("{path}", path)
+    url = _official_url(url, target)
+    locations = _unique_strings(
+        data.get(field) for field in ("city", "state", "country")
+    )
+    category = str(data.get("category") or "").strip()
+    return JobRecord(
+        job_id=f"public_json:shazamme.io:{external_id}",
+        title=title,
+        company=target.name,
+        location=", ".join(locations),
+        url=url,
+        updated_at=str(data.get("changedOnUTC") or data.get("postedDate") or ""),
+        source=f"public_json:shazamme.io:{str(target.site_id).casefold()}",
+        departments=[category] if category else [],
+        offices=locations,
+        description=_html_text(data.get("fullDescription")) or None,
+        raw_metadata={
+            "external_job_id": external_id,
+            "requisition_id": reference,
+            "site_id": str(target.site_id),
+            "advertiser": attribution,
+            "platform": "public_json",
+            "endpoint_variant": SHAZAMME_JOB_RESULTS,
+        },
+    )
+
+
+def _validate_shazamme_atomic_response(
+    response: Any, payload: Any, target: CompanyTarget
+) -> int | None:
+    """Validate the one reviewed Shazamme full-collection response contract."""
+    final_url = str(getattr(response, "url", "") or target.endpoint_url or "")
+    if final_url != str(target.endpoint_url):
+        raise AdapterError("Shazamme atomic collection redirected outside its reviewed endpoint")
+    headers = {
+        str(name).casefold(): str(value).strip()
+        for name, value in dict(getattr(response, "headers", {}) or {}).items()
+    }
+    signaled = sorted(
+        name for name in SHAZAMME_PAGINATION_HEADERS if headers.get(name)
+    )
+    if signaled:
+        raise AdapterError(
+            "Shazamme atomic collection exposed pagination or truncation signals: "
+            + ", ".join(signaled)
+        )
+    if not isinstance(payload, list) or not all(
+        isinstance(row, Mapping) and set(row) == {"data"} for row in payload
+    ):
+        raise AdapterError(
+            "Shazamme atomic collection must be one unwrapped array of data rows"
+        )
+    for row in payload:
+        data = row["data"]
+        if not isinstance(data, Mapping):
+            raise AdapterError("Shazamme atomic collection row is missing its data object")
+        pagination_fields = sorted(
+            str(name)
+            for name in data
+            if str(name).casefold() in SHAZAMME_PAGINATION_FIELDS
+        )
+        if pagination_fields:
+            raise AdapterError(
+                "Shazamme atomic collection row exposed pagination metadata: "
+                + ", ".join(pagination_fields)
+            )
+    totals: list[int] = []
+    for name in SHAZAMME_TOTAL_HEADERS:
+        if not headers.get(name):
+            continue
+        value = headers[name]
+        if not value.isdigit():
+            raise AdapterError(f"Shazamme {name} must be a non-negative integer")
+        totals.append(int(value))
+    if totals and (len(set(totals)) != 1 or totals[0] != len(payload)):
+        raise AdapterError("Shazamme source-provided total conflicts with returned rows")
+    return totals[0] if totals else None
+
+
+def _unique_strings(values: Any) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = " ".join(str(value or "").split())
+        if text and text.casefold() not in seen:
+            seen.add(text.casefold())
+            result.append(text)
+    return result
 
 
 def _fetch_aurora_index(

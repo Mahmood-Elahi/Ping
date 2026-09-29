@@ -9,12 +9,17 @@ from src.scraper.company_careers.registry import load_target_companies
 
 
 class Response:
-    def __init__(self, payload, *, headers=None, status_code=200):
-        self.payload = payload
+    def __init__(self, payload, *, headers=None, status_code=200, url=""):
+        self.payload = payload if isinstance(payload, (dict, list)) else None
         self.status_code = status_code
         self.headers = {"content-type": "application/json", **(headers or {})}
-        self.content = json.dumps(payload).encode()
+        self.content = (
+            json.dumps(payload).encode()
+            if self.payload is not None
+            else str(payload).encode()
+        )
         self.text = self.content.decode()
+        self.url = url
 
     def json(self):
         return self.payload
@@ -117,7 +122,162 @@ def wp_response(rows, *, total, pages):
     )
 
 
+def shazamme_target(**overrides):
+    site_id = "a5bcebfa-981b-46cd-b46f-ad91a50505b8"
+    values = dict(
+        name="Zoom",
+        platform="public_json",
+        careers_url="https://www.careers.zoom.us/job-results",
+        endpoint_url=f"https://shazamme.io/job-results/{site_id}",
+        endpoint_variant=public_json.SHAZAMME_JOB_RESULTS,
+        site_id=site_id,
+        identity_regex=r"\bZoom(?: Careers)?\b",
+        job_attribution_regex=r"^Zoom$",
+        apply_url_template="https://www.careers.zoom.us{path}",
+        allowed_source_hosts=["shazamme.io"],
+        allowed_apply_hosts=["www.careers.zoom.us"],
+        max_response_bytes=3_000_000,
+    )
+    values.update(overrides)
+    return CompanyTarget(**values)
+
+
+def shazamme_row(index=1, **overrides):
+    data = {
+        "jobID": f"00000000-0000-4000-8000-{index:012d}",
+        "referenceNumber": f"R{index}",
+        "jobName": f"Engineer {index}",
+        "activeStatus": True,
+        "siteID": "a5bcebfa-981b-46cd-b46f-ad91a50505b8",
+        "advertiserName": "Zoom",
+        "siteName": "Zoom Careers",
+        "jobURL": f"https://careers.zoom.com/job-details/engineer-{index}-jobs-{index}",
+        "city": "Calgary",
+        "country": "Canada",
+    }
+    data.update(overrides)
+    return {"data": data}
+
+
+def shazamme_session(payload, *, headers=None):
+    target = shazamme_target()
+    identity = Response(
+        f"<html><title>Zoom Careers</title>{target.site_id}</html>",
+        headers={"content-type": "text/html"},
+        url=target.careers_url,
+    )
+    endpoint = Response(
+        payload,
+        headers=headers,
+        url=target.endpoint_url,
+    )
+    return target, Session([identity, endpoint])
+
+
 class PublicJsonAdapterTests(unittest.TestCase):
+    def test_shazamme_exact_atomic_collection_contract(self):
+        target, session = shazamme_session([shazamme_row(1), shazamme_row(2)])
+
+        jobs = public_json.fetch_jobs(session, target)
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(len(jobs), 2)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertTrue(metadata["atomic_collection_contract"])
+        self.assertFalse(metadata["authoritative_total_present"])
+        self.assertEqual(
+            metadata["terminal_evidence_type"],
+            "shazamme_atomic_collection_contract",
+        )
+
+    def test_shazamme_matching_source_total_is_authoritative(self):
+        target, session = shazamme_session(
+            [shazamme_row(1)], headers={"x-total-count": "1"}
+        )
+
+        public_json.fetch_jobs(session, target)
+        metadata = source_scan_metadata(session)
+
+        self.assertTrue(metadata["scan_complete"])
+        self.assertTrue(metadata["authoritative_total_present"])
+        self.assertEqual(metadata["total_available"], 1)
+
+    def test_shazamme_pagination_or_truncation_headers_fail_closed(self):
+        for headers in (
+            {"x-has-more": "true"},
+            {"link": '<https://shazamme.io/job-results/site?page=2>; rel="next"'},
+            {"content-range": "items 0-0/2"},
+        ):
+            with self.subTest(headers=headers):
+                target, session = shazamme_session(
+                    [shazamme_row(1)], headers=headers
+                )
+                with self.assertRaisesRegex(
+                    AdapterError, "pagination or truncation signals"
+                ):
+                    public_json.fetch_jobs(session, target)
+
+    def test_shazamme_conflicting_source_total_fails_closed(self):
+        target, session = shazamme_session(
+            [shazamme_row(1)], headers={"x-total-count": "2"}
+        )
+        with self.assertRaisesRegex(AdapterError, "total conflicts"):
+            public_json.fetch_jobs(session, target)
+
+    def test_shazamme_wrong_site_or_advertiser_fails_closed(self):
+        cases = (
+            (shazamme_row(1, siteID="00000000-0000-4000-8000-000000000999"), "site identity"),
+            (shazamme_row(1, advertiserName="Other"), "advertiser attribution"),
+        )
+        for row, error in cases:
+            with self.subTest(error=error):
+                target, session = shazamme_session([row])
+                with self.assertRaisesRegex(AdapterError, error):
+                    public_json.fetch_jobs(session, target)
+
+    def test_shazamme_duplicate_ids_or_urls_fail_closed(self):
+        duplicate_id = [
+            shazamme_row(1),
+            shazamme_row(
+                2, jobID="00000000-0000-4000-8000-000000000001"
+            ),
+        ]
+        duplicate_url = [
+            shazamme_row(1),
+            shazamme_row(
+                2,
+                jobURL="https://careers.zoom.com/job-details/engineer-1-jobs-1",
+            ),
+        ]
+        for rows in (duplicate_id, duplicate_url):
+            with self.subTest(rows=rows):
+                target, session = shazamme_session(rows)
+                with self.assertRaisesRegex(AdapterError, "repeated a stable ID"):
+                    public_json.fetch_jobs(session, target)
+
+    def test_shazamme_nonterminal_or_row_pagination_shape_fails_closed(self):
+        cases = (
+            ({"items": [shazamme_row(1)], "hasMore": True}, "unwrapped array"),
+            ([shazamme_row(1, nextPage=2)], "pagination metadata"),
+        )
+        for payload, error in cases:
+            with self.subTest(error=error):
+                target, session = shazamme_session(payload)
+                with self.assertRaisesRegex(AdapterError, error):
+                    public_json.fetch_jobs(session, target)
+
+    def test_shazamme_unreviewed_site_id_is_rejected_without_network(self):
+        site_id = "00000000-0000-4000-8000-000000000999"
+        target = shazamme_target(
+            site_id=site_id,
+            endpoint_url=f"https://shazamme.io/job-results/{site_id}",
+        )
+        session = Session([])
+
+        with self.assertRaisesRegex(AdapterError, "one reviewed site"):
+            public_json.fetch_jobs(session, target)
+        self.assertEqual(session.calls, [])
+
     def test_aurora_complete_index_contract(self):
         rows = [aurora_row(1), aurora_row(2)]
         session = Session([Response(aurora_payload(*rows))])

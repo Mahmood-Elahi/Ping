@@ -13,7 +13,7 @@ from src.scraper.company_careers.models import CompanyTarget
 ROOT = Path(__file__).resolve().parents[1]
 REGISTRY = ROOT / "config" / "target_companies.yaml"
 EXPECTED_PLATFORMS = {
-    "workday": 35,
+    "workday": 34,
     "ashby": 9,
     "sap_successfactors": 8,
     "greenhouse": 7,
@@ -21,12 +21,19 @@ EXPECTED_PLATFORMS = {
     "lever": 6,
     "static_html": 2,
     "talentbrew": 1,
+    "oracle_recruiting": 1,
 }
-RECOVERED_SMARTRECRUITERS_BOUNDS = {
-    "Assent": (1, 30),
-    "Arista Networks": (3, 300),
-    "Gameloft": (1, 75),
-    "Ubisoft": (4, 350),
+RECOVERED_SOURCE_BOUNDS = {
+    "smartrecruiters": {
+        "Assent": (1, 30),
+        "Arista Networks": (3, 300),
+        "Avery Dennison": (5, 500),
+        "Gameloft": (1, 75),
+        "Ubisoft": (4, 350),
+    },
+    "oracle_recruiting": {
+        "Dell Technologies": (5, 120),
+    },
 }
 
 
@@ -68,7 +75,7 @@ class CanadianEmployerExpansionV4Tests(unittest.TestCase):
             target = CompanyTarget.from_dict(entry)
             self.assertTrue(target.name)
             self.assertTrue(target.careers_url)
-            recovered = RECOVERED_SMARTRECRUITERS_BOUNDS.get(target.name)
+            recovered = RECOVERED_SOURCE_BOUNDS.get(target.platform, {}).get(target.name)
             if recovered:
                 self.assertEqual((target.max_pages, target.max_jobs), recovered)
             else:

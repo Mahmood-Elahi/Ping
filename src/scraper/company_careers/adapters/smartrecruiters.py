@@ -22,12 +22,19 @@ from src.scraper.company_careers.listing_completion import (
     finish_authoritative_total,
     record_terminal_evidence,
 )
+from src.scraper.company_careers.mutable_collection import (
+    fetch_with_mutation_restart,
+    finish_changed,
+    initialize_mutable_collection,
+    mark_collection_changed,
+    record_total_observation,
+)
 
 
 API_HOST = "api.smartrecruiters.com"
 APPLY_HOST = "jobs.smartrecruiters.com"
 ENDPOINT_VARIANT = "companies_postings_v1"
-MAX_PAGES = 5
+MAX_PAGES = 10
 MAX_PAGE_SIZE = 100
 MAX_RESULTS = MAX_PAGES * MAX_PAGE_SIZE
 MAX_TIMEOUT_SECONDS = 30
@@ -58,13 +65,24 @@ def fetch_jobs(
 ) -> list[JobRecord]:
     """Fetch a bounded prefix and corroborate every row with its detail record."""
     validate_target(target)
+    timeout = min(MAX_TIMEOUT_SECONDS, max(1, int(timeout)))
+    return fetch_with_mutation_restart(
+        session, lambda: _fetch_jobs_once(session, target, timeout)
+    )
+
+
+def _fetch_jobs_once(
+    session: requests.Session,
+    target: CompanyTarget,
+    timeout: int,
+) -> list[JobRecord]:
+    """Traverse one SmartRecruiters snapshot without unioning mutable pages."""
     max_pages = max(1, int(target.max_pages))
     configured_page_size = max(1, int(target.page_size))
     page_size = (
         MAX_PAGE_SIZE if configured_page_size == 20 else configured_page_size
     )
     requested_limit = min(MAX_RESULTS, max(1, int(target.max_jobs)))
-    timeout = min(MAX_TIMEOUT_SECONDS, max(1, int(timeout)))
     endpoint = str(target.endpoint_url)
     identifier = str(target.slug)
     jobs: list[JobRecord] = []
@@ -82,6 +100,7 @@ def fetch_jobs(
         detail_requests_coupled=True,
     )
     setattr(session, "smartrecruiters_pagination", metadata)
+    initialize_mutable_collection(metadata)
     publish_source_scan_metadata(session, metadata)
 
     try:
@@ -109,26 +128,35 @@ def fetch_jobs(
                     complete_collection_response=True,
                 )
             metadata["pages_completed"] += 1
+            total_changed = record_total_observation(
+                metadata,
+                total,
+                offset=offset,
+                source_label="SmartRecruiters",
+            )
             if observed_total is None:
                 observed_total = total
-                metadata["initial_total_available"] = total
-                metadata["total_available"] = total
-                metadata["authoritative_total_present"] = True
-            elif total != observed_total:
-                metadata["stop_reason"] = "inconsistent_total"
-                metadata["scan_completeness_reason"] = "inconsistent_total"
-                raise AdapterError(
-                    "SmartRecruiters totalFound changed during pagination: "
-                    f"{observed_total} -> {total}"
+            if total_changed:
+                finish_changed(
+                    metadata, terminal_evidence="collection_changed_during_scan"
                 )
+                break
 
             normalized_on_page = 0
+            page_ids: set[str] = set()
+            page_overlap = 0
             for item in content:
                 list_id = _posting_id(item.get("id"))
-                if list_id in seen_ids:
+                if list_id in page_ids:
                     metadata["stop_reason"] = "repeated_job_id"
                     metadata["scan_completeness_reason"] = "pagination_failure"
-                    raise AdapterError(f"SmartRecruiters repeated stable job ID: {list_id}")
+                    raise AdapterError(
+                        f"SmartRecruiters repeated stable job ID within one page: {list_id}"
+                    )
+                page_ids.add(list_id)
+                if list_id in seen_ids:
+                    page_overlap += 1
+                    continue
                 detail_ref = _detail_ref(item.get("ref"), identifier, list_id)
                 detail_response = session.get(detail_ref, headers=HEADERS, timeout=timeout)
                 detail = _parse_response(detail_response, f"posting detail {list_id}")
@@ -138,6 +166,11 @@ def fetch_jobs(
                 normalized_on_page += 1
                 if len(jobs) >= requested_limit:
                     break
+
+            if page_overlap:
+                mark_collection_changed(
+                    metadata, offset=offset, overlap_count=page_overlap
+                )
 
             metadata["pages"].append(
                 {
@@ -149,6 +182,12 @@ def fetch_jobs(
             )
             metadata["jobs_normalized"] = len(jobs)
             metadata["pages_fetched"] = len(metadata["pages"])
+
+            if page_overlap:
+                finish_changed(
+                    metadata, terminal_evidence="collection_changed_during_scan"
+                )
+                break
 
             if len(jobs) == total:
                 finish_authoritative_total(metadata, total, len(jobs))

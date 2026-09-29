@@ -1342,16 +1342,23 @@ class CompanyCareersTests(unittest.TestCase):
         self.assertEqual(metadata["collection_restart_count"], 1)
 
     def test_uber_normalization(self):
-        listing = """<!doctype html><html><body>
-        <div data-slot="card" data-id="156408">
-          <h2><a class="js-view-job" href="/en/jobs/156408/">Staff Software Engineer</a></h2>
-          <div data-slot="card-description">
-            <div class="rounded-full"><div>Sunnyvale, California</div></div>
-            <div class="rounded-full"><div>Engineering</div></div>
-          </div>
-        </div></body></html>"""
+        payload = {
+            "jobs": [{
+                "Id": "156408",
+                "Reference": "156408",
+                "Title": "Staff Software Engineer",
+                "Urls": [{"IsDefault": True, "Url": "/en/jobs/156408/"}],
+                "Locations": [{"Address": "Sunnyvale, California"}],
+                "Teams": ["Engineering"],
+                "DisplayDate": "2026-09-29",
+            }],
+            "totalJobs": 1,
+            "totalPages": 1,
+            "page": 1,
+            "pageSize": 10,
+        }
         session = FakeSession(
-            get_responses=[FakeResponse({}, text=listing, headers={"content-type": "text/html"})]
+            get_responses=[FakeResponse(payload, headers={"content-type": "application/json"})]
         )
         target = CompanyTarget(name="Uber", platform="uber", max_pages=1)
 

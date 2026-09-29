@@ -540,6 +540,134 @@ class EmbeddedDataAdapterTests(unittest.TestCase):
         self.assertEqual(metadata["filtered_collection_total"], 2)
         self.assertTrue(metadata["complete_collection_response"])
 
+    def test_30a_filtered_collection_accepts_valid_matching_and_nonmatching_rows(self):
+        filtered_target = target(
+            item_filter_field="metadata[3].value",
+            item_filter_regex=r"^us$",
+        )
+        metadata = [{"name": str(index), "value": "unused"} for index in range(3)]
+        matching = item("1", metadata=[*metadata, {"name": "locale", "value": "us"}])
+        nonmatching = item("2", metadata=[*metadata, {"name": "locale", "value": "eu"}])
+        session = Session(
+            Response(document({"data": {"jobs": [matching, nonmatching]}}))
+        )
+
+        jobs = embedded_data.fetch_jobs(session, filtered_target)
+        scan = source_scan_metadata(session)
+
+        self.assertEqual([job.title for job in jobs], ["Engineer"])
+        self.assertTrue(scan["scan_complete"])
+        self.assertEqual(scan["source_collection_total"], 2)
+        self.assertEqual(scan["filtered_collection_total"], 1)
+
+    def test_30b_filtered_collection_rejects_missing_filter_field(self):
+        filtered_target = target(
+            item_filter_field="metadata[3].value",
+            item_filter_regex=r"^us$",
+        )
+        with self.assertRaisesRegex(AdapterError, "filter evidence is structurally invalid"):
+            embedded_data.fetch_jobs(
+                Session(Response(document({"data": {"jobs": [item()]}}))),
+                filtered_target,
+            )
+
+    def test_30c_filtered_collection_rejects_null_and_empty_filter_evidence(self):
+        filtered_target = target(
+            item_filter_field="metadata[3].value",
+            item_filter_regex=r"^us$",
+        )
+        prefix = [{"value": "unused"} for _ in range(3)]
+        for value in (None, "", "   "):
+            with self.subTest(value=value), self.assertRaisesRegex(
+                AdapterError, "filter evidence is null or empty"
+            ):
+                embedded_data.fetch_jobs(
+                    Session(
+                        Response(
+                            document(
+                                {
+                                    "data": {
+                                        "jobs": [
+                                            item(
+                                                metadata=[
+                                                    *prefix,
+                                                    {"value": value},
+                                                ]
+                                            )
+                                        ]
+                                    }
+                                }
+                            )
+                        )
+                    ),
+                    filtered_target,
+                )
+
+    def test_30d_filtered_collection_rejects_malformed_metadata_structure(self):
+        filtered_target = target(
+            item_filter_field="metadata[3].value",
+            item_filter_regex=r"^us$",
+        )
+        malformed_values = ({"3": {"value": "us"}}, "not-a-list", [1, 2, 3, "us"])
+        for metadata in malformed_values:
+            with self.subTest(metadata=metadata), self.assertRaisesRegex(
+                AdapterError, "filter evidence is structurally invalid"
+            ):
+                embedded_data.fetch_jobs(
+                    Session(
+                        Response(
+                            document({"data": {"jobs": [item(metadata=metadata)]}})
+                        )
+                    ),
+                    filtered_target,
+                )
+
+    def test_30e_filtered_collection_rejects_ambiguous_filter_evidence(self):
+        filtered_target = target(
+            item_filter_field="metadata[3].value",
+            item_filter_regex=r"^us$",
+        )
+        prefix = [{"value": "unused"} for _ in range(3)]
+        for value in (["us"], {"locale": "us"}):
+            with self.subTest(value=value), self.assertRaisesRegex(
+                AdapterError, "unsupported or ambiguous type"
+            ):
+                embedded_data.fetch_jobs(
+                    Session(
+                        Response(
+                            document(
+                                {
+                                    "data": {
+                                        "jobs": [
+                                            item(metadata=[*prefix, {"value": value}])
+                                        ]
+                                    }
+                                }
+                            )
+                        )
+                    ),
+                    filtered_target,
+                )
+
+    def test_30f_filtered_collection_rejects_mixture_of_valid_and_malformed_rows(self):
+        filtered_target = target(
+            item_filter_field="metadata[3].value",
+            item_filter_regex=r"^us$",
+        )
+        prefix = [{"value": "unused"} for _ in range(3)]
+        valid = item("1", metadata=[*prefix, {"value": "us"}])
+        malformed = item("2", metadata=[*prefix, {}])
+        session = Session(
+            Response(document({"data": {"jobs": [valid, malformed]}}))
+        )
+
+        with self.assertRaisesRegex(AdapterError, "filter evidence is structurally invalid"):
+            embedded_data.fetch_jobs(session, filtered_target)
+        scan = source_scan_metadata(session)
+        self.assertFalse(scan["scan_complete"])
+        self.assertEqual(scan["source_collection_total"], 2)
+        self.assertNotIn("filtered_collection_total", scan)
+
     def test_31_complete_collection_total_mismatch_fails_closed(self):
         public_target = target(
             endpoint_variant="public_json_endpoint",

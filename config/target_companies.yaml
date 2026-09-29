@@ -1600,23 +1600,33 @@ target_companies:
     max_jobs: 20
     max_response_bytes: 3000000
   - name: IMC Trading
-    platform: static_html
+    platform: javascript_embedded_data
     careers_url: https://www.imc.com/us/careers
     listing_url: https://www.imc.com/us/search-careers
-    endpoint_variant: server_rendered_links
-    listing_selector: h2
-    job_card_selector: a[href*=/us/careers/jobs/]
-    title_selector: h2
-    location_selector: null
-    detail_link_selector: :self
-    external_id_regex: /jobs/([0-9]+)$
-    department_selector: null
+    endpoint_variant: next_flight_collection
+    embedded_script_selector: script
+    embedded_json_path: jobs
+    id_field: id
+    title_field: title
+    url_field: id
+    apply_url_template: https://www.imc.com/us/careers/jobs/{id}
+    item_filter_field: metadata[3].value
+    item_filter_regex: ^us$
+    location_fields:
+      - offices
+    department_field: departments
+    date_field: updated_at
+    source_identity_regex: \bIMC\b
     allowed_apply_hosts:
-    - www.imc.com
-    original_workbook_rank: 80
+      - www.imc.com
     max_pages: 1
     max_jobs: 20
     max_response_bytes: 3000000
+    max_scripts: 20
+    max_script_bytes: 1000000
+    evidence_source: https://www.imc.com/us/search-careers
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00+00:00'
   - name: Valve
     platform: static_html
     careers_url: https://www.valvesoftware.com/en/about
@@ -1844,19 +1854,18 @@ target_companies:
     browser_identity_regex: Goldman Sachs
     listing_selector: a[href^=/roles/]
     job_card_selector: a[href^=/roles/]
-    title_selector: span.gs-text:first-child
+    title_selector: span.gs-uitk-mb-1
     location_selector: div[data-testid=location]
     detail_link_selector: :self
     external_id_regex: /roles/([0-9]+)$
-    external_id_attribute: null
-    department_selector: null
-    date_selector: null
     allowed_apply_hosts:
-    - higher.gs.com
-    original_workbook_rank: 84
+      - higher.gs.com
     max_pages: 1
     max_jobs: 20
     max_response_bytes: 3000000
+    evidence_source: https://higher.gs.com/results
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00+00:00'
   - name: Aurora Innovation
     platform: public_json
     careers_url: https://aurora.tech/careers
@@ -1971,18 +1980,17 @@ target_companies:
     listing_selector: a[href*=/en/jobs/]
     job_card_selector: a[href*=/en/jobs/]
     title_selector: h1.h3
-    location_selector: null
     detail_link_selector: :self
-    external_id_regex: /jobs/(MTK[0-9A-Za-z]+)
-    external_id_attribute: null
-    department_selector: null
-    date_selector: null
+    external_id_regex: /jobs/([A-Z]{3}[0-9]+)(?:[/?]|$)
     allowed_apply_hosts:
-    - careers.mediatek.com
-    original_workbook_rank: 36
+      - careers.mediatek.com
+    single_page_collection: true
     max_pages: 1
     max_jobs: 20
     max_response_bytes: 3000000
+    evidence_source: https://careers.mediatek.com/en/jobs
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00+00:00'
   - name: GlobalFoundries
     platform: eightfold
     careers_url: https://careers.gf.com/careers
@@ -2487,15 +2495,9 @@ target_companies:
   - name: Stantec
     platform: browser_rendered_html
     careers_url: https://www.stantec.com/en/careers
-    source_identity_regex: Stantec
-    allowed_apply_hosts:
-    - stantec.jobs
-    original_workbook_rank: null
-    max_pages: 1
-    max_jobs: 20
-    max_response_bytes: 3000000
     listing_url: https://stantec.jobs/jobs/?q=Calgary
     endpoint_variant: browser_rendered_html_v1
+    source_identity_regex: Stantec
     browser_wait_selector: a[href*="/job/"]
     browser_scroll_steps: 0
     browser_static_variant: server_rendered_links
@@ -2506,8 +2508,15 @@ target_companies:
     title_selector: h2
     location_selector: p:nth-child(3)
     detail_link_selector: :self
-    external_id_regex: /([0-9A-F]{32})/job/
-    empty_selector: null
+    external_id_regex: /([0-9A-F]{32})/job$
+    allowed_apply_hosts:
+      - stantec.jobs
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: https://stantec.jobs/jobs/?q=Calgary
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00+00:00'
   - name: YYC Calgary Airport Authority
     platform: static_html
     careers_url: https://www.yyc.com/careers
@@ -3085,24 +3094,22 @@ target_companies:
     identity_url: https://job-boards.greenhouse.io/scaleai
     slug: scaleai
   - name: Renesas Electronics
-    platform: static_html
+    platform: smartrecruiters
     careers_url: https://jobs.renesas.com
-    source_identity_regex: Careers at Renesas Electronics|Renesas Electronics
+    slug: RenesasElectronics
+    endpoint_url: https://api.smartrecruiters.com/v1/companies/RenesasElectronics/postings
+    endpoint_variant: companies_postings_v1
+    identity_regex: ^Renesas Electronics$
+    source_identity_regex: Renesas Electronics
     allowed_apply_hosts:
-    - jobs.smartrecruiters.com
-    original_workbook_rank: null
-    max_pages: 1
-    max_jobs: 20
+      - jobs.smartrecruiters.com
+    page_size: 100
+    max_pages: 10
+    max_jobs: 1000
     max_response_bytes: 3000000
-    identity_url: https://careers.smartrecruiters.com/renesaselectronics
-    listing_url: https://careers.smartrecruiters.com/renesaselectronics
-    endpoint_variant: server_rendered_cards
-    listing_selector: div.js-openings-load
-    job_card_selector: section.openings-section
-    title_selector: h4.job-title
-    detail_link_selector: a.js-job-ad-link
-    external_id_regex: /renesaselectronics/([0-9]+)-
-    location_selector: h3.opening-title
+    evidence_source: https://api.smartrecruiters.com/v1/companies/RenesasElectronics/postings
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00+00:00'
   - name: Silicon Labs
     platform: workday
     careers_url: https://www.silabs.com/about-us/careers
@@ -3435,17 +3442,11 @@ target_companies:
   - name: Yaskawa Electric
     platform: static_html
     careers_url: https://www.yaskawa-global.com/jobs
-    source_identity_regex: Search Jobs - Yaskawa|Yaskawa America
-    identity_regex: Search Jobs - Yaskawa|Yaskawa America
-    allowed_apply_hosts:
-    - recruiting.ultipro.com
-    original_workbook_rank: 100
-    max_pages: 1
-    max_jobs: 20
-    max_response_bytes: 3000000
     identity_url: https://www.yaskawa.com/about-us/careers/search-jobs
     listing_url: https://www.yaskawa.com/about-us/careers/search-jobs
     endpoint_variant: server_rendered_cards
+    source_identity_regex: Search Jobs - Yaskawa|Yaskawa America
+    identity_regex: Search Jobs - Yaskawa|Yaskawa America
     listing_selector: tbody.table-data
     job_card_selector: tbody.table-data tr
     title_selector: td:nth-child(2) a[href*=opportunityId=]
@@ -3454,6 +3455,15 @@ target_companies:
     department_selector: td:nth-child(5)
     detail_link_selector: td:nth-child(2) a[href*=opportunityId=]
     external_id_regex: opportunityId=([0-9a-f-]{36})
+    allowed_apply_hosts:
+      - recruiting.ultipro.com
+    single_page_collection: true
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: https://www.yaskawa.com/about-us/careers/search-jobs
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00+00:00'
   - name: NOVA Chemicals
     platform: sap_successfactors
     careers_url: https://jobs.novachem.com
@@ -4406,41 +4416,45 @@ target_companies:
   - name: Mercedes-Benz
     platform: beesite
     careers_url: https://jobs.mercedes-benz.com/en
-    source_identity_regex: Mercedes-Benz
-    identity_regex: Mercedes-Benz
-    allowed_apply_hosts:
-    - jobs.mercedes-benz.com
-    original_workbook_rank: 111
-    max_pages: 2
-    max_jobs: 20
-    max_response_bytes: 3000000
     identity_url: https://jobs.mercedes-benz.com/en
     endpoint_url: https://jobs.api.mercedes-benz.com/search
     endpoint_variant: gjb_search_v1
     locale: en
+    source_identity_regex: Mercedes-Benz
+    identity_regex: Mercedes-Benz
+    job_attribution_regex: '(?i)(Mercedes(?:[- ]Benz|[- ]AMG| pay)?|Daimler|Athlon|Star Assembly|CARS Technik|Anota)'
     allowed_source_hosts:
-    - jobs.api.mercedes-benz.com
-    job_attribution_regex: (?i)Mercedes[- ]Benz
-    page_size: 10
-  - name: Porsche
-    platform: beesite
-    careers_url: https://jobs.porsche.com/
-    source_identity_regex: Porsche
-    identity_regex: Porsche
+      - jobs.api.mercedes-benz.com
     allowed_apply_hosts:
-    - jobs.porsche.com
-    original_workbook_rank: 114
+      - jobs.mercedes-benz.com
+    page_size: 10
     max_pages: 2
     max_jobs: 20
     max_response_bytes: 3000000
+    evidence_source: https://jobs.mercedes-benz.com/en
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00+00:00'
+  - name: Porsche
+    platform: beesite
+    careers_url: https://jobs.porsche.com/
     identity_url: https://jobs.porsche.com/
     endpoint_url: https://porsche-beesite-production-gjb.app.beesite.de/search/
     endpoint_variant: gjb_search_v1
     locale: en
+    source_identity_regex: Porsche
+    identity_regex: Porsche
+    job_attribution_regex: '(?i)(Porsche|MHP|V4Smart)'
     allowed_source_hosts:
-    - porsche-beesite-production-gjb.app.beesite.de
-    job_attribution_regex: (?i)Porsche
+      - porsche-beesite-production-gjb.app.beesite.de
+    allowed_apply_hosts:
+      - jobs.porsche.com
     page_size: 10
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: https://jobs.porsche.com/
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00+00:00'
   - name: Continental
     platform: javascript_embedded_data
     careers_url: https://jobs.continental.com/en/
@@ -4615,22 +4629,23 @@ target_companies:
     identity_url: https://careers.twitch.com/en/careers
     slug: twitch
   - name: CN Rail
-    platform: cornerstone_csod
+    platform: sap_successfactors
     careers_url: https://www.cn.ca/en/careers
-    search_url: https://cn360.csod.com/ux/ats/careersite/1/home?c=cn360&lang=en-US
-    endpoint_url: https://us.api.csod.com/rec-job-search/external/jobs
-    endpoint_variant: mobile_career_site_external_search_v1
-    tenant: cn360
-    site_id: '1'
-    locale: en-US
+    search_url: https://careers.cn.ca/search/
+    endpoint_url: https://careers.cn.ca/services/recruiting/v1/jobs
+    endpoint_variant: rmk_columnized
     source_identity_regex: Canadian National|\bCN\b
     identity_regex: Canadian National|\bCN\b
     allowed_apply_hosts:
-    - cn360.csod.com
-    page_size: 25
-    max_pages: 1
-    max_jobs: 20
+      - careers.cn.ca
+    locale: en_US
+    page_size: 10
+    max_pages: 20
+    max_jobs: 500
     max_response_bytes: 3000000
+    evidence_source: https://www.cn.ca/en/careers
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00+00:00'
   - name: OHB SE
     platform: cornerstone_csod
     careers_url: https://www.ohb.de/en/career
@@ -4763,23 +4778,26 @@ target_companies:
     platform: static_html
     careers_url: https://www.lightspeedhq.com/careers/
     identity_url: https://www.lightspeedhq.com/careers/openings/
-    source_identity_regex: Lightspeed
-    identity_regex: Lightspeed
-    allowed_apply_hosts:
-    - www.lightspeedhq.com
-    original_workbook_rank: null
-    max_pages: 1
-    max_jobs: 20
-    max_response_bytes: 3000000
     listing_url: https://www.lightspeedhq.com/careers/openings/
     endpoint_variant: server_rendered_cards
+    source_identity_regex: Lightspeed
+    identity_regex: Lightspeed
     listing_selector: ul.filter__results__list
-    job_card_selector: a[href*=office=Montreal],a[href*=office=Toronto],a[href*=office=Ottawa],a[href*=office=Quebec],a[href$=Canada],a[href$=US]
+    job_card_selector: li.job
     title_selector: span.job-title
     location_selector: span.job-office
     department_selector: span.job-dept
-    detail_link_selector: :self
-    external_id_regex: /([0-9a-f-]{36})/
+    detail_link_selector: a[href*=/careers/job/]
+    external_id_regex: /([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})(?:[/?]|$)
+    allowed_apply_hosts:
+      - www.lightspeedhq.com
+    single_page_collection: true
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: https://www.lightspeedhq.com/careers/openings/
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00+00:00'
   - name: Cineplex
     platform: workday
     careers_url: https://corp.cineplex.com/careers
@@ -5311,26 +5329,24 @@ target_companies:
     allowed_apply_hosts:
     - jobs.dropbox.com
   - name: Zoom
-    platform: static_html
-    careers_url: https://careers.zoom.us/
-    original_workbook_rank: null
-    max_pages: 1
-    max_jobs: 20
-    max_response_bytes: 3000000
-    listing_url: https://careers.zoom.us/jobs/search
-    endpoint_variant: server_rendered_cards
-    listing_selector: div[id^=jobs_search_results_]
-    job_card_selector: article.job-search-results-card-col
-    title_selector: h3.job-search-results-card-title a
-    location_selector: li.job-component-location span
-    department_selector: li.job-component-category span
-    detail_link_selector: h3.job-search-results-card-title a
-    external_id_selector: li.job-component-requisition-identifier span
-    job_attribution_selector: li.job-component-dropdown-field-1 span
-    job_attribution_regex: Zoom
-    source_identity_regex: Zoom
+    platform: public_json
+    careers_url: https://www.careers.zoom.us/job-results
+    endpoint_url: https://shazamme.io/job-results/a5bcebfa-981b-46cd-b46f-ad91a50505b8
+    endpoint_variant: shazamme_job_results_v1
+    site_id: a5bcebfa-981b-46cd-b46f-ad91a50505b8
+    identity_regex: '\bZoom(?: Careers)?\b'
+    job_attribution_regex: ^Zoom$
+    apply_url_template: https://www.careers.zoom.us{path}
+    allowed_source_hosts:
+      - shazamme.io
     allowed_apply_hosts:
-    - careers.zoom.us
+      - www.careers.zoom.us
+    max_pages: 1
+    max_jobs: 20000
+    max_response_bytes: 3000000
+    evidence_source: https://www.careers.zoom.us/job-results
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00+00:00'
   - name: Okta
     platform: greenhouse
     careers_url: https://www.okta.com/company/careers/job-listing/
@@ -6075,16 +6091,18 @@ target_companies:
     allowed_apply_hosts:
     - job-boards.greenhouse.io
   - name: ClickHouse
-    platform: greenhouse
+    platform: ashby
     careers_url: https://clickhouse.com/company/careers
-    original_workbook_rank: null
-    max_pages: 1
-    max_jobs: 20
-    max_response_bytes: 3000000
     slug: clickhouse
     source_identity_regex: \bClickHouse\b
     allowed_apply_hosts:
-    - job-boards.greenhouse.io
+      - jobs.ashbyhq.com
+    max_pages: 1
+    max_jobs: 10000
+    max_response_bytes: 3000000
+    evidence_source: https://clickhouse.com/company/careers
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00+00:00'
   - name: MotherDuck
     platform: ashby
     careers_url: https://motherduck.com/careers/
@@ -6398,14 +6416,24 @@ target_companies:
     max_pages: 1
     max_jobs: 20
   - name: Dell Technologies
-    platform: workday
-    careers_url: https://jobs.dell.com/
-    tenant: dell
-    wd_subdomain: wd1
-    site_id: External
-    allowed_apply_hosts: [dell.wd1.myworkdayjobs.com]
-    max_pages: 1
-    max_jobs: 20
+    platform: oracle_recruiting
+    careers_url: https://enterpriseplatform.dell.com/hcmUI/CandidateExperience/en/sites/careers/jobs
+    endpoint_url: https://enterpriseplatform.dell.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+    endpoint_variant: recruiting_ce_v1
+    site_number: CX_1001
+    locale: en
+    source_identity_regex: Dell Technologies|Dell Careers
+    identity_regex: Dell Technologies|Dell Careers
+    allowed_source_hosts:
+      - enterpriseplatform.dell.com
+    allowed_apply_hosts:
+      - enterpriseplatform.dell.com
+    max_pages: 5
+    max_jobs: 120
+    max_response_bytes: 3000000
+    evidence_source: https://jobs.dell.com/en/search-jobs
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00+00:00'
   - name: Hydro Ottawa
     platform: workday
     careers_url: https://hydroottawa.com/en/about-us/careers

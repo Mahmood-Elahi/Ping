@@ -271,8 +271,8 @@ class ListingIdentityRegressionTests(unittest.TestCase):
     def test_goldman_sachs_equivalent_nested_titles(self):
         body = (
             "<html><body><a href='/roles/12345'>"
-            "<div><span class='gs-text'>Quantitative Engineer</span></div>"
-            "<div><span class='gs-text'> Quantitative   Engineer </span></div>"
+            "<div><span class='gs-uitk-mb-1'>Quantitative Engineer</span></div>"
+            "<div><span class='gs-uitk-mb-1'> Quantitative   Engineer </span></div>"
             "</a></body></html>"
         )
         jobs = self.parse("Goldman Sachs", body)

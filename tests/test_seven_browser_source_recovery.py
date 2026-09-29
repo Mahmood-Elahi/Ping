@@ -106,12 +106,15 @@ class SevenBrowserSourceRecoveryTests(unittest.TestCase):
             [
                 "Aurora Innovation: browser_rendered_html -> public_json",
                 "Figure AI: browser_rendered_html -> greenhouse",
+                "IMC Trading: static_html -> javascript_embedded_data",
                 "LINE: browser_rendered_html -> javascript_embedded_data",
                 "MDA Space: browser_rendered_html -> ukg_pro",
+                "Renesas Electronics: static_html -> smartrecruiters",
+                "Zoom: static_html -> public_json",
             ],
         )
         self.assertEqual(
-            projection["summary"]["migrated_to_stronger_active_contract"], 4
+            projection["summary"]["migrated_to_stronger_active_contract"], 7
         )
         browser_representatives = {
             target.name

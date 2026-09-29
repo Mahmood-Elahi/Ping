@@ -365,6 +365,7 @@ class AdapterExtensionsV4ABulkActivationTests(unittest.TestCase):
             item for item in batch_g
             if registry_validator._name_key(item) == "yaskawa electric"
         )
+        expected_yaskawa = with_reliability_repairs([expected_yaskawa])[0]
         self.assertEqual(
             [item for item in production if registry_validator._name_key(item) == "yaskawa electric"],
             [expected_yaskawa],
