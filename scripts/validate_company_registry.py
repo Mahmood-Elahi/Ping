@@ -218,6 +218,12 @@ def source_key(entry: Mapping[str, Any]) -> Optional[str]:
     if platform == "exalead":
         host = (urlparse(str(entry.get("endpoint_url") or "")).hostname or "").casefold()
         return f"exalead:{host}" if host else None
+    if platform == "public_json":
+        endpoint = urlparse(str(entry.get("endpoint_url") or ""))
+        host = (endpoint.hostname or "").casefold()
+        path = endpoint.path.rstrip("/").casefold()
+        variant = str(entry.get("endpoint_variant") or "").strip().casefold()
+        return f"public_json:{host}:{path}:{variant}" if host and path and variant else None
     if platform in {"static_html", "javascript_embedded_data", "talentbrew", "teamtailor"}:
         host = (urlparse(str(entry.get("listing_url") or "")).hostname or "").casefold()
         slug = str(entry.get("slug") or "").strip().casefold()

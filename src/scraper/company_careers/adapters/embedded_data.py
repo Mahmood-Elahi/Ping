@@ -52,6 +52,7 @@ SUPPORTED_VARIANTS = {
     "public_json_reference",
     "public_json_endpoint",
     "next_flight_collection",
+    "snap_async_jobs_cache_v1",
 }
 _PATH_RE = re.compile(r"^[A-Za-z0-9_$-]+(?:\.[A-Za-z0-9_$-]+|\[[0-9]+\])*$")
 _FIELD_RE = re.compile(r"^[A-Za-z0-9_@-]+(?:\.[A-Za-z0-9_@-]+|\[[0-9]+\])*$")
@@ -135,6 +136,10 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
             items, scripts, inspected_bytes, valid_empty = _extract_next_flight(
                 response, target
             )
+        elif target.endpoint_variant == "snap_async_jobs_cache_v1":
+            items, scripts, inspected_bytes, valid_empty = _extract_snap_async_cache(
+                response, target
+            )
         elif target.endpoint_variant == "html_attribute_json":
             items, scripts, inspected_bytes, valid_empty = _extract_attribute_json(
                 response, target
@@ -147,6 +152,8 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
             items, scripts, inspected_bytes, valid_empty = _extract(response, target)
         source_items_present = bool(items)
         source_collection_count = len(items)
+        if target.job_attribution_field:
+            _require_exact_attribution(items, target)
         if target.item_filter_field:
             metadata.setdefault("source_collection_total", source_collection_count)
         items = _filter_items(items, target)
@@ -408,6 +415,23 @@ def validate_target(target: CompanyTarget) -> None:
         raise AdapterError(
             "Embedded-data item filter requires both item_filter_field and item_filter_regex"
         )
+    if target.endpoint_variant == "snap_async_jobs_cache_v1":
+        parsed = urlparse(str(target.listing_url))
+        if (
+            parsed.scheme != "https"
+            or parsed.hostname != "careers.snap.com"
+            or parsed.path.rstrip("/") != "/jobs"
+            or str(target.embedded_script_selector) != "script"
+            or str(target.embedded_json_path) != "data.body"
+            or str(target.id_field) != "_source.id"
+            or str(target.title_field) != "_source.title"
+            or str(target.url_field) != "_source.id"
+            or str(target.job_attribution_field) != "_source.jobPostingSite"
+            or str(target.job_attribution_regex) != r"^Snap Inc\.$"
+            or str(target.apply_url_template)
+            != "https://careers.snap.com/job?id={id}"
+        ):
+            raise AdapterError("Embedded-data Snap target does not bind the reviewed cache")
     if target.apply_url_template:
         try:
             parsed_template = list(string.Formatter().parse(str(target.apply_url_template)))
@@ -575,6 +599,61 @@ def _extract_next_flight(
             "Embedded-data reviewed Next.js Flight collection contains unsupported values"
         )
     return list(found), len(matching_streams), inspected, not found
+
+
+def _extract_snap_async_cache(
+    response: Any, target: CompanyTarget
+) -> tuple[list[Mapping[str, Any]], int, int, bool]:
+    """Decode Snap's exact unfiltered server-authored jobs cache assignment."""
+    _validate_source_response(response, target)
+    content = _bounded_content(response, target, expected="html")
+    try:
+        root = html.fromstring(content)
+    except (ValueError, TypeError) as exc:
+        raise AdapterError(f"Embedded-data malformed HTTP 200 response: {exc}") from exc
+    _reject_page(root)
+    prefix = "window.ASYNC_DATA_CONTROLLER_CACHE ="
+    scripts = static_html.select(root, str(target.embedded_script_selector))
+    matches = [node for node in scripts if prefix in (node.text or "")]
+    if len(matches) != 1:
+        raise AdapterError("Embedded-data Snap cache assignment must occur exactly once")
+    body = matches[0].text or ""
+    if len(body.encode("utf-8")) > int(target.max_script_bytes):
+        raise AdapterError("Embedded-data Snap cache script exceeded its byte bound")
+    if body.count(prefix) != 1:
+        raise AdapterError("Embedded-data Snap cache assignment was ambiguous")
+    encoded = body.split(prefix, 1)[1].lstrip()
+    try:
+        payload, consumed = json.JSONDecoder().raw_decode(encoded)
+    except (TypeError, ValueError) as exc:
+        raise AdapterError("Embedded-data Snap cache assignment was malformed") from exc
+    remainder = encoded[consumed:].lstrip()
+    assignment_terminated = not remainder or remainder.startswith(";")
+    if not assignment_terminated or not isinstance(payload, Mapping):
+        raise AdapterError("Embedded-data Snap cache assignment contained trailing data")
+    cache_key = 'jobs--{"location":[],"role":[],"team":[],"type":[]}'
+    if set(payload) != {cache_key}:
+        raise AdapterError("Embedded-data Snap cache did not expose one unfiltered collection")
+    envelope = payload[cache_key]
+    if not isinstance(envelope, Mapping):
+        raise AdapterError("Embedded-data Snap cache envelope was malformed")
+    data = envelope.get("data")
+    if not isinstance(data, Mapping) or not isinstance(data.get("body"), list):
+        raise AdapterError("Embedded-data Snap cache lacked its job-object list")
+    found = data["body"]
+    if not all(isinstance(item, Mapping) for item in found):
+        raise AdapterError("Embedded-data Snap cache contained a malformed row")
+    for item in found:
+        source = item.get("_source")
+        if (
+            not isinstance(source, Mapping)
+            or str(item.get("_id") or "") != str(source.get("id") or "")
+            or not str(item.get("_index") or "").startswith("jobs_")
+            or str(source.get("External_Posting") or "") != "1"
+        ):
+            raise AdapterError("Embedded-data Snap cache row identity was malformed")
+    _require_exact_attribution(found, target)
+    return list(found), 1, len(content) + len(body.encode("utf-8")), not found
 
 
 def _extract_public_json(

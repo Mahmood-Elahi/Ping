@@ -589,7 +589,7 @@ company_careers_reliability_repairs:
     max_pages: 5
     max_jobs: 500
   - name: Sanctuary AI
-    platform: static_html
+    platform: javascript_embedded_data
     careers_url: https://sanctuary.ai/careers/
     source_identity_regex: Sanctuary AI
     allowed_apply_hosts:
@@ -599,14 +599,24 @@ company_careers_reliability_repairs:
     max_jobs: 20
     max_response_bytes: 3000000
     listing_url: https://careers.kula.ai/sanctuary-ai
-    endpoint_variant: server_rendered_cards
-    listing_selector: div[role=region]
-    job_card_selector: div[role=region]
-    title_selector: p:first-child
-    detail_link_selector: a[href^=/sanctuary-ai/]
-    external_id_regex: /sanctuary-ai/([0-9]+)/?
-    allow_structural_linkless_cards: true
-    single_page_collection: true
+    endpoint_variant: next_flight_collection
+    embedded_script_selector: script
+    embedded_json_path: jobs
+    id_field: id
+    title_field: title
+    url_field: id
+    apply_url_template: https://careers.kula.ai/sanctuary-ai/{id}/
+    location_fields:
+      - ats_job.offices
+    department_field: ats_job.ats_department
+    date_field: launch_at
+    job_attribution_field: account_id
+    job_attribution_regex: ^1484$
+    max_scripts: 20
+    max_script_bytes: 1000000
+    evidence_source: official Kula Next.js complete jobs collection for account 1484
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'
   - name: ClickHouse
     platform: ashby
     careers_url: https://clickhouse.com/company/careers
@@ -1032,5 +1042,86 @@ company_careers_reliability_repairs:
     max_jobs: 500
     max_response_bytes: 3000000
     evidence_source: official EPCOR careers page and Jobvite result range
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'
+  - name: Imperial Oil
+    platform: static_html
+    careers_url: https://www.imperialoil.ca/careers/careers
+    source_identity_regex: Jobs in Canada \(Imperial\)|Imperial
+    listing_url: https://jobs.exxonmobil.com/Imperial/go/Jobs-in-Canada-%28Imperial%29/3271200/
+    endpoint_variant: server_rendered_cards
+    listing_selector: '#searchresults'
+    job_card_selector: tr.data-row
+    title_selector: a.jobTitle-link
+    location_selector: td.colLocation span.jobLocation
+    department_selector: span.jobDepartment
+    date_selector: td.colDate span.jobDate
+    detail_link_selector: a.jobTitle-link
+    external_id_regex: /([0-9]+)/?$
+    next_page_selector: a.paginationItemLast
+    allowed_apply_hosts:
+      - jobs.exxonmobil.com
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: exact Imperial category 3271200 with result range and final page
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'
+  - name: Snap
+    platform: javascript_embedded_data
+    careers_url: https://careers.snap.com/jobs
+    listing_url: https://careers.snap.com/jobs
+    endpoint_variant: snap_async_jobs_cache_v1
+    embedded_script_selector: script
+    embedded_json_path: data.body
+    id_field: _source.id
+    title_field: _source.title
+    url_field: _source.id
+    apply_url_template: https://careers.snap.com/job?id={id}
+    location_fields:
+      - _source.offices
+    department_field: _source.departments
+    job_attribution_field: _source.jobPostingSite
+    job_attribution_regex: ^Snap Inc\.$
+    allowed_source_hosts:
+      - careers.snap.com
+    allowed_apply_hosts:
+      - careers.snap.com
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    max_scripts: 20
+    max_script_bytes: 1000000
+    evidence_source: exact unfiltered Snap server-authored jobs cache
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'
+  - name: Valve
+    platform: public_json
+    careers_url: https://www.valvesoftware.com/en/
+    endpoint_url: https://www.valvesoftware.com/en/jobs/job-search?search=
+    endpoint_variant: valve_jobs_v1
+    allowed_source_hosts:
+      - www.valvesoftware.com
+    allowed_apply_hosts:
+      - www.valvesoftware.com
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: official unfiltered Valve jobs JSON endpoint referenced by jobs.js
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'
+  - name: iRobot
+    platform: talentbrew
+    careers_url: https://careers.irobot.com/
+    listing_url: https://careers.irobot.com/search-jobs
+    endpoint_variant: search_results_data_job_id_v1
+    identity_regex: iRobot
+    allowed_apply_hosts:
+      - careers.irobot.com
+    page_size: 10
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: TalentBrew server totals, page count, stable data-job-id, and final page
     evidence_confidence: high
     evidence_timestamp: '2026-09-29T00:00:00-06:00'

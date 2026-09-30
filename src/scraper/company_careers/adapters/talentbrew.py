@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from math import ceil
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
@@ -18,6 +19,7 @@ from src.scraper.company_careers.models import (
 )
 from src.scraper.company_careers.listing_completion import (
     AdaptiveListingCompletion,
+    PaginationEvidence,
     enforce_pagination_fail_closed,
     finish_authoritative_total,
     html_pagination_evidence,
@@ -101,7 +103,7 @@ def fetch_jobs(
         content = static_html._response_bytes(response, target)
         root = static_html._parse_html(content, response)
         _require_identity(root, target)
-        evidence = html_pagination_evidence(root)
+        evidence = _talentbrew_pagination_evidence(root)
         publish_pagination_evidence(
             metadata, evidence, prior_pagination=page_index > 0
         )
@@ -223,6 +225,73 @@ def fetch_jobs(
         metadata["scan_completeness_reason"] = "pagination_failure"
     enforce_pagination_fail_closed(metadata)
     return jobs
+
+
+def _talentbrew_pagination_evidence(root: Any) -> PaginationEvidence:
+    """Read TalentBrew's server-authored search totals before generic controls."""
+    nodes = root.xpath("//*[@id='search-results']")
+    if len(nodes) != 1:
+        return html_pagination_evidence(root)
+    node = nodes[0]
+    names = (
+        "data-total-results",
+        "data-total-job-results",
+        "data-total-pages",
+        "data-current-page",
+        "data-records-per-page",
+    )
+    present = [name for name in names if node.get(name) is not None]
+    if not present:
+        return html_pagination_evidence(root)
+    if len(present) != len(names):
+        missing = next(name for name in names if name not in present)
+        return PaginationEvidence(
+            fields=("talentbrew_search_metadata",),
+            malformed_fields=(missing,),
+        )
+    values: dict[str, int] = {}
+    for name in names:
+        raw = str(node.get(name) or "").strip()
+        if not raw.isdigit():
+            return PaginationEvidence(
+                fields=("talentbrew_search_metadata",),
+                malformed_fields=(name,),
+            )
+        values[name] = int(raw)
+    total = values["data-total-job-results"]
+    total_results = values["data-total-results"]
+    page_count = values["data-total-pages"]
+    current_page = values["data-current-page"]
+    page_size = values["data-records-per-page"]
+    malformed: list[str] = []
+    conflicts: list[str] = []
+    if total != total_results:
+        conflicts.append("total_results")
+    expected_pages = max(1, ceil(total / page_size)) if page_size else 0
+    if page_size < 1 or page_count != expected_pages:
+        malformed.append("page_count")
+    if current_page < 1 or current_page > page_count:
+        malformed.append("current_page")
+    start_index = 0 if total == 0 else (current_page - 1) * page_size + 1
+    end_index = min(total, current_page * page_size)
+    return PaginationEvidence(
+        reported_total=total,
+        has_more=current_page < page_count,
+        next_url_present=True if current_page < page_count else False,
+        page_count=page_count,
+        current_page=current_page,
+        result_count=max(0, end_index - start_index + 1),
+        end_index=end_index,
+        explicit_final_page=current_page == page_count,
+        fields=(
+            "talentbrew_total",
+            "talentbrew_page_count",
+            "talentbrew_current_page",
+            "talentbrew_page_size",
+        ),
+        malformed_fields=tuple(malformed),
+        conflicting_fields=tuple(conflicts),
+    )
 
 
 def _require_identity(root: Any, target: CompanyTarget) -> None:

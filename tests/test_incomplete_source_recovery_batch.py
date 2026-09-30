@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import json
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 import yaml
 
-from src.scraper.company_careers.adapters import icims, smartrecruiters, static_html
+from src.scraper.company_careers.adapters import embedded_data, icims, smartrecruiters, static_html
 from src.scraper.company_careers.listing_completion import finish_authoritative_total
 from src.scraper.company_careers.models import (
     AdapterError,
@@ -252,69 +253,66 @@ class IncompleteSourceRecoveryBatchTests(unittest.TestCase):
                 self.assertTrue(target.search_url.endswith("/jobs/search") or "/jobs/search?" in target.search_url)
                 icims.validate_target(target)
 
-    def test_sanctuary_structural_rows_are_diagnostic_and_collection_is_complete(self):
+    def test_sanctuary_uses_the_reviewed_kula_structured_collection(self):
         target = self.targets["Sanctuary AI"]
-        self.assertEqual(self.raw_entries[target.name], self.repair_entries[target.name])
-        structural = "".join(
-            f"<div role='region'><p>Filter region {index}</p></div>"
-            for index in range(10)
-        )
-        job = (
-            "<div role='region'><p>Robotics Engineer</p>"
-            "<a href='/sanctuary-ai/33158/'>Apply</a></div>"
-        )
+        self.assertEqual(target.platform, "javascript_embedded_data")
+        row = {
+            "id": 33158,
+            "account_id": 1484,
+            "title": "Robotics Engineer",
+            "launch_at": "2026-09-29T00:00:00Z",
+            "ats_job": {
+                "offices": [{"name": "Vancouver"}],
+                "ats_department": {"name": "Robotics"},
+            },
+        }
+        stream = '1:["$",{"jobs":' + json.dumps([row]) + "}]"
+        wrapper = "self.__next_f.push(" + json.dumps([1, stream]) + ")"
         session = Session(
             Response(
-                f"<html><head><title>Sanctuary AI jobs</title></head><body>{structural}{job}</body></html>",
+                f"<html><script>{wrapper}</script></html>",
                 url=str(target.listing_url),
             )
         )
-        jobs = static_html.fetch_jobs(session, target)
+        jobs = embedded_data.fetch_jobs(session, target)
         metadata = source_scan_metadata(session)
         self.assertEqual([item.raw_metadata["external_job_id"] for item in jobs], ["33158"])
-        self.assertEqual(metadata["structural_non_job_count"], 10)
-        self.assertEqual(
-            {item["reason"] for item in metadata["diagnostics"]},
-            {"linkless_structural_non_job"},
-        )
         self.assertTrue(metadata["scan_complete"])
         self.assertEqual(
             metadata["scan_completeness_reason"],
-            "validated_single_page_collection",
-        )
-        self.assertEqual(
-            metadata["terminal_evidence_type"],
-            "configured_single_page_collection",
+            "complete_structured_collection",
         )
 
-    def test_sanctuary_job_looking_malformed_row_is_not_hidden(self):
+    def test_sanctuary_malformed_structured_row_is_not_hidden(self):
         target = self.targets["Sanctuary AI"]
-        malformed = (
-            "<div role='region' data-reference='/sanctuary-ai/99999/'>"
-            "<p>Engineer</p></div>"
-        )
-        session = Session(
-            Response(
-                f"<html><head><title>Sanctuary AI jobs</title></head><body>{malformed}</body></html>",
-                url=str(target.listing_url),
+        row = {
+            "id": None,
+            "account_id": 1484,
+            "title": "Engineer",
+            "launch_at": "2026-09-29T00:00:00Z",
+            "ats_job": {
+                "offices": [{"name": "Vancouver"}],
+                "ats_department": {"name": "Robotics"},
+            },
+        }
+        stream = '1:["$",{"jobs":' + json.dumps([row]) + "}]"
+        wrapper = "self.__next_f.push(" + json.dumps([1, stream]) + ")"
+        with self.assertRaisesRegex(AdapterError, "stable identifier"):
+            embedded_data.fetch_jobs(
+                Session(Response(f"<script>{wrapper}</script>", url=str(target.listing_url))),
+                target,
             )
-        )
-        with self.assertRaisesRegex(AdapterError, "canonical job URL"):
-            static_html.fetch_jobs(session, target)
 
-    def test_single_page_contract_does_not_override_continuation(self):
+    def test_sanctuary_wrong_kula_account_fails_closed(self):
         target = self.targets["Sanctuary AI"]
-        body = (
-            "<html><head><title>Sanctuary AI jobs</title></head><body>"
-            "<div role='region'><p>Engineer</p>"
-            "<a href='/sanctuary-ai/33158/'>Apply</a></div>"
-            "<a class='next' href='?page=2'>Next</a></body></html>"
-        )
-        session = Session(Response(body, url=str(target.listing_url)))
-        static_html.fetch_jobs(session, target)
-        metadata = source_scan_metadata(session)
-        self.assertFalse(metadata["scan_complete"])
-        self.assertTrue(metadata["pagination_evidence_conflicting"])
+        row = {"id": 33158, "account_id": 9999, "title": "Engineer"}
+        stream = '1:["$",{"jobs":' + json.dumps([row]) + "}]"
+        wrapper = "self.__next_f.push(" + json.dumps([1, stream]) + ")"
+        with self.assertRaisesRegex(AdapterError, "attribution"):
+            embedded_data.fetch_jobs(
+                Session(Response(f"<script>{wrapper}</script>", url=str(target.listing_url))),
+                target,
+            )
 
 
 if __name__ == "__main__":

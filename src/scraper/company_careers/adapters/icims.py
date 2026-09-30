@@ -25,6 +25,7 @@ from src.scraper.company_careers.models import (
 from src.scraper.company_careers.listing_completion import (
     AdaptiveListingCompletion,
     html_page_has_more,
+    html_pagination_evidence,
     record_terminal_evidence,
 )
 from src.scraper.company_careers.mutable_collection import (
@@ -433,6 +434,8 @@ def _page_params(target: CompanyTarget, page_index: int) -> dict[str, str]:
         "in_iframe": "1",
         "searchRelation": "keyword_all",
         "pr": str(page_index),
+        "schemaId": "",
+        "o": "",
     }
 
 
@@ -536,7 +539,7 @@ def _parse_page(
         zero = _zero_text(root) or bool(
             root.xpath("//*[contains(@class, 'iCIMS_JobSearchNoResults')]")
         )
-        has_more = html_page_has_more(root)
+        has_more = _legacy_has_more(root, page_index)
         listing_contract = bool(
             items
             or root.xpath(
@@ -573,6 +576,36 @@ def _legacy_terminal_empty_page(
     query = parse_qs(urlparse(str(getattr(response, "url", "") or "")).query)
     requested_pages = query.get("pr")
     return requested_pages == [str(page_index)]
+
+
+def _legacy_has_more(root: Any, page_index: int) -> Optional[bool]:
+    """Read the legacy portal's selected ``Page X of Y`` link exactly."""
+    selected = root.xpath(
+        "//a[contains(concat(' ', normalize-space(@class), ' '), ' selected ') "
+        "and contains(@href, 'pr=')]"
+    )
+    if selected:
+        if len(selected) != 1:
+            raise AdapterError("iCIMS legacy portal exposed multiple current pages")
+        text = " ".join(" ".join(selected[0].itertext()).split())
+        match = re.fullmatch(r"Page\s+(\d+)\s+of\s+(\d+)\s*,?\s*Current Page", text, re.I)
+        if not match:
+            raise AdapterError("iCIMS legacy portal current-page contract was malformed")
+        current_page, page_count = (int(match.group(1)), int(match.group(2)))
+        if (
+            page_count < 1
+            or current_page != page_index + 1
+            or current_page > page_count
+        ):
+            raise AdapterError("iCIMS legacy portal current page contradicted the request")
+        selected_has_more = current_page < page_count
+        generic_next_present = html_pagination_evidence(root).next_url_present
+        if not selected_has_more and generic_next_present is True:
+            raise AdapterError(
+                "iCIMS legacy portal final page contradicted its continuation control"
+            )
+        return selected_has_more
+    return html_page_has_more(root)
 
 
 def _reject_bad_json_success(text: str, content_type: str) -> None:

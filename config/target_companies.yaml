@@ -1315,31 +1315,33 @@ target_companies:
     candidate_family: talentbrew_radancy
     prior_classification: talentbrew_radancy
   - name: Snap
-    platform: static_html
+    platform: javascript_embedded_data
     careers_url: https://careers.snap.com/jobs
-    original_workbook_rank: 138
+    listing_url: https://careers.snap.com/jobs
+    endpoint_variant: snap_async_jobs_cache_v1
+    embedded_script_selector: script
+    embedded_json_path: data.body
+    id_field: _source.id
+    title_field: _source.title
+    url_field: _source.id
+    apply_url_template: https://careers.snap.com/job?id={id}
+    location_fields:
+      - _source.offices
+    department_field: _source.departments
+    job_attribution_field: _source.jobPostingSite
+    job_attribution_regex: ^Snap Inc\.$
+    allowed_source_hosts:
+      - careers.snap.com
+    allowed_apply_hosts:
+      - careers.snap.com
     max_pages: 1
     max_jobs: 20
     max_response_bytes: 3000000
-    evidence_source: bounded anonymous recheck
+    max_scripts: 20
+    max_script_bytes: 1000000
+    evidence_source: exact unfiltered Snap server-authored jobs cache
     evidence_confidence: high
-    evidence_timestamp: '2026-08-05T07:10:00+00:00'
-    listing_url: https://careers.snap.com/jobs
-    endpoint_variant: server_rendered_cards
-    listing_selector: table
-    job_card_selector: tr[role=row]
-    title_selector: a[href*='/job?id=']
-    detail_link_selector: a[href*='/job?id=']
-    external_id_regex: id=([^&]+)
-    external_id_attribute: null
-    location_selector: td:nth-child(4)
-    department_selector: td:nth-child(2)
-    pagination_url_template: null
-    allow_url_id_fallback: false
-    allowed_apply_hosts:
-    - careers.snap.com
-    candidate_family: existing_adapter_reuse
-    prior_classification: custom_graphql
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'
   - name: bp
     platform: workday
     careers_url: https://bpinternational.wd3.myworkdayjobs.com/bpCareers
@@ -1600,23 +1602,20 @@ target_companies:
     evidence_confidence: high
     evidence_timestamp: '2026-09-29T00:00:00+00:00'
   - name: Valve
-    platform: static_html
-    careers_url: https://www.valvesoftware.com/en/about
-    listing_url: https://www.valvesoftware.com/en/
-    endpoint_variant: server_rendered_links
-    listing_selector: a[href*=job_id=]
-    job_card_selector: a[href*=job_id=]
-    title_selector: h5.job_title
-    location_selector: null
-    detail_link_selector: :self
-    external_id_regex: '[?&]job_id=([0-9]+)'
-    department_selector: null
+    platform: public_json
+    careers_url: https://www.valvesoftware.com/en/
+    endpoint_url: https://www.valvesoftware.com/en/jobs/job-search?search=
+    endpoint_variant: valve_jobs_v1
+    allowed_source_hosts:
+      - www.valvesoftware.com
     allowed_apply_hosts:
-    - www.valvesoftware.com
-    original_workbook_rank: 139
+      - www.valvesoftware.com
     max_pages: 1
     max_jobs: 20
     max_response_bytes: 3000000
+    evidence_source: official unfiltered Valve jobs JSON endpoint referenced by jobs.js
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'
   - name: Roblox
     platform: static_html
     careers_url: https://careers.roblox.com/
@@ -2006,24 +2005,34 @@ target_companies:
     slug: lucidmotors
     search_url: https://job-boards.greenhouse.io/lucidmotors
   - name: Sanctuary AI
-    platform: static_html
+    platform: javascript_embedded_data
     careers_url: https://sanctuary.ai/careers/
     source_identity_regex: Sanctuary AI
     allowed_apply_hosts:
-    - careers.kula.ai
+      - careers.kula.ai
     original_workbook_rank: 155
     max_pages: 1
     max_jobs: 20
     max_response_bytes: 3000000
     listing_url: https://careers.kula.ai/sanctuary-ai
-    endpoint_variant: server_rendered_cards
-    listing_selector: div[role=region]
-    job_card_selector: div[role=region]
-    title_selector: p:first-child
-    detail_link_selector: a[href^=/sanctuary-ai/]
-    external_id_regex: /sanctuary-ai/([0-9]+)/?
-    allow_structural_linkless_cards: true
-    single_page_collection: true
+    endpoint_variant: next_flight_collection
+    embedded_script_selector: script
+    embedded_json_path: jobs
+    id_field: id
+    title_field: title
+    url_field: id
+    apply_url_template: https://careers.kula.ai/sanctuary-ai/{id}/
+    location_fields:
+      - ats_job.offices
+    department_field: ats_job.ats_department
+    date_field: launch_at
+    job_attribution_field: account_id
+    job_attribution_regex: ^1484$
+    max_scripts: 20
+    max_script_bytes: 1000000
+    evidence_source: official Kula Next.js complete jobs collection for account 1484
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'
   - name: Instacart
     platform: greenhouse
     careers_url: https://www.instacart.careers/en-ca/current-openings
@@ -2410,13 +2419,6 @@ target_companies:
     platform: static_html
     careers_url: https://www.imperialoil.ca/careers/careers
     source_identity_regex: Jobs in Canada \(Imperial\)|Imperial
-    allowed_apply_hosts:
-    - jobs.exxonmobil.com
-    original_workbook_rank: 169
-    max_pages: 1
-    max_jobs: 20
-    max_response_bytes: 3000000
-    identity_url: https://jobs.exxonmobil.com/Imperial/go/Jobs-in-Canada-%28Imperial%29/3271200/
     listing_url: https://jobs.exxonmobil.com/Imperial/go/Jobs-in-Canada-%28Imperial%29/3271200/
     endpoint_variant: server_rendered_cards
     listing_selector: '#searchresults'
@@ -2427,6 +2429,15 @@ target_companies:
     date_selector: td.colDate span.jobDate
     detail_link_selector: a.jobTitle-link
     external_id_regex: /([0-9]+)/?$
+    next_page_selector: a.paginationItemLast
+    allowed_apply_hosts:
+      - jobs.exxonmobil.com
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: exact Imperial category 3271200 with result range and final page
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'
   - name: ARC Resources
     platform: sap_successfactors
     careers_url: https://www.arcresources.com/join-our-team/
@@ -3250,26 +3261,20 @@ target_companies:
     reference_url_attribute: data-share
     external_id_regex: /job-detail/([^/?#]+)$
   - name: iRobot
-    platform: static_html
+    platform: talentbrew
     careers_url: https://careers.irobot.com/
-    source_identity_regex: iRobot
+    listing_url: https://careers.irobot.com/search-jobs
+    endpoint_variant: search_results_data_job_id_v1
     identity_regex: iRobot
     allowed_apply_hosts:
-    - careers.irobot.com
-    original_workbook_rank: null
-    max_pages: 2
+      - careers.irobot.com
+    page_size: 10
+    max_pages: 1
     max_jobs: 20
     max_response_bytes: 3000000
-    identity_url: https://careers.irobot.com/search-jobs
-    listing_url: https://careers.irobot.com/search-jobs
-    pagination_url_template: https://careers.irobot.com/search-jobs?p={page}
-    endpoint_variant: server_rendered_cards
-    listing_selector: '#search-results-list'
-    job_card_selector: '#search-results-list li'
-    title_selector: h2
-    location_selector: .job-location
-    detail_link_selector: a[data-job-id]
-    external_id_regex: /42682/([0-9]+)$
+    evidence_source: TalentBrew server totals, page count, stable data-job-id, and final page
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'
   - name: Dyson
     platform: static_html
     careers_url: https://careers.dyson.com/en-gb/

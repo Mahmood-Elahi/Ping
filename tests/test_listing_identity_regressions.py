@@ -35,13 +35,57 @@ class ListingIdentityRegressionTests(unittest.TestCase):
             "external_id": "R0041042",
         },
     }
+    LEGACY_STATIC_TARGETS = {
+        "Snap": {
+            "name": "Snap",
+            "platform": "static_html",
+            "careers_url": "https://careers.snap.com/jobs",
+            "listing_url": "https://careers.snap.com/jobs",
+            "endpoint_variant": "server_rendered_cards",
+            "listing_selector": "table",
+            "job_card_selector": "tr[role=row]",
+            "title_selector": "a[href*='/job?id=']",
+            "detail_link_selector": "a[href*='/job?id=']",
+            "external_id_regex": "id=([^&]+)",
+            "location_selector": "td:nth-child(4)",
+            "department_selector": "td:nth-child(2)",
+            "allowed_apply_hosts": ["careers.snap.com"],
+            "max_pages": 1,
+            "max_jobs": 20,
+            "max_response_bytes": 3000000,
+        },
+        "Sanctuary AI": {
+            "name": "Sanctuary AI",
+            "platform": "static_html",
+            "careers_url": "https://sanctuary.ai/careers/",
+            "listing_url": "https://careers.kula.ai/sanctuary-ai",
+            "endpoint_variant": "server_rendered_cards",
+            "listing_selector": "div[role=region]",
+            "job_card_selector": "div[role=region]",
+            "title_selector": "p:first-child",
+            "detail_link_selector": "a[href^=/sanctuary-ai/]",
+            "external_id_regex": "/sanctuary-ai/([0-9]+)/?",
+            "allow_structural_linkless_cards": True,
+            "single_page_collection": True,
+            "allowed_apply_hosts": ["careers.kula.ai"],
+            "max_pages": 1,
+            "max_jobs": 20,
+            "max_response_bytes": 3000000,
+        },
+    }
 
     @classmethod
     def setUpClass(cls):
         cls.targets = {
             target.name: target
-            for target in load_target_companies(apply_reliability_repairs=True)
+            for target in load_target_companies(apply_reliability_repairs=False)
         }
+        cls.targets.update(
+            {
+                name: CompanyTarget.from_dict(item)
+                for name, item in cls.LEGACY_STATIC_TARGETS.items()
+            }
+        )
 
     def parse(self, name: str, body: str):
         configured = self.targets[name]

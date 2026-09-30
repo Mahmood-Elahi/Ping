@@ -36,11 +36,15 @@ AURORA_JOBS_INDEX = "aurora_jobs_index_v1"
 WORDPRESS_ROLES = "wordpress_roles_v1"
 SHAZAMME_JOB_RESULTS = "shazamme_job_results_v1"
 OPTIVER_JOBS = "optiver_jobs_v1"
+UNITREE_JOBS = "unitree_jobs_v1"
+VALVE_JOBS = "valve_jobs_v1"
 SUPPORTED_VARIANTS = {
     AURORA_JOBS_INDEX,
     WORDPRESS_ROLES,
     SHAZAMME_JOB_RESULTS,
     OPTIVER_JOBS,
+    UNITREE_JOBS,
+    VALVE_JOBS,
 }
 HEADERS = {
     "Accept": "application/json",
@@ -98,6 +102,10 @@ def fetch_jobs(
     validate_target(target)
     if target.endpoint_variant == OPTIVER_JOBS:
         return _fetch_optiver_collection(session, target, timeout)
+    if target.endpoint_variant == UNITREE_JOBS:
+        return _fetch_unitree_collection(session, target, timeout)
+    if target.endpoint_variant == VALVE_JOBS:
+        return _fetch_valve_collection(session, target, timeout)
     if target.endpoint_variant == SHAZAMME_JOB_RESULTS:
         return _fetch_shazamme_collection(session, target, timeout)
     if target.endpoint_variant == WORDPRESS_ROLES:
@@ -119,6 +127,12 @@ def validate_target(target: CompanyTarget) -> None:
         return
     if target.endpoint_variant == OPTIVER_JOBS:
         _validate_optiver_target(target, endpoint, careers)
+        return
+    if target.endpoint_variant == UNITREE_JOBS:
+        _validate_unitree_target(target, endpoint, careers)
+        return
+    if target.endpoint_variant == VALVE_JOBS:
+        _validate_valve_target(target, endpoint, careers)
         return
     if (
         endpoint.scheme != "https"
@@ -166,6 +180,46 @@ def _validate_optiver_target(target: CompanyTarget, endpoint: Any, careers: Any)
         re.compile(str(target.identity_regex), re.I)
     except re.error as exc:
         raise AdapterError(f"Optiver identity regex is invalid: {exc}") from exc
+
+
+def _validate_unitree_target(target: CompanyTarget, endpoint: Any, careers: Any) -> None:
+    if (
+        endpoint.scheme != "https"
+        or endpoint.username
+        or endpoint.password
+        or endpoint.hostname != "api.unitree.com"
+        or endpoint.path != "/website/job/list"
+        or endpoint.query != "perPage=50"
+        or endpoint.fragment
+        or careers.scheme != "https"
+        or careers.hostname != "www.unitree.com"
+        or careers.path.rstrip("/") != "/position"
+        or {str(value).casefold() for value in target.allowed_source_hosts}
+        != {"api.unitree.com"}
+        or {str(value).casefold() for value in target.allowed_apply_hosts}
+        != {"www.unitree.com"}
+    ):
+        raise AdapterError("Unitree target does not bind the reviewed official jobs API")
+
+
+def _validate_valve_target(target: CompanyTarget, endpoint: Any, careers: Any) -> None:
+    if (
+        endpoint.scheme != "https"
+        or endpoint.username
+        or endpoint.password
+        or endpoint.hostname != "www.valvesoftware.com"
+        or endpoint.path != "/en/jobs/job-search"
+        or endpoint.query != "search="
+        or endpoint.fragment
+        or careers.scheme != "https"
+        or careers.hostname != "www.valvesoftware.com"
+        or careers.path.rstrip("/") != "/en"
+        or {str(value).casefold() for value in target.allowed_source_hosts}
+        != {"www.valvesoftware.com"}
+        or {str(value).casefold() for value in target.allowed_apply_hosts}
+        != {"www.valvesoftware.com"}
+    ):
+        raise AdapterError("Valve target does not bind the reviewed official jobs API")
 
 
 def _fetch_optiver_collection(
@@ -397,6 +451,235 @@ def _metadata(target: CompanyTarget) -> SourceScanMetadata:
     )
     initialize_mutable_collection(metadata)
     return metadata
+
+
+def _official_identity_page(
+    session: requests.Session,
+    target: CompanyTarget,
+    timeout: int,
+    *,
+    required_fragments: tuple[str, ...],
+) -> str:
+    response = session.get(
+        str(target.careers_url),
+        headers={**HEADERS, "Accept": "text/html,application/xhtml+xml"},
+        timeout=min(max(1, int(timeout)), 30),
+    )
+    if response.status_code != 200:
+        raise AdapterError(
+            f"Public JSON official careers identity HTTP {response.status_code}"
+        )
+    content = bytes(getattr(response, "content", b"") or b"")
+    if not content or len(content) > int(target.max_response_bytes):
+        raise AdapterError("Public JSON official careers identity response exceeded its bound")
+    final = urlparse(str(getattr(response, "url", target.careers_url)))
+    configured = urlparse(str(target.careers_url))
+    if (
+        final.scheme != "https"
+        or (final.hostname or "").casefold() != (configured.hostname or "").casefold()
+    ):
+        raise AdapterError("Public JSON official careers page redirected outside its host")
+    text = content.decode("utf-8", errors="replace")
+    if not all(fragment in text for fragment in required_fragments):
+        raise AdapterError("Public JSON official careers page did not bind the reviewed endpoint")
+    return text
+
+
+def _finish_atomic_collection(
+    metadata: SourceScanMetadata,
+    jobs: list[JobRecord],
+    *,
+    evidence_type: str,
+    evidence_value: Any,
+    pages_completed: int = 2,
+) -> list[JobRecord]:
+    if len(jobs) > MAX_RAW_JOBS_PER_SOURCE:
+        raise AdapterError("Public JSON collection exceeded the hard job ceiling")
+    if len({job.job_id for job in jobs}) != len(jobs):
+        raise AdapterError("Public JSON collection repeated a stable job ID")
+    if len({job.url for job in jobs}) != len(jobs):
+        raise AdapterError("Public JSON collection repeated a canonical job URL")
+    total = len(jobs)
+    metadata.update(
+        jobs_normalized=total,
+        total_available=total,
+        pages_completed=pages_completed,
+        scan_complete=True,
+        scan_completeness_reason=evidence_type,
+        stop_reason=evidence_type,
+        complete_collection_response=True,
+        atomic_collection_contract=True,
+        source_identity_status="verified",
+    )
+    record_terminal_evidence(
+        metadata,
+        evidence_type,
+        evidence_value,
+        has_more=False,
+        terminal_page_observed=True,
+        complete_collection_response=True,
+    )
+    return jobs
+
+
+def _fetch_unitree_collection(
+    session: requests.Session,
+    target: CompanyTarget,
+    timeout: int,
+) -> list[JobRecord]:
+    metadata = _metadata(target)
+    publish_source_scan_metadata(session, metadata)
+    metadata["pages_requested"] = 1
+    _official_identity_page(
+        session,
+        target,
+        timeout,
+        required_fragments=(
+            "Unitree Robotics",
+            'apiBase:"https://api.unitree.com/website"',
+        ),
+    )
+    metadata["pages_requested"] += 1
+    response = _get(session, str(target.endpoint_url), timeout)
+    payload = _json(response, target)
+    if str(getattr(response, "url", "")) != str(target.endpoint_url):
+        raise AdapterError("Unitree jobs API redirected outside its reviewed endpoint")
+    if not isinstance(payload, Mapping) or payload.get("code") != 100:
+        raise AdapterError("Unitree jobs API did not return its success envelope")
+    data = payload.get("data")
+    if not isinstance(data, Mapping):
+        raise AdapterError("Unitree jobs API is missing its data object")
+    rows = data.get("items")
+    total = _nonnegative_int(data.get("count"), "Unitree count")
+    if (
+        not isinstance(rows, list)
+        or total != len(rows)
+        or total > 50
+        or not all(isinstance(row, Mapping) for row in rows)
+    ):
+        raise AdapterError("Unitree jobs API count does not prove one complete page")
+    jobs = [_normalize_unitree(row, target) for row in rows]
+    record_total_observation(metadata, total, offset=0, source_label="Unitree jobs API")
+    return _finish_atomic_collection(
+        metadata,
+        jobs,
+        evidence_type="unitree_counted_atomic_collection",
+        evidence_value=total,
+    )
+
+
+def _normalize_unitree(row: Mapping[str, Any], target: CompanyTarget) -> JobRecord:
+    external_id = str(row.get("id") or "").strip()
+    title = str(row.get("title") or "").strip()
+    if not external_id.isdigit() or not title:
+        raise AdapterError("Unitree job is missing a stable numeric ID or title")
+    url = _official_url(
+        f"https://www.unitree.com/position/{external_id}", target
+    )
+    category = str(row.get("categoryId") or "").strip()
+    return JobRecord(
+        job_id=f"public_json:api.unitree.com:{external_id}",
+        title=title,
+        company=target.name,
+        location="",
+        url=url,
+        updated_at=str(row.get("postTime") or ""),
+        source="public_json:api.unitree.com:website-job-list",
+        departments=[category] if category else [],
+        raw_metadata={
+            "external_job_id": external_id,
+            "city_id": str(row.get("cityId") or ""),
+            "group_id": str(row.get("groupId") or ""),
+            "platform": "public_json",
+            "endpoint_variant": UNITREE_JOBS,
+        },
+    )
+
+
+def _fetch_valve_collection(
+    session: requests.Session,
+    target: CompanyTarget,
+    timeout: int,
+) -> list[JobRecord]:
+    metadata = _metadata(target)
+    publish_source_scan_metadata(session, metadata)
+    metadata["pages_requested"] = 1
+    identity = _official_identity_page(
+        session,
+        target,
+        timeout,
+        required_fragments=(
+            "Valve Corporation",
+            "/en/public/javascript/jobs.js",
+        ),
+    )
+    metadata["pages_requested"] += 1
+    script_match = re.search(
+        r'''src=["']([^"']*/en/public/javascript/jobs\.js(?:\?[^"']*)?)["']''',
+        identity,
+        re.I,
+    )
+    if not script_match:
+        raise AdapterError("Valve official careers page did not identify its jobs script")
+    script_url = urljoin(str(target.careers_url), unescape(script_match.group(1)))
+    script_response = _get(session, script_url, timeout)
+    script_final = urlparse(str(getattr(script_response, "url", script_url)))
+    script_content = bytes(getattr(script_response, "content", b"") or b"")
+    if (
+        script_final.scheme != "https"
+        or script_final.hostname != "www.valvesoftware.com"
+        or script_final.path != "/en/public/javascript/jobs.js"
+        or not script_content
+        or len(script_content) > int(target.max_script_bytes)
+        or b"https://www.valvesoftware.com/en/jobs/job-search?search="
+        not in script_content
+    ):
+        raise AdapterError("Valve official jobs script did not bind the reviewed endpoint")
+    metadata["pages_requested"] += 1
+    response = _get(session, str(target.endpoint_url), timeout)
+    payload = _json(response, target)
+    if str(getattr(response, "url", "")) != str(target.endpoint_url):
+        raise AdapterError("Valve jobs API redirected outside its reviewed endpoint")
+    if not isinstance(payload, Mapping):
+        raise AdapterError("Valve unfiltered jobs API must return an ID-keyed object")
+    jobs: list[JobRecord] = []
+    for key, row in payload.items():
+        if not isinstance(row, Mapping) or str(row.get("reqid") or "") != str(key):
+            raise AdapterError("Valve jobs API key conflicts with its stable requisition ID")
+        jobs.append(_normalize_valve(row, target))
+    return _finish_atomic_collection(
+        metadata,
+        jobs,
+        evidence_type="valve_unfiltered_atomic_collection",
+        evidence_value=str(target.endpoint_url),
+        pages_completed=3,
+    )
+
+
+def _normalize_valve(row: Mapping[str, Any], target: CompanyTarget) -> JobRecord:
+    external_id = str(row.get("reqid") or "").strip()
+    title = str(row.get("name") or "").strip()
+    if not external_id.isdigit() or not title:
+        raise AdapterError("Valve job is missing a stable numeric ID or title")
+    url = _official_url(
+        f"https://www.valvesoftware.com/en/jobs?job_id={external_id}", target
+    )
+    return JobRecord(
+        job_id=f"public_json:www.valvesoftware.com:{external_id}",
+        title=title,
+        company=target.name,
+        location="Bellevue, Washington, United States",
+        url=url,
+        updated_at="",
+        source="public_json:www.valvesoftware.com:job-search",
+        description=_html_text(row.get("description")) or None,
+        offices=["Bellevue, Washington, United States"],
+        raw_metadata={
+            "external_job_id": external_id,
+            "platform": "public_json",
+            "endpoint_variant": VALVE_JOBS,
+        },
+    )
 
 
 def _fetch_shazamme_collection(

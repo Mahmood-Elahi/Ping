@@ -84,15 +84,6 @@ class StaticHTMLAdapterTests(unittest.TestCase):
             for item in load_target_companies(apply_reliability_repairs=True)
         }
         fixtures = {
-            "General Motors": {
-                "external_id": "jr-202600001",
-                "card": (
-                    "<div class='card-job'><h2 class='card-title'>"
-                    "<a href='/en/jobs/jr-202600001/engineer'>Engineer</a></h2>"
-                    "<ul class='job-meta'><li>Engineering</li><li>Detroit, MI</li></ul>"
-                    "</div>"
-                ),
-            },
             "Caterpillar": {
                 "external_id": "R0000380757",
                 "card": (
@@ -112,6 +103,8 @@ class StaticHTMLAdapterTests(unittest.TestCase):
                 ),
             },
         }
+
+        self.assertIsNone(repaired["General Motors"].next_page_selector)
 
         for company, fixture in fixtures.items():
             with self.subTest(company=company):
