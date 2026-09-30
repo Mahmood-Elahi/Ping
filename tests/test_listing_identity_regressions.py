@@ -26,14 +26,6 @@ class Session:
 
 class ListingIdentityRegressionTests(unittest.TestCase):
     STRUCTURAL_ROW_SOURCES = {
-        "Absolute Software": {
-            "path": "/absolute/job/security-engineer-101",
-            "external_id": "security-engineer-101",
-        },
-        "EPCOR": {
-            "path": "/epcor/job/engineering-student-102",
-            "external_id": "engineering-student-102",
-        },
         "Cameco": {
             "path": "/cameco/job/process-engineer-103",
             "external_id": "process-engineer-103",
@@ -220,44 +212,21 @@ class ListingIdentityRegressionTests(unittest.TestCase):
 
     def test_jobvite_company_paths_cannot_cross_attribute(self):
         cross_source_rows = {
-            "Absolute Software": self.source_row(
-                "Absolute Software", self.STRUCTURAL_ROW_SOURCES["EPCOR"]["path"]
-            ),
-            "EPCOR": self.source_row(
-                "EPCOR", self.STRUCTURAL_ROW_SOURCES["Cameco"]["path"]
-            ),
             "Cameco": self.source_row(
-                "Cameco", self.STRUCTURAL_ROW_SOURCES["EPCOR"]["path"]
+                "Cameco", "/epcor/job/engineering-student-102"
             ),
         }
         for name, row in cross_source_rows.items():
             with self.subTest(name=name), self.assertRaises(AdapterError):
                 self.parse(name, self.source_page(row))
 
-        epcor = self.parse(
-            "EPCOR",
-            self.source_page(
-                self.source_row("EPCOR", self.STRUCTURAL_ROW_SOURCES["EPCOR"]["path"])
-            ),
-        )[0]
         cameco = self.parse(
             "Cameco",
             self.source_page(
                 self.source_row("Cameco", self.STRUCTURAL_ROW_SOURCES["Cameco"]["path"])
             ),
         )[0]
-        absolute = self.parse(
-            "Absolute Software",
-            self.source_page(
-                self.source_row(
-                    "Absolute Software",
-                    self.STRUCTURAL_ROW_SOURCES["Absolute Software"]["path"],
-                )
-            ),
-        )[0]
-        self.assertEqual(epcor.source, "static_html:epcor")
         self.assertEqual(cameco.source, "static_html:cameco")
-        self.assertNotIn(absolute.source, {epcor.source, cameco.source})
 
     def test_snap_requisition_query_id_remains_stable(self):
         contract = self.STRUCTURAL_ROW_SOURCES["Snap"]

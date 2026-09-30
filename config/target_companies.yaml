@@ -682,20 +682,23 @@ target_companies:
     board_id: amd-public
     careers_url: https://www.amd.com/en/corporate/careers.html
     search_url: https://careers.amd.com/careers-home/jobs
+    endpoint_url: https://careers.amd.com/api/jobs
     endpoint_variant: icims_jibe_api
     original_workbook_rank: 17
     industry: Not recorded in repository master workbook
     allowed_apply_hosts:
+    - campus-amd.icims.com
+    - campuscanada-amd.icims.com
     - careers-amd.icims.com
     - canadacareers-amd.icims.com
     - global-external-amd.icims.com
+    - globalcampus-amd.icims.com
     page_size: 10
     max_pages: 2
     max_jobs: 20
-    evidence_source: config/company_remaining_inventory_v2.csv
+    evidence_source: bounded official Jibe API enumeration
     evidence_confidence: high
-    evidence_timestamp: '2026-08-05T01:24:24+00:00'
-    endpoint_url: https://careers.amd.com/api/jobs
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'
   - name: TSMC
     platform: avature
     tenant: careers.tsmc.com
@@ -970,29 +973,19 @@ target_companies:
     next_page_selector: null
     allow_url_id_fallback: false
   - name: DRW
-    platform: javascript_embedded_data
+    platform: greenhouse
+    slug: drweng
+    endpoint_variant: boards_api_v1_strict
     careers_url: https://www.drw.com/work-at-drw/listings
-    listing_url: https://www.drw.com/work-at-drw/listings
-    endpoint_variant: next_data
     original_workbook_rank: 79
     allowed_apply_hosts:
-    - www.drw.com
+    - job-boards.greenhouse.io
     max_pages: 1
-    max_jobs: 20
-    max_scripts: 20
+    max_jobs: 10000
     max_response_bytes: 3000000
-    max_script_bytes: 1000000
-    evidence_source: config/company_unknown_investigation_v3.csv
-    evidence_confidence: medium
-    evidence_timestamp: '2026-08-05T02:53:39+00:00'
-    embedded_script_selector: script#__NEXT_DATA__
-    embedded_json_path: props.pageProps.jobData.en
-    id_field: id
-    title_field: title
-    location_field: locations
-    url_field: slug
-    department_field: career_categories
-    apply_url_template: https://www.drw.com/work-at-drw/listings/{slug}
+    evidence_source: official DRW detail pages and public Greenhouse board
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'
   - name: General Motors
     platform: static_html
     careers_url: https://search-careers.gm.com/en/jobs/
@@ -1198,32 +1191,19 @@ target_companies:
     next_page_selector: null
     allow_url_id_fallback: false
   - name: Flexport
-    platform: static_html
-    careers_url: https://www.flexport.com/careers/jobs/
-    listing_url: https://www.flexport.com/careers/jobs/
-    endpoint_variant: server_rendered_links
+    platform: greenhouse
+    slug: flexport
+    endpoint_variant: boards_api_v1_strict
+    careers_url: https://www.flexport.com/careers/
     original_workbook_rank: 219
     allowed_apply_hosts:
     - job-boards.greenhouse.io
     max_pages: 1
-    max_jobs: 20
-    max_scripts: 20
+    max_jobs: 10000
     max_response_bytes: 3000000
-    max_script_bytes: 1000000
-    evidence_source: config/company_remaining_inventory_v2.csv
-    evidence_confidence: medium
-    evidence_timestamp: '2026-08-05T01:24:24+00:00'
-    listing_selector: a[href*='job-boards.greenhouse.io/flexport/jobs/']
-    job_card_selector: a[href*='job-boards.greenhouse.io/flexport/jobs/']
-    title_selector: :self
-    detail_link_selector: :self
-    external_id_regex: /jobs/(\d+)
-    external_id_attribute: null
-    location_selector: null
-    department_selector: null
-    pagination_url_template: null
-    next_page_selector: null
-    allow_url_id_fallback: false
+    evidence_source: official Flexport careers page and public Greenhouse board
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'
   - name: Bluesky
     platform: javascript_embedded_data
     careers_url: https://bsky.social/about/join
@@ -1291,31 +1271,23 @@ target_companies:
     candidate_family: existing_adapter_reuse
     prior_classification: existing_adapter_extension
   - name: Optiver
-    platform: static_html
+    platform: public_json
     careers_url: https://www.optiver.com/join-us/jobs/
     original_workbook_rank: 81
-    max_pages: 1
-    max_jobs: 20
+    page_size: 16
+    max_pages: 25
+    max_jobs: 400
     max_response_bytes: 3000000
-    evidence_source: bounded anonymous recheck
-    evidence_confidence: high
-    evidence_timestamp: '2026-08-05T07:10:00+00:00'
-    listing_url: https://www.optiver.com/join-us/jobs/
-    endpoint_variant: server_rendered_cards
-    listing_selector: div[role=region]
-    job_card_selector: div[role=region] ul.flex.flex-col.gap-3 li
-    title_selector: h3 a
-    detail_link_selector: h3 a
-    external_id_regex: null
-    external_id_attribute: null
-    location_selector: p.text-body-s
-    department_selector: span.text-label-s
-    pagination_url_template: null
-    allow_url_id_fallback: true
+    endpoint_url: https://www.optiver.com/en/api/v1/jobs
+    endpoint_variant: optiver_jobs_v1
+    identity_regex: \bOptiver\b
+    allowed_source_hosts:
+    - www.optiver.com
     allowed_apply_hosts:
     - www.optiver.com
-    candidate_family: existing_adapter_reuse
-    prior_classification: custom_rest_api
+    evidence_source: official same-origin API contract
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'
   - name: BlackRock
     platform: static_html
     careers_url: https://careers.blackrock.com/en/search-jobs
@@ -2778,24 +2750,21 @@ target_companies:
     locale: en_ca
     apply_url_template: https://jobs.bell.ca/ca/en/job/{job_seq_no}
   - name: Absolute Software
-    platform: static_html
+    platform: jobvite
+    slug: absolute
     careers_url: https://www.absolute.com/company/careers
-    source_identity_regex: 'Absolute(?: Security| Logo| provides)'
+    listing_url: https://jobs.jobvite.com/absolute/search
+    endpoint_variant: server_search_total_v1
+    identity_regex: 'Absolute(?: Security| Software| Logo| provides)'
     allowed_apply_hosts:
     - jobs.jobvite.com
     original_workbook_rank: null
     max_pages: 1
-    max_jobs: 20
+    max_jobs: 500
     max_response_bytes: 3000000
-    identity_url: https://jobs.jobvite.com/absolute/jobs
-    listing_url: https://jobs.jobvite.com/absolute/jobs
-    endpoint_variant: server_rendered_cards
-    listing_selector: table.jv-job-list
-    job_card_selector: table.jv-job-list tr
-    title_selector: td.jv-job-list-name a
-    detail_link_selector: td.jv-job-list-name a[href*='/absolute/job/']
-    external_id_regex: /job/([^/?#]+)
-    location_selector: td.jv-job-list-location
+    evidence_source: official Absolute careers link and Jobvite result range
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'
   - name: Clio
     platform: workday
     careers_url: https://www.clio.com/about/careers/
@@ -2928,24 +2897,23 @@ target_companies:
     identity_url: https://job-boards.greenhouse.io/hootsuite
     slug: hootsuite
   - name: PointClickCare
-    platform: static_html
+    platform: lever
+    slug: pointclickcare
     careers_url: https://pointclickcare.com/life-at-pointclickcare/
-    source_identity_regex: PointClickCare
+    endpoint_url: https://api.lever.co/v0/postings/pointclickcare
+    endpoint_variant: postings_api_v0_official_link
+    identity_regex: \bPointClickCare\b
+    allowed_source_hosts:
+    - pointclickcare.com
     allowed_apply_hosts:
     - jobs.lever.co
     original_workbook_rank: null
-    max_pages: 1
-    max_jobs: 20
+    max_pages: 25
+    max_jobs: 500
     max_response_bytes: 3000000
-    identity_url: https://jobs.lever.co/pointclickcare
-    listing_url: https://jobs.lever.co/pointclickcare
-    endpoint_variant: server_rendered_cards
-    listing_selector: div.postings-wrapper
-    job_card_selector: div.posting
-    title_selector: h5
-    detail_link_selector: a.posting-title[href*="/pointclickcare/"]
-    external_id_regex: /pointclickcare/([A-Za-z0-9-]+)
-    location_selector: span.location
+    evidence_source: official PointClickCare careers link and Lever public API
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'
   - name: CoolIT Systems
     platform: ukg_pro
     careers_url: https://recruiting.ultipro.ca/COO5001COLT/JobBoard/05857940-9028-4d4a-8544-26bd990d20d6/
@@ -3358,21 +3326,19 @@ target_companies:
     max_pages: 1
     max_jobs: 20
   - name: Aptiv
-    platform: hawksearch_v2
+    platform: workday
+    tenant: aptiv
+    wd_subdomain: wd5
+    site_id: APTIV_CAREERS
     careers_url: https://www.aptiv.com/en/jobs/search
-    endpoint_url: https://aptivcareers.searchapi-na.hawksearch.com/api/v2/search/
-    endpoint_variant: hawksearch_v2_search
-    client_guid: 28fad22cfe584b879917858203dd97ce
-    identity_regex: \bAptiv\b
-    locale: en
-    allowed_source_hosts:
-    - www.aptiv.com
-    - aptivcareers.searchapi-na.hawksearch.com
     allowed_apply_hosts:
     - aptiv.wd5.myworkdayjobs.com
-    page_size: 16
-    max_pages: 2
-    max_jobs: 20
+    page_size: 20
+    max_pages: 25
+    max_jobs: 500
+    evidence_source: official Aptiv search flow and exact Workday tenant
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'
   - name: PETRONAS
     platform: oracle_recruiting
     careers_url: https://careers.petronas.com/en/sites/CX_1/jobs
@@ -5680,22 +5646,19 @@ target_companies:
     allowed_apply_hosts:
     - job-boards.greenhouse.io
   - name: Temporal
-    platform: static_html
+    platform: ashby
+    slug: temporal
     careers_url: https://temporal.io/careers
-    listing_url: https://temporal.io/careers
-    endpoint_variant: server_rendered_links
-    listing_selector: a[href^='/careers/']
-    job_card_selector: a[href^='/careers/']
-    title_selector: span[data-size='32']
-    location_selector: span.inline-flex
-    detail_link_selector: :self
-    external_id_regex: /careers/([0-9a-f]{8}-[0-9a-f-]{27,})$
+    endpoint_url: https://api.ashbyhq.com/posting-api/job-board/temporal
+    endpoint_variant: posting_api_v1
+    allowed_source_hosts:
+      - api.ashbyhq.com
     allowed_apply_hosts:
-      - temporal.io
+      - jobs.ashbyhq.com
     original_workbook_rank: null
     max_pages: 1
-    max_jobs: 20
-    max_response_bytes: 1000000
+    max_jobs: 10000
+    max_response_bytes: 3000000
     evidence_source: https://temporal.io/careers
     evidence_confidence: high
     evidence_timestamp: '2026-08-28T00:00:00+00:00'
@@ -5810,24 +5773,22 @@ target_companies:
     allowed_apply_hosts:
     - jobs.ashbyhq.com
   - name: Anysphere
-    platform: static_html
+    platform: ashby
+    slug: cursor
     careers_url: https://cursor.com/careers
+    endpoint_url: https://api.ashbyhq.com/posting-api/job-board/cursor
+    endpoint_variant: posting_api_v1
+    allowed_source_hosts:
+    - api.ashbyhq.com
     original_workbook_rank: null
     max_pages: 1
-    max_jobs: 20
+    max_jobs: 10000
     max_response_bytes: 3000000
-    listing_url: https://cursor.com/careers
-    endpoint_variant: server_rendered_links
-    source_identity_regex: Anysphere, Inc\.
-    listing_selector: main#main
-    job_card_selector: a.card[href^=/careers/]
-    title_selector: p.type-base
-    location_selector: .text-theme-text-sec span:last-child
-    department_selector: .text-theme-text-sec span:first-child
-    detail_link_selector: :self
-    external_id_regex: /careers/([^/?#]+)
     allowed_apply_hosts:
-    - cursor.com
+    - jobs.ashbyhq.com
+    evidence_source: official Cursor careers flow and Ashby posting API
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'
   - name: Glean
     platform: greenhouse
     careers_url: https://www.glean.com/careers
@@ -6783,20 +6744,19 @@ target_companies:
     max_pages: 1
     max_jobs: 20
   - name: EPCOR
-    platform: static_html
-    careers_url: https://www.epcor.com/about/careers/
-    listing_url: https://jobs.jobvite.com/epcor/jobs
-    endpoint_variant: server_rendered_cards
+    platform: jobvite
     slug: epcor
-    listing_selector: table.jv-job-list
-    job_card_selector: tr
-    title_selector: td.jv-job-list-name a
-    location_selector: td.jv-job-list-location
-    detail_link_selector: td.jv-job-list-name a
-    external_id_regex: /epcor/job/([^/?#]+)
+    careers_url: https://www.epcor.com/ca/en/careers/jobs/search-jobs.html
+    listing_url: https://jobs.jobvite.com/epcor/search
+    endpoint_variant: server_search_total_v1
+    identity_regex: \bEPCOR\b
     allowed_apply_hosts: [jobs.jobvite.com]
     max_pages: 1
-    max_jobs: 20
+    max_jobs: 500
+    max_response_bytes: 3000000
+    evidence_source: official EPCOR careers page and Jobvite result range
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'
   - name: Parkland
     platform: talentbrew
     careers_url: https://www.parkland.ca/careers

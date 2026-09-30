@@ -29,6 +29,7 @@ MAX_RESPONSE_BYTES = 5_000_000
 MAX_DETAIL_RESPONSE_BYTES = 1_000_000
 READ_CHUNK_BYTES = 64 * 1024
 HEADERS = {"Accept": "application/json", "User-Agent": "job-radar/1.0"}
+STRICT_BOARD_VARIANT = "boards_api_v1_strict"
 
 
 def _secure_apply_url(value: object) -> str:
@@ -140,6 +141,19 @@ def _fetch_jobs(
             attribution_filtered += 1
             continue
         summaries.append((item, summary))
+    if target.endpoint_variant == STRICT_BOARD_VARIANT:
+        ids = [summary.job_id.casefold() for _item, summary in summaries]
+        urls = [summary.url.casefold() for _item, summary in summaries]
+        if len(set(ids)) != len(ids) or len(set(urls)) != len(urls):
+            metadata["duplicate_ids"] = True
+            raise AdapterError("Greenhouse board repeated a stable ID or canonical URL")
+        metadata.update(
+            source_identity_status="validated",
+            source_identity_diagnostic=(
+                "Greenhouse API rows matched the configured board slug, stable IDs, "
+                "and exact allow-listed board URLs"
+            ),
+        )
     metadata["pages_completed"] = 1
 
     prioritized_summaries, candidate_count = _prioritized_summaries(
@@ -349,12 +363,28 @@ def _listing_record(item: Any, target: CompanyTarget) -> JobRecord:
     location = item.get("location") or {}
     if not isinstance(location, Mapping):
         raise AdapterError("Greenhouse job location must be an object")
+    absolute_url = _secure_apply_url(item.get("absolute_url"))
+    if target.endpoint_variant == STRICT_BOARD_VARIANT:
+        parsed = urlparse(absolute_url)
+        parts = [part for part in parsed.path.split("/") if part]
+        allowed = {str(host).casefold() for host in target.allowed_apply_hosts}
+        if (
+            parsed.scheme != "https"
+            or (parsed.hostname or "").casefold() not in allowed
+            or len(parts) != 3
+            or parts[0].casefold() != str(target.slug).casefold()
+            or parts[1].casefold() != "jobs"
+            or parts[2].casefold() != job_id.casefold()
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise AdapterError("Greenhouse job URL does not match its exact board and stable ID")
     return JobRecord(
         job_id=job_id,
         title=title,
         company=target.name,
         location=location.get("name", "") or "",
-        url=_secure_apply_url(item.get("absolute_url")),
+        url=absolute_url,
         updated_at=item.get("updated_at", ""),
         source=f"greenhouse:{target.slug}",
         raw_metadata=_listing_metadata(item),

@@ -261,8 +261,8 @@ class IncompleteSourceParetoTests(unittest.TestCase):
     def test_manual_validation_selects_one_source_per_migrated_family(self):
         targets = representative_targets()
 
-        self.assertEqual(len(targets), 29)
-        self.assertEqual(len({target.platform for target in targets}), 29)
+        self.assertEqual(len(targets), 28)
+        self.assertEqual(len({target.platform for target in targets}), 28)
         self.assertNotIn("browser_rendered_html", {target.platform for target in targets})
 
     def test_targeted_manual_validator_covers_every_changed_family(self):

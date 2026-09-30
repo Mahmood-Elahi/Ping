@@ -116,6 +116,7 @@ def _fetch_jobs_once(
         "rejected_record_diagnostics": [],
         "diagnostics": [],
         "warnings": [],
+        "jibe_identity_rows_validated": target.endpoint_variant == JIBE_API,
     })
     setattr(session, "icims_pagination", metadata)
     publish_source_scan_metadata(session, metadata)
@@ -142,6 +143,13 @@ def _fetch_jobs_once(
         items, total, zero_contract, has_more, listing_contract = _parse_page(
             response, target, page_index
         )
+        if target.endpoint_variant == JIBE_API and any(
+            not isinstance(item.get("data"), Mapping)
+            or _clean(item["data"].get("client_code")).casefold()
+            != str(target.tenant).casefold()
+            for item in items
+        ):
+            metadata["jibe_identity_rows_validated"] = False
         metadata["pages_completed"] += 1
         record_total_observation(
             metadata,
@@ -323,6 +331,19 @@ def _fetch_jobs_once(
             "explicit_next_page_exhausted",
         }:
             metadata["stop_reason"] = "terminal_reached_with_rejected_records"
+    elif (
+        target.endpoint_variant == JIBE_API
+        and jobs
+        and metadata.get("scan_complete")
+        and metadata.get("jibe_identity_rows_validated") is True
+    ):
+        metadata.update(
+            source_identity_status="validated",
+            source_identity_diagnostic=(
+                "Every Jibe row matched the configured client_code tenant and an "
+                "exact allow-listed iCIMS apply URL"
+            ),
+        )
     return jobs
 
 

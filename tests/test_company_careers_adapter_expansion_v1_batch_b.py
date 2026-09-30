@@ -8,7 +8,10 @@ from unittest.mock import patch
 
 import yaml
 
-from tests.company_careers_reliability_assertions import assert_historical_prefix
+from tests.company_careers_reliability_assertions import (
+    assert_historical_prefix,
+    with_reliability_repairs,
+)
 
 from scripts import company_watchlist_common
 from scripts import investigate_remaining_companies
@@ -532,9 +535,17 @@ class BatchBRecoveryValidationTests(unittest.TestCase):
                 "allowed_source_hosts", "allowed_apply_hosts", "page_size",
                 "max_pages", "max_jobs",
             ),
+            "workday": (
+                "name", "platform", "tenant", "wd_subdomain", "site_id",
+                "careers_url", "allowed_apply_hosts", "page_size",
+                "max_pages", "max_jobs", "evidence_source",
+                "evidence_confidence", "evidence_timestamp",
+            ),
         }
         for production_row in production_data[baseline_count:projection_count]:
-            validated_row = self.rows[production_row["name"]]
+            validated_row = with_reliability_repairs(
+                [self.rows[production_row["name"]]]
+            )[0]
             fields = runtime_fields[production_row["platform"]]
             self.assertEqual(production_row, {field: validated_row[field] for field in fields})
 

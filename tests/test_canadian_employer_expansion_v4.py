@@ -19,7 +19,8 @@ EXPECTED_PLATFORMS = {
     "greenhouse": 7,
     "smartrecruiters": 7,
     "lever": 6,
-    "static_html": 2,
+    "static_html": 1,
+    "jobvite": 1,
     "talentbrew": 1,
     "oracle_recruiting": 1,
 }
@@ -33,6 +34,9 @@ RECOVERED_SOURCE_BOUNDS = {
     },
     "oracle_recruiting": {
         "Dell Technologies": (5, 120),
+    },
+    "jobvite": {
+        "EPCOR": (1, 500),
     },
 }
 

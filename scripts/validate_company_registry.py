@@ -40,6 +40,7 @@ from src.scraper.company_careers.adapters import (
     hawksearch_v2,
     hibob,
     icims,
+    jobvite,
     lever,
     oracle_recruiting,
     paycor,
@@ -123,6 +124,7 @@ ADAPTERS: dict[str, AdapterFn] = {
     "phenom": phenom.fetch_jobs,
     "avature": avature.fetch_jobs,
     "icims": icims.fetch_jobs,
+    "jobvite": jobvite.fetch_jobs,
     "static_html": static_html.fetch_jobs,
     "javascript_embedded_data": embedded_data.fetch_jobs,
     "exalead": exalead.fetch_jobs,
@@ -178,6 +180,9 @@ def source_key(entry: Mapping[str, Any]) -> Optional[str]:
     if platform in {"greenhouse", "lever", "ashby"}:
         slug = str(entry.get("slug") or "").strip().casefold()
         return f"{platform}:{slug}" if slug else None
+    if platform == "jobvite":
+        slug = str(entry.get("slug") or "").strip().casefold()
+        return f"jobvite:{slug}" if slug else None
     if platform == "workday":
         tenant = str(entry.get("tenant") or "").strip().casefold()
         # The production Workday adapter emits source=workday:<tenant>, so a
@@ -379,7 +384,7 @@ def configured_identifiers(entry: Mapping[str, Any]) -> dict[str, Any]:
             "endpoint_variant": entry.get("endpoint_variant"),
             "identity_regex": entry.get("identity_regex"),
         }
-    if platform in {"static_html", "javascript_embedded_data", "talentbrew", "teamtailor", "deel"}:
+    if platform in {"static_html", "javascript_embedded_data", "talentbrew", "teamtailor", "deel", "jobvite"}:
         return {
             "tenant": entry.get("tenant"),
             "listing_url": entry.get("listing_url"),
@@ -439,7 +444,7 @@ def endpoint_for(entry: Mapping[str, Any]) -> Optional[str]:
     if platform == "exalead":
         endpoint = str(entry.get("endpoint_url") or "").strip()
         return endpoint or None
-    if platform in {"static_html", "javascript_embedded_data", "talentbrew", "teamtailor", "deel"}:
+    if platform in {"static_html", "javascript_embedded_data", "talentbrew", "teamtailor", "deel", "jobvite"}:
         endpoint = str(entry.get("listing_url") or "").strip()
         return endpoint or None
     if platform == "clearcompany":
@@ -553,6 +558,11 @@ def configuration_error(entry: Mapping[str, Any]) -> Optional[str]:
     if platform == "static_html":
         try:
             static_html.validate_target(target)
+        except AdapterError as exc:
+            return str(exc)
+    if platform == "jobvite":
+        try:
+            jobvite.validate_target(target)
         except AdapterError as exc:
             return str(exc)
     if platform == "talentbrew":
@@ -692,6 +702,7 @@ def _response_shape_error(platform: str, response: Any) -> Optional[str]:
         "phenom",
         "avature",
         "static_html",
+        "jobvite",
         "javascript_embedded_data",
         "talentbrew",
         "teamtailor",

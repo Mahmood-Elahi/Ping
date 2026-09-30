@@ -8,6 +8,7 @@ from typing import Any, Iterable, List, Mapping
 from urllib.parse import urlencode, urlparse, urlunparse
 
 import requests
+from lxml import html
 
 from src.scraper.company_careers.models import (
     AdapterError,
@@ -23,6 +24,8 @@ from src.scraper.company_careers.listing_completion import (
 
 
 ENDPOINT_VARIANT = "postings_api_v0"
+OFFICIAL_LINK_VARIANT = "postings_api_v0_official_link"
+SUPPORTED_VARIANTS = {ENDPOINT_VARIANT, OFFICIAL_LINK_VARIANT}
 PAGE_SIZE = 20
 MAX_RESULTS = 500
 MAX_PAGES = 25
@@ -56,6 +59,8 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
     allowed_departments = {value.casefold() for value in allowed_department_values}
     scan_metadata = SourceScanMetadata(stop_reason="not_started")
     publish_source_scan_metadata(session, scan_metadata)
+    if target.endpoint_variant == OFFICIAL_LINK_VARIANT:
+        _validate_official_identity(session, target, timeout, scan_metadata)
     listing_budget = AdaptiveListingCompletion(maximum_pages, maximum_results)
     listing_budget.record(scan_metadata)
     listing_budget.record_terminal_probe_decision(
@@ -252,7 +257,7 @@ def _mark_safety_limit(
 def validate_target(target: CompanyTarget) -> None:
     if not target.slug or not SLUG_RE.fullmatch(str(target.slug)):
         raise AdapterError("Lever target is missing a valid slug")
-    if target.endpoint_variant and target.endpoint_variant != ENDPOINT_VARIANT:
+    if target.endpoint_variant and target.endpoint_variant not in SUPPORTED_VARIANTS:
         raise AdapterError(f"Lever unsupported variant: {target.endpoint_variant}")
     if not 1 <= int(target.max_jobs) <= MAX_RESULTS:
         raise AdapterError("Lever result limit exceeds the hard maximum")
@@ -280,6 +285,65 @@ def validate_target(target: CompanyTarget) -> None:
         raise AdapterError("Lever endpoint_url must be an approved board-specific postings endpoint")
     if expected_apply_host not in {str(host).casefold() for host in hosts}:
         raise AdapterError("Lever API region does not match the allow-listed apply host")
+    if target.endpoint_variant == OFFICIAL_LINK_VARIANT:
+        careers = urlparse(str(target.careers_url or ""))
+        source_hosts = {str(host).casefold() for host in target.allowed_source_hosts}
+        if (
+            careers.scheme != "https"
+            or not careers.hostname
+            or careers.username
+            or careers.password
+            or source_hosts != {(careers.hostname or "").casefold()}
+            or not target.identity_regex
+        ):
+            raise AdapterError("Lever official-link variant requires one exact official source host")
+        try:
+            re.compile(str(target.identity_regex), re.I)
+        except re.error as exc:
+            raise AdapterError(f"Lever identity regex is invalid: {exc}") from exc
+
+
+def _validate_official_identity(
+    session: requests.Session,
+    target: CompanyTarget,
+    timeout: int,
+    metadata: SourceScanMetadata,
+) -> None:
+    response = session.get(
+        str(target.careers_url),
+        headers={"Accept": "text/html,application/xhtml+xml", "User-Agent": HEADERS["User-Agent"]},
+        timeout=timeout,
+    )
+    if response.status_code != 200:
+        raise AdapterError(f"Lever official careers identity HTTP {response.status_code}")
+    body = bytes(getattr(response, "content", b"") or b"")
+    if not body:
+        body = str(getattr(response, "text", "") or "").encode("utf-8")
+    if not body or len(body) > int(target.max_response_bytes):
+        raise AdapterError("Lever official careers identity response exceeded its byte limit")
+    final = urlparse(str(getattr(response, "url", "") or target.careers_url))
+    allowed_source = {str(host).casefold() for host in target.allowed_source_hosts}
+    raw = body.decode("utf-8", errors="replace")
+    try:
+        visible = " ".join(html.fromstring(body).text_content().split())
+    except (TypeError, ValueError) as exc:
+        raise AdapterError("Lever official careers identity returned malformed HTML") from exc
+    expected_marker = f"jobs.lever.co/{target.slug}"
+    if (
+        final.scheme != "https"
+        or (final.hostname or "").casefold() not in allowed_source
+        or not re.search(str(target.identity_regex), visible, re.I)
+        or expected_marker.casefold() not in raw.casefold()
+    ):
+        raise AdapterError("Lever official careers page did not bind the configured tenant")
+    metadata.update(
+        source_identity_status="validated",
+        source_identity_diagnostic=(
+            "Official careers HTML named the configured company and linked the exact "
+            "Lever tenant"
+        ),
+        identity_requests=1,
+    )
 
 
 def _get(session: requests.Session, url: str, timeout: int) -> Any:

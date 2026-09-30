@@ -10,7 +10,10 @@ from unittest.mock import Mock, patch
 
 import yaml
 
-from tests.company_careers_reliability_assertions import assert_historical_prefix
+from tests.company_careers_reliability_assertions import (
+    assert_historical_prefix,
+    with_reliability_repairs,
+)
 
 from scripts import validate_company_registry as validator
 from scripts import validate_shared_api_batch as rollout
@@ -314,7 +317,9 @@ class SharedSourceBulkActivationTests(unittest.TestCase):
     def test_26_production_contains_exact_validated_activation(self):
         historical = historical_target_prefix()
         production = target_entries(rollout.PRODUCTION)
-        validated = additions(rollout.VALIDATED_REGISTRY)
+        validated = with_reliability_repairs(
+            additions(rollout.VALIDATED_REGISTRY)
+        )
         assert_historical_prefix(self, production, historical)
         self.assertEqual(
             production[len(historical):len(historical) + len(validated)],

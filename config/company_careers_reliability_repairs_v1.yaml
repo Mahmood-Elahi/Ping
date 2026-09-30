@@ -268,22 +268,19 @@ company_careers_reliability_repairs:
     evidence_confidence: high
     evidence_timestamp: '2026-08-28T00:00:00+00:00'
   - name: Temporal
-    platform: static_html
+    platform: ashby
+    slug: temporal
     careers_url: https://temporal.io/careers
-    listing_url: https://temporal.io/careers
-    endpoint_variant: server_rendered_links
-    listing_selector: a[href^='/careers/']
-    job_card_selector: a[href^='/careers/']
-    title_selector: span[data-size='32']
-    location_selector: span.inline-flex
-    detail_link_selector: ':self'
-    external_id_regex: /careers/([0-9a-f]{8}-[0-9a-f-]{27,})$
+    endpoint_url: https://api.ashbyhq.com/posting-api/job-board/temporal
+    endpoint_variant: posting_api_v1
+    allowed_source_hosts:
+      - api.ashbyhq.com
     allowed_apply_hosts:
-      - temporal.io
+      - jobs.ashbyhq.com
     original_workbook_rank: null
     max_pages: 1
-    max_jobs: 20
-    max_response_bytes: 1000000
+    max_jobs: 10000
+    max_response_bytes: 3000000
     evidence_source: https://temporal.io/careers
     evidence_confidence: high
     evidence_timestamp: '2026-08-28T00:00:00+00:00'
@@ -888,3 +885,152 @@ company_careers_reliability_repairs:
     evidence_source: https://jobs.porsche.com/
     evidence_confidence: high
     evidence_timestamp: '2026-09-29T00:00:00+00:00'
+  - name: AMD
+    platform: icims
+    tenant: amd
+    board_id: amd-public
+    careers_url: https://www.amd.com/en/corporate/careers.html
+    search_url: https://careers.amd.com/careers-home/jobs
+    endpoint_url: https://careers.amd.com/api/jobs
+    endpoint_variant: icims_jibe_api
+    original_workbook_rank: 17
+    industry: Not recorded in repository master workbook
+    allowed_apply_hosts:
+      - campus-amd.icims.com
+      - campuscanada-amd.icims.com
+      - careers-amd.icims.com
+      - canadacareers-amd.icims.com
+      - global-external-amd.icims.com
+      - globalcampus-amd.icims.com
+    page_size: 10
+    max_pages: 2
+    max_jobs: 20
+    evidence_source: bounded official Jibe API enumeration
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'
+  - name: DRW
+    platform: greenhouse
+    slug: drweng
+    endpoint_variant: boards_api_v1_strict
+    careers_url: https://www.drw.com/work-at-drw/listings
+    original_workbook_rank: 79
+    allowed_apply_hosts:
+      - job-boards.greenhouse.io
+    max_pages: 1
+    max_jobs: 10000
+    max_response_bytes: 3000000
+    evidence_source: official DRW detail pages and public Greenhouse board
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'
+  - name: Flexport
+    platform: greenhouse
+    slug: flexport
+    endpoint_variant: boards_api_v1_strict
+    careers_url: https://www.flexport.com/careers/
+    original_workbook_rank: 219
+    allowed_apply_hosts:
+      - job-boards.greenhouse.io
+    max_pages: 1
+    max_jobs: 10000
+    max_response_bytes: 3000000
+    evidence_source: official Flexport careers page and public Greenhouse board
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'
+  - name: Optiver
+    platform: public_json
+    careers_url: https://www.optiver.com/join-us/jobs/
+    endpoint_url: https://www.optiver.com/en/api/v1/jobs
+    endpoint_variant: optiver_jobs_v1
+    identity_regex: \bOptiver\b
+    allowed_source_hosts:
+      - www.optiver.com
+    allowed_apply_hosts:
+      - www.optiver.com
+    original_workbook_rank: 81
+    page_size: 16
+    max_pages: 25
+    max_jobs: 400
+    max_response_bytes: 3000000
+    evidence_source: official same-origin API contract
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'
+  - name: Absolute Software
+    platform: jobvite
+    slug: absolute
+    careers_url: https://www.absolute.com/company/careers
+    listing_url: https://jobs.jobvite.com/absolute/search
+    endpoint_variant: server_search_total_v1
+    identity_regex: 'Absolute(?: Security| Software| Logo| provides)'
+    allowed_apply_hosts:
+      - jobs.jobvite.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 500
+    max_response_bytes: 3000000
+    evidence_source: official Absolute careers link and Jobvite result range
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'
+  - name: PointClickCare
+    platform: lever
+    slug: pointclickcare
+    careers_url: https://pointclickcare.com/life-at-pointclickcare/
+    endpoint_url: https://api.lever.co/v0/postings/pointclickcare
+    endpoint_variant: postings_api_v0_official_link
+    identity_regex: \bPointClickCare\b
+    allowed_source_hosts:
+      - pointclickcare.com
+    allowed_apply_hosts:
+      - jobs.lever.co
+    original_workbook_rank: null
+    max_pages: 25
+    max_jobs: 500
+    max_response_bytes: 3000000
+    evidence_source: official PointClickCare careers link and Lever public API
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'
+  - name: Aptiv
+    platform: workday
+    tenant: aptiv
+    wd_subdomain: wd5
+    site_id: APTIV_CAREERS
+    careers_url: https://www.aptiv.com/en/jobs/search
+    allowed_apply_hosts:
+      - aptiv.wd5.myworkdayjobs.com
+    page_size: 20
+    max_pages: 25
+    max_jobs: 500
+    evidence_source: official Aptiv search flow and exact Workday tenant
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'
+  - name: Anysphere
+    platform: ashby
+    slug: cursor
+    careers_url: https://cursor.com/careers
+    endpoint_url: https://api.ashbyhq.com/posting-api/job-board/cursor
+    endpoint_variant: posting_api_v1
+    allowed_source_hosts:
+      - api.ashbyhq.com
+    allowed_apply_hosts:
+      - jobs.ashbyhq.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 10000
+    max_response_bytes: 3000000
+    evidence_source: official Cursor careers flow and Ashby posting API
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'
+  - name: EPCOR
+    platform: jobvite
+    slug: epcor
+    careers_url: https://www.epcor.com/ca/en/careers/jobs/search-jobs.html
+    listing_url: https://jobs.jobvite.com/epcor/search
+    endpoint_variant: server_search_total_v1
+    identity_regex: \bEPCOR\b
+    allowed_apply_hosts:
+      - jobs.jobvite.com
+    max_pages: 1
+    max_jobs: 500
+    max_response_bytes: 3000000
+    evidence_source: official EPCOR careers page and Jobvite result range
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'

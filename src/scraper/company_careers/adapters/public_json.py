@@ -8,8 +8,10 @@ from math import ceil
 import re
 from typing import Any, Mapping
 from urllib.parse import urlparse
+from urllib.parse import urljoin
 
 import requests
+from lxml import html
 
 from src.scraper.company_careers.listing_completion import (
     MAX_LISTING_REQUESTS_PER_SOURCE,
@@ -33,7 +35,13 @@ from src.scraper.company_careers.mutable_collection import (
 AURORA_JOBS_INDEX = "aurora_jobs_index_v1"
 WORDPRESS_ROLES = "wordpress_roles_v1"
 SHAZAMME_JOB_RESULTS = "shazamme_job_results_v1"
-SUPPORTED_VARIANTS = {AURORA_JOBS_INDEX, WORDPRESS_ROLES, SHAZAMME_JOB_RESULTS}
+OPTIVER_JOBS = "optiver_jobs_v1"
+SUPPORTED_VARIANTS = {
+    AURORA_JOBS_INDEX,
+    WORDPRESS_ROLES,
+    SHAZAMME_JOB_RESULTS,
+    OPTIVER_JOBS,
+}
 HEADERS = {
     "Accept": "application/json",
     "User-Agent": "job-radar/1.0 (read-only public careers scan)",
@@ -88,6 +96,8 @@ def fetch_jobs(
     timeout: int = 20,
 ) -> list[JobRecord]:
     validate_target(target)
+    if target.endpoint_variant == OPTIVER_JOBS:
+        return _fetch_optiver_collection(session, target, timeout)
     if target.endpoint_variant == SHAZAMME_JOB_RESULTS:
         return _fetch_shazamme_collection(session, target, timeout)
     if target.endpoint_variant == WORDPRESS_ROLES:
@@ -107,6 +117,9 @@ def validate_target(target: CompanyTarget) -> None:
     if target.endpoint_variant == SHAZAMME_JOB_RESULTS:
         _validate_shazamme_target(target, endpoint, careers)
         return
+    if target.endpoint_variant == OPTIVER_JOBS:
+        _validate_optiver_target(target, endpoint, careers)
+        return
     if (
         endpoint.scheme != "https"
         or not endpoint.hostname
@@ -125,6 +138,208 @@ def validate_target(target: CompanyTarget) -> None:
     )
     if endpoint.path.rstrip("/") != expected_path:
         raise AdapterError("Public JSON endpoint path does not match its reviewed variant")
+
+
+def _validate_optiver_target(target: CompanyTarget, endpoint: Any, careers: Any) -> None:
+    allowed_source = {str(value).casefold() for value in target.allowed_source_hosts}
+    allowed_apply = {str(value).casefold() for value in target.allowed_apply_hosts}
+    if (
+        endpoint.scheme != "https"
+        or endpoint.username
+        or endpoint.password
+        or endpoint.hostname != "www.optiver.com"
+        or endpoint.path != "/en/api/v1/jobs"
+        or endpoint.params
+        or endpoint.query
+        or endpoint.fragment
+        or careers.scheme != "https"
+        or careers.username
+        or careers.password
+        or careers.hostname != "www.optiver.com"
+        or allowed_source != {"www.optiver.com"}
+        or allowed_apply != {"www.optiver.com"}
+        or target.page_size != 16
+        or not target.identity_regex
+    ):
+        raise AdapterError("Optiver target does not bind the reviewed same-origin jobs API")
+    try:
+        re.compile(str(target.identity_regex), re.I)
+    except re.error as exc:
+        raise AdapterError(f"Optiver identity regex is invalid: {exc}") from exc
+
+
+def _fetch_optiver_collection(
+    session: requests.Session,
+    target: CompanyTarget,
+    timeout: int,
+) -> list[JobRecord]:
+    """Enumerate Optiver's official counted API through its exact terminal total."""
+    metadata = _metadata(target)
+    publish_source_scan_metadata(session, metadata)
+
+    metadata["pages_requested"] = 1
+    identity = session.get(
+        str(target.careers_url),
+        headers={**HEADERS, "Accept": "text/html,application/xhtml+xml"},
+        timeout=min(max(1, int(timeout)), 30),
+    )
+    if identity.status_code != 200:
+        raise AdapterError(f"Optiver official careers identity HTTP {identity.status_code}")
+    identity_content = bytes(getattr(identity, "content", b"") or b"")
+    if not identity_content:
+        identity_content = str(getattr(identity, "text", "") or "").encode("utf-8")
+    if not identity_content or len(identity_content) > int(target.max_response_bytes):
+        raise AdapterError("Optiver official careers identity response exceeded its bound")
+    identity_url = urlparse(str(getattr(identity, "url", "") or target.careers_url))
+    identity_text = identity_content.decode("utf-8", errors="replace")
+    try:
+        identity_visible_text = " ".join(
+            html.fromstring(identity_content).text_content().split()
+        )
+    except (TypeError, ValueError) as exc:
+        raise AdapterError("Optiver official careers page returned malformed HTML") from exc
+    if (
+        identity_url.scheme != "https"
+        or identity_url.hostname != "www.optiver.com"
+        or "/en/api/v1/jobs" not in identity_text.replace("\\/", "/")
+        or not re.search(str(target.identity_regex), identity_visible_text, re.I)
+    ):
+        raise AdapterError("Optiver official page did not bind the reviewed same-origin API")
+    metadata["pages_completed"] = 1
+    metadata["source_identity_status"] = "validated"
+
+    page_size = 16
+    maximum_pages = min(max(1, int(target.max_pages)), MAX_LISTING_REQUESTS_PER_SOURCE)
+    maximum_jobs = min(max(1, int(target.max_jobs)), MAX_RAW_JOBS_PER_SOURCE)
+    jobs: list[JobRecord] = []
+    seen_ids: set[str] = set()
+    seen_urls: set[str] = set()
+    seen_signatures: set[tuple[str, ...]] = set()
+    expected_total: int | None = None
+
+    for page_index in range(maximum_pages):
+        offset = page_index * page_size
+        metadata["pages_requested"] += 1
+        response = _get(
+            session,
+            str(target.endpoint_url),
+            timeout,
+            params={"from": str(offset), "size": str(page_size)},
+        )
+        final = urlparse(str(getattr(response, "url", "") or target.endpoint_url))
+        if final.scheme != "https" or final.hostname != "www.optiver.com" or final.path != "/en/api/v1/jobs":
+            raise AdapterError("Optiver API redirected outside its reviewed endpoint")
+        payload = _json(response, target)
+        metadata["pages_completed"] += 1
+        if not isinstance(payload, Mapping) or not isinstance(payload.get("items"), list):
+            raise AdapterError("Optiver API response is missing its items collection")
+        total = _nonnegative_int(payload.get("totalCount"), "totalCount")
+        rows = payload["items"]
+        if total > maximum_jobs or total > MAX_RAW_JOBS_PER_SOURCE:
+            metadata.update(
+                total_available=total,
+                authoritative_total_present=True,
+                safety_limit_reached=True,
+                stop_reason="maximum_results_reached",
+                scan_completeness_reason="safety_limit_reached",
+            )
+            return jobs
+        if expected_total is None:
+            expected_total = total
+        elif total != expected_total:
+            metadata["collection_changed_during_scan"] = True
+            raise AdapterError("Optiver totalCount changed during pagination")
+        expected_count = min(page_size, max(0, total - offset))
+        if len(rows) != expected_count:
+            raise AdapterError("Optiver page length conflicts with totalCount and offset")
+
+        page_ids: list[str] = []
+        normalized: list[JobRecord] = []
+        for row in rows:
+            try:
+                job = _normalize_optiver(row, target)
+            except AdapterError:
+                metadata["rejected_record_count"] += 1
+                raise
+            page_ids.append(job.job_id)
+            if job.job_id in seen_ids or job.url in seen_urls:
+                metadata["duplicate_ids"] = True
+                raise AdapterError("Optiver API repeated a stable ID or canonical URL")
+            seen_ids.add(job.job_id)
+            seen_urls.add(job.url)
+            normalized.append(job)
+        signature = tuple(page_ids)
+        if signature and signature in seen_signatures:
+            metadata["repeated_page"] = True
+            raise AdapterError("Optiver API repeated a page")
+        if signature:
+            seen_signatures.add(signature)
+        jobs.extend(normalized)
+        metadata["jobs_normalized"] = len(jobs)
+        metadata["total_available"] = total
+        metadata["authoritative_total_present"] = True
+
+        if len(jobs) == total:
+            metadata.update(
+                scan_complete=True,
+                scan_completeness_reason="reported_total_reached",
+                stop_reason="reported_total_reached",
+                terminal_evidence_type="authoritative_total",
+                terminal_evidence_value=total,
+                terminal_page_observed=True,
+                has_more=False,
+            )
+            return jobs
+
+    metadata.update(
+        safety_limit_reached=True,
+        stop_reason="maximum_pages_reached",
+        scan_completeness_reason="safety_limit_reached",
+    )
+    return jobs
+
+
+def _normalize_optiver(row: Any, target: CompanyTarget) -> JobRecord:
+    if not isinstance(row, Mapping):
+        raise AdapterError("Optiver job row must be an object")
+    component_id = row.get("componentID")
+    title = " ".join(str(row.get("title") or "").split())
+    href = str(row.get("href") or "").strip()
+    if not isinstance(component_id, int) or isinstance(component_id, bool) or component_id <= 0 or not title or not href:
+        raise AdapterError("Optiver job is missing a stable componentID, title, or href")
+    url = _official_url(urljoin(str(target.careers_url), href), target)
+    parsed = urlparse(url)
+    if (
+        parsed.hostname != "www.optiver.com"
+        or not re.fullmatch(r"/join-us/jobs/[A-Za-z0-9][A-Za-z0-9/_-]*/?", parsed.path)
+        or "//" in parsed.path
+        or "/../" in parsed.path
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise AdapterError("Optiver job href is not one canonical first-party job URL")
+    location = " ".join(str(row.get("location") or "").split())
+    departments = [
+        value
+        for value in (" ".join(str(row.get("domain") or "").split()),)
+        if value
+    ]
+    return JobRecord(
+        job_id=f"public_json:www.optiver.com:{component_id}",
+        title=title,
+        company=target.name,
+        location=location,
+        url=url,
+        updated_at="",
+        source="public_json:www.optiver.com:optiver_jobs_v1",
+        departments=departments,
+        offices=[location] if location else [],
+        raw_metadata={
+            "external_job_id": str(component_id),
+            "platform": "public_json",
+            "endpoint_variant": OPTIVER_JOBS,
+        },
+    )
 
 
 def _validate_shazamme_target(

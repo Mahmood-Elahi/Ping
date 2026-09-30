@@ -28,6 +28,7 @@ MAX_DETAIL_REQUESTS = 20
 MAX_RESPONSE_BYTES = 3_000_000
 MAX_DETAIL_RESPONSE_BYTES = 1_000_000
 MAX_TIMEOUT_SECONDS = 60
+POSTING_API_VARIANT = "posting_api_v1"
 READ_CHUNK_BYTES = 64 * 1024
 SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")
 ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,199}$")
@@ -83,7 +84,11 @@ def _fetch_jobs(
     metadata: SourceScanMetadata,
 ) -> List[JobRecord]:
     _validate_target(target)
-    board_url = f"https://jobs.ashbyhq.com/{target.slug}"
+    board_url = (
+        str(target.endpoint_url)
+        if target.endpoint_variant == POSTING_API_VARIANT
+        else f"https://jobs.ashbyhq.com/{target.slug}"
+    )
     metadata["pages_requested"] = 1
     document, listing_bytes = _get_document(
         session,
@@ -98,6 +103,8 @@ def _fetch_jobs(
     # responses are HTML and always take the compact-index path below.
     legacy_data = _legacy_payload(document)
     if legacy_data is not None:
+        if target.endpoint_variant == POSTING_API_VARIANT and legacy_data.get("apiVersion") != "1":
+            raise AdapterError("Ashby posting API response has an unsupported apiVersion")
         jobs = _legacy_jobs(session, target, legacy_data, listing_bytes)
         metadata.update(
             source_identity_status="validated",
@@ -471,6 +478,25 @@ def _validate_target(target: CompanyTarget) -> None:
         raise AdapterError(
             "Ashby allowed_apply_hosts must contain only jobs.ashbyhq.com"
         )
+    if target.endpoint_variant:
+        parsed = urlparse(str(target.endpoint_url or ""))
+        allowed_source = {
+            str(host).casefold() for host in target.allowed_source_hosts
+        }
+        if (
+            target.endpoint_variant != POSTING_API_VARIANT
+            or parsed.scheme != "https"
+            or (parsed.hostname or "").casefold() != "api.ashbyhq.com"
+            or parsed.path.rstrip("/")
+            != f"/posting-api/job-board/{target.slug}"
+            or parsed.params
+            or parsed.query
+            or parsed.fragment
+            or parsed.username
+            or parsed.password
+            or allowed_source != {"api.ashbyhq.com"}
+        ):
+            raise AdapterError("Ashby posting API target is not bound to its exact board slug")
 
 
 def _normalize_legacy(item: Any, target: CompanyTarget) -> JobRecord:
@@ -479,6 +505,7 @@ def _normalize_legacy(item: Any, target: CompanyTarget) -> JobRecord:
     job_id = str(item.get("id") or "").strip()
     title = str(item.get("title") or "").strip()
     job_url = str(item.get("jobUrl") or "").strip()
+    apply_url = str(item.get("applyUrl") or "").strip()
     parsed = urlparse(job_url)
     parts = [part for part in parsed.path.split("/") if part]
     if not ID_RE.fullmatch(job_id) or not title:
@@ -491,6 +518,21 @@ def _normalize_legacy(item: Any, target: CompanyTarget) -> JobRecord:
         or parts[1].casefold() != job_id.casefold()
     ):
         raise AdapterError("Ashby job has no exact board-owned stable URL")
+    if target.endpoint_variant == POSTING_API_VARIANT:
+        parsed_apply = urlparse(apply_url)
+        apply_parts = [part for part in parsed_apply.path.split("/") if part]
+        if (
+            item.get("isListed") is not True
+            or parsed_apply.scheme != "https"
+            or (parsed_apply.hostname or "").casefold() != "jobs.ashbyhq.com"
+            or len(apply_parts) != 3
+            or apply_parts[0].casefold() != str(target.slug).casefold()
+            or apply_parts[1].casefold() != job_id.casefold()
+            or apply_parts[2].casefold() != "application"
+            or parsed_apply.query
+            or parsed_apply.fragment
+        ):
+            raise AdapterError("Ashby job has no exact board-owned application URL")
     location = str(item.get("location") or "").strip()
     return JobRecord(
         job_id=job_id,

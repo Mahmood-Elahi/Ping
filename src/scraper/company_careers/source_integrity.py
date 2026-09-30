@@ -107,6 +107,7 @@ PLATFORM_SOURCE_CONTRACTS: dict[str, PlatformSourceContract] = {
     "eightfold": _contract("authoritative_total_or_explicit_terminal", ("organization_id",), urls=("endpoint_url",), page_capacity=10),
     "phenom": _contract("authoritative_total", ("ref_num",), urls=("search_url",), hosts=True),
     "icims": _contract("authoritative_total_or_explicit_terminal", ("board_id",), urls=("endpoint_url", "search_url"), hosts=True),
+    "jobvite": _contract("authoritative_result_range", ("slug",), ("identity_regex",), urls=("listing_url", "careers_url"), hosts=True, dynamic=False, page_capacity=500),
     "static_html": _contract("reviewed_structural_terminal", ("external_id_attribute", "external_id_selector", "external_id_regex", "allow_url_id_fallback"), urls=("listing_url",), hosts=True),
     "browser_rendered_html": _contract("reviewed_browser_structural_terminal", ("browser_identity_selector", "browser_identity_regex"), ("external_id_attribute", "external_id_selector", "external_id_regex"), urls=("listing_url",), hosts=True),
     "public_json": _contract(

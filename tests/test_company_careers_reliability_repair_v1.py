@@ -393,7 +393,7 @@ class CompanyCareersReliabilityRepairV1Tests(unittest.TestCase):
             "Seagate": "sap_successfactors",
             "Mobileye": "lever",
             "Beckhoff Automation": "adp",
-            "Temporal": "static_html",
+            "Temporal": "ashby",
             "Kinross Gold": "sap_successfactors",
             "Parkland": "talentbrew",
         }
@@ -416,10 +416,8 @@ class CompanyCareersReliabilityRepairV1Tests(unittest.TestCase):
             by_name["Mobileye"].endpoint_url,
             "https://api.eu.lever.co/v0/postings/mobileye",
         )
-        self.assertEqual(
-            by_name["Temporal"].external_id_regex,
-            r"/careers/([0-9a-f]{8}-[0-9a-f-]{27,})$",
-        )
+        self.assertEqual(by_name["Temporal"].slug, "temporal")
+        self.assertEqual(by_name["Temporal"].endpoint_variant, "posting_api_v1")
 
     def test_adapter_error_reporting_distinguishes_actionable_failure_classes(self):
         cases = {

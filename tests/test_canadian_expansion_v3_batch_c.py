@@ -70,7 +70,10 @@ class CanadianExpansionV3BatchCArtifactTests(unittest.TestCase):
         self.assertEqual(len(load_parent_source_mappings(batch.PARENT_MAPPINGS)), 5)
         self.assertEqual(self.production[:216], with_reliability_repairs(self.candidates[:216]))
         self.assertEqual(self.production[:216], with_reliability_repairs(self.validated[:216]))
-        self.assertEqual(self.production[216:227], self.validated[216:])
+        self.assertEqual(
+            self.production[216:227],
+            with_reliability_repairs(self.validated[216:]),
+        )
         self.assertEqual(batch.PRODUCTION.read_bytes(), self.production_bytes)
         historical_prefix = normalized_newlines(self.historical_prefix_bytes)
         assert_historical_registry_bytes(
