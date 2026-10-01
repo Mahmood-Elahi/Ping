@@ -180,6 +180,23 @@ def _fetch_jobs_once(
                 results_observed=len(jobs) + len(items),
                 deterministic_terminal_contract=True,
             )
+        elif (
+            target.endpoint_variant == LEGACY_HTML
+            and total is None
+            and has_more is None
+            and listing_contract
+            and len(items) >= page_size
+        ):
+            # Some legacy portals render a full first page without pagination
+            # controls.  The reviewed fallback is one exactly-bound ``pr=N``
+            # probe; only a contiguous empty iCIMS result page can prove EOF.
+            listing_budget.record_terminal_probe_decision(
+                metadata,
+                max(1, len(items)),
+                requests_completed=int(metadata["pages_completed"]),
+                results_observed=len(jobs) + len(items),
+                deterministic_terminal_contract=True,
+            )
         effective_jobs = int(metadata["effective_listing_job_ceiling"])
 
         identities = tuple(
@@ -345,6 +362,18 @@ def _fetch_jobs_once(
                 "exact allow-listed iCIMS apply URL"
             ),
         )
+    elif (
+        target.endpoint_variant in {RADANCY_HTML, LEGACY_HTML}
+        and jobs
+        and metadata.get("scan_complete")
+    ):
+        metadata.update(
+            source_identity_status="validated",
+            source_identity_diagnostic=(
+                "Every response remained on the configured iCIMS portal host and "
+                "every normalized job used an exact allow-listed official URL"
+            ),
+        )
     return jobs
 
 
@@ -464,6 +493,14 @@ def _get_page(
             raise AdapterError(f"iCIMS endpoint access was blocked (HTTP {status})")
         if status != 200:
             raise AdapterError(f"iCIMS HTTP {status} for {target.name}")
+        requested = urlparse(_endpoint(target))
+        final = urlparse(str(getattr(response, "url", "") or _endpoint(target)))
+        if (
+            final.scheme != "https"
+            or not final.hostname
+            or final.hostname.casefold() != (requested.hostname or "").casefold()
+        ):
+            raise AdapterError("iCIMS response left the configured source host")
         return response
     raise AdapterError(f"iCIMS request attempts exhausted for {target.name}")
 
@@ -492,6 +529,8 @@ def _parse_page(
             raise AdapterError("iCIMS Jibe totalCount must be a non-negative integer")
         if isinstance(count, bool) or not isinstance(count, int) or count < 0:
             raise AdapterError("iCIMS Jibe count must be a non-negative integer")
+        if count != total:
+            raise AdapterError("iCIMS Jibe totalCount and count contradicted each other")
         if total == 0 and items:
             raise AdapterError("iCIMS Jibe zero-job response unexpectedly contained jobs")
         return (
@@ -861,12 +900,14 @@ def _integer_attr(root: Any, name: str) -> Optional[int]:
     if not values:
         return None
     try:
-        value = int(values[0])
+        parsed = [int(value) for value in values]
     except (TypeError, ValueError) as exc:
         raise AdapterError(f"iCIMS {name} must be a non-negative integer") from exc
-    if value < 0:
+    if any(value < 0 for value in parsed):
         raise AdapterError(f"iCIMS {name} must be a non-negative integer")
-    return value
+    if len(set(parsed)) != 1:
+        raise AdapterError(f"iCIMS {name} values contradicted each other")
+    return parsed[0]
 
 
 def _zero_text(root: Any) -> bool:

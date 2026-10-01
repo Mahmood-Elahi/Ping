@@ -257,6 +257,7 @@ class SmartRecruitersAdapterTests(unittest.TestCase):
         self.assertEqual(metadata["scan_completeness_reason"], "reported_total_reached")
         self.assertEqual(metadata["total_available"], 1)
         self.assertEqual((metadata["pages_requested"], metadata["pages_completed"]), (1, 1))
+        self.assertEqual(metadata["source_identity_status"], "validated")
 
     def test_identity_crossing_and_unofficial_apply_urls_fail_closed(self):
         with self.assertRaisesRegex(AdapterError, "mixed or ambiguous"):

@@ -205,6 +205,15 @@ def _fetch_jobs_once(
             metadata["scan_completeness_reason"] = "adapter_failure"
         raise
 
+    if jobs:
+        metadata.update(
+            source_identity_status="validated",
+            source_identity_diagnostic=(
+                "Every normalized listing and detail row matched the configured "
+                "company identifier/name and an exact official apply URL"
+            ),
+        )
+
     return jobs
 
 

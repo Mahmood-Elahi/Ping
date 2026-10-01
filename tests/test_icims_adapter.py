@@ -169,6 +169,31 @@ class ICIMSAdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(AdapterError, "jobs must be"):
             icims.fetch_jobs(Session([Response({"jobs": {}, "totalCount": 0, "count": 0})]), target())
 
+    def test_26a_jibe_total_fields_cannot_contradict(self):
+        with self.assertRaisesRegex(AdapterError, "contradicted"):
+            icims.fetch_jobs(
+                Session([Response({"jobs": [item()], "totalCount": 2, "count": 1})]),
+                target(),
+            )
+
+    def test_26b_html_total_attributes_cannot_contradict(self):
+        body = """
+        <html><body>
+          <div data-results-count="10"></div>
+          <div data-results-count="11"></div>
+          <ul class="search-results-list"></ul>
+        </body></html>
+        """
+        with self.assertRaisesRegex(AdapterError, "contradicted"):
+            icims.fetch_jobs(
+                Session([Response(text=body, content_type="text/html")]),
+                target(
+                    endpoint_variant=icims.RADANCY_HTML,
+                    endpoint_url=None,
+                    search_url="https://jobs.example.com/en/search-jobs",
+                ),
+            )
+
     def test_27_authentication_rejection(self):
         response = Response(None, content_type="text/html", text="<html><title>Login</title></html>")
         with self.assertRaisesRegex(AdapterError, "authentication"):
@@ -265,6 +290,29 @@ class ICIMSAdapterTests(unittest.TestCase):
         self.assertFalse(metadata["has_more"])
         self.assertTrue(metadata["terminal_page_observed"])
         self.assertEqual(metadata["total_available"], 1)
+        self.assertEqual(metadata["source_identity_status"], "validated")
+
+    def test_36a_response_cannot_leave_configured_source_host(self):
+        body = """
+        <html><body><ul><li class="iCIMS_JobCardItem">
+          <div class="title"><a href="https://apply.example.com/jobs/101/engineer/job">
+            <h3>Engineer</h3></a></div>
+        </li></ul><nav class="pagination">Page 1 of 1</nav></body></html>
+        """
+        response = Response(text=body, content_type="text/html")
+        response.url = "https://evil.example/jobs/search?pr=0"
+        with self.assertRaisesRegex(AdapterError, "configured source host"):
+            icims.fetch_jobs(
+                Session([response]),
+                target(
+                    endpoint_variant=icims.LEGACY_HTML,
+                    search_url="https://jobs.example.com/jobs/search",
+                    endpoint_url=None,
+                    page_size=20,
+                    max_pages=1,
+                    allowed_apply_hosts=["apply.example.com"],
+                ),
+            )
 
     def test_37_unknown_terminal_remains_incomplete(self):
         body = """
@@ -292,6 +340,44 @@ class ICIMSAdapterTests(unittest.TestCase):
             metadata["scan_completeness_reason"],
             "adapter_completeness_not_proven",
         )
+
+    @patch.object(icims.time, "sleep", return_value=None)
+    def test_38_full_legacy_page_then_exact_empty_probe_proves_exhaustion(self, _sleep):
+        first = Response(
+            text="""
+            <html><body><ul class="iCIMS_JobsList"><li class="iCIMS_JobCardItem">
+              <div class="title"><a href="https://apply.example.com/jobs/101/engineer/job">
+                <h3>Engineer</h3></a></div>
+            </li></ul></body></html>
+            """,
+            content_type="text/html",
+        )
+        first.url = "https://jobs.example.com/jobs/search?pr=0"
+        terminal = Response(
+            text='<html><body><ul class="iCIMS_JobsList"></ul></body></html>',
+            content_type="text/html",
+        )
+        terminal.url = "https://jobs.example.com/jobs/search?pr=1"
+        session = Session([first, terminal])
+
+        jobs = icims.fetch_jobs(
+            session,
+            target(
+                endpoint_variant=icims.LEGACY_HTML,
+                search_url="https://jobs.example.com/jobs/search",
+                endpoint_url=None,
+                page_size=1,
+                max_pages=1,
+                max_jobs=1,
+                allowed_apply_hosts=["apply.example.com"],
+            ),
+        )
+
+        metadata = source_scan_metadata(session)
+        self.assertEqual(len(jobs), 1)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["scan_completeness_reason"], "validated_terminal_empty_page")
+        self.assertEqual(metadata["source_identity_status"], "validated")
 
 
 if __name__ == "__main__":

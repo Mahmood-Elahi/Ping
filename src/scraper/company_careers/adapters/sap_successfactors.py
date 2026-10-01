@@ -582,6 +582,14 @@ def _fetch_columnized_jobs(
     if len(tokens) != 1 or not re.fullmatch(r"[0-9a-fA-F-]{36}", next(iter(tokens), "")):
         raise AdapterError("SAP SuccessFactors columnized page has no unambiguous CSRF token")
     token = next(iter(tokens))
+    metadata.update(
+        source_identity_status="validated",
+        source_identity_diagnostic=(
+            "The exact configured RMK host matched identity_regex, exposed the "
+            "standard columnized client contract, and every normalized detail "
+            "is revalidated against the same tenant identity"
+        ),
+    )
     search = urlparse(str(target.search_url))
     origin = f"{search.scheme}://{search.netloc}"
     headers = {
