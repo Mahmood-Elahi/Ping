@@ -186,7 +186,7 @@ class TwentySourceRecoveryTests(unittest.TestCase):
         with self.assertRaises(AdapterError):
             static_html._official_url("http://evil.test/job/1", yaskawa)
 
-    def test_imc_flight_collection_ignores_unrelated_wrappers_and_filters_us(self):
+    def test_imc_flight_collection_ignores_unrelated_wrappers_and_keeps_global_roles(self):
         target = self.targets["IMC Trading"]
         unrelated = "self.__next_f.push(" + json.dumps([1, '1:{"other":[]}']) + ")"
         metadata = [
@@ -214,9 +214,16 @@ class TwentySourceRecoveryTests(unittest.TestCase):
         jobs = embedded_data.fetch_jobs(session, target)
         metadata_result = source_scan_metadata(session)
 
-        self.assertEqual([job.job_id.rsplit(":", 1)[-1] for job in jobs], ["4823923101"])
+        self.assertEqual(
+            [job.job_id.rsplit(":", 1)[-1] for job in jobs],
+            ["4823923101", "4823923102"],
+        )
         self.assertTrue(metadata_result["scan_complete"])
-        self.assertEqual(metadata_result["filtered_collection_total"], 1)
+        self.assertEqual(metadata_result["total_available"], 2)
+        self.assertEqual(
+            metadata_result["terminal_evidence_type"],
+            "complete_collection_response",
+        )
 
     def test_uber_api_requires_exact_pagination_and_reaches_total(self):
         first = [uber_row(index) for index in range(10)]

@@ -117,7 +117,6 @@ class RemainingTwentyRegistryTests(unittest.TestCase):
             "Dyson",
             "Espressif Systems",
             "General Motors",
-            "Roblox",
             "ServiceNow",
             "Wise",
             "Zalando",

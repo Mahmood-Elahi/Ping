@@ -898,8 +898,6 @@ company_careers_reliability_repairs:
     title_field: title
     url_field: id
     apply_url_template: https://www.imc.com/us/careers/jobs/{id}
-    item_filter_field: metadata[3].value
-    item_filter_regex: ^us$
     location_fields:
       - offices
     department_field: departments
@@ -908,13 +906,71 @@ company_careers_reliability_repairs:
     allowed_apply_hosts:
       - www.imc.com
     max_pages: 1
-    max_jobs: 20
+    max_jobs: 1000
     max_response_bytes: 3000000
     max_scripts: 20
     max_script_bytes: 1000000
     evidence_source: https://www.imc.com/us/search-careers
     evidence_confidence: high
     evidence_timestamp: '2026-09-29T00:00:00+00:00'
+  - name: Roblox
+    platform: public_json
+    careers_url: https://careers.roblox.com/jobs
+    endpoint_url: https://d32kbl9jppd7az.cloudfront.net/careers/jobs.json
+    endpoint_variant: roblox_jobs_v1
+    identity_regex: \bRoblox\b
+    allowed_source_hosts:
+    - d32kbl9jppd7az.cloudfront.net
+    allowed_apply_hosts:
+    - careers.roblox.com
+    original_workbook_rank: 143
+    max_pages: 1
+    max_jobs: 500
+    max_response_bytes: 3000000
+    max_scripts: 20
+    max_script_bytes: 1000000
+    evidence_source: https://careers.roblox.com/jobs
+    evidence_confidence: high
+    evidence_timestamp: '2026-10-01T00:00:00-06:00'
+  - name: YYC Calgary Airport Authority
+    platform: static_html
+    careers_url: https://www.yyc.com/careers
+    source_identity_regex: Calgary Airport Authority|YYC
+    allowed_apply_hosts:
+    - yyc.careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://yyc.careers/Opportunities
+    listing_url: https://yyc.careers/Opportunities
+    endpoint_variant: server_rendered_links
+    listing_selector: body
+    job_card_selector: a[data-job-id]
+    title_selector: :self
+    detail_link_selector: :self
+    external_id_regex: '[?&]JobId=([0-9]+)'
+    evidence_source: https://www.yyc.com/careers
+    evidence_confidence: high
+    evidence_timestamp: '2026-10-01T00:00:00-06:00'
+  - name: Xanadu
+    platform: hibob
+    slug: xanadu
+    careers_url: https://xanadu.careers.hibob.com
+    identity_url: https://www.xanadu.ai/careers/
+    endpoint_url: https://xanadu.careers.hibob.com/api/job-ad
+    endpoint_variant: career_site_job_ads_v1
+    source_identity_regex: \bXanadu\b
+    identity_regex: ^Xanadu$
+    allowed_apply_hosts:
+    - xanadu.careers.hibob.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: https://www.xanadu.ai/careers/
+    evidence_confidence: high
+    evidence_timestamp: '2026-10-01T00:00:00-06:00'
   - name: Mercedes-Benz
     platform: beesite
     careers_url: https://jobs.mercedes-benz.com/en

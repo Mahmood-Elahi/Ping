@@ -38,6 +38,7 @@ SHAZAMME_JOB_RESULTS = "shazamme_job_results_v1"
 OPTIVER_JOBS = "optiver_jobs_v1"
 UNITREE_JOBS = "unitree_jobs_v1"
 VALVE_JOBS = "valve_jobs_v1"
+ROBLOX_JOBS = "roblox_jobs_v1"
 SUPPORTED_VARIANTS = {
     AURORA_JOBS_INDEX,
     WORDPRESS_ROLES,
@@ -45,7 +46,10 @@ SUPPORTED_VARIANTS = {
     OPTIVER_JOBS,
     UNITREE_JOBS,
     VALVE_JOBS,
+    ROBLOX_JOBS,
 }
+ROBLOX_ENDPOINT = "https://d32kbl9jppd7az.cloudfront.net/careers/jobs.json"
+ROBLOX_MAX_JOBS = 500
 HEADERS = {
     "Accept": "application/json",
     "User-Agent": "job-radar/1.0 (read-only public careers scan)",
@@ -106,6 +110,8 @@ def fetch_jobs(
         return _fetch_unitree_collection(session, target, timeout)
     if target.endpoint_variant == VALVE_JOBS:
         return _fetch_valve_collection(session, target, timeout)
+    if target.endpoint_variant == ROBLOX_JOBS:
+        return _fetch_roblox_collection(session, target, timeout)
     if target.endpoint_variant == SHAZAMME_JOB_RESULTS:
         return _fetch_shazamme_collection(session, target, timeout)
     if target.endpoint_variant == WORDPRESS_ROLES:
@@ -133,6 +139,9 @@ def validate_target(target: CompanyTarget) -> None:
         return
     if target.endpoint_variant == VALVE_JOBS:
         _validate_valve_target(target, endpoint, careers)
+        return
+    if target.endpoint_variant == ROBLOX_JOBS:
+        _validate_roblox_target(target, endpoint, careers)
         return
     if (
         endpoint.scheme != "https"
@@ -220,6 +229,38 @@ def _validate_valve_target(target: CompanyTarget, endpoint: Any, careers: Any) -
         != {"www.valvesoftware.com"}
     ):
         raise AdapterError("Valve target does not bind the reviewed official jobs API")
+
+
+def _validate_roblox_target(target: CompanyTarget, endpoint: Any, careers: Any) -> None:
+    if (
+        str(target.endpoint_url) != ROBLOX_ENDPOINT
+        or endpoint.scheme != "https"
+        or endpoint.username
+        or endpoint.password
+        or endpoint.hostname != "d32kbl9jppd7az.cloudfront.net"
+        or endpoint.path != "/careers/jobs.json"
+        or endpoint.query
+        or endpoint.fragment
+        or careers.scheme != "https"
+        or careers.username
+        or careers.password
+        or careers.hostname != "careers.roblox.com"
+        or careers.path.rstrip("/") != "/jobs"
+        or {str(value).casefold() for value in target.allowed_source_hosts}
+        != {"d32kbl9jppd7az.cloudfront.net"}
+        or {str(value).casefold() for value in target.allowed_apply_hosts}
+        != {"careers.roblox.com"}
+        or int(target.max_pages) != 1
+        or int(target.max_jobs) != ROBLOX_MAX_JOBS
+        or not 1 <= int(target.max_scripts) <= 20
+        or not 1 <= int(target.max_script_bytes) <= 1_000_000
+        or not target.identity_regex
+    ):
+        raise AdapterError("Roblox target does not bind the reviewed official jobs feed")
+    try:
+        re.compile(str(target.identity_regex), re.I)
+    except re.error as exc:
+        raise AdapterError(f"Roblox identity regex is invalid: {exc}") from exc
 
 
 def _fetch_optiver_collection(
@@ -592,6 +633,143 @@ def _normalize_unitree(row: Mapping[str, Any], target: CompanyTarget) -> JobReco
             "group_id": str(row.get("groupId") or ""),
             "platform": "public_json",
             "endpoint_variant": UNITREE_JOBS,
+        },
+    )
+
+
+def _fetch_roblox_collection(
+    session: requests.Session,
+    target: CompanyTarget,
+    timeout: int,
+) -> list[JobRecord]:
+    """Read the atomic feed bound by Roblox's current official Next.js app."""
+    metadata = _metadata(target)
+    publish_source_scan_metadata(session, metadata)
+    metadata["pages_requested"] = 1
+    response = session.get(
+        str(target.careers_url),
+        headers={**HEADERS, "Accept": "text/html,application/xhtml+xml"},
+        timeout=min(max(1, int(timeout)), 30),
+    )
+    if response.status_code != 200:
+        raise AdapterError(f"Roblox official careers page HTTP {response.status_code}")
+    content = bytes(getattr(response, "content", b"") or b"")
+    if not content or len(content) > int(target.max_response_bytes):
+        raise AdapterError("Roblox official careers page exceeded its response bound")
+    final = urlparse(str(getattr(response, "url", target.careers_url)))
+    if (
+        final.scheme != "https"
+        or final.hostname != "careers.roblox.com"
+        or final.path.rstrip("/") != "/jobs"
+    ):
+        raise AdapterError("Roblox official careers page redirected outside its reviewed route")
+    try:
+        root = html.fromstring(content)
+    except (TypeError, ValueError) as exc:
+        raise AdapterError("Roblox official careers page returned malformed HTML") from exc
+    visible = " ".join(root.text_content().split())
+    if not re.search(str(target.identity_regex), visible, re.I):
+        raise AdapterError("Roblox official careers identity did not match")
+
+    script_urls: list[str] = []
+    for value in root.xpath("//script[@src]/@src"):
+        script_url = urljoin(str(target.careers_url), str(value))
+        parsed = urlparse(script_url)
+        if (
+            parsed.scheme == "https"
+            and parsed.hostname == "careers.roblox.com"
+            and re.fullmatch(r"/_next/static/chunks/[^/?#]+\.js", parsed.path)
+            and not parsed.query
+            and not parsed.fragment
+        ):
+            script_urls.append(script_url)
+    script_urls = list(dict.fromkeys(script_urls))
+    if not script_urls or len(script_urls) > int(target.max_scripts):
+        raise AdapterError("Roblox official page exposed an invalid script set")
+
+    binding_found = False
+    for script_url in script_urls:
+        metadata["pages_requested"] += 1
+        script = _get(session, script_url, timeout)
+        script_content = bytes(getattr(script, "content", b"") or b"")
+        if not script_content or len(script_content) > int(target.max_script_bytes):
+            raise AdapterError("Roblox application script exceeded its response bound")
+        if str(getattr(script, "url", "")) != script_url:
+            raise AdapterError("Roblox application script redirected outside its reviewed URL")
+        metadata["pages_completed"] += 1
+        source = script_content.decode("utf-8", errors="replace").replace("\\/", "/")
+        if ROBLOX_ENDPOINT in source or (
+            "d32kbl9jppd7az.cloudfront.net/careers" in source
+            and "/jobs.json" in source
+        ):
+            binding_found = True
+            break
+    if not binding_found:
+        raise AdapterError("Roblox official application did not bind the reviewed jobs feed")
+    metadata["source_identity_status"] = "validated"
+
+    metadata["pages_requested"] += 1
+    feed = _get(session, str(target.endpoint_url), timeout)
+    if str(getattr(feed, "url", "")) != str(target.endpoint_url):
+        raise AdapterError("Roblox jobs feed redirected outside its reviewed endpoint")
+    payload = _json(feed, target)
+    metadata["pages_completed"] += 1
+    if not isinstance(payload, list) or len(payload) > ROBLOX_MAX_JOBS:
+        raise AdapterError("Roblox jobs feed is not one bounded atomic collection")
+    jobs = [_normalize_roblox(row, target) for row in payload]
+    return _finish_atomic_collection(
+        metadata,
+        jobs,
+        evidence_type="roblox_official_atomic_feed",
+        evidence_value=len(jobs),
+        pages_completed=int(metadata["pages_completed"]),
+    )
+
+
+def _normalize_roblox(row: Any, target: CompanyTarget) -> JobRecord:
+    if not isinstance(row, Mapping):
+        raise AdapterError("Roblox jobs feed contained a malformed row")
+    external_id = row.get("id")
+    title = " ".join(str(row.get("title") or "").split())
+    location = " ".join(str(row.get("location") or "").split())
+    employment_type = row.get("employment_type")
+    groups = row.get("groups")
+    departments = row.get("department")
+    early_career = row.get("early_career")
+    if (
+        not isinstance(external_id, int)
+        or isinstance(external_id, bool)
+        or external_id <= 0
+        or not title
+        or not location
+        or not isinstance(employment_type, str)
+        or not isinstance(groups, list)
+        or not isinstance(departments, list)
+        or not isinstance(early_career, bool)
+        or not all(isinstance(value, str) and value.strip() for value in groups + departments)
+    ):
+        raise AdapterError("Roblox job is missing its stable ID or required typed fields")
+    labels = list(
+        dict.fromkeys(
+            " ".join(value.split()) for value in departments + groups if value.strip()
+        )
+    )
+    return JobRecord(
+        job_id=f"public_json:d32kbl9jppd7az.cloudfront.net:{external_id}",
+        title=title,
+        company=target.name,
+        location=location,
+        url=_official_url(f"https://careers.roblox.com/jobs/{external_id}", target),
+        updated_at="",
+        source="public_json:d32kbl9jppd7az.cloudfront.net:roblox_jobs_v1",
+        departments=labels,
+        offices=[location],
+        raw_metadata={
+            "external_job_id": str(external_id),
+            "employment_type": employment_type.strip(),
+            "early_career": early_career,
+            "platform": "public_json",
+            "endpoint_variant": ROBLOX_JOBS,
         },
     )
 

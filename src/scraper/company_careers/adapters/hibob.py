@@ -18,7 +18,10 @@ from src.scraper.company_careers.models import (
     SourceScanMetadata,
     publish_source_scan_metadata,
 )
-from src.scraper.company_careers.listing_completion import AdaptiveListingCompletion
+from src.scraper.company_careers.listing_completion import (
+    AdaptiveListingCompletion,
+    record_terminal_evidence,
+)
 
 
 ENDPOINT_VARIANT = "career_site_job_ads_v1"
@@ -59,6 +62,9 @@ def fetch_jobs(
     ids = [job.job_id for job in jobs]
     if len(ids) != len(set(ids)):
         raise AdapterError("HiBob job-ad collection repeated a stable job ID")
+    urls = [job.url for job in jobs]
+    if len(urls) != len(set(urls)):
+        raise AdapterError("HiBob job-ad collection repeated a canonical job URL")
     jobs.sort(key=lambda job: (job.updated_at, job.job_id), reverse=True)
     listing_budget = AdaptiveListingCompletion(1, int(target.max_jobs))
     limit = listing_budget.complete_collection_job_ceiling(len(jobs))
@@ -66,8 +72,8 @@ def fetch_jobs(
         "endpoint_variant": ENDPOINT_VARIANT,
         "request_method": "GET",
         "total_available": len(jobs),
-        "pages_requested": 1,
-        "pages_completed": 1,
+        "pages_requested": 2,
+        "pages_completed": 2,
         "maximum_results": limit,
         "jobs_normalized": min(len(jobs), limit),
         "stop_reason": "maximum_results_reached" if len(jobs) > limit else "collection_exhausted",
@@ -76,9 +82,21 @@ def fetch_jobs(
         metadata["scan_completeness_reason"] = "safety_limit_reached"
         metadata["safety_limit_reached"] = True
     else:
-        metadata["scan_complete"] = True
-        metadata["scan_completeness_reason"] = "complete_collection_response"
-        metadata["stop_reason"] = "complete_collection_response"
+        metadata.update(
+            scan_complete=True,
+            scan_completeness_reason="complete_collection_response",
+            stop_reason="complete_collection_response",
+            source_identity_status="validated",
+            atomic_collection_contract=True,
+        )
+        record_terminal_evidence(
+            metadata,
+            "hibob_atomic_collection",
+            len(jobs),
+            has_more=False,
+            terminal_page_observed=True,
+            complete_collection_response=True,
+        )
     setattr(session, "hibob_pagination", metadata)
     publish_source_scan_metadata(session, metadata)
     listing_budget.record(metadata)

@@ -1576,8 +1576,6 @@ target_companies:
     title_field: title
     url_field: id
     apply_url_template: https://www.imc.com/us/careers/jobs/{id}
-    item_filter_field: metadata[3].value
-    item_filter_regex: ^us$
     location_fields:
       - offices
     department_field: departments
@@ -1586,7 +1584,7 @@ target_companies:
     allowed_apply_hosts:
       - www.imc.com
     max_pages: 1
-    max_jobs: 20
+    max_jobs: 1000
     max_response_bytes: 3000000
     max_scripts: 20
     max_script_bytes: 1000000
@@ -1609,23 +1607,24 @@ target_companies:
     evidence_confidence: high
     evidence_timestamp: '2026-09-29T00:00:00-06:00'
   - name: Roblox
-    platform: static_html
-    careers_url: https://careers.roblox.com/
-    listing_url: https://careers.roblox.com/jobs
-    endpoint_variant: server_rendered_links
-    listing_selector: a[href^=/jobs/]
-    job_card_selector: a[href^=/jobs/]
-    title_selector: p.body--large
-    location_selector: span.caption:first-child
-    detail_link_selector: :self
-    external_id_regex: /jobs/([0-9]+)$
-    department_selector: span.caption:nth-child(2)
+    platform: public_json
+    careers_url: https://careers.roblox.com/jobs
+    endpoint_url: https://d32kbl9jppd7az.cloudfront.net/careers/jobs.json
+    endpoint_variant: roblox_jobs_v1
+    identity_regex: \bRoblox\b
+    allowed_source_hosts:
+    - d32kbl9jppd7az.cloudfront.net
     allowed_apply_hosts:
     - careers.roblox.com
     original_workbook_rank: 143
     max_pages: 1
-    max_jobs: 20
+    max_jobs: 500
     max_response_bytes: 3000000
+    max_scripts: 20
+    max_script_bytes: 1000000
+    evidence_source: https://careers.roblox.com/jobs
+    evidence_confidence: high
+    evidence_timestamp: '2026-10-01T00:00:00-06:00'
   - name: Zoox
     platform: lever
     slug: zoox
@@ -2504,6 +2503,9 @@ target_companies:
     title_selector: :self
     detail_link_selector: :self
     external_id_regex: '[?&]JobId=([0-9]+)'
+    evidence_source: https://www.yyc.com/careers
+    evidence_confidence: high
+    evidence_timestamp: '2026-10-01T00:00:00-06:00'
   - name: Precision Drilling
     platform: sap_successfactors
     careers_url: https://www.precisiondrilling.com/careers/
@@ -3768,25 +3770,23 @@ target_companies:
     endpoint_variant: pcsx
     organization_id: ericsson.com
   - name: Xanadu
-    platform: static_html
-    careers_url: https://www.xanadu.ai/careers/
-    source_identity_regex: Xanadu
+    platform: hibob
+    slug: xanadu
+    careers_url: https://xanadu.careers.hibob.com
+    identity_url: https://www.xanadu.ai/careers/
+    endpoint_url: https://xanadu.careers.hibob.com/api/job-ad
+    endpoint_variant: career_site_job_ads_v1
+    source_identity_regex: \bXanadu\b
+    identity_regex: ^Xanadu$
     allowed_apply_hosts:
-    - xanadu.applytojob.com
+    - xanadu.careers.hibob.com
     original_workbook_rank: null
     max_pages: 1
     max_jobs: 20
     max_response_bytes: 3000000
-    identity_url: https://xanadu.applytojob.com/
-    listing_url: https://xanadu.applytojob.com/
-    endpoint_variant: server_rendered_cards
-    listing_selector: ul.list-group
-    job_card_selector: li.list-group-item
-    title_selector: h3.list-group-item-heading a
-    location_selector: ul.list-inline li:first-child
-    department_selector: ul.list-inline li:nth-child(2)
-    detail_link_selector: h3.list-group-item-heading a
-    external_id_regex: /apply/([^/]+)/
+    evidence_source: https://www.xanadu.ai/careers/
+    evidence_confidence: high
+    evidence_timestamp: '2026-10-01T00:00:00-06:00'
   - name: ApplyBoard
     platform: workday
     careers_url: https://www.applyboard.com/careers/
