@@ -710,6 +710,79 @@ class EmbeddedDataAdapterTests(unittest.TestCase):
         self.assertEqual(metadata["rejected_record_count"], 1)
         self.assertEqual(metadata["stop_reason"], "terminal_reached_with_rejected_records")
 
+    def test_33_next_flight_complete_collection_uses_reviewed_expanded_ceiling(self):
+        jobs = [
+            {
+                "id": f"00000000-0000-4000-8000-{index:012d}",
+                "header": {
+                    "roleTitle": f"Engineer {index}",
+                    "parentTeamTitle": "Engineering",
+                    "locations": [{"city": "Tallinn", "country": "Estonia"}],
+                },
+                "body": {
+                    "applyLinkProps": {
+                        "href": f"/en/careers/positions/00000000-0000-4000-8000-{index:012d}/"
+                    },
+                    "jobPostedDate": "2026-09-30",
+                },
+            }
+            for index in range(25)
+        ]
+        stream = '127:["$","section",null,{"parsedJobs":' + json.dumps(jobs) + "}]\n"
+        wrapper = "self.__next_f.push(" + json.dumps([1, stream]) + ")"
+        page = (
+            "<html><body><h1>Open roles</h1>"
+            "<script>const translations={captcha:'captcha'};</script>"
+            f"<script>{wrapper}</script>"
+            "</body></html>"
+        )
+        bolt = target(
+            name="Bolt",
+            endpoint_variant="next_flight_collection",
+            listing_url="https://bolt.eu/en/careers/positions/",
+            embedded_script_selector="script",
+            embedded_json_path="parsedJobs",
+            id_field="id",
+            title_field="header.roleTitle",
+            url_field="body.applyLinkProps.href",
+            location_field="header.locations",
+            department_field="header.parentTeamTitle",
+            date_field="body.jobPostedDate",
+            remote_field=None,
+            allowed_apply_hosts=["bolt.eu"],
+            max_jobs=1000,
+        )
+        session = Session(Response(page))
+
+        normalized = embedded_data.fetch_jobs(session, bolt)
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(len(normalized), 25)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(normalized[0].location, "Tallinn, Estonia")
+        self.assertEqual(normalized[0].departments, ["Engineering"])
+
+    def test_34_next_flight_ceiling_is_variant_specific(self):
+        embedded_data.validate_target(
+            target(
+                endpoint_variant="next_flight_collection",
+                embedded_script_selector="script",
+                embedded_json_path="jobs",
+                max_jobs=embedded_data.MAX_NEXT_FLIGHT_RESULTS,
+            )
+        )
+        with self.assertRaisesRegex(AdapterError, "hard maximum"):
+            embedded_data.validate_target(
+                target(
+                    endpoint_variant="next_flight_collection",
+                    embedded_script_selector="script",
+                    embedded_json_path="jobs",
+                    max_jobs=embedded_data.MAX_NEXT_FLIGHT_RESULTS + 1,
+                )
+            )
+        with self.assertRaisesRegex(AdapterError, "hard maximum"):
+            embedded_data.validate_target(target(max_jobs=21))
+
 
 if __name__ == "__main__":
     unittest.main()

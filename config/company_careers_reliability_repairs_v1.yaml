@@ -50,6 +50,64 @@ company_careers_reliability_repairs:
     evidence_source: https://www.asml.com/en/careers/find-your-job
     evidence_confidence: high
     evidence_timestamp: '2026-08-28T00:00:00+00:00'
+  - name: Skydio
+    platform: ashby
+    careers_url: https://www.skydio.com/ja-jp/careers
+    search_url: https://jobs.ashbyhq.com/skydio
+    slug: skydio
+    source_identity_regex: Skydio
+    allowed_apply_hosts:
+      - jobs.ashbyhq.com
+    original_workbook_rank: 151
+    max_pages: 1
+    max_jobs: 10000
+    max_scripts: 20
+    max_response_bytes: 3000000
+    max_script_bytes: 1000000
+    evidence_source: https://jobs.ashbyhq.com/skydio/embed?version=2
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-30T00:00:00-06:00'
+  - name: Bolt
+    platform: javascript_embedded_data
+    careers_url: https://bolt.eu/en/careers/
+    listing_url: https://bolt.eu/en/careers/positions/
+    endpoint_variant: next_flight_collection
+    embedded_script_selector: script
+    embedded_json_path: parsedJobs
+    id_field: id
+    title_field: header.roleTitle
+    url_field: body.applyLinkProps.href
+    location_field: header.locations
+    department_field: header.parentTeamTitle
+    date_field: body.jobPostedDate
+    allowed_apply_hosts:
+      - bolt.eu
+    original_workbook_rank: 218
+    max_pages: 1
+    max_jobs: 1000
+    max_response_bytes: 3000000
+    evidence_source: https://bolt.eu/en/careers/positions/
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-30T00:00:00-06:00'
+  - name: ByteDance
+    platform: first_party_json
+    careers_url: https://jobs.bytedance.com/en/
+    endpoint_url: https://jobs.bytedance.com/api/v1/public/supplier/search/job/posts
+    endpoint_variant: bytedance_supplier_search_v1
+    identity_regex: ByteDance
+    apply_url_template: https://joinbytedance.com/search/{id}
+    allowed_source_hosts:
+      - jobs.bytedance.com
+    allowed_apply_hosts:
+      - joinbytedance.com
+    original_workbook_rank: 222
+    page_size: 100
+    max_pages: 20
+    max_jobs: 2000
+    max_response_bytes: 3000000
+    evidence_source: https://joinbytedance.com/search
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-30T00:00:00-06:00'
   - name: Aurora Innovation
     platform: public_json
     careers_url: https://aurora.tech/careers

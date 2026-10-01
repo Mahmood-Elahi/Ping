@@ -425,8 +425,9 @@ class PaycorAdapterTests(unittest.TestCase):
 
 class PeopleSoftAdapterTests(unittest.TestCase):
     def test_stable_id_details_identity_location_and_job_specific_url(self):
+        session = Session([peoplesoft_listing(), peoplesoft_detail()])
         jobs = peoplesoft.fetch_jobs(
-            Session([peoplesoft_listing(), peoplesoft_detail()]),
+            session,
             peoplesoft_target(),
         )
 
@@ -438,6 +439,23 @@ class PeopleSoftAdapterTests(unittest.TestCase):
         self.assertEqual(job.location, "Calgary, Alberta, Canada")
         self.assertEqual(job.url, PEOPLESOFT_URL)
         self.assertEqual(job.description, "Lead the credit and collections team.")
+        metadata = source_scan_metadata(session)
+        self.assertEqual(metadata["final_host"], "www.calgary.ca")
+        self.assertTrue(metadata["host_remained_approved"])
+        self.assertEqual(metadata["source_identity_status"], "validated")
+
+    def test_unrelated_listing_redirect_and_http_downgrade_fail_closed(self):
+        for final_url in (
+            "https://evil.test/careers.html",
+            "http://www.calgary.ca/careers.html",
+        ):
+            listing = peoplesoft_listing()
+            listing.url = final_url
+            with self.subTest(final_url=final_url):
+                with self.assertRaisesRegex(
+                    AdapterError, "outside reviewed source hosts|must use HTTPS"
+                ):
+                    peoplesoft.fetch_jobs(Session([listing]), peoplesoft_target())
 
     def test_official_stale_detail_redirect_is_skipped_without_attribution(self):
         second_url = PEOPLESOFT_URL.replace(PEOPLESOFT_JOB, "315023")
@@ -500,7 +518,10 @@ class PeopleSoftAdapterTests(unittest.TestCase):
     def test_captcha_and_page_limits_fail_closed(self):
         with self.assertRaisesRegex(AdapterError, "CAPTCHA"):
             peoplesoft.fetch_jobs(
-                Session([Response("City of Calgary: verify you are human CAPTCHA challenge")]),
+                Session([Response(
+                    "City of Calgary: verify you are human CAPTCHA challenge",
+                    url="https://www.calgary.ca/careers.html",
+                )]),
                 peoplesoft_target(),
             )
         with self.assertRaisesRegex(AdapterError, "exactly one"):
@@ -511,6 +532,58 @@ class PeopleSoftAdapterTests(unittest.TestCase):
                 Session([peoplesoft_listing(url=mixed_site)]),
                 peoplesoft_target(),
             )
+
+    def test_complete_official_listing_expands_past_normal_job_budget(self):
+        pairs = []
+        details = []
+        for index in range(25):
+            job_id = str(400000 + index)
+            title = f"Engineer {index}"
+            url = PEOPLESOFT_URL.replace(PEOPLESOFT_JOB, job_id)
+            pairs.append(f'<a href="{url.replace("&", "&amp;")}">{title}</a>')
+            details.append(peoplesoft_detail(job_id=job_id, title=title, url=url))
+        listing = Response(
+            "<html><body><h1>City of Calgary Careers</h1>"
+            + "".join(pairs)
+            + "</body></html>",
+            url="https://www.calgary.ca/careers.html",
+        )
+        session = Session([listing, *details])
+
+        jobs = peoplesoft.fetch_jobs(session, peoplesoft_target(max_jobs=20))
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(len(jobs), 25)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["total_available"], 25)
+        self.assertEqual(metadata["terminal_evidence_type"], "complete_collection_response")
+
+    def test_complete_listing_above_reviewed_hard_ceiling_stays_incomplete(self):
+        pairs = []
+        details = []
+        for index in range(101):
+            job_id = str(500000 + index)
+            title = f"Engineer {index}"
+            url = PEOPLESOFT_URL.replace(PEOPLESOFT_JOB, job_id)
+            pairs.append(f'<a href="{url.replace("&", "&amp;")}">{title}</a>')
+            if index < 20:
+                details.append(peoplesoft_detail(job_id=job_id, title=title, url=url))
+        listing = Response(
+            "<html><body><h1>City of Calgary Careers</h1>"
+            + "".join(pairs)
+            + "</body></html>",
+            url="https://www.calgary.ca/careers.html",
+        )
+        session = Session([listing, *details])
+
+        jobs = peoplesoft.fetch_jobs(session, peoplesoft_target(max_jobs=20))
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(len(jobs), 20)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertTrue(metadata["safety_limit_reached"])
+        self.assertEqual(metadata["total_available"], 101)
+        self.assertEqual(metadata["stop_reason"], "maximum_results_reached")
 
 
 class WorkableFailClosedContractTests(unittest.TestCase):

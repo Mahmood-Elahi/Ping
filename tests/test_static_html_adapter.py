@@ -556,6 +556,26 @@ class StaticHTMLAdapterTests(unittest.TestCase):
         with self.assertRaisesRegex(AdapterError, "identity_conflict"):
             static_html.fetch_jobs(Session(Response(conflicting)), target())
 
+    def test_41_hidden_script_and_template_challenges_do_not_trigger_block(self):
+        body = page(
+            card(),
+            extra=(
+                "<script>window.messages={captcha:'Captcha',access:'access denied'}</script>"
+                "<template><h1>Cloudflare challenge access denied</h1></template>"
+            ),
+        )
+        self.assertEqual(len(static_html.fetch_jobs(Session(Response(body)), target())), 1)
+
+    def test_42_visible_body_and_noscript_challenges_fail_closed(self):
+        blocked_pages = (
+            "<html><body><h1>Captcha challenge</h1></body></html>",
+            "<html><body><noscript>Access denied: CAPTCHA required</noscript></body></html>",
+        )
+        for blocked in blocked_pages:
+            with self.subTest(blocked=blocked):
+                with self.assertRaisesRegex(AdapterError, "blocked"):
+                    static_html.fetch_jobs(Session(Response(blocked)), target())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -30,10 +30,10 @@ RECOVERED = {
     "Figure AI": "greenhouse",
     "MDA Space": "ukg_pro",
     "LINE": "javascript_embedded_data",
+    "ByteDance": "first_party_json",
 }
 UNRESOLVED = {
     "ASML",
-    "ByteDance",
 }
 
 

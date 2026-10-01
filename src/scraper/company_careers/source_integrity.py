@@ -116,6 +116,13 @@ PLATFORM_SOURCE_CONTRACTS: dict[str, PlatformSourceContract] = {
         urls=("endpoint_url",),
         hosts=True,
     ),
+    "first_party_json": _contract(
+        "authoritative_total",
+        ("endpoint_variant", "identity_regex"),
+        urls=("careers_url", "endpoint_url"),
+        hosts=True,
+        page_capacity=100,
+    ),
     "javascript_embedded_data": _contract("validated_complete_embedded_collection", ("id_field", "external_id_regex"), ("embedded_json_path",), urls=("listing_url",), hosts=True),
     "adp": _contract("authoritative_total_or_terminal_page", ("slug", "organization_id", "endpoint_variant"), urls=("careers_url",), hosts=True),
     "apple": _contract("authoritative_total_or_terminal_page", urls=("endpoint_url",), hosts=True),

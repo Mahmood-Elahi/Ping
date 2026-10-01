@@ -19,9 +19,10 @@ from src.scraper.company_careers.models import (
     publish_source_scan_metadata,
 )
 from src.scraper.company_careers.listing_completion import record_terminal_evidence
+from src.scraper.company_careers.listing_completion import AdaptiveListingCompletion
 
 
-MAX_RESULTS = 20
+MAX_RESULTS = 100
 MAX_TIMEOUT_SECONDS = 30
 MAX_ATTEMPTS = 2
 MAX_RESPONSE_BYTES = 3_000_000
@@ -45,6 +46,7 @@ def fetch_jobs(
     config = validate_target(target)
     timeout = min(max(1, int(timeout)), MAX_TIMEOUT_SECONDS)
     listing_response = _get(session, str(target.listing_url), timeout)
+    listing_identity = _listing_source_identity(listing_response, target, config)
     listing_root, listing_text = _parse_page(listing_response, "listing")
     if not re.search(str(target.identity_regex), listing_text, re.IGNORECASE):
         raise AdapterError("PeopleSoft listing has mixed or ambiguous company identity")
@@ -85,10 +87,16 @@ def fetch_jobs(
             return []
         raise AdapterError("PeopleSoft listing has no stable public job-specific links")
     total_candidates = len(candidates)
-    candidates = candidates[: int(target.max_jobs)]
+    listing_budget = AdaptiveListingCompletion(
+        normal_request_budget=1,
+        normal_job_budget=int(target.max_jobs),
+        hard_job_ceiling=MAX_RESULTS,
+    )
+    effective_jobs = listing_budget.complete_collection_job_ceiling(total_candidates)
+    candidates = candidates[:effective_jobs]
 
     jobs: list[JobRecord] = []
-    for job_id, listing_title, detail_url, posting_sequence in candidates[: int(target.max_jobs)]:
+    for job_id, listing_title, detail_url, posting_sequence in candidates:
         detail_response = _get(session, detail_url, timeout)
         route_state = _detail_route_state(detail_response, detail_url, config)
         root, page_text = _parse_page(detail_response, "detail")
@@ -134,7 +142,7 @@ def fetch_jobs(
                 },
             )
         )
-    limited = total_candidates > int(target.max_jobs)
+    limited = total_candidates > effective_jobs
     metadata = SourceScanMetadata(
             scan_complete=not limited,
             scan_completeness_reason=(
@@ -146,6 +154,12 @@ def fetch_jobs(
             stop_reason=("maximum_results_reached" if limited else "complete_listing_container"),
             safety_limit_reached=limited,
             detail_requests_coupled=True,
+            original_configured_url=listing_identity["original_configured_url"],
+            final_url=listing_identity["final_url"],
+            final_host=listing_identity["final_host"],
+            redirect_count=listing_identity["redirect_count"],
+            host_remained_approved=True,
+            source_identity_status="validated",
         )
     record_terminal_evidence(
         metadata,
@@ -162,13 +176,17 @@ def fetch_jobs(
 def validate_target(target: CompanyTarget) -> dict[str, Any]:
     if not target.listing_url or not target.careers_url or not target.identity_regex:
         raise AdapterError("PeopleSoft target needs listing_url, careers_url, and identity_regex")
-    listing = urlparse(str(target.listing_url))
-    careers = urlparse(str(target.careers_url))
-    if listing.scheme != "https" or not listing.hostname or careers.scheme != "https" or not careers.hostname:
-        raise AdapterError("PeopleSoft listing and careers URLs must use HTTPS")
+    listing = _parse_https_authority(str(target.listing_url), "listing URL")
+    _parse_https_authority(str(target.careers_url), "careers URL")
     allowed_hosts = {str(host).strip().casefold() for host in target.allowed_apply_hosts if str(host).strip()}
     if not allowed_hosts or any("/" in host or ":" in host for host in allowed_hosts):
         raise AdapterError("PeopleSoft target needs hostname-only allowed_apply_hosts")
+    reviewed_listing_hosts = {(listing.hostname or "").casefold()}
+    for value in target.allowed_source_hosts:
+        host = str(value).strip().casefold()
+        if not host or "/" in host or ":" in host or "@" in host:
+            raise AdapterError("PeopleSoft allowed_source_hosts must contain hostnames only")
+        reviewed_listing_hosts.add(host)
     try:
         re.compile(str(target.identity_regex), re.IGNORECASE)
     except re.error as exc:
@@ -179,7 +197,47 @@ def validate_target(target: CompanyTarget) -> dict[str, Any]:
         raise AdapterError(f"PeopleSoft max_jobs cannot exceed {MAX_RESULTS}")
     return {
         "allowed_hosts": allowed_hosts,
+        "reviewed_listing_hosts": reviewed_listing_hosts,
         "site_id": str(target.site_id or "1"),
+    }
+
+
+def _parse_https_authority(value: str, label: str) -> Any:
+    try:
+        parsed = urlparse(value)
+        hostname = parsed.hostname
+        parsed.port
+    except ValueError as exc:
+        raise AdapterError(f"PeopleSoft {label} has a malformed authority") from exc
+    if (
+        parsed.scheme != "https"
+        or not hostname
+        or parsed.username is not None
+        or parsed.password is not None
+    ):
+        raise AdapterError(
+            f"PeopleSoft {label} must use HTTPS without userinfo and have a valid authority"
+        )
+    return parsed
+
+
+def _listing_source_identity(
+    response: Any,
+    target: CompanyTarget,
+    config: dict[str, Any],
+) -> dict[str, Any]:
+    configured_url = str(target.listing_url)
+    _parse_https_authority(configured_url, "configured listing URL")
+    final_url = str(getattr(response, "url", "") or configured_url)
+    final = _parse_https_authority(final_url, "final listing URL")
+    final_host = (final.hostname or "").casefold()
+    if final_host not in config["reviewed_listing_hosts"]:
+        raise AdapterError("PeopleSoft listing redirected outside reviewed source hosts")
+    return {
+        "original_configured_url": configured_url,
+        "final_url": final_url,
+        "final_host": final_host,
+        "redirect_count": len(getattr(response, "history", []) or []),
     }
 
 

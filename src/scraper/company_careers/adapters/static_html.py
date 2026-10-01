@@ -742,7 +742,7 @@ def _reject_non_listing(
 ) -> None:
     if valid_empty:
         return
-    text = " ".join(root.text_content().split()).casefold()
+    text = _visible_page_text(root).casefold()
     title = " ".join(root.xpath("string(//title)").split()).casefold()
     if any(token in text for token in ("cloudflare challenge", "access denied", "request blocked", "captcha")):
         raise _failure("access_blocked", "blocked or challenge response")
@@ -763,6 +763,15 @@ def _reject_non_listing(
         "unsupported_listing_contract",
         "HTTP 200 response did not contain a supported listing contract",
     )
+
+
+def _visible_page_text(root: Any) -> str:
+    """Return user-visible text without treating embedded data as challenge copy."""
+    values = root.xpath(
+        "//body//text()[not(ancestor::script) and not(ancestor::style) and "
+        "not(ancestor::template)]"
+    )
+    return " ".join(" ".join(str(value).split()) for value in values if str(value).strip())
 
 
 def _json_ld_contract(

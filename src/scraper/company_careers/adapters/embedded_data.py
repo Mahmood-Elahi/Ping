@@ -35,6 +35,7 @@ from src.scraper.company_careers.listing_completion import (
 
 MAX_PAGES = 2
 MAX_RESULTS = 20
+MAX_NEXT_FLIGHT_RESULTS = 1_000
 MAX_ATTEMPTS = 2
 MAX_TIMEOUT_SECONDS = 60
 MAX_RESPONSE_BYTES = 3_000_000
@@ -61,7 +62,12 @@ _FIELD_RE = re.compile(r"^[A-Za-z0-9_@-]+(?:\.[A-Za-z0-9_@-]+|\[[0-9]+\])*$")
 def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 60) -> list[JobRecord]:
     validate_target(target)
     maximum_pages = min(int(target.max_pages), MAX_PAGES)
-    maximum_jobs = min(int(target.max_jobs), MAX_RESULTS)
+    hard_job_ceiling = (
+        MAX_NEXT_FLIGHT_RESULTS
+        if target.endpoint_variant == "next_flight_collection"
+        else MAX_RESULTS
+    )
+    maximum_jobs = min(int(target.max_jobs), hard_job_ceiling)
     timeout = min(max(1, int(timeout)), MAX_TIMEOUT_SECONDS)
     metadata = SourceScanMetadata(**{
         "endpoint_variant": target.endpoint_variant, "request_method": "GET", "pages": [],
@@ -72,7 +78,15 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
     })
     setattr(session, "embedded_data_pagination", metadata)
     publish_source_scan_metadata(session, metadata)
-    listing_budget = AdaptiveListingCompletion(maximum_pages, maximum_jobs)
+    listing_budget = (
+        AdaptiveListingCompletion(
+            maximum_pages,
+            maximum_jobs,
+            hard_job_ceiling=hard_job_ceiling,
+        )
+        if target.endpoint_variant == "next_flight_collection"
+        else AdaptiveListingCompletion(maximum_pages, maximum_jobs)
+    )
     listing_budget.record(metadata)
     explicit_pagination = bool(target.pagination_url_template)
     listing_budget.record_terminal_probe_decision(
@@ -93,6 +107,7 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                if target.pagination_url_template else str(target.listing_url))
         metadata["pages_requested"] += 1
         response = _get(session, url, timeout)
+        _record_source_identity(metadata, response, url, target)
         pagination_evidence = None
         if target.endpoint_variant == "public_json_endpoint":
             items, scripts, inspected_bytes, valid_empty, source_collection_total = _extract_direct_json(
@@ -443,7 +458,12 @@ def validate_target(target: CompanyTarget) -> None:
         _require_https(re.sub(r"\{[^{}]+\}", "value", str(target.apply_url_template)), "apply_url_template")
     static_html._validate_hosts(target.allowed_apply_hosts)
     static_html._validate_hosts(target.allowed_source_hosts)
-    if not 1 <= int(target.max_pages) <= MAX_PAGES or not 1 <= int(target.max_jobs) <= MAX_RESULTS:
+    max_results = (
+        MAX_NEXT_FLIGHT_RESULTS
+        if target.endpoint_variant == "next_flight_collection"
+        else MAX_RESULTS
+    )
+    if not 1 <= int(target.max_pages) <= MAX_PAGES or not 1 <= int(target.max_jobs) <= max_results:
         raise AdapterError("Embedded-data page or result limit exceeds the hard maximum")
     if not 1 <= int(target.max_scripts) <= MAX_SCRIPTS:
         raise AdapterError("Embedded-data script-count limit exceeds the hard maximum")
@@ -826,6 +846,32 @@ def _validate_source_response(response: Any, target: CompanyTarget) -> None:
         raise AdapterError("Embedded-data JSON endpoint redirected outside allowed source hosts")
 
 
+def _record_source_identity(
+    metadata: SourceScanMetadata,
+    response: Any,
+    requested_url: str,
+    target: CompanyTarget,
+) -> None:
+    configured = urlparse(requested_url)
+    final_url = str(getattr(response, "url", "") or requested_url)
+    final = urlparse(final_url)
+    approved = {
+        (configured.hostname or "").casefold(),
+        *(str(host).casefold() for host in target.allowed_source_hosts),
+    }
+    final_host = (final.hostname or "").casefold()
+    if final.scheme != "https" or final_host not in approved:
+        raise AdapterError("Embedded-data listing redirected outside allowed source hosts")
+    metadata.update(
+        original_configured_url=requested_url,
+        final_url=final_url,
+        final_host=final_host,
+        redirect_count=len(getattr(response, "history", []) or []),
+        host_remained_approved=True,
+        source_identity_status="validated",
+    )
+
+
 def _bounded_content(response: Any, target: CompanyTarget, *, expected: str) -> bytes:
     content = getattr(response, "content", None)
     if content is None:
@@ -889,7 +935,7 @@ def _normalize(item: Mapping[str, Any], target: CompanyTarget, page_url: str) ->
                 for value in _values(_field(item, field_name))
             )
         else:
-            locations = _values(_field(item, target.location_field)) if target.location_field else []
+            locations = _location_values(_field(item, target.location_field)) if target.location_field else []
         departments = _values(_field(item, target.department_field)) if target.department_field else []
         updated = _string(_field(item, target.date_field)) if target.date_field else ""
         remote = _string(_field(item, target.remote_field)) if target.remote_field else ""
@@ -983,6 +1029,22 @@ def _values(value: Any) -> list[str]:
     return [_string(value)] if _string(value) else []
 
 
+def _location_values(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return _unique(
+            item for member in value for item in _location_values(member)
+        )
+    if isinstance(value, Mapping):
+        parts = [
+            _string(value.get(key))
+            for key in ("city", "state", "country")
+            if _string(value.get(key))
+        ]
+        if parts:
+            return [", ".join(_unique(parts))]
+    return _values(value)
+
+
 def _item_identity(item: Mapping[str, Any], target: CompanyTarget) -> str:
     if target.url_field:
         try:
@@ -1021,7 +1083,7 @@ def _get(session: requests.Session, url: str, timeout: int) -> Any:
 
 
 def _reject_page(root: Any) -> None:
-    text = " ".join(root.text_content().split()).casefold()
+    text = static_html._visible_page_text(root).casefold()
     title = " ".join(root.xpath("string(//title)").split()).casefold()
     if any(token in text for token in ("cloudflare challenge", "access denied", "request blocked", "captcha")):
         raise AdapterError("Embedded-data blocked response")

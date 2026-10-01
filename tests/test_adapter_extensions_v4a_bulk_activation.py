@@ -342,9 +342,9 @@ class AdapterExtensionsV4ABulkActivationTests(unittest.TestCase):
         assert_historical_prefix(self, production, historical)
         self.assertEqual(
             production[first_batch_a:first_batch_a + len(additions)],
-            additions,
+            with_reliability_repairs(additions),
         )
-        for expected in additions:
+        for expected in with_reliability_repairs(additions):
             matches = [
                 item for item in production
                 if registry_validator._name_key(item) == registry_validator._name_key(expected)

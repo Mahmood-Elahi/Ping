@@ -383,7 +383,7 @@ class PublicJsonAdapterTests(unittest.TestCase):
         self.assertEqual(targets["Aurora Innovation"].platform, "public_json")
         self.assertEqual(targets["Deliveroo"].platform, "public_json")
         self.assertEqual(targets["ASML"].platform, "browser_rendered_html")
-        self.assertEqual(targets["ByteDance"].platform, "browser_rendered_html")
+        self.assertEqual(targets["ByteDance"].platform, "first_party_json")
 
 
 if __name__ == "__main__":
