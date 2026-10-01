@@ -115,6 +115,7 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
     )
     jobs: list[JobRecord] = []
     seen_jobs: dict[str, JobRecord] = {}
+    seen_canonical_urls: dict[str, str] = {}
     seen_pages: set[tuple[str, ...]] = set()
     next_url = str(target.listing_url)
     raw_records_observed = 0
@@ -335,6 +336,16 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                 ) + 1
                 continue
             parsed += 1
+            canonical_url = _canonical_job_url(job.url)
+            prior_url_job_id = seen_canonical_urls.get(canonical_url)
+            if prior_url_job_id is not None and prior_url_job_id != job.job_id:
+                metadata["stop_reason"] = "conflicting_canonical_url"
+                metadata["scan_completeness_reason"] = "conflicting_canonical_url"
+                raise _failure(
+                    "identity_conflict",
+                    "one canonical job URL mapped to multiple stable IDs: "
+                    f"{canonical_url}",
+                )
             previous = seen_jobs.get(job.job_id)
             if previous is not None:
                 if _jobs_conflict(previous, job):
@@ -353,6 +364,7 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                 page_job_ids.add(job.job_id)
                 continue
             seen_jobs[job.job_id] = job
+            seen_canonical_urls[canonical_url] = job.job_id
             page_job_ids.add(job.job_id)
             jobs.append(job)
             new_ids += 1

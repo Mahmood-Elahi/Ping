@@ -3109,6 +3109,10 @@ target_companies:
     detail_link_selector: a[href*="/career/vacancies/"]
     external_id_regex: /career/vacancies/([^/?#]+)$
     location_selector: div.loc span
+    single_page_collection: true
+    evidence_source: official TEKTELIC careers page links the unpaginated view-all vacancies collection
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-30T00:00:00-06:00'
   - name: Gibson Energy
     platform: sap_successfactors
     careers_url: https://www.gibsonenergy.com/careers/
@@ -3396,6 +3400,10 @@ target_companies:
     department_selector: td.custSort1
     detail_link_selector: td.posTitle a[href]
     external_id_regex: req=([0-9]+&req_loc=[0-9]+)
+    single_page_collection: true
+    evidence_source: official Mitsubishi Electric US careers page links the unfiltered HRMDirect all-openings response
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-30T00:00:00-06:00'
   - name: Yaskawa Electric
     platform: static_html
     careers_url: https://www.yaskawa-global.com/jobs
@@ -3463,13 +3471,17 @@ target_companies:
     identity_url: https://www.cmgl.ca/careers/
     listing_url: https://www.cmgl.ca/careers/
     endpoint_variant: server_rendered_cards
-    listing_selector: .jet-listing-grid--539
+    listing_selector: .elementor-element-bbaea52
     job_card_selector: .jet-listing-grid__item
     title_selector: h3.elementor-heading-title
     location_selector: .elementor-element-ae0a93e .elementor-heading-title
     detail_link_selector: .jet-engine-listing-overlay-wrap
     reference_url_attribute: data-url
     external_id_attribute: data-post-id
+    single_page_collection: true
+    evidence_source: official CMG Job Postings desktop carousel without pagination or cursor state
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-30T00:00:00-06:00'
   - name: Neo Financial
     platform: ashby
     careers_url: https://www.neofinancial.com/company/careers?lang=en-CA
@@ -3964,7 +3976,7 @@ target_companies:
     max_pages: 1
     max_jobs: 20
     max_response_bytes: 3000000
-    identity_url: https://symend.applytojob.com/apply
+    identity_url: https://www.symend.com/company/careers
     listing_url: https://symend.applytojob.com/apply
     endpoint_variant: server_rendered_cards
     listing_selector: ul.list-group
@@ -3974,6 +3986,10 @@ target_companies:
     department_selector: ul.list-inline li:nth-child(2)
     detail_link_selector: h3.list-group-item-heading a
     external_id_regex: /apply/([^/]+)/
+    single_page_collection: true
+    evidence_source: official Symend careers page embeds the exact unpaginated JazzHR board
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-30T00:00:00-06:00'
   - name: Circle Cardiovascular Imaging
     platform: bamboohr
     careers_url: https://www.circlecvi.com/careers
@@ -4232,7 +4248,7 @@ target_companies:
     max_pages: 1
     max_jobs: 20
     max_response_bytes: 3000000
-    identity_url: https://ouster.applytojob.com/apply
+    identity_url: https://ouster.com/company/careers
     listing_url: https://ouster.applytojob.com/apply
     endpoint_variant: server_rendered_cards
     listing_selector: ul.list-group
@@ -4242,6 +4258,10 @@ target_companies:
     department_selector: ul.list-group-item-text li:nth-child(2)
     detail_link_selector: h3.list-group-item-heading a
     external_id_regex: /apply/([^/]+)/
+    single_page_collection: true
+    evidence_source: official Ouster careers page links the exact unpaginated JazzHR board
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-30T00:00:00-06:00'
   - name: Aeva Technologies
     platform: lever
     careers_url: https://www.aeva.com/careers/
@@ -6099,6 +6119,7 @@ target_companies:
     endpoint_variant: server_rendered_cards
     source_identity_regex: H2O\.ai|h2o\.ai
     identity_regex: H2O\.ai|h2o\.ai
+    identity_url: https://h2o.ai/company/careers/
     listing_selector: ul.list-group
     job_card_selector: li.list-group-item
     title_selector: h3.list-group-item-heading a
@@ -6108,6 +6129,10 @@ target_companies:
     external_id_regex: /apply/([^/]+)/
     allowed_apply_hosts:
     - h2oai.applytojob.com
+    single_page_collection: true
+    evidence_source: official H2O.ai careers page embeds the exact unpaginated JazzHR board
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-30T00:00:00-06:00'
   # Canadian employer expansion v4 (2026-08): verified public ATS sources.
   - name: Ada
     platform: greenhouse
