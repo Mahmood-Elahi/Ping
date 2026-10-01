@@ -1104,46 +1104,33 @@ class CompanyCareersTests(unittest.TestCase):
             )
 
     def test_shopify_embedded_data_normalization(self):
-        encoded_values = [
-            {"_1": 2},
-            "loaderData",
-            {"_3": 4},
-            "route",
-            {"_5": 6},
-            "jobPosting",
-            {
-                "_7": 8,
-                "_9": 10,
-                "_11": 12,
-                "_13": 14,
-                "_15": 16,
-                "_17": 18,
-                "_19": 20,
-                "_21": 22,
-                "_23": 24,
-                "_25": 26,
-            },
-            "id",
-            "posting-1",
-            "title",
-            "Staff Software Engineer",
-            "jobId",
-            "job-1",
-            "departmentName",
-            "Engineering",
-            "locationName",
-            "Remote - Canada",
-            "workplaceType",
-            "Remote",
-            "isListed",
-            True,
-            "publishedDate",
-            "2026-04-01",
-            "externalLink",
-            "https://www.shopify.com/careers?ashby_jid=posting-1",
-            "updatedAt",
-            "2026-04-02T00:00:00Z",
-        ]
+        posting_id = "11111111-1111-4111-8111-111111111111"
+        ats_job_id = "22222222-2222-4222-8222-222222222222"
+        url = f"https://www.shopify.com/careers?ashby_jid={posting_id}"
+        encoded_values = [{"loaderData": {"($locale)/careers": {
+            "url": "https://www.shopify.com/careers",
+            "canonicalUrl": "https://www.shopify.com/careers",
+            "rootDomain": "shopify.com",
+            "fileRoutePath": "/careers",
+            "handle": "careers",
+            "jobPostingsWithJobs": [{
+                "job": {"id": ats_job_id, "jobPostingIds": [posting_id]},
+                "jobPosting": {
+                    "id": posting_id,
+                    "title": "Staff Software Engineer",
+                    "jobId": ats_job_id,
+                    "status": "Published",
+                    "departmentName": "Engineering",
+                    "locationName": "Remote - Canada",
+                    "workplaceType": "Remote",
+                    "isListed": True,
+                    "publishedDate": "2026-04-01",
+                    "externalLink": url,
+                    "applyLink": url,
+                    "updatedAt": "2026-04-02T00:00:00Z",
+                },
+            }],
+        }}}]
         stream = json.dumps(json.dumps(encoded_values))
         html = f'<script>window.__reactRouterContext.streamController.enqueue({stream});</script>'
         session = FakeSession(get_responses=[FakeResponse({}, text=html)])
@@ -1157,6 +1144,13 @@ class CompanyCareersTests(unittest.TestCase):
         self.assertEqual(jobs[0].location, "Remote - Canada")
         self.assertEqual(jobs[0].source, "custom:shopify")
         self.assertEqual(jobs[0].departments, ["Engineering"])
+        self.assertEqual(jobs[0].url, url)
+        metadata = source_scan_metadata(session)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(
+            metadata["terminal_evidence_type"], "complete_collection_response"
+        )
+        self.assertEqual(metadata["source_identity_status"], "validated")
 
     def test_google_af_init_data_normalization(self):
         google_data = [

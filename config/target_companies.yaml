@@ -484,7 +484,6 @@ target_companies:
     slug: plaid
     careers_url: https://plaid.com/careers/
     search_url: https://jobs.ashbyhq.com/plaid
-    endpoint_variant: posting_api_job_board
     original_workbook_rank: 63
     allowed_apply_hosts:
     - jobs.ashbyhq.com
@@ -495,7 +494,6 @@ target_companies:
     slug: kraken.com
     careers_url: https://www.kraken.com/careers
     search_url: https://jobs.ashbyhq.com/kraken.com
-    endpoint_variant: posting_api_job_board
     original_workbook_rank: 71
     allowed_apply_hosts:
     - jobs.ashbyhq.com

@@ -109,6 +109,41 @@ class GenericAdapterTests(unittest.TestCase):
         self.assertEqual(jobs[0].location, "Trondheim")
         self.assertEqual(jobs[0].url, "https://careers.example.test/jobs/8190875-firmware-engineer")
 
+    def test_teamtailor_exact_limit_with_no_next_is_complete(self):
+        cards = "".join(
+            f"<li><a href='/jobs/{8190000 + index}-engineer'>Engineer {index}</a>"
+            "<span class='text-base'><span>Engineering</span>"
+            "<span class='mx-[2px]'>Â·</span><span>Trondheim</span></span></li>"
+            for index in range(20)
+        )
+        body = (
+            "<html><title>Example Semiconductor jobs</title><body>"
+            f"<ul id='jobs_list_container'>{cards}</ul></body></html>"
+        )
+        session = Session([Response(body, url="https://careers.example.test/jobs")])
+        jobs = teamtailor.fetch_jobs(session, teamtailor_target())
+        metadata = source_scan_metadata(session)
+
+        self.assertEqual(len(jobs), 20)
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["stop_reason"], "no_next_page")
+        self.assertEqual(metadata["source_identity_status"], "validated")
+
+    def test_teamtailor_over_limit_page_remains_incomplete(self):
+        cards = "".join(
+            f"<li><a href='/jobs/{8190000 + index}-engineer'>Engineer {index}</a>"
+            "<span class='text-base'><span>Engineering</span>"
+            "<span class='mx-[2px]'>Â·</span><span>Trondheim</span></span></li>"
+            for index in range(21)
+        )
+        body = (
+            "<html><title>Example Semiconductor jobs</title><body>"
+            f"<ul id='jobs_list_container'>{cards}</ul></body></html>"
+        )
+        session = Session([Response(body, url="https://careers.example.test/jobs")])
+        self.assertEqual(len(teamtailor.fetch_jobs(session, teamtailor_target())), 20)
+        self.assertFalse(source_scan_metadata(session)["scan_complete"])
+
     def test_talentbrew_deduplicates_responsive_cards_by_stable_id(self):
         card = """<a data-job-id="98062537056" href="/job/calgary/engineer/1/98062537056">
         <h2>Systems Engineer</h2><span class="job-location">Calgary, Alberta</span>

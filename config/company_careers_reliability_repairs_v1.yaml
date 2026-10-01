@@ -1368,3 +1368,50 @@ company_careers_reliability_repairs:
     evidence_source: official Symend careers page embeds the exact unpaginated JazzHR board
     evidence_confidence: high
     evidence_timestamp: '2026-09-30T00:00:00-06:00'
+  - name: Plaid
+    platform: ashby
+    slug: plaid
+    careers_url: https://plaid.com/careers/
+    search_url: https://jobs.ashbyhq.com/plaid
+    original_workbook_rank: 63
+    allowed_apply_hosts:
+      - jobs.ashbyhq.com
+    max_pages: 1
+    max_jobs: 20
+  - name: Kraken
+    platform: ashby
+    slug: kraken.com
+    careers_url: https://www.kraken.com/careers
+    search_url: https://jobs.ashbyhq.com/kraken.com
+    original_workbook_rank: 71
+    allowed_apply_hosts:
+      - jobs.ashbyhq.com
+    max_pages: 1
+    max_jobs: 20
+  - name: Zalando
+    platform: static_html
+    careers_url: https://jobs.zalando.com/en/jobs
+    listing_url: https://jobs.zalando.com/en/jobs
+    endpoint_variant: server_rendered_links
+    original_workbook_rank: 210
+    allowed_apply_hosts:
+      - jobs.zalando.com
+    max_pages: 1
+    max_jobs: 20
+    max_scripts: 20
+    max_response_bytes: 3000000
+    max_script_bytes: 1000000
+    evidence_source: config/company_unknown_investigation_v3.csv
+    evidence_confidence: medium
+    evidence_timestamp: '2026-08-05T02:56:57+00:00'
+    listing_selector: main a[href^='/en/jobs/']
+    job_card_selector: main a[href^='/en/jobs/']
+    title_selector: :self
+    detail_link_selector: :self
+    external_id_regex: /jobs/(\d+)-
+    external_id_attribute: null
+    location_selector: null
+    department_selector: null
+    pagination_url_template: null
+    next_page_selector: null
+    allow_url_id_fallback: false

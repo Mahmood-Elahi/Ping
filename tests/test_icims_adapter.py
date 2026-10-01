@@ -194,6 +194,37 @@ class ICIMSAdapterTests(unittest.TestCase):
                 ),
             )
 
+    def test_26c_radancy_total_is_scoped_to_exact_jobs_collection(self):
+        body = """
+        <html><body><section id="search-results-list">
+          <ul id="search-results-jobs" data-results-count="1">
+            <li class="job-card"><a data-job-id="101"
+              href="/en/job/calgary/engineer/33099/101">Engineer</a>
+              <span class="location">Calgary</span></li>
+          </ul>
+          <ul id="search-results-content" data-results-count="118">
+            <li class="job-card job-card--content">Story</li>
+          </ul>
+        </section></body></html>
+        """
+        response = Response(text=body, content_type="text/html")
+        response.url = "https://jobs.example.com/en/search-jobs?p=1"
+        session = Session([response])
+        jobs = icims.fetch_jobs(
+            session,
+            target(
+                tenant="arm",
+                board_id="33099",
+                endpoint_variant=icims.RADANCY_HTML,
+                endpoint_url=None,
+                search_url="https://jobs.example.com/en/search-jobs",
+                allowed_apply_hosts=["jobs.example.com"],
+                page_size=15,
+            ),
+        )
+        self.assertEqual(len(jobs), 1)
+        self.assertTrue(source_scan_metadata(session)["scan_complete"])
+
     def test_27_authentication_rejection(self):
         response = Response(None, content_type="text/html", text="<html><title>Login</title></html>")
         with self.assertRaisesRegex(AdapterError, "authentication"):

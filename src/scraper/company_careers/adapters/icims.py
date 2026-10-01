@@ -556,7 +556,7 @@ def _parse_page(
             [item for item in items if item.xpath(".//a[@data-job-id and contains(@href, '/job/')]")],
             target.endpoint_variant,
         )
-        total = _integer_attr(root, "data-results-count")
+        total = _radancy_jobs_total(root)
         zero = total == 0 or _zero_text(root)
         has_more = (
             (page_index + 1) * int(target.page_size) < total
@@ -590,6 +590,22 @@ def _parse_page(
             )
         )
     return items, total, zero, has_more, listing_contract
+
+
+def _radancy_jobs_total(root: Any) -> Optional[int]:
+    """Read the count from the exact jobs collection, not sibling content."""
+    job_collections = root.xpath("//*[@id='search-results-jobs']")
+    if len(job_collections) > 1:
+        raise AdapterError("iCIMS exposed multiple jobs result collections")
+    if job_collections:
+        value = job_collections[0].get("data-results-count")
+        if value is None:
+            raise AdapterError("iCIMS jobs collection omitted data-results-count")
+        cleaned = str(value).strip().replace(",", "")
+        if not cleaned.isdigit():
+            raise AdapterError("iCIMS jobs data-results-count was malformed")
+        return int(cleaned)
+    return _integer_attr(root, "data-results-count")
 
 
 def _legacy_terminal_empty_page(

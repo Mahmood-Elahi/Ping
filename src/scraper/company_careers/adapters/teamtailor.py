@@ -109,13 +109,23 @@ def fetch_jobs(
                 break
         page_row["jobs_normalized"] = new_jobs
         metadata["jobs_normalized"] = len(jobs)
+        links = root.xpath("//a[@rel='next' and @href]")
+        if len(cards) <= maximum_jobs - (len(jobs) - new_jobs) and not links:
+            metadata["stop_reason"] = "no_next_page"
+            metadata["scan_complete"] = True
+            metadata["scan_completeness_reason"] = "explicit_next_page_exhausted"
+            metadata["total_available"] = len(jobs)
+            metadata["terminal_evidence_type"] = "configured_next_link_absent"
+            metadata["terminal_evidence_value"] = "a[rel='next']"
+            metadata["has_more"] = False
+            metadata["terminal_page_observed"] = True
+            break
         if len(jobs) >= maximum_jobs:
             metadata["stop_reason"] = "maximum_results_reached"
             break
         if new_jobs == 0:
             metadata["stop_reason"] = "no_new_stable_ids"
             break
-        links = root.xpath("//a[@rel='next' and @href]")
         if not links:
             metadata["stop_reason"] = "no_next_page"
             metadata["scan_complete"] = True
@@ -134,6 +144,14 @@ def fetch_jobs(
         metadata["safety_limit_reached"] = True
     elif not metadata["scan_complete"]:
         metadata["scan_completeness_reason"] = "pagination_failure"
+    else:
+        metadata.update(
+            source_identity_status="validated",
+            source_identity_diagnostic=(
+                "The listing matched the configured company identity and every "
+                "job used a stable ID on the exact allowed Teamtailor host"
+            ),
+        )
     return jobs
 
 

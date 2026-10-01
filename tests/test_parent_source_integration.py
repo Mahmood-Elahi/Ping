@@ -35,7 +35,9 @@ from src.scraper.company_careers.registry import load_target_companies
 from tests.test_google_sheets_publisher import FakeSpreadsheet
 from tests.test_supabase_job_store import FakeSupabaseClient, MutableClock
 from tests.test_update_student_dashboard import FakeDashboardClient
-from tests.text_bytes import canonical_text_bytes
+from tests.company_careers_reliability_assertions import (
+    assert_historical_registry_bytes,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -536,10 +538,10 @@ class ParentSourceSheetsAndRegistryTests(unittest.TestCase):
                 self.assertEqual(len(normalized_names), len(set(normalized_names)))
                 self.assertEqual(len(normalized_sources), len(set(normalized_sources)))
 
-        self.assertTrue(
-            canonical_text_bytes(PRODUCTION.read_bytes()).startswith(
-                canonical_text_bytes(validated_bytes)
-            )
+        assert_historical_registry_bytes(
+            self,
+            PRODUCTION.read_bytes(),
+            validated_bytes,
         )
 
     def test_31_universal_robots_is_never_an_independent_registry_target(self):
