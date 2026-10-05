@@ -251,6 +251,8 @@ class CompanyTarget:
     browser_identity_selector: Optional[str] = None
     browser_identity_regex: Optional[str] = None
     identity_regex: Optional[str] = None
+    listing_identity_regex: Optional[str] = None
+    listing_total_regex: Optional[str] = None
     job_attribution_regex: Optional[str] = None
     job_attribution_exclude_regex: Optional[str] = None
     embedded_script_selector: Optional[str] = None
@@ -345,6 +347,8 @@ class CompanyTarget:
             browser_identity_selector=data.get("browser_identity_selector"),
             browser_identity_regex=data.get("browser_identity_regex"),
             identity_regex=data.get("identity_regex"),
+            listing_identity_regex=data.get("listing_identity_regex"),
+            listing_total_regex=data.get("listing_total_regex"),
             job_attribution_regex=data.get("job_attribution_regex"),
             job_attribution_exclude_regex=data.get("job_attribution_exclude_regex"),
             embedded_script_selector=data.get("embedded_script_selector"),

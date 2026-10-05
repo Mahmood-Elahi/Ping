@@ -387,8 +387,24 @@ def _failure_health_code(value: str) -> SourceHealthCode:
         return SourceHealthCode.AUTHENTICATION_OR_BLOCK
     if "identity" in lowered or "mismatch" in lowered:
         return SourceHealthCode.IDENTITY_FAILURE
+    if any(
+        token in lowered
+        for token in (
+            "malformed record",
+            "duplicate stable",
+            "duplicate job",
+            "canonical job url",
+            "stable requisition id",
+        )
+    ):
+        return SourceHealthCode.MALFORMED_RECORDS
     if "malformed" in lowered or "schema" in lowered or "unsupported" in lowered:
         return SourceHealthCode.MALFORMED_COLLECTION
+    if any(
+        token in lowered
+        for token in ("safety limit", "response size", "byte limit", "too large")
+    ):
+        return SourceHealthCode.SAFETY_LIMIT_REACHED
     if "unexpected_upstream_http" in lowered or re.search(r"\bhttp 202\b", lowered):
         return SourceHealthCode.TEMPORARY_UNEXPECTED_RESPONSE
     return SourceHealthCode.SOURCE_UNREACHABLE

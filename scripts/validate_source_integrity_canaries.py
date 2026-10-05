@@ -152,7 +152,41 @@ def run_canary(target: Any, request_budget: int) -> dict[str, Any]:
         "scan_completeness_reason": metadata.get("scan_completeness_reason"),
         "stop_reason": metadata.get("stop_reason"),
         "jobs_collected": metadata.get("jobs_collected"),
+        "valid_job_records_produced": bool(
+            int(metadata.get("jobs_collected") or 0) > 0
+            and int(metadata.get("rejected_record_count") or 0) == 0
+        ),
+        "response_fully_read": metadata.get("response_fully_read"),
+        "bytes_inspected": metadata.get("bytes_inspected"),
+        "maximum_response_bytes": metadata.get("maximum_response_bytes"),
+        "full_response_within_limit": bool(
+            metadata.get("response_fully_read")
+            and not metadata.get("safety_limit_reached")
+            and not metadata.get("response_truncated")
+        ),
+        "unique_stable_ids": metadata.get("unique_stable_ids"),
+        "unique_canonical_urls": metadata.get("unique_canonical_urls"),
+        "rejected_record_count": metadata.get("rejected_record_count"),
+        "duplicate_ids": metadata.get("duplicate_ids", []),
+        "duplicate_canonical_urls": metadata.get(
+            "duplicate_canonical_urls", []
+        ),
+        "stable_ids_unique": bool(
+            int(metadata.get("jobs_collected") or 0) > 0
+            and int(metadata.get("unique_stable_ids") or 0)
+            == int(metadata.get("jobs_collected") or 0)
+            and not metadata.get("duplicate_ids")
+        ),
+        "canonical_urls_unique": bool(
+            int(metadata.get("jobs_collected") or 0) > 0
+            and int(metadata.get("unique_canonical_urls") or 0)
+            == int(metadata.get("jobs_collected") or 0)
+            and not metadata.get("duplicate_canonical_urls")
+        ),
         "total_available": metadata.get("total_available"),
+        "authoritative_total_present": metadata.get(
+            "authoritative_total_present"
+        ),
         "pages_requested": metadata.get("pages_requested"),
         "terminal_evidence_type": metadata.get("terminal_evidence_type"),
         "terminal_evidence_value": metadata.get("terminal_evidence_value"),
@@ -229,6 +263,18 @@ def _incomplete_outcome(metadata: dict[str, Any]) -> str:
     code = str(metadata.get("source_health_code") or "")
     if code == "source_migration_suspected":
         return "MIGRATION_SUSPECTED"
+    if (
+        metadata.get("endpoint_variant") == "source_jobs_v1"
+        and code in {"pagination_unproven", "authoritative_total_not_reached"}
+        and metadata.get("source_identity_status") == "validated"
+        and int(metadata.get("jobs_normalized") or 0) > 0
+        and int(metadata.get("rejected_record_count") or 0) == 0
+        and not metadata.get("duplicate_ids")
+        and not metadata.get("duplicate_canonical_urls")
+    ):
+        # A valid inventory is useful for discovery even when it is not
+        # authoritative for absence.  PASS_PARTIAL never marks it healthy.
+        return "PASS_PARTIAL"
     if (
         code == "safety_limit_reached"
         and metadata.get("source_identity_status") == "validated"
