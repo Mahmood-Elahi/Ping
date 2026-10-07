@@ -252,7 +252,7 @@ class StaticHTMLAdapterTests(unittest.TestCase):
 
     def test_19_page_and_result_limits(self):
         with self.assertRaisesRegex(AdapterError, "hard maximum"):
-            static_html.validate_target(target(max_pages=3))
+            static_html.validate_target(target(max_pages=static_html.MAX_PAGES + 1))
         many = "".join(card(str(i), href=f"/jobs/{i}") for i in range(30))
         session = Session(Response(page(many)))
         self.assertEqual(len(static_html.fetch_jobs(session, target(max_jobs=4))), 30)

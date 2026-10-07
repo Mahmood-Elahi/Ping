@@ -88,6 +88,8 @@ def fetch_jobs(
         "pages": [],
         "jobs_normalized": 0,
         "duplicate_requisitions_skipped": 0,
+        "duplicate_posting_ids_skipped": [],
+        "duplicate_requisition_ids": [],
         "detail_requests": 0,
         "maximum_detail_requests": MAX_DETAIL_REQUESTS,
         "rejected_record_count": 0,
@@ -154,6 +156,12 @@ def fetch_jobs(
             requisition_id = _positive_int(row, "jobReqId", "requisition")
             if requisition_id in seen_requisition_ids:
                 metadata["duplicate_requisitions_skipped"] += 1
+                if (
+                    len(metadata["duplicate_requisition_ids"])
+                    < MAX_REJECTED_RECORD_IDS
+                ):
+                    metadata["duplicate_posting_ids_skipped"].append(posting_id)
+                    metadata["duplicate_requisition_ids"].append(requisition_id)
                 continue
             seen_requisition_ids.add(requisition_id)
             normalized_row = row

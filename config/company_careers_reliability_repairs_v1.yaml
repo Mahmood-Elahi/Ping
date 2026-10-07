@@ -1415,3 +1415,23 @@ company_careers_reliability_repairs:
     pagination_url_template: null
     next_page_selector: null
     allow_url_id_fallback: false
+  - name: Dyson
+    platform: public_json
+    careers_url: https://careers.dyson.com/en-gb/search-results/
+    endpoint_url: https://careers.dyson.com/en-gb/api/search/jobs/
+    endpoint_variant: dyson_jobs_v1
+    identity_regex: \bDyson\b
+    allowed_source_hosts:
+      - careers.dyson.com
+    allowed_apply_hosts:
+      - careers.dyson.com
+    original_workbook_rank: null
+    page_size: 10
+    max_pages: 50
+    max_jobs: 500
+    max_response_bytes: 3000000
+    max_scripts: 5
+    max_script_bytes: 1000000
+    evidence_source: official Dyson search page and same-origin JSON search API
+    evidence_confidence: high
+    evidence_timestamp: '2026-10-06T00:00:00-06:00'

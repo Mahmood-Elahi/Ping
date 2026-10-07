@@ -471,6 +471,48 @@ class RegistryIntegrityGateTests(unittest.TestCase):
         self.assertEqual(row["source_health_code"], "safety_limit_reached")
         self.assertEqual(row["source_identity_status"], "validated")
 
+    def test_bounded_canary_surfaces_record_rejection_and_dedup_diagnostics(self):
+        target = CompanyTarget(name="Diagnostic", platform="fixture")
+
+        def incomplete(session, _target, _timeout):
+            publish_source_scan_metadata(
+                session,
+                SourceScanMetadata(
+                    scan_complete=False,
+                    scan_completeness_reason="malformed_listing_records",
+                    stop_reason="total_jobs_reached",
+                    total_available=3,
+                    rejected_record_count=1,
+                    rejected_record_reason="missing_structured_location",
+                    rejected_record_ids=[
+                        {"posting_id": 103, "requisition_id": 503}
+                    ],
+                    rejected_posting_ids=[103],
+                    rejected_requisition_ids=[503],
+                    duplicate_requisitions_skipped=1,
+                    duplicate_posting_ids_skipped=[102],
+                    duplicate_requisition_ids=[501],
+                ),
+            )
+            return [object()]
+
+        with patch.dict(
+            "scripts.validate_source_integrity_canaries.ADAPTERS",
+            {"fixture": incomplete},
+        ):
+            row = run_canary(target, 1)
+
+        self.assertEqual(row["rejected_record_reason"], "missing_structured_location")
+        self.assertEqual(
+            row["rejected_record_ids"],
+            [{"posting_id": 103, "requisition_id": 503}],
+        )
+        self.assertEqual(row["rejected_posting_ids"], [103])
+        self.assertEqual(row["rejected_requisition_ids"], [503])
+        self.assertEqual(row["duplicate_requisitions_skipped"], 1)
+        self.assertEqual(row["duplicate_posting_ids_skipped"], [102])
+        self.assertEqual(row["duplicate_requisition_ids"], [501])
+
     def test_openai_and_microsoft_bounded_canaries_publish_validated_identity(self):
         cases = (
             ("OpenAI", 14, 829),
@@ -581,6 +623,49 @@ class RegistryIntegrityGateTests(unittest.TestCase):
         self.assertEqual(row["source_identity_status"], "validated")
         self.assertEqual(row["jobs_collected"], 76)
         self.assertEqual(row["total_available"], 76)
+
+    def test_complete_public_json_canary_requires_reported_collection_integrity(self):
+        target = CompanyTarget(name="JSON", platform="public_json")
+
+        def complete(integrity: bool):
+            def adapter(session, _target, _timeout):
+                values = {
+                    "scan_complete": True,
+                    "scan_completeness_reason": "complete_collection_response",
+                    "stop_reason": "complete_collection_response",
+                    "complete_collection_response": True,
+                    "source_identity_status": "verified",
+                    "jobs_normalized": 2,
+                }
+                if integrity:
+                    values.update(
+                        collection_integrity_contract=True,
+                        unique_stable_ids=2,
+                        unique_canonical_urls=2,
+                        duplicate_ids=[],
+                        duplicate_canonical_urls=[],
+                    )
+                publish_source_scan_metadata(session, SourceScanMetadata(**values))
+                return [object(), object()]
+
+            return adapter
+
+        with patch.dict(
+            "scripts.validate_source_integrity_canaries.ADAPTERS",
+            {"public_json": complete(False)},
+        ):
+            missing = run_canary(target, 1)
+        with patch.dict(
+            "scripts.validate_source_integrity_canaries.ADAPTERS",
+            {"public_json": complete(True)},
+        ):
+            proven = run_canary(target, 1)
+
+        self.assertEqual(missing["canary_outcome"], "FAIL_CONTRACT")
+        self.assertFalse(missing["stable_ids_unique"])
+        self.assertEqual(proven["canary_outcome"], "PASS_COMPLETE")
+        self.assertTrue(proven["stable_ids_unique"])
+        self.assertTrue(proven["canonical_urls_unique"])
 
     def test_identity_contract_failure_is_fail_contract(self):
         target = CompanyTarget(name="Mismatch", platform="fixture")

@@ -112,13 +112,9 @@ class RemainingTwentyRegistryTests(unittest.TestCase):
 
         unresolved = {
             "Athabasca Oil",
-            "Box",
             "Cameco",
-            "Dyson",
-            "Espressif Systems",
             "General Motors",
             "ServiceNow",
-            "Wise",
             "Zalando",
             "ecobee",
             "u-blox",
@@ -130,7 +126,7 @@ class RemainingTwentyRegistryTests(unittest.TestCase):
     def test_malformed_structured_sources_remain_fail_closed(self):
         chemelex = self.targets["Chemelex"]
         novarc = self.targets["Novarc Technologies"]
-        self.assertEqual((chemelex.platform, chemelex.max_pages, chemelex.max_jobs), ("dayforce", 2, 50))
+        self.assertEqual((chemelex.platform, chemelex.max_pages, chemelex.max_jobs), ("dayforce", 4, 100))
         self.assertEqual((novarc.platform, novarc.max_pages, novarc.max_jobs), ("adp", 2, 20))
 
 

@@ -305,6 +305,18 @@ class AdaptiveListingCompletionTests(unittest.TestCase):
         self.assertEqual(evidence.end_index, 25)
         self.assertTrue(evidence.terminal())
 
+    def test_results_per_page_label_is_not_a_second_visible_total(self):
+        evidence = html_pagination_evidence(
+            html.fromstring(
+                "<div class='attrax-list-pagination-widget'>"
+                "<span class='attrax-pagination__total-results'>398 results</span>"
+                " 9 9 4 5 6 7 8 9 Results per page 12 24 48"
+                "</div>"
+            )
+        )
+        self.assertEqual(evidence.reported_total, 398)
+        self.assertFalse(evidence.conflicting_fields)
+
     def test_api_has_more_contract(self):
         self.assertTrue(
             json_pagination_evidence({"has_more": False}).terminal()

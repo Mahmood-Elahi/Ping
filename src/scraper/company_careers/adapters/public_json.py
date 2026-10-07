@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from html import unescape
 import json
 from math import ceil
@@ -24,6 +25,7 @@ from src.scraper.company_careers.models import (
     JobRecord,
     SourceScanMetadata,
     publish_source_scan_metadata,
+    source_scan_metadata,
 )
 from src.scraper.company_careers.mutable_collection import (
     fetch_with_mutation_restart,
@@ -39,6 +41,7 @@ OPTIVER_JOBS = "optiver_jobs_v1"
 UNITREE_JOBS = "unitree_jobs_v1"
 VALVE_JOBS = "valve_jobs_v1"
 ROBLOX_JOBS = "roblox_jobs_v1"
+DYSON_JOBS = "dyson_jobs_v1"
 SUPPORTED_VARIANTS = {
     AURORA_JOBS_INDEX,
     WORDPRESS_ROLES,
@@ -47,9 +50,14 @@ SUPPORTED_VARIANTS = {
     UNITREE_JOBS,
     VALVE_JOBS,
     ROBLOX_JOBS,
+    DYSON_JOBS,
 }
 ROBLOX_ENDPOINT = "https://d32kbl9jppd7az.cloudfront.net/careers/jobs.json"
 ROBLOX_MAX_JOBS = 500
+DYSON_ENDPOINT = "https://careers.dyson.com/en-gb/api/search/jobs/"
+DYSON_PAGE_SIZE = 10
+DYSON_MAX_PAGES = 50
+DYSON_MAX_JOBS = 500
 HEADERS = {
     "Accept": "application/json",
     "User-Agent": "job-radar/1.0 (read-only public careers scan)",
@@ -105,20 +113,25 @@ def fetch_jobs(
 ) -> list[JobRecord]:
     validate_target(target)
     if target.endpoint_variant == OPTIVER_JOBS:
-        return _fetch_optiver_collection(session, target, timeout)
-    if target.endpoint_variant == UNITREE_JOBS:
-        return _fetch_unitree_collection(session, target, timeout)
-    if target.endpoint_variant == VALVE_JOBS:
-        return _fetch_valve_collection(session, target, timeout)
-    if target.endpoint_variant == ROBLOX_JOBS:
-        return _fetch_roblox_collection(session, target, timeout)
-    if target.endpoint_variant == SHAZAMME_JOB_RESULTS:
-        return _fetch_shazamme_collection(session, target, timeout)
-    if target.endpoint_variant == WORDPRESS_ROLES:
-        return fetch_with_mutation_restart(
+        jobs = _fetch_optiver_collection(session, target, timeout)
+    elif target.endpoint_variant == UNITREE_JOBS:
+        jobs = _fetch_unitree_collection(session, target, timeout)
+    elif target.endpoint_variant == VALVE_JOBS:
+        jobs = _fetch_valve_collection(session, target, timeout)
+    elif target.endpoint_variant == ROBLOX_JOBS:
+        jobs = _fetch_roblox_collection(session, target, timeout)
+    elif target.endpoint_variant == DYSON_JOBS:
+        jobs = _fetch_dyson_collection(session, target, timeout)
+    elif target.endpoint_variant == SHAZAMME_JOB_RESULTS:
+        jobs = _fetch_shazamme_collection(session, target, timeout)
+    elif target.endpoint_variant == WORDPRESS_ROLES:
+        jobs = fetch_with_mutation_restart(
             session, lambda: _fetch_wordpress_once(session, target, timeout)
         )
-    return _fetch_aurora_index(session, target, timeout)
+    else:
+        jobs = _fetch_aurora_index(session, target, timeout)
+    _record_collection_integrity(source_scan_metadata(session), jobs)
+    return jobs
 
 
 def validate_target(target: CompanyTarget) -> None:
@@ -142,6 +155,9 @@ def validate_target(target: CompanyTarget) -> None:
         return
     if target.endpoint_variant == ROBLOX_JOBS:
         _validate_roblox_target(target, endpoint, careers)
+        return
+    if target.endpoint_variant == DYSON_JOBS:
+        _validate_dyson_target(target, endpoint, careers)
         return
     if (
         endpoint.scheme != "https"
@@ -261,6 +277,39 @@ def _validate_roblox_target(target: CompanyTarget, endpoint: Any, careers: Any) 
         re.compile(str(target.identity_regex), re.I)
     except re.error as exc:
         raise AdapterError(f"Roblox identity regex is invalid: {exc}") from exc
+
+
+def _validate_dyson_target(target: CompanyTarget, endpoint: Any, careers: Any) -> None:
+    if (
+        str(target.endpoint_url) != DYSON_ENDPOINT
+        or endpoint.scheme != "https"
+        or endpoint.username
+        or endpoint.password
+        or endpoint.hostname != "careers.dyson.com"
+        or endpoint.path != "/en-gb/api/search/jobs/"
+        or endpoint.query
+        or endpoint.fragment
+        or careers.scheme != "https"
+        or careers.username
+        or careers.password
+        or careers.hostname != "careers.dyson.com"
+        or careers.path.rstrip("/") != "/en-gb/search-results"
+        or {str(value).casefold() for value in target.allowed_source_hosts}
+        != {"careers.dyson.com"}
+        or {str(value).casefold() for value in target.allowed_apply_hosts}
+        != {"careers.dyson.com"}
+        or int(target.page_size) != DYSON_PAGE_SIZE
+        or not 1 <= int(target.max_pages) <= DYSON_MAX_PAGES
+        or not 1 <= int(target.max_jobs) <= DYSON_MAX_JOBS
+        or not 1 <= int(target.max_scripts) <= 5
+        or not 1 <= int(target.max_script_bytes) <= 1_000_000
+        or not target.identity_regex
+    ):
+        raise AdapterError("Dyson target does not bind the reviewed official jobs API")
+    try:
+        re.compile(str(target.identity_regex), re.I)
+    except re.error as exc:
+        raise AdapterError(f"Dyson identity regex is invalid: {exc}") from exc
 
 
 def _fetch_optiver_collection(
@@ -536,10 +585,8 @@ def _finish_atomic_collection(
 ) -> list[JobRecord]:
     if len(jobs) > MAX_RAW_JOBS_PER_SOURCE:
         raise AdapterError("Public JSON collection exceeded the hard job ceiling")
-    if len({job.job_id for job in jobs}) != len(jobs):
-        raise AdapterError("Public JSON collection repeated a stable job ID")
-    if len({job.url for job in jobs}) != len(jobs):
-        raise AdapterError("Public JSON collection repeated a canonical job URL")
+    metadata["jobs_normalized"] = len(jobs)
+    _record_collection_integrity(metadata, jobs)
     total = len(jobs)
     metadata.update(
         jobs_normalized=total,
@@ -561,6 +608,34 @@ def _finish_atomic_collection(
         complete_collection_response=True,
     )
     return jobs
+
+
+def _record_collection_integrity(
+    metadata: SourceScanMetadata,
+    jobs: list[JobRecord],
+) -> None:
+    """Publish and enforce stable-ID and canonical-URL uniqueness."""
+    id_counts = Counter(job.job_id for job in jobs)
+    url_counts = Counter(job.url for job in jobs)
+    duplicate_ids = sorted(
+        value for value, count in id_counts.items() if count > 1
+    )
+    duplicate_urls = sorted(
+        value for value, count in url_counts.items() if count > 1
+    )
+    metadata.update(
+        collection_integrity_contract=True,
+        unique_stable_ids=len(id_counts),
+        unique_canonical_urls=len(url_counts),
+        duplicate_ids=duplicate_ids[:20],
+        duplicate_canonical_urls=duplicate_urls[:20],
+        stable_ids_unique=not duplicate_ids,
+        canonical_urls_unique=not duplicate_urls,
+    )
+    if duplicate_ids:
+        raise AdapterError("Public JSON collection repeated a stable job ID")
+    if duplicate_urls:
+        raise AdapterError("Public JSON collection repeated a canonical job URL")
 
 
 def _fetch_unitree_collection(
@@ -770,6 +845,224 @@ def _normalize_roblox(row: Any, target: CompanyTarget) -> JobRecord:
             "early_career": early_career,
             "platform": "public_json",
             "endpoint_variant": ROBLOX_JOBS,
+        },
+    )
+
+
+def _fetch_dyson_collection(
+    session: requests.Session,
+    target: CompanyTarget,
+    timeout: int,
+) -> list[JobRecord]:
+    """Enumerate Dyson's counted first-party JSON search collection."""
+    metadata = _metadata(target)
+    metadata.update(
+        page_size=DYSON_PAGE_SIZE,
+        maximum_pages=int(target.max_pages),
+        maximum_results=int(target.max_jobs),
+    )
+    publish_source_scan_metadata(session, metadata)
+
+    metadata["pages_requested"] = 1
+    identity = session.get(
+        str(target.careers_url),
+        headers={**HEADERS, "Accept": "text/html,application/xhtml+xml"},
+        timeout=min(max(1, int(timeout)), 30),
+    )
+    if identity.status_code != 200:
+        raise AdapterError(f"Dyson official careers page HTTP {identity.status_code}")
+    content = bytes(getattr(identity, "content", b"") or b"")
+    if not content or len(content) > int(target.max_response_bytes):
+        raise AdapterError("Dyson official careers page exceeded its response bound")
+    final = urlparse(str(getattr(identity, "url", target.careers_url)))
+    if (
+        final.scheme != "https"
+        or final.hostname != "careers.dyson.com"
+        or final.path.rstrip("/") != "/en-gb/search-results"
+    ):
+        raise AdapterError("Dyson official careers page redirected outside its reviewed route")
+    try:
+        root = html.fromstring(content)
+    except (TypeError, ValueError) as exc:
+        raise AdapterError("Dyson official careers page returned malformed HTML") from exc
+    if not re.search(str(target.identity_regex), " ".join(root.text_content().split()), re.I):
+        raise AdapterError("Dyson official careers identity did not match")
+    script_urls = list(
+        dict.fromkeys(
+            urljoin(str(target.careers_url), str(value))
+            for value in root.xpath("//script[@src]/@src")
+            if re.fullmatch(r"/js/search-[A-Za-z0-9]+\.min\.js", urlparse(str(value)).path)
+        )
+    )
+    if len(script_urls) != 1:
+        raise AdapterError("Dyson official careers page did not identify one search script")
+    metadata["pages_completed"] = 1
+
+    metadata["pages_requested"] += 1
+    script_url = script_urls[0]
+    script = _get(session, script_url, timeout)
+    script_final = urlparse(str(getattr(script, "url", script_url)))
+    script_content = bytes(getattr(script, "content", b"") or b"")
+    if (
+        script_final.scheme != "https"
+        or script_final.hostname != "careers.dyson.com"
+        or not re.fullmatch(r"/js/search-[A-Za-z0-9]+\.min\.js", script_final.path)
+        or not script_content
+        or len(script_content) > int(target.max_script_bytes)
+        or b"/api/search/jobs/" not in script_content
+    ):
+        raise AdapterError("Dyson search script did not bind the reviewed jobs API")
+    metadata["pages_completed"] += 1
+    metadata["source_identity_status"] = "validated"
+
+    jobs: list[JobRecord] = []
+    expected_total: int | None = None
+
+    for page in range(1, int(target.max_pages) + 1):
+        metadata["pages_requested"] += 1
+        response = _get(
+            session,
+            str(target.endpoint_url),
+            timeout,
+            params={
+                "q": "",
+                "pagesize": str(DYSON_PAGE_SIZE),
+                "page": str(page),
+                "minpage": str(page),
+                "maxpage": str(page),
+                "sort": "Score",
+                "earlycareers": "0",
+            },
+        )
+        response_url = urlparse(str(getattr(response, "url", target.endpoint_url)))
+        if (
+            response_url.scheme != "https"
+            or response_url.hostname != "careers.dyson.com"
+            or response_url.path != "/en-gb/api/search/jobs/"
+        ):
+            raise AdapterError("Dyson jobs API redirected outside its reviewed endpoint")
+        payload = _json(response, target)
+        metadata["pages_completed"] += 1
+        if not isinstance(payload, Mapping) or payload.get("success") is not True:
+            raise AdapterError("Dyson jobs API did not return its success envelope")
+        rows = payload.get("items")
+        total = _nonnegative_int(payload.get("totalItems"), "Dyson totalItems")
+        original_query = payload.get("originalQuery")
+        if (
+            not isinstance(rows, list)
+            or not all(isinstance(row, Mapping) for row in rows)
+            or not isinstance(original_query, Mapping)
+            or original_query.get("page") != page
+            or original_query.get("minPage") != page
+            or original_query.get("maxPage") != page
+        ):
+            raise AdapterError("Dyson jobs API returned a malformed page contract")
+        if expected_total is None:
+            expected_total = total
+            required_pages = ceil(total / DYSON_PAGE_SIZE) if total else 1
+            if total > int(target.max_jobs) or required_pages > int(target.max_pages):
+                metadata.update(
+                    total_available=total,
+                    authoritative_total_present=True,
+                    safety_limit_reached=True,
+                    stop_reason="hard_safety_limit_exceeded",
+                    scan_completeness_reason="safety_limit_reached",
+                )
+                return []
+        elif total != expected_total:
+            metadata["total_count_changed"] = True
+            metadata["collection_changed_during_scan"] = True
+            raise AdapterError("Dyson totalItems changed during pagination")
+        record_total_observation(
+            metadata,
+            total,
+            offset=(page - 1) * DYSON_PAGE_SIZE,
+            source_label="Dyson jobs API",
+        )
+        remaining = max(0, total - len(jobs))
+        expected_count = min(DYSON_PAGE_SIZE, remaining)
+        if len(rows) != expected_count:
+            raise AdapterError("Dyson page length conflicts with totalItems")
+        if payload.get("isFirst") is not (page == 1):
+            raise AdapterError("Dyson isFirst conflicts with the requested page")
+        final_page = len(jobs) + len(rows) == total
+        if payload.get("isLast") is not final_page:
+            raise AdapterError("Dyson isLast conflicts with totalItems")
+
+        normalized = [_normalize_dyson(row, target) for row in rows]
+        jobs.extend(normalized)
+        metadata["jobs_normalized"] = len(jobs)
+        _record_collection_integrity(metadata, jobs)
+        metadata["pages"].append(
+            {
+                "page": page,
+                "jobs_returned": len(rows),
+                "jobs_normalized": len(normalized),
+            }
+        )
+        if final_page:
+            break
+
+    if expected_total is None or len(jobs) != expected_total:
+        raise AdapterError("Dyson jobs API ended before its authoritative total")
+    metadata.update(
+        total_available=expected_total,
+        authoritative_total_present=True,
+        scan_complete=True,
+        scan_completeness_reason="reported_total_reached",
+        stop_reason="reported_total_reached",
+        source_identity_status="verified",
+    )
+    record_terminal_evidence(
+        metadata,
+        "authoritative_total",
+        expected_total,
+        has_more=False,
+        terminal_page_observed=True,
+    )
+    return jobs
+
+
+def _normalize_dyson(row: Mapping[str, Any], target: CompanyTarget) -> JobRecord:
+    external_id = " ".join(str(row.get("id") or "").split())
+    title = " ".join(str(row.get("title") or "").split())
+    location = " ".join(str(row.get("locationsText") or "").split())
+    department = " ".join(str(row.get("teamsText") or "").split())
+    raw_url = str(row.get("url") or "").strip()
+    parsed = urlparse(raw_url)
+    if (
+        not re.fullmatch(r"JR[0-9]+", external_id)
+        or not title
+        or not location
+        or parsed.scheme not in {"http", "https"}
+        or parsed.hostname != "careers.dyson.com"
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+        or not re.fullmatch(
+            rf"/en-gb/job-description/[^/]+/{re.escape(external_id)}/?",
+            parsed.path,
+        )
+    ):
+        raise AdapterError("Dyson job is missing its stable ID or canonical fields")
+    canonical_url = parsed._replace(scheme="https").geturl()
+    canonical_url = _official_url(canonical_url, target)
+    return JobRecord(
+        job_id=f"public_json:careers.dyson.com:{external_id}",
+        title=title,
+        company=target.name,
+        location=location,
+        url=canonical_url,
+        updated_at=str(row.get("postedDateIso") or row.get("postedDate") or ""),
+        source="public_json:careers.dyson.com:dyson_jobs_v1",
+        departments=[department] if department else [],
+        offices=[location],
+        description=" ".join(str(row.get("description") or "").split()) or None,
+        raw_metadata={
+            "external_job_id": external_id,
+            "platform": "public_json",
+            "endpoint_variant": DYSON_JOBS,
         },
     )
 

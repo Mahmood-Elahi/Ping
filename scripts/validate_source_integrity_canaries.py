@@ -35,7 +35,7 @@ DEFAULT_CANARIES = (
 )
 MAX_CANARIES = 6
 DEFAULT_REQUEST_BUDGET = 15
-MAX_REQUEST_BUDGET = 25
+MAX_REQUEST_BUDGET = 52
 
 
 class CanaryBudgetReached(RuntimeError):
@@ -102,7 +102,7 @@ def run_canary(target: Any, request_budget: int) -> dict[str, Any]:
         )
         if metadata.get("scan_state") == "complete":
             status = "ok"
-            canary_outcome = _complete_outcome(metadata)
+            canary_outcome = _complete_outcome(metadata, target)
             if canary_outcome != "PASS_COMPLETE":
                 status = "failed"
         else:
@@ -167,21 +167,30 @@ def run_canary(target: Any, request_budget: int) -> dict[str, Any]:
         "unique_stable_ids": metadata.get("unique_stable_ids"),
         "unique_canonical_urls": metadata.get("unique_canonical_urls"),
         "rejected_record_count": metadata.get("rejected_record_count"),
+        "rejected_record_reason": metadata.get("rejected_record_reason"),
+        "rejected_record_ids": metadata.get("rejected_record_ids", []),
+        "rejected_posting_ids": metadata.get("rejected_posting_ids", []),
+        "rejected_requisition_ids": metadata.get(
+            "rejected_requisition_ids", []
+        ),
+        "duplicate_requisitions_skipped": metadata.get(
+            "duplicate_requisitions_skipped", 0
+        ),
+        "duplicate_posting_ids_skipped": metadata.get(
+            "duplicate_posting_ids_skipped", []
+        ),
+        "duplicate_requisition_ids": metadata.get(
+            "duplicate_requisition_ids", []
+        ),
         "duplicate_ids": metadata.get("duplicate_ids", []),
         "duplicate_canonical_urls": metadata.get(
             "duplicate_canonical_urls", []
         ),
-        "stable_ids_unique": bool(
-            int(metadata.get("jobs_collected") or 0) > 0
-            and int(metadata.get("unique_stable_ids") or 0)
-            == int(metadata.get("jobs_collected") or 0)
-            and not metadata.get("duplicate_ids")
+        "stable_ids_unique": _integrity_count_matches(
+            metadata, "unique_stable_ids", "duplicate_ids"
         ),
-        "canonical_urls_unique": bool(
-            int(metadata.get("jobs_collected") or 0) > 0
-            and int(metadata.get("unique_canonical_urls") or 0)
-            == int(metadata.get("jobs_collected") or 0)
-            and not metadata.get("duplicate_canonical_urls")
+        "canonical_urls_unique": _integrity_count_matches(
+            metadata, "unique_canonical_urls", "duplicate_canonical_urls"
         ),
         "total_available": metadata.get("total_available"),
         "authoritative_total_present": metadata.get(
@@ -253,10 +262,36 @@ def _failure_outcome(metadata: dict[str, Any]) -> str:
     return "FAIL_SOURCE"
 
 
-def _complete_outcome(metadata: dict[str, Any]) -> str:
-    if metadata.get("source_identity_status") == "validated":
-        return "PASS_COMPLETE"
-    return "FAIL_CONTRACT"
+def _integrity_count_matches(
+    metadata: dict[str, Any], count_field: str, duplicate_field: str
+) -> bool:
+    count = metadata.get(count_field)
+    return bool(
+        isinstance(count, int)
+        and not isinstance(count, bool)
+        and count == int(metadata.get("jobs_collected") or 0)
+        and not metadata.get(duplicate_field)
+    )
+
+
+def _complete_outcome(metadata: dict[str, Any], target: Any) -> str:
+    identity_status = metadata.get("source_identity_status")
+    identity_proven = identity_status == "validated" or (
+        target.platform == "public_json" and identity_status == "verified"
+    )
+    if not identity_proven:
+        return "FAIL_CONTRACT"
+    if target.platform == "public_json" and not (
+        metadata.get("collection_integrity_contract") is True
+        and _integrity_count_matches(
+            metadata, "unique_stable_ids", "duplicate_ids"
+        )
+        and _integrity_count_matches(
+            metadata, "unique_canonical_urls", "duplicate_canonical_urls"
+        )
+    ):
+        return "FAIL_CONTRACT"
+    return "PASS_COMPLETE"
 
 
 def _incomplete_outcome(metadata: dict[str, Any]) -> str:

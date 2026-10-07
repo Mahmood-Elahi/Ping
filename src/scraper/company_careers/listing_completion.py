@@ -241,6 +241,8 @@ def html_pagination_evidence(root: Any) -> PaginationEvidence:
         "or contains(translate(@class, 'RESULTPAGINGSUMMARY', "
         "'resultpagingsummary'), 'results-count') "
         "or contains(translate(@class, 'RESULTPAGINGSUMMARY', "
+        "'resultpagingsummary'), 'job-count') "
+        "or contains(translate(@class, 'RESULTPAGINGSUMMARY', "
         "'resultpagingsummary'), 'summary')]"
     )
     text = " ".join(
@@ -251,7 +253,12 @@ def html_pagination_evidence(root: Any) -> PaginationEvidence:
     )
     range_match = re.search(
         r"(?i)(?<!\d)(\d[\d,]*)\s*[-–]\s*(\d[\d,]*)\s+of\s+"
-        r"(\d[\d,]*)\s*(?:jobs?|results?)?(?!\w)",
+        r"(\d[\d,]*)\s*(?:matching\s+)?(?:jobs?|results?)?(?!\w)",
+        text,
+    )
+    standalone_total_matches = re.findall(
+        r"(?i)(?<![\d-])(\d[\d,]*)\s+(?:matching\s+)?(?:jobs?|results?)\b"
+        r"(?!\s+per\s+page\b)",
         text,
     )
 
@@ -280,6 +287,13 @@ def html_pagination_evidence(root: Any) -> PaginationEvidence:
         if range_total is not None:
             totals.append(("result_range", range_total))
         fields.append("result_range")
+    for value in standalone_total_matches:
+        parsed = integer(value)
+        if parsed is not None:
+            totals.append(("visible_total", parsed))
+    if standalone_total_matches or range_match:
+        if standalone_total_matches:
+            fields.append("visible_total")
     elif re.search(r"(?i)\b(?:showing\s+)?\S+\s*[-â€“]\s*\S+\s+of\s+\S+", text):
         malformed.append("result_range")
     unique_totals = {value for _name, value in totals}

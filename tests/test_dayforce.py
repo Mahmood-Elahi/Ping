@@ -250,6 +250,12 @@ class DayforceTests(unittest.TestCase):
 
         self.assertEqual(len(jobs), 1)
         self.assertEqual(session.dayforce_pagination["duplicate_requisitions_skipped"], 1)
+        self.assertEqual(
+            session.dayforce_pagination["duplicate_posting_ids_skipped"], [102]
+        )
+        self.assertEqual(
+            session.dayforce_pagination["duplicate_requisition_ids"], [501]
+        )
 
     def test_localized_postings_share_stable_source_and_requisition_identity(self):
         english_config = dayforce.validate_target(target())

@@ -32,8 +32,13 @@ from src.scraper.company_careers.listing_completion import (
 )
 
 
+# Historical defaults remain intentionally small. A source must opt into the
+# explicit reviewed pagination contract before it can use the larger bounds.
 MAX_PAGES = 2
 MAX_RESULTS = 20
+REVIEWED_PAGINATION_CONTRACT = "reviewed_first_party_html"
+REVIEWED_MAX_PAGES = 50
+REVIEWED_MAX_RESULTS = 1_000
 MAX_ATTEMPTS = 2
 MAX_TIMEOUT_SECONDS = 60
 MAX_RESPONSE_BYTES = 4_000_000
@@ -81,8 +86,11 @@ def _failure(code: str, message: str) -> AdapterError:
 def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 60) -> list[JobRecord]:
     """Fetch a deterministic HTML listing without browser or session state."""
     validate_target(target)
-    maximum_pages = min(int(target.max_pages), MAX_PAGES)
-    maximum_jobs = min(int(target.max_jobs), MAX_RESULTS)
+    reviewed_pagination = _uses_reviewed_pagination(target)
+    page_ceiling = REVIEWED_MAX_PAGES if reviewed_pagination else MAX_PAGES
+    job_ceiling = REVIEWED_MAX_RESULTS if reviewed_pagination else MAX_RESULTS
+    maximum_pages = min(int(target.max_pages), page_ceiling)
+    maximum_jobs = min(int(target.max_jobs), job_ceiling)
     timeout = min(max(1, int(timeout)), MAX_TIMEOUT_SECONDS)
     metadata = SourceScanMetadata(**{
         "endpoint_variant": target.endpoint_variant,
@@ -103,13 +111,21 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
     })
     setattr(session, "static_html_pagination", metadata)
     publish_source_scan_metadata(session, metadata)
-    listing_budget = AdaptiveListingCompletion(maximum_pages, maximum_jobs)
+    listing_budget = (
+        AdaptiveListingCompletion(
+            maximum_pages,
+            maximum_jobs,
+            hard_job_ceiling=maximum_jobs,
+        )
+        if reviewed_pagination
+        else AdaptiveListingCompletion(maximum_pages, maximum_jobs)
+    )
     listing_budget.record(metadata)
     explicit_pagination = bool(
         target.pagination_url_template or target.next_page_selector
     )
     request_ceiling = (
-        listing_budget.deterministic_terminal_request_ceiling()
+        min(maximum_pages + 1, listing_budget.deterministic_terminal_request_ceiling())
         if explicit_pagination
         else 1
     )
@@ -548,6 +564,10 @@ def validate_target(target: CompanyTarget) -> None:
         if str(target.pagination_url_template).count("{page}") != 1:
             raise AdapterError("Static HTML pagination_url_template must contain one {page} placeholder")
         _require_https(str(target.pagination_url_template).replace("{page}", "1"), "pagination_url_template")
+        _require_listing_host(
+            str(target.pagination_url_template).replace("{page}", "1"),
+            target,
+        )
     if target.single_page_collection and (
         target.pagination_url_template or target.next_page_selector
     ):
@@ -580,10 +600,27 @@ def validate_target(target: CompanyTarget) -> None:
     if target.job_attribution_exclude_regex:
         _safe_regex(str(target.job_attribution_exclude_regex))
     _validate_hosts(target.allowed_apply_hosts)
-    if not 1 <= int(target.max_pages) <= MAX_PAGES or not 1 <= int(target.max_jobs) <= MAX_RESULTS:
+    reviewed_pagination = _uses_reviewed_pagination(target)
+    if target.pagination_contract == REVIEWED_PAGINATION_CONTRACT and not reviewed_pagination:
+        raise AdapterError(
+            "Static HTML reviewed pagination contract requires explicit pagination"
+        )
+    page_ceiling = REVIEWED_MAX_PAGES if reviewed_pagination else MAX_PAGES
+    job_ceiling = REVIEWED_MAX_RESULTS if reviewed_pagination else MAX_RESULTS
+    if (
+        not 1 <= int(target.max_pages) <= page_ceiling
+        or not 1 <= int(target.max_jobs) <= job_ceiling
+    ):
         raise AdapterError("Static HTML page or result limit exceeds the hard maximum")
     if not 1 <= int(target.max_response_bytes) <= MAX_RESPONSE_BYTES:
         raise AdapterError("Static HTML response byte limit exceeds the hard maximum")
+
+
+def _uses_reviewed_pagination(target: CompanyTarget) -> bool:
+    return bool(
+        target.pagination_contract == REVIEWED_PAGINATION_CONTRACT
+        and (target.pagination_url_template or target.next_page_selector)
+    )
 
 
 def select(node: Any, selector: str) -> list[Any]:

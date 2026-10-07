@@ -3266,26 +3266,25 @@ target_companies:
     evidence_confidence: high
     evidence_timestamp: '2026-09-29T00:00:00-06:00'
   - name: Dyson
-    platform: static_html
-    careers_url: https://careers.dyson.com/en-gb/
-    source_identity_regex: Dyson Careers|Dyson
-    identity_regex: Dyson Careers|Dyson
+    platform: public_json
+    careers_url: https://careers.dyson.com/en-gb/search-results/
+    endpoint_url: https://careers.dyson.com/en-gb/api/search/jobs/
+    endpoint_variant: dyson_jobs_v1
+    identity_regex: \bDyson\b
+    allowed_source_hosts:
+      - careers.dyson.com
     allowed_apply_hosts:
-    - careers.dyson.com
+      - careers.dyson.com
     original_workbook_rank: null
-    max_pages: 1
-    max_jobs: 20
+    page_size: 10
+    max_pages: 50
+    max_jobs: 500
     max_response_bytes: 3000000
-    identity_url: https://careers.dyson.com/en-gb/search-results/
-    listing_url: https://careers.dyson.com/en-gb/search-results/
-    endpoint_variant: server_rendered_cards
-    listing_selector: body
-    job_card_selector: article.m-job-preview
-    title_selector: .t-job-preview-title
-    location_selector: .t-job-preview-market
-    department_selector: .m-job-preview__team
-    detail_link_selector: .t-job-preview-faux-link
-    external_id_regex: /(JR[0-9]+)/?$
+    max_scripts: 5
+    max_script_bytes: 1000000
+    evidence_source: official Dyson search page and same-origin JSON search API
+    evidence_confidence: high
+    evidence_timestamp: '2026-10-06T00:00:00-06:00'
   - name: SharkNinja
     platform: static_html
     careers_url: https://careers.sharkninja.com/
@@ -6859,8 +6858,8 @@ target_companies:
     locale: en-US
     allowed_apply_hosts: [jobs.dayforcehcm.com]
     page_size: 25
-    max_pages: 2
-    max_jobs: 50
+    max_pages: 4
+    max_jobs: 100
   - name: Veeva Systems
     platform: lever
     slug: veeva
