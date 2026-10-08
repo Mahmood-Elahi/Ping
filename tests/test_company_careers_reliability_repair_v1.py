@@ -388,7 +388,7 @@ class CompanyCareersReliabilityRepairV1Tests(unittest.TestCase):
             for entry in load_target_companies(apply_reliability_repairs=True)
         }
         expected_platforms = {
-            "ASML": "browser_rendered_html",
+            "ASML": "smartrecruiters",
             "Tourmaline Oil": "javascript_embedded_data",
             "Seagate": "sap_successfactors",
             "Mobileye": "lever",
@@ -401,7 +401,7 @@ class CompanyCareersReliabilityRepairV1Tests(unittest.TestCase):
             {name: by_name[name].platform for name in expected_platforms},
             expected_platforms,
         )
-        self.assertEqual(by_name["ASML"].title_selector, "h3.search-results-title-text")
+        self.assertEqual((by_name["ASML"].slug, by_name["ASML"].identity_regex), ("ASML1", "^ASML$"))
         self.assertEqual(by_name["Seagate"].endpoint_variant, "rmk_columnized")
         self.assertEqual(by_name["Kinross Gold"].endpoint_variant, "rmk_columnized")
         self.assertEqual(

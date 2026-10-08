@@ -382,7 +382,7 @@ class PublicJsonAdapterTests(unittest.TestCase):
         targets = {target.name: target for target in load_target_companies()}
         self.assertEqual(targets["Aurora Innovation"].platform, "public_json")
         self.assertEqual(targets["Deliveroo"].platform, "public_json")
-        self.assertEqual(targets["ASML"].platform, "browser_rendered_html")
+        self.assertEqual((targets["ASML"].platform, targets["ASML"].slug), ("smartrecruiters", "ASML1"))
         self.assertEqual(targets["ByteDance"].platform, "first_party_json")
 
 

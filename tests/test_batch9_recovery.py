@@ -95,7 +95,7 @@ class Batch9RecoveryEvidenceTests(unittest.TestCase):
         self.assertTrue(self.rows["Coupang"]["has_more"])
 
     def test_browser_sources_keep_identity_separate_from_exhaustion(self) -> None:
-        for company in {"ASML", "Stantec"}:
+        for company in {"Stantec"}:
             with self.subTest(company=company):
                 target = self.targets[company]
                 row = self.rows[company]
@@ -103,6 +103,11 @@ class Batch9RecoveryEvidenceTests(unittest.TestCase):
                 self.assertEqual(row["source_identity_status"], "unproven")
                 self.assertTrue(row["has_more"])
                 self.assertFalse(row["scan_complete"])
+        asml = self.targets["ASML"]
+        self.assertEqual((asml.platform, asml.slug), ("smartrecruiters", "ASML1"))
+        self.assertEqual(self.rows["ASML"]["platform"], "browser_rendered_html")
+        self.assertEqual(self.rows["ASML"]["source_identity_status"], "unproven")
+        self.assertFalse(self.rows["ASML"]["scan_complete"])
 
     def test_smartrecruiters_boards_exceed_the_reviewed_adapter_ceiling(self) -> None:
         for company in {"Bosch", "SGS"}:

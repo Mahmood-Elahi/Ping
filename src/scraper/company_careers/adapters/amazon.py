@@ -12,6 +12,7 @@ from src.scraper.company_careers.models import (
     CompanyTarget,
     JobRecord,
     SourceScanMetadata,
+    explicit_adapter_result,
     publish_source_scan_metadata,
 )
 from src.scraper.company_careers.listing_completion import (
@@ -39,6 +40,7 @@ DEFAULT_SEARCH_TERMS = [
 ]
 
 
+@explicit_adapter_result
 def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 20) -> List[JobRecord]:
     base_url = "https://www.amazon.jobs/en/search.json"
     search_terms = target.search_terms or DEFAULT_SEARCH_TERMS

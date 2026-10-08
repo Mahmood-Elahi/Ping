@@ -16,6 +16,7 @@ from src.scraper.company_careers.models import (
     CompanyTarget,
     JobRecord,
     SourceScanMetadata,
+    explicit_adapter_result,
     publish_source_scan_metadata,
 )
 from src.scraper.company_careers.listing_completion import (
@@ -31,6 +32,7 @@ MAX_TIMEOUT_SECONDS = 30
 BLOCKED_MARKERS = ("captcha", "access denied", "verify you are human", "challenge-platform")
 
 
+@explicit_adapter_result
 def fetch_jobs(
     session: requests.Session, target: CompanyTarget, timeout: int = 20
 ) -> list[JobRecord]:

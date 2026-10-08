@@ -270,8 +270,9 @@ class SapSuccessFactorsTests(unittest.TestCase):
           <meta property="og:title" content="Mobile Maintenance Mechanic">
         </head><body>Kinross<div>Req ID: {external_id}</div>
           <script>j2w.Apply.init({{jobID: {external_id}}});</script></body></html>'''
+        session = ColumnizedSession(payload, detail_html, identity="Kinross")
         job = sf.fetch_jobs(
-            ColumnizedSession(payload, detail_html, identity="Kinross"),
+            session,
             target(
                 sf.COLUMNIZED_VARIANT,
                 endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
@@ -283,6 +284,9 @@ class SapSuccessFactorsTests(unittest.TestCase):
         )[0]
         self.assertEqual(job.raw_metadata["external_job_id"], external_id)
         self.assertEqual(job.url, detail_url)
+        self.assertEqual(
+            source_scan_metadata(session)["source_identity_status"], "validated"
+        )
 
     def test_table_normalization_ids_apply_url_locations_date_department_description(self):
         session = FakeSession([FakeResponse(table_html([table_job()]))])

@@ -20,6 +20,7 @@ from src.scraper.company_careers.models import (
     CompanyTarget,
     JobRecord,
     SourceScanMetadata,
+    explicit_adapter_result,
     publish_source_scan_metadata,
 )
 from src.scraper.company_careers.listing_completion import (
@@ -59,6 +60,7 @@ _PATH_RE = re.compile(r"^[A-Za-z0-9_$-]+(?:\.[A-Za-z0-9_$-]+|\[[0-9]+\])*$")
 _FIELD_RE = re.compile(r"^[A-Za-z0-9_@-]+(?:\.[A-Za-z0-9_@-]+|\[[0-9]+\])*$")
 
 
+@explicit_adapter_result
 def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 60) -> list[JobRecord]:
     validate_target(target)
     maximum_pages = min(int(target.max_pages), MAX_PAGES)

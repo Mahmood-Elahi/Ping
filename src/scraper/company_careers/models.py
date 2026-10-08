@@ -4,7 +4,19 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Mapping, Optional
+from functools import wraps
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    TypeVar,
+    overload,
+)
 
 
 class CoverageStatus:
@@ -147,6 +159,120 @@ def source_scan_metadata(session: Any) -> SourceScanMetadata:
     return SourceScanMetadata.from_value(
         getattr(session, ADAPTER_SCAN_METADATA_ATTRIBUTE, None)
     )
+
+
+@dataclass(frozen=True)
+class ItemFailure:
+    """Reserved structural description of one unreadable item.
+
+    Phase 2 does not create or interpret these values.  The field exists so the
+    explicit adapter boundary can grow into Phase 3 without changing shape.
+    """
+
+    item_id: str
+    reason: str
+
+
+@dataclass(frozen=True, eq=False)
+class AdapterResult(Sequence["JobRecord"]):
+    """Explicit observations returned by one adapter invocation.
+
+    ``scan`` is evidence, not trust.  Central finalization still decides
+    completeness, health, identity, and absence authority.  The sequence
+    methods are a temporary source-compatibility aid for direct adapter callers;
+    scanner orchestration always consumes ``jobs`` explicitly.
+    """
+
+    jobs: List["JobRecord"]
+    scan: SourceScanMetadata
+    item_failures: tuple[ItemFailure, ...] = ()
+    capabilities_used: frozenset[str] = frozenset()
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "jobs", list(self.jobs))
+        object.__setattr__(
+            self,
+            "scan",
+            SourceScanMetadata(**dict(SourceScanMetadata.from_value(self.scan))),
+        )
+        object.__setattr__(self, "item_failures", tuple(self.item_failures))
+        object.__setattr__(self, "capabilities_used", frozenset(self.capabilities_used))
+
+    def __len__(self) -> int:
+        return len(self.jobs)
+
+    @overload
+    def __getitem__(self, index: int) -> "JobRecord": ...
+
+    @overload
+    def __getitem__(self, index: slice) -> List["JobRecord"]: ...
+
+    def __getitem__(self, index: int | slice) -> "JobRecord" | List["JobRecord"]:
+        return self.jobs[index]
+
+    def __iter__(self) -> Iterator["JobRecord"]:
+        return iter(self.jobs)
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, AdapterResult):
+            return (
+                self.jobs == other.jobs
+                and self.scan == other.scan
+                and self.item_failures == other.item_failures
+                and self.capabilities_used == other.capabilities_used
+            )
+        return self.jobs == other
+
+
+AdapterOutput = List["JobRecord"] | AdapterResult
+_AdapterCallable = TypeVar("_AdapterCallable", bound=Callable[..., AdapterOutput])
+ADAPTER_EXCEPTION_METADATA_ATTRIBUTE = "job_radar_adapter_scan_metadata"
+
+
+def explicit_adapter_result(adapter: _AdapterCallable) -> _AdapterCallable:
+    """Migrate an adapter boundary while preserving its internal behavior.
+
+    Existing adapter bodies may build scan observations through the historical
+    session attribute.  This bounded Phase 2 bridge snapshots that attribute at
+    the adapter boundary and returns it explicitly.  The compatibility alias is
+    temporarily retained for direct diagnostic callers, but orchestration never
+    consumes it for an explicit result and clears it immediately.  On failure
+    the same exception instance is re-raised with the observations attached,
+    preserving exception policy and diagnostics.
+    """
+
+    @wraps(adapter)
+    def wrapped(session: Any, *args: Any, **kwargs: Any) -> AdapterResult:
+        clear_source_scan_metadata(session)
+        try:
+            output = adapter(session, *args, **kwargs)
+        except Exception as exc:
+            metadata = source_scan_metadata(session)
+            try:
+                setattr(exc, ADAPTER_EXCEPTION_METADATA_ATTRIBUTE, metadata)
+            except Exception:
+                pass
+            raise
+        if isinstance(output, AdapterResult):
+            result = output
+        else:
+            result = AdapterResult(
+                jobs=list(output),
+                scan=source_scan_metadata(session),
+            )
+        return result
+
+    setattr(wrapped, "job_radar_explicit_adapter_result", True)
+    return wrapped  # type: ignore[return-value]
+
+
+def adapter_exception_metadata(exc: BaseException) -> Optional[SourceScanMetadata]:
+    """Return explicit failure observations attached by a migrated adapter."""
+
+    value = getattr(exc, ADAPTER_EXCEPTION_METADATA_ATTRIBUTE, None)
+    if value is None:
+        return None
+    return SourceScanMetadata.from_value(value)
 
 
 def _clean_list(values: Optional[List[Any]]) -> List[str]:

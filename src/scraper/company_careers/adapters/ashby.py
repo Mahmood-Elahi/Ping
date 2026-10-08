@@ -15,6 +15,7 @@ from src.scraper.company_careers.models import (
     CompanyTarget,
     JobRecord,
     SourceScanMetadata,
+    explicit_adapter_result,
     publish_source_scan_metadata,
 )
 from src.scraper.company_careers.student_roles import (
@@ -36,6 +37,7 @@ APP_DATA_MARKER = "window.__appData = "
 HEADERS = {"Accept": "text/html", "User-Agent": "job-radar/1.0"}
 
 
+@explicit_adapter_result
 def fetch_jobs(
     session: requests.Session,
     target: CompanyTarget,

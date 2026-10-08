@@ -1,0 +1,633 @@
+# Exact pre-activation source definitions for every Phase 1 company with a
+# prepared ATS candidate. This is rollback evidence only and is never loaded
+# unless a caller explicitly passes this path to the registry loader.
+target_companies:
+  - name: Applied Materials
+    platform: static_html
+    careers_url: https://jobs.appliedmaterials.com/en/search-jobs
+    listing_url: https://jobs.appliedmaterials.com/en/search-jobs
+    endpoint_variant: server_rendered_cards
+    original_workbook_rank: 27
+    allowed_apply_hosts: [jobs.appliedmaterials.com]
+    max_pages: 1
+    max_jobs: 20
+    max_scripts: 20
+    max_response_bytes: 4000000
+    max_script_bytes: 1000000
+    evidence_source: config/company_remaining_inventory_v2.csv
+    evidence_confidence: medium
+    evidence_timestamp: '2026-08-05T01:24:24+00:00'
+    listing_selector: li.search-results-list__item
+    job_card_selector: li.search-results-list__item
+    title_selector: h2.search-results-list__job-title a
+    detail_link_selector: h2.search-results-list__job-title a
+    external_id_regex: /(\d+)(?:[?#].*)?$
+    external_id_attribute: null
+    location_selector: .search-results-list__location
+    department_selector: null
+    pagination_url_template: https://jobs.appliedmaterials.com/en/search-jobs?p={page}
+    next_page_selector: null
+    allow_url_id_fallback: false
+
+  - name: Ripple
+    platform: static_html
+    careers_url: https://ripple.com/careers/
+    listing_url: https://ripple.com/careers/
+    endpoint_variant: server_rendered_links
+    original_workbook_rank: 70
+    allowed_apply_hosts: [ripple.com]
+    max_pages: 1
+    max_jobs: 20
+    max_scripts: 20
+    max_response_bytes: 3000000
+    max_script_bytes: 1000000
+    evidence_source: config/company_unknown_investigation_v3.csv
+    evidence_confidence: medium
+    evidence_timestamp: '2026-08-05T02:53:31+00:00'
+    listing_selector: a[href*='/careers/all-jobs/job/']
+    job_card_selector: a[href*='/careers/all-jobs/job/']
+    title_selector: :self
+    detail_link_selector: :self
+    external_id_regex: /job/(\d+)
+    external_id_attribute: null
+    location_selector: null
+    department_selector: null
+    pagination_url_template: null
+    next_page_selector: null
+    allow_url_id_fallback: false
+
+  - name: General Motors
+    platform: static_html
+    careers_url: https://search-careers.gm.com/en/jobs/
+    listing_url: https://search-careers.gm.com/en/jobs/
+    endpoint_variant: server_rendered_cards
+    original_workbook_rank: 115
+    allowed_apply_hosts: [search-careers.gm.com]
+    max_pages: 1
+    max_jobs: 20
+    max_scripts: 20
+    max_response_bytes: 3000000
+    max_script_bytes: 1000000
+    evidence_source: config/company_remaining_inventory_v2.csv
+    evidence_confidence: medium
+    evidence_timestamp: '2026-08-05T01:24:24+00:00'
+    listing_selector: div.card-job
+    job_card_selector: div.card-job
+    title_selector: h2.card-title a
+    detail_link_selector: h2.card-title a
+    external_id_regex: /jobs/(jr-[0-9]+)/
+    external_id_attribute: null
+    location_selector: ul.job-meta li:nth-child(2)
+    department_selector: ul.job-meta li:first-child
+    pagination_url_template: null
+    next_page_selector: null
+    allow_url_id_fallback: false
+
+  - name: Caterpillar
+    platform: static_html
+    careers_url: https://careers.caterpillar.com/en/jobs/
+    listing_url: https://careers.caterpillar.com/en/jobs/
+    endpoint_variant: server_rendered_cards
+    original_workbook_rank: 161
+    allowed_apply_hosts: [careers.caterpillar.com]
+    max_pages: 1
+    max_jobs: 20
+    max_scripts: 20
+    max_response_bytes: 3000000
+    max_script_bytes: 1000000
+    evidence_source: config/company_remaining_inventory_v2.csv
+    evidence_confidence: medium
+    evidence_timestamp: '2026-08-05T01:24:24+00:00'
+    listing_selector: div.card-job
+    job_card_selector: div.card-job
+    title_selector: h2.card-title a
+    detail_link_selector: h2.card-title a
+    external_id_regex: null
+    external_id_attribute: data-id
+    location_selector: ul.job-meta li:first-child
+    department_selector: null
+    pagination_url_template: null
+    next_page_selector: null
+    allow_url_id_fallback: false
+
+  - name: Etsy
+    platform: static_html
+    careers_url: https://careers.etsy.com/jobs/search
+    listing_url: https://careers.etsy.com/jobs/search
+    endpoint_variant: server_rendered_cards
+    original_workbook_rank: 205
+    allowed_apply_hosts: [careers.etsy.com]
+    max_pages: 1
+    max_jobs: 20
+    max_scripts: 20
+    max_response_bytes: 3000000
+    max_script_bytes: 1000000
+    evidence_source: config/company_unknown_investigation_v3.csv
+    evidence_confidence: medium
+    evidence_timestamp: '2026-08-05T02:56:49+00:00'
+    listing_selector: article.job-search-results-card-col
+    job_card_selector: article.job-search-results-card-col
+    title_selector: h3.job-search-results-card-title a
+    detail_link_selector: h3.job-search-results-card-title a
+    external_id_regex: /jobs/([^/?#]+)
+    external_id_attribute: null
+    location_selector: .job-search-results-card-location
+    department_selector: null
+    pagination_url_template: https://careers.etsy.com/jobs/search?page={page}
+    next_page_selector: null
+    allow_url_id_fallback: true
+
+  - name: Zalando
+    platform: static_html
+    careers_url: https://jobs.zalando.com/en/jobs
+    listing_url: https://jobs.zalando.com/en/jobs
+    endpoint_variant: server_rendered_links
+    original_workbook_rank: 210
+    allowed_apply_hosts: [jobs.zalando.com]
+    max_pages: 1
+    max_jobs: 20
+    max_scripts: 20
+    max_response_bytes: 3000000
+    max_script_bytes: 1000000
+    evidence_source: config/company_unknown_investigation_v3.csv
+    evidence_confidence: medium
+    evidence_timestamp: '2026-08-05T02:56:57+00:00'
+    listing_selector: main a[href^='/en/jobs/']
+    job_card_selector: main a[href^='/en/jobs/']
+    title_selector: :self
+    detail_link_selector: :self
+    external_id_regex: /jobs/(\d+)-
+    external_id_attribute: null
+    location_selector: null
+    department_selector: null
+    pagination_url_template: null
+    next_page_selector: null
+    allow_url_id_fallback: false
+
+  - name: Wise
+    platform: static_html
+    careers_url: https://wise.jobs/jobs
+    original_workbook_rank: 65
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: bounded anonymous recheck
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-05T07:10:00+00:00'
+    listing_url: https://wise.jobs/jobs
+    endpoint_variant: server_rendered_cards
+    listing_selector: body
+    job_card_selector: div.attrax-vacancy-tile
+    title_selector: a.attrax-vacancy-tile__title
+    detail_link_selector: a.attrax-vacancy-tile__title
+    external_id_regex: null
+    external_id_attribute: data-jobid
+    location_selector: div.attrax-vacancy-tile__location-freetext p.attrax-vacancy-tile__item-value
+    department_selector: div.attrax-vacancy-tile__option-job-family-group p.attrax-vacancy-tile__item-value
+    pagination_url_template: null
+    allow_url_id_fallback: false
+    allowed_apply_hosts: [wise.jobs]
+    candidate_family: existing_adapter_reuse
+    prior_classification: custom_rest_api
+
+  - name: BlackRock
+    platform: static_html
+    careers_url: https://careers.blackrock.com/en/search-jobs
+    original_workbook_rank: 88
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: bounded anonymous recheck
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-05T07:10:00+00:00'
+    listing_url: https://careers.blackrock.com/en/search-jobs
+    endpoint_variant: server_rendered_cards
+    listing_selector: ul.section3__search-results-ul
+    job_card_selector: a.section3__search-results-a
+    title_selector: h2.section3__job-title
+    detail_link_selector: :self
+    external_id_regex: null
+    external_id_attribute: data-job-id
+    location_selector: span.job-location span.section3__job-info
+    department_selector: span.job-category span.section3__job-info
+    pagination_url_template: https://careers.blackrock.com/en/search-jobs?p={page}
+    allow_url_id_fallback: false
+    allowed_apply_hosts: [careers.blackrock.com]
+    candidate_family: talentbrew_radancy
+    prior_classification: talentbrew_radancy
+
+  - name: Chevron
+    platform: static_html
+    careers_url: https://careers.chevron.com/
+    listing_url: https://careers.chevron.com/search-jobs
+    endpoint_variant: server_rendered_cards
+    listing_selector: section#search-results
+    job_card_selector: section#search-results-list li
+    title_selector: a[data-job-id] h2
+    location_selector: a[data-job-id] span.job-location
+    detail_link_selector: a[data-job-id]
+    external_id_regex: /([0-9]+)/?$
+    department_selector: null
+    next_page_selector: null
+    pagination_url_template: https://careers.chevron.com/search-jobs?p={page}
+    allowed_apply_hosts: [careers.chevron.com]
+    original_workbook_rank: 171
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+
+  - name: ASML
+    platform: browser_rendered_html
+    careers_url: https://www.asml.com/en/careers
+    listing_url: https://www.asml.com/en/careers/find-your-job
+    endpoint_variant: browser_rendered_html_v1
+    browser_wait_selector: a.search-results__item
+    browser_scroll_steps: 0
+    browser_static_variant: server_rendered_links
+    browser_identity_selector: head title
+    browser_identity_regex: ASML
+    listing_selector: a.search-results__item
+    job_card_selector: a.search-results__item
+    title_selector: h3.search-results-title-text
+    location_selector: ul.search-results__fields li:first-child
+    department_selector: ul.search-results__fields li:nth-child(2)
+    detail_link_selector: :self
+    external_id_regex: -([jJ][0-9]+)$
+    allowed_apply_hosts: [www.asml.com]
+    original_workbook_rank: 26
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: https://www.asml.com/en/careers/find-your-job
+    evidence_confidence: high
+    evidence_timestamp: '2026-08-28T00:00:00+00:00'
+
+  - name: Sanctuary AI
+    platform: javascript_embedded_data
+    careers_url: https://sanctuary.ai/careers/
+    source_identity_regex: Sanctuary AI
+    allowed_apply_hosts: [careers.kula.ai]
+    original_workbook_rank: 155
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    listing_url: https://careers.kula.ai/sanctuary-ai
+    endpoint_variant: next_flight_collection
+    embedded_script_selector: script
+    embedded_json_path: jobs
+    id_field: id
+    title_field: title
+    url_field: id
+    apply_url_template: https://careers.kula.ai/sanctuary-ai/{id}/
+    location_fields: [ats_job.offices]
+    department_field: ats_job.ats_department
+    date_field: launch_at
+    job_attribution_field: account_id
+    job_attribution_regex: ^1484$
+    max_scripts: 20
+    max_script_bytes: 1000000
+    evidence_source: official Kula Next.js complete jobs collection for account 1484
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00-06:00'
+
+  - name: SharkNinja
+    platform: static_html
+    careers_url: https://careers.sharkninja.com/
+    source_identity_regex: SharkNinja
+    identity_regex: SharkNinja
+    allowed_apply_hosts: [careers.sharkninja.com]
+    original_workbook_rank: null
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://careers.sharkninja.com/search-jobs
+    listing_url: https://careers.sharkninja.com/search-jobs
+    pagination_url_template: https://careers.sharkninja.com/search-jobs?p={page}
+    endpoint_variant: server_rendered_cards
+    listing_selector: '#search-results-list'
+    job_card_selector: '#search-results-list li'
+    title_selector: h2
+    location_selector: .job-location
+    date_selector: .job-date-posted
+    detail_link_selector: a[data-job-id]
+    external_id_regex: /47204/([0-9]+)$
+
+  - name: ServiceNow
+    platform: static_html
+    careers_url: https://careers.servicenow.com/
+    source_identity_regex: ServiceNow
+    identity_regex: ServiceNow
+    allowed_apply_hosts: [careers.servicenow.com]
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://careers.servicenow.com/locations/ams/ontario-canada/
+    listing_url: https://careers.servicenow.com/locations/ams/ontario-canada/
+    endpoint_variant: server_rendered_cards
+    listing_selector: div.job-listing
+    job_card_selector: div.card-job
+    title_selector: h2.card-title a
+    location_selector: ul.job-meta li:first-child
+    department_selector: null
+    detail_link_selector: h2.card-title a
+    external_id_regex: /jobs/([0-9]+)/
+    external_id_attribute: null
+
+  - name: Lightspeed Commerce
+    platform: static_html
+    careers_url: https://www.lightspeedhq.com/careers/
+    identity_url: https://www.lightspeedhq.com/careers/openings/
+    listing_url: https://www.lightspeedhq.com/careers/openings/
+    endpoint_variant: server_rendered_cards
+    source_identity_regex: Lightspeed
+    identity_regex: Lightspeed
+    listing_selector: ul.filter__results__list
+    job_card_selector: li.job
+    title_selector: span.job-title
+    location_selector: span.job-office
+    department_selector: span.job-dept
+    detail_link_selector: a[href*=/careers/job/]
+    external_id_regex: /([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})(?:[/?]|$)
+    allowed_apply_hosts: [www.lightspeedhq.com]
+    single_page_collection: true
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: https://www.lightspeedhq.com/careers/openings/
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00+00:00'
+
+  - name: Box
+    platform: static_html
+    careers_url: https://careers.box.com/en/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    listing_url: https://careers.box.com/en/jobs/
+    endpoint_variant: server_rendered_cards
+    listing_selector: div#js-job-search-results
+    job_card_selector: div.card-job
+    title_selector: h2.card-title a
+    location_selector: ul.job-meta li:first-child
+    department_selector: ul.job-meta li:last-child
+    detail_link_selector: h2.card-title a
+    external_id_attribute: data-id
+    source_identity_regex: Box
+    allowed_apply_hosts: [careers.box.com]
+
+  - name: Miro
+    platform: javascript_embedded_data
+    careers_url: https://miro.com/careers/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    listing_url: https://miro.com/careers/open-positions/
+    endpoint_variant: next_data
+    embedded_script_selector: script#__NEXT_DATA__
+    embedded_json_path: props.pageProps.jobs
+    id_field: id
+    title_field: title
+    location_field: location
+    url_field: id
+    department_field: departmentName
+    apply_url_template: https://miro.com/careers/vacancy/{id}/?gh_jid={id}
+    source_identity_regex: Miro
+    allowed_apply_hosts: [miro.com]
+    max_scripts: 1
+    max_script_bytes: 1000000
+
+  - name: Redis
+    platform: javascript_embedded_data
+    careers_url: https://redis.io/company/careers/current-job-openings/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    listing_url: https://redis.io/company/careers/current-job-openings/
+    endpoint_variant: next_flight_collection
+    source_identity_regex: \bRedis\b
+    embedded_script_selector: script
+    embedded_json_path: positions
+    title_field: title
+    location_field: location
+    url_field: pathname
+    department_field: department
+    external_id_regex: -([0-9a-f]{8}-[0-9a-f-]{27})/$
+    allowed_apply_hosts: [redis.io]
+    max_script_bytes: 1000000
+
+  - name: Cameco
+    platform: static_html
+    careers_url: https://www.cameco.com/careers
+    listing_url: https://jobs.jobvite.com/cameco/jobs
+    endpoint_variant: server_rendered_cards
+    slug: cameco
+    listing_selector: table.jv-job-list
+    job_card_selector: tr
+    title_selector: td.jv-job-list-name a
+    location_selector: td.jv-job-list-location
+    detail_link_selector: td.jv-job-list-name a
+    external_id_regex: /cameco/job/([^/?#]+)
+    allowed_apply_hosts:
+      - jobs.jobvite.com
+    max_pages: 1
+    max_jobs: 20
+
+  - name: Intuitive Surgical
+    platform: static_html
+    careers_url: https://careers.intuitive.com/en/jobs/
+    listing_url: https://careers.intuitive.com/en/jobs/
+    endpoint_variant: server_rendered_cards
+    original_workbook_rank: 162
+    allowed_apply_hosts:
+      - careers.intuitive.com
+    max_pages: 1
+    max_jobs: 20
+    max_scripts: 20
+    max_response_bytes: 3000000
+    max_script_bytes: 1000000
+    evidence_source: config/company_remaining_inventory_v2.csv
+    evidence_confidence: medium
+    evidence_timestamp: '2026-08-05T01:24:24+00:00'
+    listing_selector: div.card-job
+    job_card_selector: div.card-job
+    title_selector: h2.card-title a
+    detail_link_selector: h2.card-title a
+    external_id_regex: null
+    external_id_attribute: data-id
+    location_selector: ul.job-meta li:first-child
+    department_selector: ul.job-meta li:nth-child(2)
+    pagination_url_template: null
+    next_page_selector: null
+    allow_url_id_fallback: false
+
+  - name: Siemens
+    platform: static_html
+    careers_url: https://www.siemens.com/global/en/company/jobs.html
+    listing_url: https://jobs.siemens.com/en_US/externaljobs/SearchJobs
+    endpoint_variant: server_rendered_cards
+    listing_selector: div.results--listed
+    job_card_selector: article.article--result
+    title_selector: h3.article__header__text__title a[href]
+    location_selector: span.list-item-location
+    detail_link_selector: h3.article__header__text__title a[href]
+    external_id_regex: /JobDetail/([0-9]+)
+    department_selector: span.list-item-family
+    next_page_selector: li.paginationNextLink a[href]
+    pagination_url_template: null
+    allowed_apply_hosts:
+      - jobs.siemens.com
+    original_workbook_rank: 91
+    max_pages: 2
+    max_jobs: 20
+    max_response_bytes: 3000000
+
+  - name: Nutrien
+    platform: browser_rendered_html
+    careers_url: https://www.nutrien.com/careers
+    source_identity_regex: Nutrien Jobs
+    allowed_apply_hosts:
+      - jobs.nutrien.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    listing_url: https://jobs.nutrien.com/North-America/search/
+    endpoint_variant: browser_rendered_html_v1
+    browser_wait_selector: '[data-testid="headerTitle"]'
+    browser_scroll_steps: 0
+    browser_static_variant: server_rendered_links
+    browser_identity_selector: title
+    browser_identity_regex: Nutrien Jobs
+    listing_selector: '[data-testid="headerTitle"]'
+    job_card_selector: a[href*="/job/"]
+    title_selector: :self
+    location_selector: null
+    detail_link_selector: :self
+    external_id_regex: /([0-9]+)/?$
+    empty_selector: '[data-testid="headerTitle"]'
+
+  - name: Symend
+    platform: static_html
+    careers_url: https://www.symend.com/company/careers
+    source_identity_regex: Symend
+    identity_regex: Symend
+    allowed_apply_hosts:
+      - symend.applytojob.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://www.symend.com/company/careers
+    listing_url: https://symend.applytojob.com/apply
+    endpoint_variant: server_rendered_cards
+    listing_selector: ul.list-group
+    job_card_selector: li.list-group-item
+    title_selector: h3.list-group-item-heading a
+    location_selector: ul.list-inline li:first-child
+    department_selector: ul.list-inline li:nth-child(2)
+    detail_link_selector: h3.list-group-item-heading a
+    external_id_regex: /apply/([^/]+)/
+    single_page_collection: true
+    evidence_source: official Symend careers page embeds the exact unpaginated JazzHR board
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-30T00:00:00-06:00'
+
+  - name: Ouster
+    platform: static_html
+    careers_url: https://ouster.com/company/careers
+    source_identity_regex: \bOuster\b
+    identity_regex: \bOuster\b
+    allowed_apply_hosts:
+      - ouster.applytojob.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://ouster.com/company/careers
+    listing_url: https://ouster.applytojob.com/apply
+    endpoint_variant: server_rendered_cards
+    listing_selector: ul.list-group
+    job_card_selector: li.list-group-item
+    title_selector: h3.list-group-item-heading a
+    location_selector: ul.list-group-item-text li:first-child
+    department_selector: ul.list-group-item-text li:nth-child(2)
+    detail_link_selector: h3.list-group-item-heading a
+    external_id_regex: /apply/([^/]+)/
+    single_page_collection: true
+    evidence_source: official Ouster careers page links the exact unpaginated JazzHR board
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-30T00:00:00-06:00'
+
+  - name: u-blox
+    platform: static_html
+    careers_url: https://www.u-blox.com/en/job-openings
+    identity_url: https://fs-4627.my.salesforce-sites.com/recruit/fRecruit__ApplyJobList?portal=U-Blox+Global
+    source_identity_regex: u-blox
+    identity_regex: u-blox
+    allowed_apply_hosts:
+      - fs-4627.my.salesforce-sites.com
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    listing_url: https://fs-4627.my.salesforce-sites.com/recruit/fRecruit__ApplyJobList?portal=U-Blox+Global
+    endpoint_variant: server_rendered_cards
+    listing_selector: table.jobListPanel
+    job_card_selector: tr.dataRow
+    title_selector: td:first-child a
+    location_selector: td:nth-child(3),td:nth-child(4),td:nth-child(5)
+    department_selector: td:nth-child(6)
+    detail_link_selector: td:first-child a
+    external_id_regex: '[?&]vacancyNo=([^&]+)'
+
+  - name: H2O.ai
+    platform: static_html
+    careers_url: https://h2o.ai/company/careers/
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    listing_url: https://h2oai.applytojob.com/apply
+    endpoint_variant: server_rendered_cards
+    source_identity_regex: H2O\.ai|h2o\.ai
+    identity_regex: H2O\.ai|h2o\.ai
+    identity_url: https://h2o.ai/company/careers/
+    listing_selector: ul.list-group
+    job_card_selector: li.list-group-item
+    title_selector: h3.list-group-item-heading a
+    location_selector: ul.list-inline li:first-child
+    department_selector: ul.list-inline li:nth-child(2)
+    detail_link_selector: h3.list-group-item-heading a
+    external_id_regex: /apply/([^/]+)/
+    allowed_apply_hosts:
+      - h2oai.applytojob.com
+    single_page_collection: true
+    evidence_source: official H2O.ai careers page embeds the exact unpaginated JazzHR board
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-30T00:00:00-06:00'
+
+  - name: YYC Calgary Airport Authority
+    platform: static_html
+    careers_url: https://www.yyc.com/careers
+    source_identity_regex: Calgary Airport Authority|YYC
+    allowed_apply_hosts:
+      - yyc.careers
+    original_workbook_rank: null
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    identity_url: https://yyc.careers/Opportunities
+    listing_url: https://yyc.careers/Opportunities
+    endpoint_variant: server_rendered_links
+    listing_selector: body
+    job_card_selector: a[data-job-id]
+    title_selector: :self
+    detail_link_selector: :self
+    external_id_regex: '[?&]JobId=([0-9]+)'
+    evidence_source: https://www.yyc.com/careers
+    evidence_confidence: high
+    evidence_timestamp: '2026-10-01T00:00:00-06:00'

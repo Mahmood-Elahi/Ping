@@ -169,7 +169,7 @@ class FirstPartyJSONAdapterTests(unittest.TestCase):
         targets = {item.name: item for item in load_target_companies(apply_reliability_repairs=True)}
         self.assertEqual(targets["ByteDance"].endpoint_variant, first_party_json.BYTEDANCE_SUPPLIER)
         self.assertEqual(targets["ByteDance"].page_size, 100)
-        self.assertEqual(targets["ASML"].platform, "browser_rendered_html")
+        self.assertEqual((targets["ASML"].platform, targets["ASML"].slug), ("smartrecruiters", "ASML1"))
 
 
 if __name__ == "__main__":

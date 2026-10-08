@@ -58,7 +58,7 @@ SOURCE_REQUEST_BUDGET_RATIONALES = {
 REPRESENTATIVES = (
     ("static", "static_html", "Applied Materials"),
     ("static", "talentbrew", "Palo Alto Networks"),
-    ("browser", "browser_rendered_html", "ASML"),
+    ("browser", "browser_rendered_html", "Stantec"),
     ("terminal_api", "javascript_embedded_data", "LINE"),
     ("terminal_api", "avature", "Bank of America"),
     ("terminal_api", "javascript_embedded_data", "Continental"),

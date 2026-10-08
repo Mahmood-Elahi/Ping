@@ -42,7 +42,7 @@ REPRESENTATIVES = (
     "GE Aerospace",             # phenom
     "Halliburton",              # sap_successfactors
     "Bosch",                     # SmartRecruiters safe page-size path
-    "Waymo",                     # static HTML
+    "Waymo",                     # Greenhouse
     "Pason Systems",            # ukg_pro
     "McKesson",                 # workday
 )

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 from typing import Any, List, Mapping
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import parse_qs, parse_qsl, urlparse, urlunparse
 
 import requests
 
@@ -15,6 +15,7 @@ from src.scraper.company_careers.models import (
     CompanyTarget,
     JobRecord,
     SourceScanMetadata,
+    explicit_adapter_result,
     publish_source_scan_metadata,
 )
 from src.scraper.company_careers.student_roles import (
@@ -30,6 +31,8 @@ MAX_DETAIL_RESPONSE_BYTES = 1_000_000
 READ_CHUNK_BYTES = 64 * 1024
 HEADERS = {"Accept": "application/json", "User-Agent": "job-radar/1.0"}
 STRICT_BOARD_VARIANT = "boards_api_v1_strict"
+STABLE_ID_TEMPLATE_FIELD = "{id}"
+QUERY_PARAMETER_PATTERN = re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,63}")
 
 
 def _secure_apply_url(value: object) -> str:
@@ -40,6 +43,7 @@ def _secure_apply_url(value: object) -> str:
     return str(value or "")
 
 
+@explicit_adapter_result
 def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 20) -> List[JobRecord]:
     """Fetch a compact board index and enrich at most 20 postings."""
     metadata = SourceScanMetadata(stop_reason="not_started")
@@ -69,6 +73,7 @@ def _fetch_jobs(
         raise AdapterError(f"Greenhouse max_jobs cannot exceed {MAX_RESULTS}")
     if not 1 <= int(target.max_response_bytes) <= MAX_RESPONSE_BYTES:
         raise AdapterError("Greenhouse response byte limit exceeds the hard maximum")
+    apply_url_contract = _apply_url_contract(target)
     if bool(target.job_attribution_field) != bool(target.job_attribution_regex):
         raise AdapterError(
             "Greenhouse per-job attribution requires both field and regex"
@@ -129,7 +134,7 @@ def _fetch_jobs(
     summaries: list[tuple[Mapping[str, Any], JobRecord]] = []
     attribution_filtered = 0
     for item in data["jobs"]:
-        summary = _listing_record(item, target)
+        summary = _listing_record(item, target, metadata, apply_url_contract)
         if allowed_job_ids is not None and summary.job_id not in allowed_job_ids:
             continue
         if attribution_regex and not _has_exact_attribution(
@@ -147,12 +152,19 @@ def _fetch_jobs(
         if len(set(ids)) != len(ids) or len(set(urls)) != len(urls):
             metadata["duplicate_ids"] = True
             raise AdapterError("Greenhouse board repeated a stable ID or canonical URL")
+        source_identity_diagnostic = (
+            "Greenhouse API rows matched the configured board slug, stable IDs, "
+            "and exact allow-listed board URLs"
+        )
+        if apply_url_contract:
+            source_identity_diagnostic = (
+                "Greenhouse API rows matched the configured board slug and exact "
+                "allow-listed apply URL template with stable IDs correlated in "
+                "its configured path/query contract"
+            )
         metadata.update(
             source_identity_status="validated",
-            source_identity_diagnostic=(
-                "Greenhouse API rows matched the configured board slug, stable IDs, "
-                "and exact allow-listed board URLs"
-            ),
+            source_identity_diagnostic=source_identity_diagnostic,
         )
     metadata["pages_completed"] = 1
 
@@ -357,27 +369,281 @@ def _summary_identity(item: Any) -> tuple[str, str]:
     return job_id, title
 
 
-def _listing_record(item: Any, target: CompanyTarget) -> JobRecord:
+def _bounded_diagnostic(value: object, limit: int) -> str:
+    """Keep source-controlled failure evidence useful without echoing large fields."""
+    text = str(value or "")
+    return text if len(text) <= limit else f"{text[:limit]}<truncated>"
+
+
+def _apply_url_contract(target: CompanyTarget) -> tuple[str, str, str] | None:
+    """Return an explicitly configured exact query-ID URL contract.
+
+    The existing board/path contract remains the default.  A Greenhouse target
+    opts into this alternative only by configuring one exact apply URL template
+    whose sole query value is ``{id}``. The same placeholder may occur once in
+    the path when the first-party URL repeats the stable ID there.
+    """
+    template = str(target.apply_url_template or "").strip()
+    if not template:
+        return None
+    if target.endpoint_variant != STRICT_BOARD_VARIANT:
+        raise AdapterError(
+            "Greenhouse apply_url_template requires the strict board endpoint variant"
+        )
+    placeholder_count = template.count(STABLE_ID_TEMPLATE_FIELD)
+    if placeholder_count not in {1, 2}:
+        raise AdapterError(
+            "Greenhouse apply_url_template must contain {id} once in the query "
+            "and at most once in the path"
+        )
+    remaining_template = template.replace(STABLE_ID_TEMPLATE_FIELD, "")
+    if "{" in remaining_template or "}" in remaining_template:
+        raise AdapterError(
+            "Greenhouse apply_url_template supports only the {id} placeholder"
+        )
+
+    parsed = urlparse(template)
+    allowed_hosts = {
+        str(host).strip().casefold()
+        for host in target.allowed_apply_hosts
+        if str(host).strip()
+    }
+    hostname = (parsed.hostname or "").casefold()
+    if (
+        parsed.scheme != "https"
+        or not hostname
+        or parsed.netloc.casefold() != hostname
+        or hostname not in allowed_hosts
+        or not parsed.path.startswith("/")
+        or parsed.path == "/"
+        or "#" in template
+    ):
+        raise AdapterError(
+            "Greenhouse apply_url_template must use HTTPS, one allowed hostname, "
+            "an exact non-root path, and no fragment"
+        )
+    path_placeholder_count = parsed.path.count(STABLE_ID_TEMPLATE_FIELD)
+    if (
+        path_placeholder_count not in {0, 1}
+        or placeholder_count != 1 + path_placeholder_count
+    ):
+        raise AdapterError(
+            "Greenhouse apply_url_template may repeat {id} only once in its path"
+        )
+    try:
+        query_pairs = parse_qsl(
+            parsed.query,
+            keep_blank_values=True,
+            strict_parsing=True,
+        )
+    except ValueError as exc:
+        raise AdapterError("Greenhouse apply_url_template query is malformed") from exc
+    if (
+        len(query_pairs) != 1
+        or query_pairs[0][1] != STABLE_ID_TEMPLATE_FIELD
+        or QUERY_PARAMETER_PATTERN.fullmatch(query_pairs[0][0]) is None
+        or parsed.query != f"{query_pairs[0][0]}={STABLE_ID_TEMPLATE_FIELD}"
+    ):
+        raise AdapterError(
+            "Greenhouse apply_url_template must have exactly one safe query parameter "
+            "whose complete value is {id}"
+        )
+    return hostname, parsed.path, query_pairs[0][0]
+
+
+def _url_identity_violations(
+    parsed: Any,
+    *,
+    allowed_hosts: set[str],
+    path_matches: bool,
+    job_id: str,
+    query_parameter: str | None = None,
+    stable_id_valid: bool = True,
+    fragment_present: bool | None = None,
+) -> list[str]:
+    violations: list[str] = []
+    if parsed.scheme != "https":
+        violations.append("scheme_not_https")
+    actual_hostname = (parsed.hostname or "").casefold()
+    if (
+        actual_hostname not in allowed_hosts
+        or (
+            query_parameter is not None
+            and parsed.netloc.casefold() != actual_hostname
+        )
+    ):
+        violations.append("hostname_not_allowed")
+    if not path_matches:
+        violations.append("path_does_not_match_board_and_stable_id")
+    if query_parameter is None:
+        if parsed.query:
+            violations.append("query_not_permitted")
+    else:
+        if not stable_id_valid:
+            violations.append("stable_job_id_invalid")
+        try:
+            query_pairs = parse_qsl(
+                parsed.query,
+                keep_blank_values=True,
+                strict_parsing=True,
+            )
+        except ValueError:
+            query_pairs = []
+        if (
+            query_pairs != [(query_parameter, job_id)]
+            or parsed.query != f"{query_parameter}={job_id}"
+        ):
+            violations.append("query_does_not_match_stable_id")
+    has_fragment = (
+        fragment_present if fragment_present is not None else bool(parsed.fragment)
+    )
+    if has_fragment:
+        violations.append("fragment_not_permitted")
+    return violations
+
+
+def _record_url_identity_failure(
+    metadata: SourceScanMetadata,
+    *,
+    target: CompanyTarget,
+    job_id: str,
+    absolute_url: str,
+    parsed: Any,
+    allowed_hosts: set[str],
+    expected_path: str,
+    violations: list[str],
+    query_parameter: str | None = None,
+    fragment_present: bool | None = None,
+) -> None:
+    """Publish bounded rejected-row evidence while preserving fail-closed behavior."""
+    hosts = sorted(_bounded_diagnostic(host, 253) for host in allowed_hosts)[:20]
+    path_segments = [part for part in parsed.path.split("/") if part]
+    folded_path_segments = {part.casefold() for part in path_segments}
+    query = parse_qs(parsed.query, keep_blank_values=True)
+    query_names = sorted(_bounded_diagnostic(name, 64) for name in query)[:20]
+    id_query_names = sorted(
+        _bounded_diagnostic(name, 64)
+        for name, values in query.items()
+        if any(str(value).casefold() == job_id.casefold() for value in values)
+    )[:20]
+    board_token_in_path = str(target.slug).casefold() in folded_path_segments
+    stable_job_id_in_path = job_id.casefold() in folded_path_segments
+    expected_suffix = (
+        f"?{query_parameter}={job_id}" if query_parameter is not None else ""
+    )
+    failure = {
+        "offending_job_id": _bounded_diagnostic(job_id, 128),
+        "offending_returned_job_url": _bounded_diagnostic(absolute_url, 1000),
+        "expected_board_token": _bounded_diagnostic(target.slug, 128),
+        "expected_hostnames": hosts,
+        "expected_path": _bounded_diagnostic(expected_path, 500),
+        "expected_url_patterns": [
+            _bounded_diagnostic(
+                f"https://{host}{expected_path}{expected_suffix}", 1000
+            )
+            for host in hosts
+        ],
+        "actual_scheme": _bounded_diagnostic(parsed.scheme, 32),
+        "actual_hostname": _bounded_diagnostic(parsed.hostname, 253),
+        "actual_path": _bounded_diagnostic(parsed.path, 500),
+        "actual_query_present": bool(parsed.query),
+        "actual_query_parameter_names": query_names,
+        "actual_fragment_present": (
+            fragment_present
+            if fragment_present is not None
+            else bool(parsed.fragment)
+        ),
+        "board_token_path_segment_present": board_token_in_path,
+        "stable_job_id_path_segment_present": stable_job_id_in_path,
+        "stable_job_id_query_parameters": id_query_names,
+        "violations": violations,
+    }
+    if query_parameter is not None:
+        failure["expected_stable_id_query_parameter"] = _bounded_diagnostic(
+            query_parameter, 64
+        )
+    metadata.update(
+        source_identity_status="failed",
+        source_identity_diagnostic=(
+            "Greenhouse absolute_url did not bind the configured board token and "
+            "the API row's stable job ID"
+        ),
+        rejected_record_count=int(metadata.get("rejected_record_count") or 0) + 1,
+        rejected_record_reason="greenhouse_job_url_identity_mismatch",
+        greenhouse_url_identity_failure=failure,
+        stop_reason="identity_failure",
+    )
+
+
+def _listing_record(
+    item: Any,
+    target: CompanyTarget,
+    metadata: SourceScanMetadata,
+    apply_url_contract: tuple[str, str, str] | None,
+) -> JobRecord:
     """Validate and normalize the fields available on the compact listing."""
     job_id, title = _summary_identity(item)
+    raw_job_id = item.get("id")
     location = item.get("location") or {}
     if not isinstance(location, Mapping):
         raise AdapterError("Greenhouse job location must be an object")
-    absolute_url = _secure_apply_url(item.get("absolute_url"))
+    raw_absolute_url = str(item.get("absolute_url") or "")
+    absolute_url = (
+        raw_absolute_url
+        if apply_url_contract is not None
+        else _secure_apply_url(raw_absolute_url)
+    )
     if target.endpoint_variant == STRICT_BOARD_VARIANT:
         parsed = urlparse(absolute_url)
         parts = [part for part in parsed.path.split("/") if part]
-        allowed = {str(host).casefold() for host in target.allowed_apply_hosts}
-        if (
-            parsed.scheme != "https"
-            or (parsed.hostname or "").casefold() not in allowed
-            or len(parts) != 3
-            or parts[0].casefold() != str(target.slug).casefold()
-            or parts[1].casefold() != "jobs"
-            or parts[2].casefold() != job_id.casefold()
-            or parsed.query
-            or parsed.fragment
-        ):
+        query_parameter: str | None = None
+        if apply_url_contract is None:
+            allowed = {str(host).casefold() for host in target.allowed_apply_hosts}
+            expected_path = f"/{target.slug}/jobs/{job_id}"
+            path_matches = (
+                len(parts) == 3
+                and parts[0].casefold() == str(target.slug).casefold()
+                and parts[1].casefold() == "jobs"
+                and parts[2].casefold() == job_id.casefold()
+            )
+        else:
+            expected_host, path_template, query_parameter = apply_url_contract
+            expected_path = path_template.replace(STABLE_ID_TEMPLATE_FIELD, job_id)
+            allowed = {expected_host}
+            path_matches = parsed.path == expected_path
+        stable_id_valid = (
+            query_parameter is None
+            or (
+                not isinstance(raw_job_id, bool)
+                and str(raw_job_id) == job_id
+                and re.fullmatch(r"[0-9]+", job_id) is not None
+            )
+        )
+        fragment_present = bool(parsed.fragment) or (
+            query_parameter is not None and "#" in absolute_url
+        )
+        violations = _url_identity_violations(
+            parsed,
+            allowed_hosts=allowed,
+            path_matches=path_matches,
+            job_id=job_id,
+            query_parameter=query_parameter,
+            stable_id_valid=stable_id_valid,
+            fragment_present=fragment_present,
+        )
+        if violations:
+            _record_url_identity_failure(
+                metadata,
+                target=target,
+                job_id=job_id,
+                absolute_url=absolute_url,
+                parsed=parsed,
+                allowed_hosts=allowed,
+                expected_path=expected_path,
+                violations=violations,
+                query_parameter=query_parameter,
+                fragment_present=fragment_present,
+            )
             raise AdapterError("Greenhouse job URL does not match its exact board and stable ID")
     return JobRecord(
         job_id=job_id,

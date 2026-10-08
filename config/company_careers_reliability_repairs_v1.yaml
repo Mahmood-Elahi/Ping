@@ -24,32 +24,6 @@ company_careers_reliability_repairs:
     page_size: 15
     max_pages: 2
     max_jobs: 20
-  - name: ASML
-    platform: browser_rendered_html
-    careers_url: https://www.asml.com/en/careers
-    listing_url: https://www.asml.com/en/careers/find-your-job
-    endpoint_variant: browser_rendered_html_v1
-    browser_wait_selector: a.search-results__item
-    browser_scroll_steps: 0
-    browser_static_variant: server_rendered_links
-    browser_identity_selector: head title
-    browser_identity_regex: ASML
-    listing_selector: a.search-results__item
-    job_card_selector: a.search-results__item
-    title_selector: h3.search-results-title-text
-    location_selector: ul.search-results__fields li:first-child
-    department_selector: ul.search-results__fields li:nth-child(2)
-    detail_link_selector: ':self'
-    external_id_regex: -([jJ][0-9]+)$
-    allowed_apply_hosts:
-      - www.asml.com
-    original_workbook_rank: 26
-    max_pages: 1
-    max_jobs: 20
-    max_response_bytes: 3000000
-    evidence_source: https://www.asml.com/en/careers/find-your-job
-    evidence_confidence: high
-    evidence_timestamp: '2026-08-28T00:00:00+00:00'
   - name: Skydio
     platform: ashby
     careers_url: https://www.skydio.com/ja-jp/careers

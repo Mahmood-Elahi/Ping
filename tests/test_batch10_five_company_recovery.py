@@ -198,11 +198,11 @@ def roblox_responses(target: CompanyTarget, payload, *, bound: bool = True) -> l
 class Batch10FiveCompanyRegistryTests(unittest.TestCase):
     def test_recovered_sources_and_unresolved_reversions_are_explicit(self) -> None:
         expected = {
-            "Box": ("static_html", "server_rendered_cards", 1, 20),
+            "Box": ("greenhouse", "boards_api_v1_strict", 1, 10000),
             "Dyson": ("public_json", public_json.DYSON_JOBS, 50, 500),
             "Espressif Systems": ("static_html", "server_rendered_cards", 1, 20),
             "Roblox": ("public_json", public_json.ROBLOX_JOBS, 1, 500),
-            "Wise": ("static_html", "server_rendered_cards", 1, 20),
+            "Wise": ("smartrecruiters", "companies_postings_v1", 10, 1000),
         }
         for name, contract in expected.items():
             with self.subTest(name=name):

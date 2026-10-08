@@ -57,7 +57,8 @@ Config-backed deterministic lifecycle reconciliation. It reuses stable source id
 
 `src/scraper/company_careers/adapters/`
 
-Source-specific adapters. Each adapter converts one source shape into normalized `JobRecord` objects.
+Source-specific adapters. Each adapter converts one source shape into normalized
+`JobRecord` objects and reports the observations made while enumerating it.
 
 `config/target_companies.yaml`
 
@@ -65,7 +66,21 @@ Company registry. This is where users add/remove targets and define platform-spe
 
 ## Adapter Contract
 
-Adapters should return a list of normalized `JobRecord` objects with:
+The explicit company-careers flow is:
+
+```text
+provider adapter
+    -> AdapterResult
+       |-- jobs
+       |-- scan observations
+       |-- item_failures (structural only)
+       `-- capabilities_used (descriptive only)
+    -> finalize_source_scan
+    -> CompanyScanResult
+    -> lifecycle / staged persistence
+```
+
+`AdapterResult.jobs` contains normalized `JobRecord` objects with:
 
 - `job_id`
 - `title`
@@ -76,7 +91,87 @@ Adapters should return a list of normalized `JobRecord` objects with:
 - `source`
 - optional `departments`, `offices`, and `description`
 
-Adapters should raise `AdapterError` for parse or endpoint failures that should be recorded as source failures.
+`AdapterResult.scan` contains `SourceScanMetadata`: request/page counters,
+terminal observations, safety-limit state, source-identity evidence, mutation and
+pagination evidence, and adapter diagnostics. These are observations, not a
+claim of trust. `finalize_source_scan` remains the only component that decides
+whether the evidence is complete, healthy, identity-valid, and authoritative
+for absence.
+
+`item_failures` and `capabilities_used` are structural Phase 3 extension points.
+Phase 2 does not create partial-success semantics from them. Capabilities are
+descriptive only: they cannot create terminal evidence, validate identity, make
+a scan authoritative, or bypass central finalization.
+
+Adapters should raise `AdapterError` for parse or endpoint failures that should
+be recorded as source failures. Migrated adapters attach their current scan
+observations to the same exception instance; exception classes and failure
+policy are unchanged.
+
+### Compatibility and diagnostics
+
+Every production dispatcher boundary returns `AdapterResult`. The scanner still
+accepts both:
+
+- a legacy `list[JobRecord]`, whose metadata is read from the historical
+  `job_radar_scan_metadata` session attribute; and
+- an explicit `AdapterResult`, whose `scan` value is used directly while any
+  session alias is ignored and cleared.
+
+Raw-list support is retained only as a compatibility path for direct/custom
+callers and deterministic injected-adapter tests; no production registry entry
+uses it. Existing adapter bodies may still publish the generic diagnostic
+session alias, but the exported boundary snapshots it into `AdapterResult`.
+Named provider pagination aliases are retained for tests and debugging. Neither
+alias class is authoritative after an explicit result is returned, and the
+scanner never uses a named provider alias for finalization.
+
+The scanner clears metadata before every invocation and after every explicit
+success or failure. Consequently an explicit result cannot inherit evidence
+from a prior source, even when a test or caller reuses one session.
+
+Only a centrally finalized `CompanyScanResult` with healthy source state,
+validated identity, provider-native terminal evidence, active source state, and
+`scan_complete=True` can be authoritative for absence. Request, page, and job
+budgets remain safety limits and never terminal evidence. Incomplete and failed
+scans retain zero absence authority, so missing-job, possibly-missing, closure,
+reopening, and staged Supabase reconciliation behavior is unchanged.
+
+### Final Phase 2 migration status
+
+All 43 canonical dispatcher boundaries now return explicit results. The first
+batch covers
+Greenhouse, Lever, Ashby, Workday, SmartRecruiters, Eightfold, Dayforce, SAP
+SuccessFactors, Teamtailor, BambooHR, Jobvite, Oracle Recruiting, iCIMS/Jibe/
+Radancy, static HTML, public JSON, JavaScript embedded data, browser-rendered
+HTML, first-party JSON, source XML, and Phenom. The second batch covers Apple,
+Avature, Exalead, ClearCompany, Cornerstone CSOD, Deel, BeeSite, StartDate,
+TalentBrew, HawkSearch v2, HiBob, UKG Pro, Paycor, PeopleSoft, Amazon, Shopify,
+Google, Atlassian, Uber, and IBM Search. The final batch covers ADP, Meta, and
+M-Cloud CWS without changing their provider protocols. The registry contains
+50 keys because `custom:amazon`, `custom:atlassian`, `custom:google`,
+`custom:ibm_search`, `custom:meta`, `custom:shopify`, and `custom:uber` are
+aliases of canonical boundaries rather than additional adapters.
+
+The authoritative channel for every migrated boundary is
+`AdapterResult.scan`. The boundary bridge still snapshots the generic
+`job_radar_scan_metadata` alias inside decorator-migrated adapters, and some
+providers retain named pagination aliases for deterministic diagnostics. These
+aliases are temporary compatibility surfaces; the scanner ignores them after
+receiving an explicit result.
+
+`fetch_with_mutation_restart` returns an explicit `AdapterResult`. It still
+reads the generic session alias between the first and optional replacement
+traversals for Avature, Atlassian, Eightfold, first-party JSON, iCIMS, Oracle
+Recruiting, public JSON, SAP SuccessFactors, SmartRecruiters, and Uber. This is
+a restart-internal compatibility detail: replacing it would require changing
+the internal traversal callbacks, while retaining it preserves exactly one
+restart, discards first-traversal jobs, and keeps all existing mutation
+diagnostics. Its caller and the scanner receive explicit observations.
+
+Phase 2 is complete at this boundary. Inventory/hydration, per-item unreadable
+semantics, retries, cooldowns, and partial-progress persistence remain Phase 3
+work and are not implemented here.
 
 ## Coverage States
 

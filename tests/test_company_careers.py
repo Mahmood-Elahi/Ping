@@ -26,6 +26,7 @@ from src.scraper.company_careers import scanner as scanner_module
 from src.scraper.company_careers.coverage_report import coverage_markdown, failure_items
 from src.scraper.company_careers.models import (
     AdapterError,
+    AdapterResult,
     CompanyTarget,
     CoverageStatus,
     JobRecord,
@@ -538,6 +539,22 @@ class CompanyCareersTests(unittest.TestCase):
         self.assertEqual(jobs[0].job_id, "JR1")
         self.assertEqual(jobs[0].source, "workday:example")
         self.assertIn("/en-US/External/job/Dublin", jobs[0].url)
+        metadata = source_scan_metadata(session)
+        self.assertEqual(metadata["source_identity_status"], "unproven")
+        self.assertEqual(
+            metadata["source_identity_diagnostic"],
+            {
+                "proof": "unavailable_in_workday_cxs_listing",
+                "configured_tenant": "example",
+                "configured_site_id": "External",
+                "configured_hostname": "example.wd1.myworkdayjobs.com",
+                "reason": (
+                    "Workday CXS jobPostings responses expose no independently "
+                    "verifiable employer identity; exact tenant/site routing alone "
+                    "is insufficient for validated source identity"
+                ),
+            },
+        )
 
     def test_workday_uses_non_id_bullet_fields_when_location_text_is_omitted(self):
         session = FakeSession(
@@ -1474,6 +1491,8 @@ class CompanyCareersTests(unittest.TestCase):
 
         jobs = meta.fetch_jobs(session, target)
 
+        self.assertIsInstance(jobs, AdapterResult)
+        self.assertEqual(jobs.scan, source_scan_metadata(session))
         self.assertEqual(len(jobs), 1)
         self.assertEqual(jobs[0].job_id, "meta-1")
         self.assertEqual(jobs[0].title, "Staff Software Engineer")

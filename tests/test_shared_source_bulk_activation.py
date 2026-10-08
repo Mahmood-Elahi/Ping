@@ -31,6 +31,7 @@ from src.scraper.company_careers.registry import load_target_companies
 
 
 ROOT = Path(__file__).resolve().parents[1]
+LATER_SOURCE_MIGRATIONS = {"Ripple", "Wise", "Miro"}
 
 
 def document(path: Path):
@@ -72,6 +73,18 @@ def historical_mapping_prefix():
 def additions(path: Path):
     historical = {validator._name_key(item) for item in historical_target_prefix()}
     return [item for item in target_entries(path) if validator._name_key(item) not in historical]
+
+
+def with_later_source_migrations(production, historical):
+    production_by_name = {
+        validator._name_key(item): item for item in production
+    }
+    return [
+        production_by_name[validator._name_key(item)]
+        if item["name"] in LATER_SOURCE_MIGRATIONS
+        else item
+        for item in historical
+    ]
 
 
 class SharedSourceBulkActivationTests(unittest.TestCase):
@@ -315,10 +328,14 @@ class SharedSourceBulkActivationTests(unittest.TestCase):
         self.assertEqual(rows["Google DeepMind"]["exact_metadata_field"], "departments")
 
     def test_26_production_contains_exact_validated_activation(self):
-        historical = historical_target_prefix()
         production = target_entries(rollout.PRODUCTION)
-        validated = with_reliability_repairs(
-            additions(rollout.VALIDATED_REGISTRY)
+        historical = with_later_source_migrations(
+            production,
+            historical_target_prefix(),
+        )
+        validated = with_later_source_migrations(
+            production,
+            with_reliability_repairs(additions(rollout.VALIDATED_REGISTRY)),
         )
         assert_historical_prefix(self, production, historical)
         self.assertEqual(

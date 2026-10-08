@@ -13,6 +13,7 @@ from src.scraper.company_careers.models import (
     CompanyTarget,
     JobRecord,
     SourceScanMetadata,
+    explicit_adapter_result,
     publish_source_scan_metadata,
 )
 from src.scraper.company_careers.listing_completion import record_terminal_evidence
@@ -23,6 +24,7 @@ PAGE_SIZE = 100
 DEFAULT_SEARCH_TERMS = ["hashicorp"]
 
 
+@explicit_adapter_result
 def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 20) -> List[JobRecord]:
     search_terms = target.search_terms or DEFAULT_SEARCH_TERMS
     jobs: List[JobRecord] = []

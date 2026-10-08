@@ -13,6 +13,7 @@ from src.scraper.company_careers.models import (
     CompanyTarget,
     JobRecord,
     SourceScanMetadata,
+    explicit_adapter_result,
     publish_source_scan_metadata,
 )
 from src.scraper.company_careers.mutable_collection import (
@@ -28,6 +29,7 @@ from src.scraper.company_careers.mutable_collection import (
 LISTINGS_URL = "https://www.atlassian.com/endpoint/careers/listings"
 
 
+@explicit_adapter_result
 def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 20) -> List[JobRecord]:
     return fetch_with_mutation_restart(
         session, lambda: _fetch_jobs_once(session, target, timeout)

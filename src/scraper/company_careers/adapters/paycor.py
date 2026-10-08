@@ -15,6 +15,7 @@ from src.scraper.company_careers.models import (
     CompanyTarget,
     JobRecord,
     SourceScanMetadata,
+    explicit_adapter_result,
     publish_source_scan_metadata,
 )
 from src.scraper.company_careers.listing_completion import record_terminal_evidence
@@ -32,6 +33,7 @@ SUPPORTED_HOST = "recruitingbypaycor.com"
 BLOCKED_MARKERS = ("captcha", "recaptcha", "turnstile", "cf-chl-", "session expired")
 
 
+@explicit_adapter_result
 def fetch_jobs(
     session: requests.Session,
     target: CompanyTarget,

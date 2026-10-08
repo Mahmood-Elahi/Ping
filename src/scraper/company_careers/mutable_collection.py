@@ -6,6 +6,7 @@ from typing import Any, Callable, Optional
 from urllib.parse import parse_qsl, urlparse
 
 from src.scraper.company_careers.models import (
+    AdapterResult,
     JobRecord,
     SourceScanMetadata,
     source_scan_metadata,
@@ -20,7 +21,7 @@ MAX_COLLECTION_RESTARTS = 1
 def fetch_with_mutation_restart(
     session: Any,
     fetch_once: Callable[[], list[JobRecord]],
-) -> list[JobRecord]:
+) -> AdapterResult:
     """Return one internally consistent traversal after at most one restart.
 
     The first traversal is never unioned with the replacement traversal.  A
@@ -30,7 +31,7 @@ def fetch_with_mutation_restart(
     first_jobs = fetch_once()
     first_metadata = source_scan_metadata(session)
     if not first_metadata.get("collection_changed_during_scan"):
-        return first_jobs
+        return AdapterResult(jobs=first_jobs, scan=first_metadata)
 
     first_ids = {job.job_id for job in first_jobs}
     first_requests = int(first_metadata.get("pages_requested") or 0)
@@ -56,7 +57,7 @@ def fetch_with_mutation_restart(
         metadata["stop_reason"] = COLLECTION_CHANGED_REASON
     elif metadata.get("scan_complete"):
         metadata["stabilized_after_collection_retry"] = True
-    return second_jobs
+    return AdapterResult(jobs=second_jobs, scan=metadata)
 
 
 def initialize_mutable_collection(metadata: SourceScanMetadata) -> None:

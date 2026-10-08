@@ -14,6 +14,7 @@ from src.scraper.company_careers.models import (
     CompanyTarget,
     JobRecord,
     SourceScanMetadata,
+    explicit_adapter_result,
     publish_source_scan_metadata,
 )
 from src.scraper.company_careers.listing_completion import AdaptiveListingCompletion
@@ -41,6 +42,7 @@ EXPAND = "requisitionList.secondaryLocations"
 SORT_BY = "POSTING_DATES_DESC"
 
 
+@explicit_adapter_result
 def fetch_jobs(
     session: requests.Session,
     target: CompanyTarget,

@@ -56,14 +56,16 @@ from src.scraper.company_careers.adapters import (
 )
 from src.scraper.company_careers.models import (
     AdapterError,
+    AdapterOutput,
+    AdapterResult,
     CompanyCareersReport,
     CompanyScanResult,
     CompanyTarget,
     CoverageStatus,
     JobRecord,
     SourceScanMetadata,
+    adapter_exception_metadata,
     clear_source_scan_metadata,
-    publish_source_scan_metadata,
     source_scan_metadata,
 )
 from src.scraper.company_careers.registry import DEFAULT_REGISTRY_PATH, load_target_companies
@@ -79,7 +81,7 @@ from src.scraper.company_careers.parent_sources import (
 from src.scraper.company_careers.source_health import finalize_source_scan
 
 
-AdapterFn = Callable[[requests.Session, CompanyTarget, int], List[JobRecord]]
+AdapterFn = Callable[[requests.Session, CompanyTarget, int], AdapterOutput]
 JobFilterFn = Callable[[JobRecord], Optional[str]]
 LocationFilterFn = Callable[[JobRecord], Optional[str]]
 SessionFactory = Callable[[], requests.Session]
@@ -376,7 +378,7 @@ class CompanyCareersScanner:
                 session: requests.Session,
                 current: CompanyTarget,
                 timeout: int,
-            ) -> List[JobRecord]:
+            ) -> AdapterResult:
                 jobs = browser_batch.fetch_jobs(current, timeout)
                 metadata = SourceScanMetadata.from_value(
                     browser_batch.last_run.get("static_parser")
@@ -418,8 +420,7 @@ class CompanyCareersScanner:
                     )
                     if terminal_stop == "no_pagination_configured":
                         metadata["stop_reason"] = "browser_exhaustion_not_proven"
-                publish_source_scan_metadata(session, metadata)
-                return jobs
+                return AdapterResult(jobs=jobs, scan=metadata)
 
             adapter = _browser_adapter
         if target.platform == "browser_rendered_html" and browser_batch_error is not None:
@@ -464,114 +465,140 @@ class CompanyCareersScanner:
         adapter_session: Optional[requests.Session] = None
         close_adapter_session = self.session is None
         try:
-                adapter_session = (
-                    self.session if self.session is not None else self._session_factory()
-                )
+            adapter_session = (
+                self.session if self.session is not None else self._session_factory()
+            )
+            clear_source_scan_metadata(adapter_session)
+            adapter_output = adapter(adapter_session, target, self.timeout)
+            if isinstance(adapter_output, AdapterResult):
+                fetched_jobs = self._dedupe(adapter_output.jobs)
+                scan_metadata = SourceScanMetadata.from_value(adapter_output.scan)
+                # Explicit results are self-contained and must never inherit
+                # observations left by a previous or nested invocation.
                 clear_source_scan_metadata(adapter_session)
-                fetched_jobs = self._dedupe(adapter(adapter_session, target, self.timeout))
+            else:
+                fetched_jobs = self._dedupe(adapter_output)
                 scan_metadata = source_scan_metadata(adapter_session)
-                scan_metadata["original_configured_url"] = _configured_source_url(target)
-                fetched_jobs = [
-                    annotate_child_brand_metadata(job, self.parent_source_mappings)
-                    for job in fetched_jobs
-                ]
-                mapped_child_brand_counts = self._mapped_brand_counts(fetched_jobs)
-                matched_jobs, exclusion_counts = self._filter_jobs(
-                    fetched_jobs,
-                    keywords,
-                    locations,
-                    job_filter=job_filter,
-                    location_filter=location_filter,
-                )
-                if max_jobs_per_company:
-                    limited_count = max(0, len(matched_jobs) - max_jobs_per_company)
-                    if limited_count:
-                        exclusion_counts["limit"] = limited_count
-                        scan_metadata["scan_complete"] = False
-                        scan_metadata["scan_completeness_reason"] = (
-                            "post_filter_safety_limit_reached"
-                        )
-                        scan_metadata["stop_reason"] = (
-                            "post_filter_safety_limit_reached"
-                        )
-                        scan_metadata["safety_limit_reached"] = True
-                    matched_jobs = matched_jobs[:max_jobs_per_company]
+            scan_metadata["original_configured_url"] = _configured_source_url(target)
+            fetched_jobs = [
+                annotate_child_brand_metadata(job, self.parent_source_mappings)
+                for job in fetched_jobs
+            ]
+            mapped_child_brand_counts = self._mapped_brand_counts(fetched_jobs)
+            matched_jobs, exclusion_counts = self._filter_jobs(
+                fetched_jobs,
+                keywords,
+                locations,
+                job_filter=job_filter,
+                location_filter=location_filter,
+            )
+            if max_jobs_per_company:
+                limited_count = max(0, len(matched_jobs) - max_jobs_per_company)
+                if limited_count:
+                    exclusion_counts["limit"] = limited_count
+                    scan_metadata["scan_complete"] = False
+                    scan_metadata["scan_completeness_reason"] = (
+                        "post_filter_safety_limit_reached"
+                    )
+                    scan_metadata["stop_reason"] = (
+                        "post_filter_safety_limit_reached"
+                    )
+                    scan_metadata["safety_limit_reached"] = True
+                matched_jobs = matched_jobs[:max_jobs_per_company]
 
-                status = (
-                    CoverageStatus.FETCHED
-                    if matched_jobs
-                    else CoverageStatus.FETCHED_NO_MATCHING_ROLES
-                )
-                finalize_source_scan(
-                    scan_metadata,
-                    jobs_collected=len(fetched_jobs),
-                    activation_state=target.source_activation,
-                )
-                return CompanyScanResult(
-                        target=target,
-                        jobs=matched_jobs,
-                        normalized_jobs=fetched_jobs,
-                        status=status,
-                        fetched_count=len(fetched_jobs),
-                        **_completion_result_fields(scan_metadata),
-                        exclusion_counts=exclusion_counts,
-                        mapped_child_brand_counts=mapped_child_brand_counts,
-                )
+            status = (
+                CoverageStatus.FETCHED
+                if matched_jobs
+                else CoverageStatus.FETCHED_NO_MATCHING_ROLES
+            )
+            finalize_source_scan(
+                scan_metadata,
+                jobs_collected=len(fetched_jobs),
+                activation_state=target.source_activation,
+            )
+            return CompanyScanResult(
+                target=target,
+                jobs=matched_jobs,
+                normalized_jobs=fetched_jobs,
+                status=status,
+                fetched_count=len(fetched_jobs),
+                **_completion_result_fields(scan_metadata),
+                exclusion_counts=exclusion_counts,
+                mapped_child_brand_counts=mapped_child_brand_counts,
+            )
         except AdapterError as exc:
-                scan_metadata = source_scan_metadata(adapter_session)
-                scan_metadata["original_configured_url"] = _configured_source_url(target)
-                error_type, remediation = self._adapter_failure_details(str(exc))
-                finalize_source_scan(
-                    scan_metadata,
-                    jobs_collected=int(scan_metadata.get("jobs_normalized") or 0),
-                    failed=True,
-                    failure_code=error_type,
-                    activation_state=target.source_activation,
-                )
-                return CompanyScanResult(
-                        target=target,
-                        status=CoverageStatus.FAILED_TECHNICAL,
-                        error=str(exc),
-                        error_type=error_type,
-                        remediation=remediation,
-                        **_completion_result_fields(scan_metadata),
-                )
+            scan_metadata = (
+                adapter_exception_metadata(exc)
+                or source_scan_metadata(adapter_session)
+            )
+            clear_source_scan_metadata(adapter_session)
+            scan_metadata["original_configured_url"] = _configured_source_url(target)
+            error_type, remediation = self._adapter_failure_details(str(exc))
+            finalize_source_scan(
+                scan_metadata,
+                jobs_collected=int(scan_metadata.get("jobs_normalized") or 0),
+                failed=True,
+                failure_code=error_type,
+                activation_state=target.source_activation,
+            )
+            return CompanyScanResult(
+                target=target,
+                status=CoverageStatus.FAILED_TECHNICAL,
+                error=str(exc),
+                error_type=error_type,
+                remediation=remediation,
+                **_completion_result_fields(scan_metadata),
+            )
         except requests.RequestException as exc:
-                scan_metadata = source_scan_metadata(adapter_session)
-                scan_metadata["original_configured_url"] = _configured_source_url(target)
-                finalize_source_scan(
-                    scan_metadata,
-                    jobs_collected=int(scan_metadata.get("jobs_normalized") or 0),
-                    failed=True,
-                    failure_code="request_error",
-                    activation_state=target.source_activation,
-                )
-                return CompanyScanResult(
-                        target=target,
-                        status=CoverageStatus.FAILED_TECHNICAL,
-                        error=str(exc),
-                        error_type="request_error",
-                        remediation="Retry the scan and verify network access or upstream availability.",
-                        **_completion_result_fields(scan_metadata),
-                )
+            scan_metadata = (
+                adapter_exception_metadata(exc)
+                or source_scan_metadata(adapter_session)
+            )
+            clear_source_scan_metadata(adapter_session)
+            scan_metadata["original_configured_url"] = _configured_source_url(target)
+            finalize_source_scan(
+                scan_metadata,
+                jobs_collected=int(scan_metadata.get("jobs_normalized") or 0),
+                failed=True,
+                failure_code="request_error",
+                activation_state=target.source_activation,
+            )
+            return CompanyScanResult(
+                target=target,
+                status=CoverageStatus.FAILED_TECHNICAL,
+                error=str(exc),
+                error_type="request_error",
+                remediation=(
+                    "Retry the scan and verify network access or upstream "
+                    "availability."
+                ),
+                **_completion_result_fields(scan_metadata),
+            )
         except Exception as exc:
-                scan_metadata = source_scan_metadata(adapter_session)
-                scan_metadata["original_configured_url"] = _configured_source_url(target)
-                finalize_source_scan(
-                    scan_metadata,
-                    jobs_collected=int(scan_metadata.get("jobs_normalized") or 0),
-                    failed=True,
-                    failure_code="unexpected_error",
-                    activation_state=target.source_activation,
-                )
-                return CompanyScanResult(
-                        target=target,
-                        status=CoverageStatus.FAILED_TECHNICAL,
-                        error=f"{exc.__class__.__name__}: {exc}",
-                        error_type="unexpected_error",
-                        remediation="Inspect the adapter stack locally; the scanner contained the failure to this company.",
-                        **_completion_result_fields(scan_metadata),
-                )
+            scan_metadata = (
+                adapter_exception_metadata(exc)
+                or source_scan_metadata(adapter_session)
+            )
+            clear_source_scan_metadata(adapter_session)
+            scan_metadata["original_configured_url"] = _configured_source_url(target)
+            finalize_source_scan(
+                scan_metadata,
+                jobs_collected=int(scan_metadata.get("jobs_normalized") or 0),
+                failed=True,
+                failure_code="unexpected_error",
+                activation_state=target.source_activation,
+            )
+            return CompanyScanResult(
+                target=target,
+                status=CoverageStatus.FAILED_TECHNICAL,
+                error=f"{exc.__class__.__name__}: {exc}",
+                error_type="unexpected_error",
+                remediation=(
+                    "Inspect the adapter stack locally; the scanner contained "
+                    "the failure to this company."
+                ),
+                **_completion_result_fields(scan_metadata),
+            )
         finally:
             if close_adapter_session and adapter_session is not None:
                 close = getattr(adapter_session, "close", None)

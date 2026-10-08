@@ -15,6 +15,7 @@ from src.scraper.company_careers.models import (
     CompanyTarget,
     JobRecord,
     SourceScanMetadata,
+    explicit_adapter_result,
     publish_source_scan_metadata,
 )
 
@@ -55,6 +56,7 @@ def validate_target(target: CompanyTarget) -> None:
         raise AdapterError("Deel response byte limit exceeds the hard maximum")
 
 
+@explicit_adapter_result
 def fetch_jobs(
     session: requests.Session, target: CompanyTarget, timeout: int = 60
 ) -> list[JobRecord]:

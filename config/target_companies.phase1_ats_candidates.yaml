@@ -1,0 +1,10 @@
+# Explicit opt-in Phase 1 migration candidates. Normal Job Radar execution
+# loads config/target_companies.yaml and never loads this file implicitly. Use
+# only with scripts/validate_source_integrity_canaries.py --registry <this file>.
+#
+# The registry is intentionally empty after the 2026-10-07 screening pass.
+# Cameco and Lightspeed Commerce failed source validation, while Intuitive
+# Surgical's 772-request SmartRecruiters workload belongs to Phase 3. Workday
+# and the newly reviewed unsupported/identity-incomplete protocols cannot pass
+# the existing Phase 1 activation contract.
+target_companies: []

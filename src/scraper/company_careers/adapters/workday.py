@@ -13,6 +13,7 @@ from src.scraper.company_careers.models import (
     CompanyTarget,
     JobRecord,
     SourceScanMetadata,
+    explicit_adapter_result,
     publish_source_scan_metadata,
     source_scan_metadata,
 )
@@ -55,6 +56,7 @@ class _FirstPageHttpError(AdapterError):
         self.status_code = status_code
 
 
+@explicit_adapter_result
 def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 20) -> List[JobRecord]:
     if not target.tenant or not target.wd_subdomain or not (target.site_id or target.site_ids):
         raise AdapterError("Workday target needs tenant, wd_subdomain, and site_id/site_ids")
@@ -630,6 +632,18 @@ def _fetch_pages(
         maximum_pages=int(target.max_pages),
         maximum_results=MAX_RESULTS,
         stop_reason="not_started",
+        source_identity_status="unproven",
+        source_identity_diagnostic={
+            "proof": "unavailable_in_workday_cxs_listing",
+            "configured_tenant": str(target.tenant),
+            "configured_site_id": site_id,
+            "configured_hostname": (urlparse(api_url).hostname or "").casefold(),
+            "reason": (
+                "Workday CXS jobPostings responses expose no independently "
+                "verifiable employer identity; exact tenant/site routing alone "
+                "is insufficient for validated source identity"
+            ),
+        },
     )
     listing_budget = AdaptiveListingCompletion(
         normal_request_budget=max(1, int(target.max_pages)),

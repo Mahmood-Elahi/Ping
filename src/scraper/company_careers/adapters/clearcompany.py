@@ -14,6 +14,7 @@ from src.scraper.company_careers.models import (
     CompanyTarget,
     JobRecord,
     SourceScanMetadata,
+    explicit_adapter_result,
     publish_source_scan_metadata,
 )
 from src.scraper.company_careers.listing_completion import AdaptiveListingCompletion
@@ -28,6 +29,7 @@ TRANSIENT_STATUSES = {408, 425, 429, 500, 502, 503, 504}
 SITE_ID_RE = re.compile(r"^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$", re.IGNORECASE)
 
 
+@explicit_adapter_result
 def fetch_jobs(
     session: requests.Session,
     target: CompanyTarget,

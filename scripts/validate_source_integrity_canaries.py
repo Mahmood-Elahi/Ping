@@ -8,6 +8,7 @@ request budget. It never runs the full registry.
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import json
 from pathlib import Path
 import sys
@@ -29,13 +30,32 @@ from src.scraper.company_careers.source_health import finalize_source_scan
 DEFAULT_CANARIES = (
     "OpenAI",      # validated complete-collection API (Ashby)
     "ATCO",        # authoritative-total pagination (Phenom)
-    "Waymo",       # reviewed static HTML collection
+    "Waymo",       # validated Greenhouse complete-collection source
     "Microsoft",   # mutable paginated collection (Eightfold)
     "CN Rail",     # retained migration-suspected source
 )
 MAX_CANARIES = 6
 DEFAULT_REQUEST_BUDGET = 15
-MAX_REQUEST_BUDGET = 52
+STANDARD_MAX_REQUEST_BUDGET = 52
+SMARTRECRUITERS_BUDGET_MARGIN = 2
+REVIEWED_HIGH_VOLUME_SMARTRECRUITERS_TOTALS = {
+    "Wise": 403,
+    "ServiceNow": 708,
+}
+PRODUCTION_REGISTRY = ROOT / "config" / "target_companies.yaml"
+
+
+def smartrecruiters_canary_request_budget(total: int, page_size: int = 100) -> int:
+    """Budget one listing request per page, one detail per posting, and margin."""
+    listing_requests = (total + page_size - 1) // page_size
+    return total + listing_requests + SMARTRECRUITERS_BUDGET_MARGIN
+
+
+REVIEWED_HIGH_VOLUME_SMARTRECRUITERS_BUDGETS = {
+    company: smartrecruiters_canary_request_budget(total)
+    for company, total in REVIEWED_HIGH_VOLUME_SMARTRECRUITERS_TOTALS.items()
+}
+MAX_REQUEST_BUDGET = max(REVIEWED_HIGH_VOLUME_SMARTRECRUITERS_BUDGETS.values())
 
 
 class CanaryBudgetReached(RuntimeError):
@@ -62,10 +82,16 @@ class BoundedSession(requests.Session):
         return response
 
 
-def selected_targets(names: list[str]) -> list[Any]:
+def selected_targets(
+    names: list[str], registry: Path | None = None
+) -> list[Any]:
+    registry_path = (registry or PRODUCTION_REGISTRY).resolve()
     configured = {
         target.name.casefold(): target
-        for target in load_target_companies(apply_reliability_repairs=True)
+        for target in load_target_companies(
+            str(registry_path),
+            apply_reliability_repairs=registry_path == PRODUCTION_REGISTRY.resolve(),
+        )
     }
     selected: list[Any] = []
     missing: list[str] = []
@@ -94,6 +120,7 @@ def run_canary(target: Any, request_budget: int) -> dict[str, Any]:
         adapter = ADAPTERS[target.platform]
         jobs = adapter(session, target, 20)
         metadata = source_scan_metadata(session)
+        _record_job_integrity(metadata, jobs)
         _record_session_diagnostics(metadata, session, target)
         finalize_source_scan(
             metadata,
@@ -130,11 +157,14 @@ def run_canary(target: Any, request_budget: int) -> dict[str, Any]:
     except Exception as exc:
         metadata = source_scan_metadata(session)
         _record_session_diagnostics(metadata, session, target)
+        failure_code = f"{type(exc).__name__}: {exc}"
+        if metadata.get("source_identity_status") == "failed":
+            failure_code = f"identity failure: {failure_code}"
         finalize_source_scan(
             metadata,
             jobs_collected=int(metadata.get("jobs_normalized") or 0),
             failed=True,
-            failure_code=f"{type(exc).__name__}: {exc}",
+            failure_code=failure_code,
             activation_state=target.source_activation,
         )
         status = "failed"
@@ -147,10 +177,15 @@ def run_canary(target: Any, request_budget: int) -> dict[str, Any]:
         "platform": target.platform,
         "status": status,
         "canary_outcome": canary_outcome,
+        "scan_complete": metadata.get("scan_complete"),
         "scan_state": metadata.get("scan_state"),
         "source_health_code": metadata.get("source_health_code"),
         "scan_completeness_reason": metadata.get("scan_completeness_reason"),
         "stop_reason": metadata.get("stop_reason"),
+        "safety_limit_reached": metadata.get("safety_limit_reached"),
+        "collection_changed_during_scan": metadata.get(
+            "collection_changed_during_scan"
+        ),
         "jobs_collected": metadata.get("jobs_collected"),
         "valid_job_records_produced": bool(
             int(metadata.get("jobs_collected") or 0) > 0
@@ -204,11 +239,21 @@ def run_canary(target: Any, request_budget: int) -> dict[str, Any]:
         "final_host": metadata.get("final_host"),
         "redirect_count": session.last_redirect_count,
         "source_identity_status": metadata.get("source_identity_status"),
+        "configured_slug": target.slug,
         "configured_tenant": metadata.get("configured_tenant") or target.tenant,
         "configured_site": metadata.get("configured_site") or target.site_id,
         "source_identity_diagnostic": metadata.get("source_identity_diagnostic"),
+        "greenhouse_url_identity_failure": metadata.get(
+            "greenhouse_url_identity_failure"
+        ),
         "pagination_evidence_diagnostics": metadata.get(
             "pagination_evidence_diagnostics", []
+        ),
+        "pagination_evidence_conflicting": metadata.get(
+            "pagination_evidence_conflicting"
+        ),
+        "pagination_evidence_malformed": metadata.get(
+            "pagination_evidence_malformed"
         ),
         "diagnostics": metadata.get("diagnostics", []),
         "warnings": metadata.get("warnings", []),
@@ -216,6 +261,29 @@ def run_canary(target: Any, request_budget: int) -> dict[str, Any]:
         "request_budget": request_budget,
         "error": error,
     }
+
+
+def _record_job_integrity(metadata: dict[str, Any], jobs: list[Any]) -> None:
+    """Publish record identity evidence for adapters that validate it internally."""
+    if not all(hasattr(job, "job_id") and hasattr(job, "url") for job in jobs):
+        return
+    ids = [str(job.job_id or "").strip() for job in jobs]
+    urls = [str(job.url or "").strip() for job in jobs]
+    id_counts = Counter(ids)
+    url_counts = Counter(urls)
+    duplicate_ids = sorted(value for value, count in id_counts.items() if count > 1)
+    duplicate_urls = sorted(value for value, count in url_counts.items() if count > 1)
+    if any(not value for value in ids):
+        duplicate_ids.append("<missing>")
+    if any(not value for value in urls):
+        duplicate_urls.append("<missing>")
+    metadata.update(
+        jobs_normalized=len(jobs),
+        unique_stable_ids=len({value for value in ids if value}),
+        unique_canonical_urls=len({value for value in urls if value}),
+        duplicate_ids=duplicate_ids[:20],
+        duplicate_canonical_urls=duplicate_urls[:20],
+    )
 
 
 def _record_session_diagnostics(
@@ -321,6 +389,14 @@ def _incomplete_outcome(metadata: dict[str, Any]) -> str:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--company", action="append", dest="companies")
+    parser.add_argument(
+        "--registry",
+        type=Path,
+        help=(
+            "Explicit registry to canary. Omit to use the production registry "
+            "with reliability repairs."
+        ),
+    )
     parser.add_argument("--request-budget", type=int, default=DEFAULT_REQUEST_BUDGET)
     parser.add_argument("--run", action="store_true")
     return parser.parse_args(argv)
@@ -328,11 +404,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    if not 1 <= args.request_budget <= MAX_REQUEST_BUDGET:
-        raise ValueError(
-            f"--request-budget must be between 1 and {MAX_REQUEST_BUDGET}"
-        )
-    targets = selected_targets(args.companies or list(DEFAULT_CANARIES))
+    targets = selected_targets(
+        args.companies or list(DEFAULT_CANARIES), registry=args.registry
+    )
+    validate_request_budget(args.request_budget, targets)
     if not args.run:
         print(
             json.dumps(
@@ -358,6 +433,25 @@ def main(argv: list[str] | None = None) -> int:
         row["canary_outcome"] in {"PASS_COMPLETE", "PASS_PARTIAL"}
         for row in rows
     ) else 1
+
+
+def validate_request_budget(request_budget: int, targets: list[Any]) -> None:
+    if not 1 <= request_budget <= MAX_REQUEST_BUDGET:
+        raise ValueError(
+            f"--request-budget must be between 1 and {MAX_REQUEST_BUDGET}"
+        )
+    if request_budget <= STANDARD_MAX_REQUEST_BUDGET:
+        return
+    expected = (
+        REVIEWED_HIGH_VOLUME_SMARTRECRUITERS_BUDGETS.get(targets[0].name)
+        if len(targets) == 1 and targets[0].platform == "smartrecruiters"
+        else None
+    )
+    if expected is None or request_budget != expected:
+        raise ValueError(
+            "request budgets above 52 are allowed only for one reviewed "
+            "high-volume SmartRecruiters target at its calculated exact budget"
+        )
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@ from scripts import validate_original_master_recovery_batch_h as batch
 from scripts import refingerprint_uncovered_companies as reconciliation
 from tests.company_careers_reliability_assertions import with_reliability_repairs
 from src.scraper.company_careers.adapters import beesite, embedded_data, mcloud_cws
-from src.scraper.company_careers.models import AdapterError, CompanyTarget
+from src.scraper.company_careers.models import AdapterError, AdapterResult, CompanyTarget
 from src.scraper.company_careers.scanner import ADAPTERS
 
 
@@ -486,6 +486,8 @@ class MCloudAdapterTests(unittest.TestCase):
 
         session = Session()
         jobs = mcloud_cws.fetch_jobs(session, self.target(), 5)  # type: ignore[arg-type]
+        self.assertIsInstance(jobs, AdapterResult)
+        self.assertEqual(jobs.scan, session.mcloud_cws_pagination)  # type: ignore[attr-defined]
         self.assertEqual(1, len(jobs))
         self.assertEqual(["https://careers.example.com/", "https://api.example.com/api/job/search"], session.calls)
         self.assertTrue(session.mcloud_cws_pagination["identity_binding_verified"])  # type: ignore[attr-defined]

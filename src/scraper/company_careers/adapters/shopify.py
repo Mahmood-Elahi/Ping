@@ -23,6 +23,7 @@ from src.scraper.company_careers.models import (
     CompanyTarget,
     JobRecord,
     SourceScanMetadata,
+    explicit_adapter_result,
     publish_source_scan_metadata,
 )
 
@@ -41,6 +42,7 @@ STREAM_RE = re.compile(
 )
 
 
+@explicit_adapter_result
 def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 20) -> List[JobRecord]:
     if target.name != "Shopify" or target.platform != "shopify":
         raise AdapterError("Shopify adapter requires the exact Shopify target")

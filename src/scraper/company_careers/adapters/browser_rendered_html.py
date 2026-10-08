@@ -17,7 +17,13 @@ from urllib.parse import urlparse
 from lxml import html
 
 from src.scraper.company_careers.adapters import static_html
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
+from src.scraper.company_careers.models import (
+    AdapterError,
+    AdapterResult,
+    CompanyTarget,
+    JobRecord,
+    SourceScanMetadata,
+)
 from src.scraper.company_careers.listing_completion import ABSOLUTE_LISTING_JOB_CEILING
 
 
@@ -238,7 +244,9 @@ class BrowserBatch:
     def __exit__(self, *_: Any) -> None:
         self.close()
 
-    def fetch_jobs(self, target: CompanyTarget, timeout: Optional[int] = None) -> list[JobRecord]:
+    def fetch_jobs(
+        self, target: CompanyTarget, timeout: Optional[int] = None
+    ) -> AdapterResult:
         validate_target(target)
         if self._browser is None:
             raise AdapterError("Browser batch is not active")
@@ -249,7 +257,17 @@ class BrowserBatch:
             context.route("**/*", _route_resources)
             page = context.new_page()
             rendered_session = _RenderedSession(page, target, timeout or self.timeout)
-            jobs = static_html.fetch_jobs(rendered_session, _static_target(target), timeout or self.timeout)
+            static_output = static_html.fetch_jobs(
+                rendered_session, _static_target(target), timeout or self.timeout
+            )
+            if isinstance(static_output, AdapterResult):
+                jobs = list(static_output.jobs)
+                static_metadata = static_output.scan
+            else:
+                jobs = list(static_output)
+                static_metadata = SourceScanMetadata.from_value(
+                    getattr(rendered_session, "static_html_pagination", {})
+                )
             if len(jobs) > ABSOLUTE_LISTING_JOB_CEILING:
                 raise AdapterError("Browser-rendered normalized job hard limit exceeded")
             for job in jobs:
@@ -263,9 +281,9 @@ class BrowserBatch:
                 "rendered_bytes": rendered_session.rendered_bytes,
                 "rendered_urls": list(rendered_session.rendered_urls),
                 "jobs_normalized": len(jobs),
-                "static_parser": getattr(rendered_session, "static_html_pagination", {}),
+                "static_parser": static_metadata,
             }
-            return jobs
+            return AdapterResult(jobs=jobs, scan=static_metadata)
         finally:
             try:
                 if page is not None:
@@ -275,7 +293,11 @@ class BrowserBatch:
                     context.close()
 
 
-def fetch_jobs(_session: Any, target: CompanyTarget, timeout: int = MAX_TIMEOUT_SECONDS) -> list[JobRecord]:
+def fetch_jobs(
+    _session: Any,
+    target: CompanyTarget,
+    timeout: int = MAX_TIMEOUT_SECONDS,
+) -> AdapterResult:
     """Compatibility entry point; batch callers should reuse :class:`BrowserBatch`."""
     with BrowserBatch(timeout=timeout) as batch:
         return batch.fetch_jobs(target, timeout)

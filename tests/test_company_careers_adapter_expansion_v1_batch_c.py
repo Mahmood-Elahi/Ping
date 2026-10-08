@@ -14,7 +14,7 @@ from scripts.refingerprint_uncovered_companies import load_master_workbook, reco
 from scripts import validate_company_registry as registry_validator
 from src.scraper.company_careers import scanner
 from src.scraper.company_careers.adapters import adp, hibob, sap_successfactors
-from src.scraper.company_careers.models import AdapterError, CompanyTarget
+from src.scraper.company_careers.models import AdapterError, AdapterResult, CompanyTarget
 from src.scraper.company_careers.parent_sources import load_parent_source_mappings
 from src.scraper.company_careers.registry import load_target_companies
 
@@ -335,6 +335,8 @@ class AdpAdapterTests(unittest.TestCase):
             ]
         )
         jobs = adp.fetch_jobs(session, wfn_target())
+        self.assertIsInstance(jobs, AdapterResult)
+        self.assertEqual(jobs.scan, session.adp_pagination)
         self.assertEqual(len(jobs), 1)
         self.assertEqual(jobs[0].title, "Systems Intern")
         self.assertEqual(jobs[0].location, "Calgary, AB, Canada")
@@ -646,6 +648,8 @@ class AdpAdapterTests(unittest.TestCase):
             Response({"count": 1, "jobRequisitions": [myjobs_item()]}),
         ])
         jobs = adp.fetch_jobs(session, myjobs_target())
+        self.assertIsInstance(jobs, AdapterResult)
+        self.assertEqual(jobs.scan, session.adp_pagination)
         self.assertEqual(jobs[0].job_id, "adp:org123456:5000000000001")
         self.assertEqual(jobs[0].location, "Calgary, AB, Canada")
         self.assertIn("reqId=5000000000001", jobs[0].url)

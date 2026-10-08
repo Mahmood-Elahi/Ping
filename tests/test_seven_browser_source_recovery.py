@@ -33,7 +33,7 @@ RECOVERED = {
     "ByteDance": "first_party_json",
 }
 UNRESOLVED = {
-    "ASML",
+    "Stantec",
 }
 
 
@@ -123,7 +123,7 @@ class SevenBrowserSourceRecoveryTests(unittest.TestCase):
             for target in representative_targets()
             if target.platform == "browser_rendered_html"
         }
-        self.assertEqual(browser_representatives, {"ASML"})
+        self.assertEqual(browser_representatives, {"Stantec"})
 
     def test_figure_ai_uses_retained_exact_greenhouse_board_and_complete_response(self):
         target = configured_targets()["Figure AI"]
@@ -218,14 +218,12 @@ class SevenBrowserSourceRecoveryTests(unittest.TestCase):
         self.assertEqual(metadata["scan_state"], "complete")
 
     def test_one_render_without_pagination_is_not_terminal_evidence(self):
-        target = configured_targets()["ASML"]
+        target = configured_targets()["Stantec"]
         target = replace(target, pagination_url_template=None, max_pages=1)
         body = (
-            "<!doctype html><html><head><title>ASML careers</title></head><body>"
-            "<a class='search-results__item' href='/en/careers/find-your-job/engineer-j1'>"
-            "<h3 class='search-results-title-text'>Engineer</h3>"
-            "<ul class='search-results__fields'><li>Veldhoven</li>"
-            "<li>Engineering</li></ul></a>"
+            "<!doctype html><html><head><title>Stantec careers</title></head><body>"
+            "<main><a href='/en/job/0123456789ABCDEF0123456789ABCDEF/job'>"
+            "<h2>Engineer</h2><p>Engineering</p><p>Calgary</p></a></main>"
             "</body></html>"
         )
         session = Mock()

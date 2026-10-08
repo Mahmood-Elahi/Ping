@@ -16,6 +16,7 @@ from src.scraper.company_careers.models import (
     CompanyTarget,
     JobRecord,
     SourceScanMetadata,
+    explicit_adapter_result,
     publish_source_scan_metadata,
 )
 from src.scraper.company_careers.listing_completion import (
@@ -53,6 +54,7 @@ DESCRIPTORS = [
 ]
 
 
+@explicit_adapter_result
 def fetch_jobs(
     session: requests.Session, target: CompanyTarget, timeout: int = 20
 ) -> list[JobRecord]:

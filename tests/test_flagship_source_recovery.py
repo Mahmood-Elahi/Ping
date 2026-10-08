@@ -4,7 +4,7 @@ import unittest
 
 from scripts.validate_company_registry import source_key
 from src.scraper.company_careers import scanner
-from src.scraper.company_careers.adapters import apple
+from src.scraper.company_careers.adapters import apple, greenhouse
 from src.scraper.company_careers.parent_sources import load_parent_source_mappings
 from src.scraper.company_careers.registry import load_target_companies
 
@@ -40,11 +40,16 @@ class FlagshipSourceRecoveryRegressionTests(unittest.TestCase):
         self.assertEqual(target.allowed_apply_hosts, ["jobs.apple.com"])
         self.assertIs(scanner.ADAPTERS["apple"], apple.fetch_jobs)
 
-    def test_waymo_and_spacex_keep_existing_validated_adapters(self):
+    def test_waymo_and_spacex_use_validated_greenhouse_adapters(self):
         waymo = self.effective_by_name["Waymo"]
-        self.assertEqual(waymo.platform, "static_html")
-        self.assertEqual(waymo.listing_url, "https://careers.withwaymo.com/jobs/search")
+        self.assertEqual((waymo.platform, waymo.slug), ("greenhouse", "waymo"))
+        self.assertEqual(waymo.endpoint_variant, greenhouse.STRICT_BOARD_VARIANT)
         self.assertEqual(waymo.allowed_apply_hosts, ["careers.withwaymo.com"])
+        self.assertEqual(
+            waymo.apply_url_template,
+            "https://careers.withwaymo.com/jobs?gh_jid={id}",
+        )
+        self.assertIs(scanner.ADAPTERS["greenhouse"], greenhouse.fetch_jobs)
         spacex = self.effective_by_name["SpaceX"]
         self.assertEqual((spacex.platform, spacex.slug), ("greenhouse", "spacex"))
         self.assertEqual(spacex.allowed_apply_hosts, ["boards.greenhouse.io"])

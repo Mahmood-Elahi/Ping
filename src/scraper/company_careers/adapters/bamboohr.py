@@ -14,6 +14,7 @@ from src.scraper.company_careers.models import (
     CompanyTarget,
     JobRecord,
     SourceScanMetadata,
+    explicit_adapter_result,
     publish_source_scan_metadata,
 )
 from src.scraper.company_careers.listing_completion import (
@@ -33,6 +34,7 @@ SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$", re.IGNORECASE)
 ID_RE = re.compile(r"^[1-9][0-9]*$")
 
 
+@explicit_adapter_result
 def fetch_jobs(
     session: requests.Session,
     target: CompanyTarget,

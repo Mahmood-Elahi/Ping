@@ -19,6 +19,7 @@ from src.scraper.company_careers.models import (
     CompanyTarget,
     JobRecord,
     SourceScanMetadata,
+    explicit_adapter_result,
     publish_source_scan_metadata,
 )
 from src.scraper.company_careers.listing_completion import (
@@ -83,6 +84,7 @@ def _failure(code: str, message: str) -> AdapterError:
     return AdapterError(f"Static source {code}: {message}")
 
 
+@explicit_adapter_result
 def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 60) -> list[JobRecord]:
     """Fetch a deterministic HTML listing without browser or session state."""
     validate_target(target)
