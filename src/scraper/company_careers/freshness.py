@@ -248,6 +248,7 @@ def reconcile_lifecycle(
     previous_state: Mapping[str, Any],
     *,
     complete_companies: Iterable[str],
+    protected_source_keys: Iterable[str] = (),
     as_of: datetime,
     config: FreshnessConfig,
     first_seen_basis: str = "observed_at_scan",
@@ -268,6 +269,9 @@ def reconcile_lifecycle(
         incoming[source_key] = values
 
     complete = {_normalize_company(value) for value in complete_companies if str(value).strip()}
+    protected = {
+        str(value).strip() for value in protected_source_keys if str(value).strip()
+    }
     state_jobs: dict[str, dict[str, Any]] = {}
     transitions: list[dict[str, Any]] = []
     failures: list[dict[str, str]] = []
@@ -340,6 +344,12 @@ def reconcile_lifecycle(
     for source_key in sorted(set(prior_jobs) - current_keys):
         entry = _canonical_entry(prior_jobs[source_key], source_key)
         transition: Optional[str] = None
+        if source_key in protected:
+            # Listing presence is not hydration success. Preserve the prior
+            # record verbatim instead of refreshing descriptive fields or
+            # advancing absence state.
+            state_jobs[source_key] = entry
+            continue
         if _normalize_company(entry["company"]) in complete and entry["lifecycle_status"] != REMOVED:
             entry["missing_scan_count"] += 1
             if entry["missing_scan_count"] >= config.removal.consecutive_complete_scans:
@@ -510,6 +520,11 @@ class FreshnessRuntime:
         self.result = reconcile_lifecycle(
             report.normalized_jobs, self.previous_state,
             complete_companies=complete_companies, as_of=self.as_of,
+            protected_source_keys={
+                key
+                for keys in report.protected_source_keys_by_company().values()
+                for key in keys
+            },
             config=self.config, first_seen_basis=self.first_seen_basis,
         )
         self.annotations.clear()

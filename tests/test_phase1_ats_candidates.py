@@ -256,16 +256,14 @@ def test_custom_greenhouse_production_requires_exact_path_and_query_ids() -> Non
 
 
 def test_reviewed_high_volume_smartrecruiters_budgets_are_exact_and_scoped() -> None:
-    assert canaries.smartrecruiters_canary_request_budget(403) == 410
-    assert canaries.smartrecruiters_canary_request_budget(708) == 718
+    assert canaries.smartrecruiters_canary_request_budget(403) == 5
+    assert canaries.smartrecruiters_canary_request_budget(708) == 8
     wise = SimpleNamespace(name="Wise", platform="smartrecruiters")
     service_now = SimpleNamespace(name="ServiceNow", platform="smartrecruiters")
-    canaries.validate_request_budget(410, [wise])
-    canaries.validate_request_budget(718, [service_now])
-    with pytest.raises(ValueError, match="one reviewed high-volume"):
-        canaries.validate_request_budget(409, [wise])
-    with pytest.raises(ValueError, match="one reviewed high-volume"):
-        canaries.validate_request_budget(718, [wise, service_now])
+    canaries.validate_request_budget(5, [wise])
+    canaries.validate_request_budget(8, [service_now])
+    with pytest.raises(ValueError, match="between 1 and 52"):
+        canaries.validate_request_budget(53, [service_now])
 
 
 def test_phase1_rejected_replacements_remain_on_first_party_sources() -> None:

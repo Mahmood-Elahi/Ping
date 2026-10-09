@@ -12,7 +12,10 @@ import requests
 from src.scraper.company_careers.adapters import static_html
 from src.scraper.company_careers.models import (
     AdapterError,
+    AdapterResult,
     CompanyTarget,
+    InventoryItem,
+    ItemFailure,
     JobRecord,
     SourceScanMetadata,
     explicit_adapter_result,
@@ -59,7 +62,7 @@ def validate_target(target: CompanyTarget) -> None:
 @explicit_adapter_result
 def fetch_jobs(
     session: requests.Session, target: CompanyTarget, timeout: int = 60
-) -> list[JobRecord]:
+) -> AdapterResult:
     """Resolve the public ItemList into bounded public JobPosting detail pages."""
     validate_target(target)
     timeout = min(max(1, int(timeout)), static_html.MAX_TIMEOUT_SECONDS)
@@ -91,6 +94,7 @@ def fetch_jobs(
     canonical = str(organization.get("url") or "").rstrip("/")
     if canonical != str(target.listing_url).rstrip("/"):
         raise AdapterError("Deel organization URL does not match the configured tenant")
+    metadata["source_identity_status"] = "validated"
     item_list = _one_type(documents, "ItemList", "listing")
     elements = item_list.get("itemListElement")
     if not isinstance(elements, list):
@@ -102,7 +106,11 @@ def fetch_jobs(
         metadata["stop_reason"] = "validated_zero_jobs"
         metadata["scan_complete"] = True
         metadata["scan_completeness_reason"] = "complete_item_list"
-        return []
+        return AdapterResult(
+            jobs=[],
+            scan=metadata,
+            capabilities_used=frozenset({"inventory", "hydration", "per_item_failure"}),
+        )
 
     detail_urls: list[tuple[str, str]] = []
     for index, element in enumerate(elements, start=1):
@@ -116,14 +124,48 @@ def fetch_jobs(
     if len({job_id for _, job_id in detail_urls}) != len(detail_urls):
         raise AdapterError("Deel ItemList contains duplicate stable IDs")
 
+    inventory_items = tuple(
+        InventoryItem(
+            f"deel:{target.tenant}:{job_id}",
+            f"deel:{target.tenant}",
+        )
+        for _url, job_id in detail_urls
+    )
     jobs: list[JobRecord] = []
+    item_failures: list[ItemFailure] = []
     for url, job_id in detail_urls[:maximum_jobs]:
-        detail_response = static_html._get(session, url, timeout)
-        detail_content = static_html._response_bytes(detail_response, target)
-        detail_root = static_html._parse_html(detail_content, detail_response)
-        posting = _one_type(_json_ld(detail_root, detail_content), "JobPosting", "detail")
-        jobs.append(_normalize(posting, target, organization_name, url, job_id))
-        metadata["detail_pages_fetched"] += 1
+        inventory_id = f"deel:{target.tenant}:{job_id}"
+        try:
+            detail_response = static_html._get(session, url, timeout)
+            detail_content = static_html._response_bytes(detail_response, target)
+            detail_root = static_html._parse_html(detail_content, detail_response)
+            posting = _one_type(
+                _json_ld(detail_root, detail_content), "JobPosting", "detail"
+            )
+            jobs.append(_normalize(posting, target, organization_name, url, job_id))
+            metadata["detail_pages_fetched"] += 1
+        except requests.RequestException as exc:
+            item_failures.append(
+                ItemFailure(
+                    inventory_id,
+                    f"{exc.__class__.__name__}: {exc}",
+                    retryable=True,
+                )
+            )
+        except AdapterError as exc:
+            reason = str(exc)
+            retryable = bool(
+                re.search(r"HTTP (408|425|429|500|502|503|504)\b", reason)
+                or "attempts exhausted" in reason.casefold()
+            )
+            item_failures.append(
+                ItemFailure(
+                    inventory_id,
+                    reason,
+                    retryable=retryable,
+                    outcome="unreadable" if retryable else "rejected",
+                )
+            )
     metadata["jobs_normalized"] = len(jobs)
     metadata["stop_reason"] = (
         "maximum_results_reached" if len(elements) > maximum_jobs else "collection_exhausted"
@@ -134,7 +176,23 @@ def fetch_jobs(
     else:
         metadata["scan_complete"] = True
         metadata["scan_completeness_reason"] = "complete_item_list"
-    return jobs
+    metadata.update(
+        unreadable_items=sum(
+            failure.outcome == "unreadable" for failure in item_failures
+        ),
+        rejected_items=sum(
+            failure.outcome == "rejected" for failure in item_failures
+        ),
+    )
+    return AdapterResult(
+        jobs=jobs,
+        scan=metadata,
+        inventory_items=inventory_items,
+        item_failures=tuple(item_failures),
+        capabilities_used=frozenset(
+            {"inventory", "hydration", "per_item_failure"}
+        ),
+    )
 
 
 def _json_ld(root: Any, content: bytes) -> list[dict[str, Any]]:

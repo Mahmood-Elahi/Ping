@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import requests
 import yaml
 
 from tests.company_careers_reliability_assertions import assert_historical_prefix
@@ -72,7 +73,10 @@ class Session:
         self.calls.append(("get", url, kwargs))
         if not self.responses:
             raise AssertionError("Unexpected request")
-        return self.responses.pop(0)
+        value = self.responses.pop(0)
+        if isinstance(value, BaseException):
+            raise value
+        return value
 
     def post(self, url, **kwargs):
         self.calls.append(("post", url, kwargs))
@@ -405,6 +409,24 @@ class PaycorAdapterTests(unittest.TestCase):
         self.assertEqual(metadata["stop_reason"], "maximum_results_reached")
         self.assertEqual(metadata["total_available"], 2)
 
+    @patch.object(paycor.time, "sleep", return_value=None)
+    def test_transient_detail_failure_protects_prior_id_without_placeholder(self, _sleep):
+        result = paycor.fetch_jobs(
+            Session(
+                [
+                    paycor_page(),
+                    requests.Timeout("detail timed out"),
+                    requests.Timeout("detail timed out"),
+                ]
+            ),
+            paycor_target(),
+        )
+
+        self.assertEqual(result.jobs, [])
+        self.assertEqual(result.inventory_items[0].item_id, PAYCOR_JOB)
+        self.assertEqual(result.item_failures[0].outcome, "unreadable")
+        self.assertTrue(result.scan["scan_complete"])
+
     def test_cross_client_unstable_identity_and_captcha_fail_closed(self):
         with self.assertRaisesRegex(AdapterError, "cross-client"):
             paycor.fetch_jobs(Session([paycor_page(job_id="not-stable")]), paycor_target())
@@ -443,6 +465,24 @@ class PeopleSoftAdapterTests(unittest.TestCase):
         self.assertEqual(metadata["final_host"], "www.calgary.ca")
         self.assertTrue(metadata["host_remained_approved"])
         self.assertEqual(metadata["source_identity_status"], "validated")
+
+    @patch.object(peoplesoft.time, "sleep", return_value=None)
+    def test_transient_detail_failure_protects_prior_id_without_placeholder(self, _sleep):
+        result = peoplesoft.fetch_jobs(
+            Session(
+                [
+                    peoplesoft_listing(),
+                    requests.Timeout("detail timed out"),
+                    requests.Timeout("detail timed out"),
+                ]
+            ),
+            peoplesoft_target(),
+        )
+
+        self.assertEqual(result.jobs, [])
+        self.assertEqual(result.inventory_items[0].item_id, PEOPLESOFT_JOB)
+        self.assertEqual(result.item_failures[0].outcome, "unreadable")
+        self.assertTrue(result.scan["scan_complete"])
 
     def test_unrelated_listing_redirect_and_http_downgrade_fail_closed(self):
         for final_url in (

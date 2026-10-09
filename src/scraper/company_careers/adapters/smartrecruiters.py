@@ -13,7 +13,10 @@ import requests
 
 from src.scraper.company_careers.models import (
     AdapterError,
+    AdapterResult,
     CompanyTarget,
+    InventoryItem,
+    ItemFailure,
     JobRecord,
     SourceScanMetadata,
     explicit_adapter_result,
@@ -41,6 +44,9 @@ MAX_RESULTS = MAX_PAGES * MAX_PAGE_SIZE
 MAX_TIMEOUT_SECONDS = 30
 MAX_RESPONSE_BYTES = 5_000_000
 PAGE_DELAY_SECONDS = 0.2
+MAX_HYDRATION_ATTEMPTS = 2
+HYDRATION_RETRY_DELAY_SECONDS = 0.2
+TRANSIENT_HYDRATION_STATUSES = {403, 408, 425, 429, 500, 502, 503, 504}
 IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{1,99}$")
 # SmartRecruiters' public v1 API currently returns both legacy shorter numeric
 # IDs and newer longer numeric IDs.  The ID must still be an all-numeric,
@@ -64,8 +70,8 @@ def fetch_jobs(
     session: requests.Session,
     target: CompanyTarget,
     timeout: int = 20,
-) -> list[JobRecord]:
-    """Fetch a bounded prefix and corroborate every row with its detail record."""
+) -> AdapterResult:
+    """Enumerate authoritative inventory, then optionally hydrate details."""
     validate_target(target)
     timeout = min(MAX_TIMEOUT_SECONDS, max(1, int(timeout)))
     return fetch_with_mutation_restart(
@@ -77,7 +83,7 @@ def _fetch_jobs_once(
     session: requests.Session,
     target: CompanyTarget,
     timeout: int,
-) -> list[JobRecord]:
+) -> AdapterResult:
     """Traverse one SmartRecruiters snapshot without unioning mutable pages."""
     max_pages = max(1, int(target.max_pages))
     configured_page_size = max(1, int(target.page_size))
@@ -87,7 +93,7 @@ def _fetch_jobs_once(
     requested_limit = min(MAX_RESULTS, max(1, int(target.max_jobs)))
     endpoint = str(target.endpoint_url)
     identifier = str(target.slug)
-    jobs: list[JobRecord] = []
+    listings: list[tuple[str, Mapping[str, Any], str]] = []
     seen_ids: set[str] = set()
     observed_total: int | None = None
 
@@ -99,7 +105,8 @@ def _fetch_jobs_once(
         maximum_results=requested_limit,
         pages=[],
         jobs_normalized=0,
-        detail_requests_coupled=True,
+        detail_requests_coupled=False,
+        inventory_hydration_separated=True,
     )
     setattr(session, "smartrecruiters_pagination", metadata)
     initialize_mutable_collection(metadata)
@@ -107,7 +114,7 @@ def _fetch_jobs_once(
 
     try:
         for page_index in range(max_pages):
-            if len(jobs) >= requested_limit:
+            if len(listings) >= requested_limit:
                 _mark_safety_limit(metadata, "maximum_results_reached")
                 break
             offset = page_index * page_size
@@ -144,7 +151,7 @@ def _fetch_jobs_once(
                 )
                 break
 
-            normalized_on_page = 0
+            inventory_on_page = 0
             page_ids: set[str] = set()
             page_overlap = 0
             for item in content:
@@ -160,13 +167,10 @@ def _fetch_jobs_once(
                     page_overlap += 1
                     continue
                 detail_ref = _detail_ref(item.get("ref"), identifier, list_id)
-                detail_response = session.get(detail_ref, headers=HEADERS, timeout=timeout)
-                detail = _parse_response(detail_response, f"posting detail {list_id}")
-                job = _normalize(detail, item, target, identifier, detail_ref)
                 seen_ids.add(list_id)
-                jobs.append(job)
-                normalized_on_page += 1
-                if len(jobs) >= requested_limit:
+                listings.append((list_id, item, detail_ref))
+                inventory_on_page += 1
+                if len(listings) >= requested_limit:
                     break
 
             if page_overlap:
@@ -178,11 +182,11 @@ def _fetch_jobs_once(
                 {
                     "offset": offset,
                     "jobs_returned": len(content),
-                    "jobs_normalized": normalized_on_page,
+                    "inventory_items": inventory_on_page,
                     "reported_total": total,
                 }
             )
-            metadata["jobs_normalized"] = len(jobs)
+            metadata["inventory_items_collected"] = len(listings)
             metadata["pages_fetched"] = len(metadata["pages"])
 
             if page_overlap:
@@ -191,32 +195,198 @@ def _fetch_jobs_once(
                 )
                 break
 
-            if len(jobs) == total:
-                finish_authoritative_total(metadata, total, len(jobs))
+            if len(listings) == total:
+                finish_authoritative_total(metadata, total, len(listings))
                 break
-            if len(jobs) >= requested_limit:
+            if len(listings) >= requested_limit:
                 _mark_safety_limit(metadata, "maximum_results_reached")
                 break
             if page_index + 1 < max_pages:
                 time.sleep(PAGE_DELAY_SECONDS)
         else:
             _mark_safety_limit(metadata, "maximum_pages_reached")
-    except (AdapterError, requests.RequestException):
+    except requests.RequestException:
+        metadata["stop_reason"] = "request_failure"
+        metadata["scan_completeness_reason"] = "pagination_failure"
+        if not listings:
+            raise
+    except AdapterError:
         if metadata["stop_reason"] == "not_started":
             metadata["stop_reason"] = "adapter_failure"
             metadata["scan_completeness_reason"] = "adapter_failure"
         raise
 
-    if jobs:
+    if listings:
         metadata.update(
             source_identity_status="validated",
             source_identity_diagnostic=(
-                "Every normalized listing and detail row matched the configured "
-                "company identifier/name and an exact official apply URL"
+                "Every listing row matched the configured company identifier/name, "
+                "a stable posting ID, and the exact company-scoped detail endpoint"
+            ),
+        )
+    elif metadata.get("scan_complete"):
+        metadata.update(
+            source_identity_status="validated",
+            source_identity_diagnostic=(
+                "The exact configured company endpoint returned a validated empty "
+                "SmartRecruiters collection contract"
             ),
         )
 
-    return jobs
+    inventory_items = tuple(
+        InventoryItem(item_id, f"smartrecruiters:{identifier.casefold()}")
+        for item_id, _item, _detail_ref_value in listings
+    )
+    jobs: list[JobRecord] = []
+    item_failures: list[ItemFailure] = []
+    detail_requests = 0
+    if target.selective_detail_enrichment and metadata.get("scan_complete"):
+        for item_id, item, detail_ref in listings:
+            job, failure, attempts = _hydrate_listing(
+                session, item, target, identifier, item_id, detail_ref, timeout
+            )
+            detail_requests += attempts
+            if job is not None:
+                jobs.append(job)
+            if failure is not None:
+                item_failures.append(failure)
+    else:
+        for item_id, item, _detail_ref_value in listings:
+            try:
+                jobs.append(_normalize_listing(item, target, identifier, item_id))
+            except AdapterError as exc:
+                item_failures.append(
+                    ItemFailure(
+                        item_id=item_id,
+                        reason=str(exc),
+                        stage="normalization",
+                        outcome="rejected",
+                    )
+                )
+    metadata.update(
+        jobs_normalized=len(jobs),
+        detail_requests_planned=(
+            len(listings) if target.selective_detail_enrichment else 0
+        ),
+        detail_requests=detail_requests,
+        unreadable_items=sum(
+            failure.outcome == "unreadable" for failure in item_failures
+        ),
+        rejected_items=sum(
+            failure.outcome == "rejected" for failure in item_failures
+        ),
+    )
+    publish_source_scan_metadata(session, metadata)
+    return AdapterResult(
+        jobs=jobs,
+        scan=metadata,
+        inventory_items=inventory_items,
+        item_failures=tuple(item_failures),
+        capabilities_used=frozenset(
+            {"inventory", "partial_progress", "per_item_failure"}
+            | ({"hydration"} if target.selective_detail_enrichment else set())
+        ),
+    )
+
+
+def _hydrate_listing(
+    session: requests.Session,
+    listing: Mapping[str, Any],
+    target: CompanyTarget,
+    identifier: str,
+    item_id: str,
+    detail_ref: str,
+    timeout: int,
+) -> tuple[JobRecord | None, ItemFailure | None, int]:
+    """Hydrate one listed item without converting detail failure into absence."""
+    for attempt in range(MAX_HYDRATION_ATTEMPTS):
+        try:
+            response = session.get(detail_ref, headers=HEADERS, timeout=timeout)
+        except requests.RequestException as exc:
+            if attempt + 1 < MAX_HYDRATION_ATTEMPTS:
+                time.sleep(HYDRATION_RETRY_DELAY_SECONDS)
+                continue
+            return None, ItemFailure(
+                item_id=item_id,
+                reason=f"{exc.__class__.__name__}: {exc}",
+                retryable=True,
+            ), attempt + 1
+        status = getattr(response, "status_code", None)
+        if status in TRANSIENT_HYDRATION_STATUSES:
+            if attempt + 1 < MAX_HYDRATION_ATTEMPTS:
+                time.sleep(HYDRATION_RETRY_DELAY_SECONDS)
+                continue
+            return None, ItemFailure(
+                item_id=item_id,
+                reason=f"SmartRecruiters transient detail HTTP {status}",
+                retryable=True,
+            ), attempt + 1
+        try:
+            detail = _parse_response(response, f"posting detail {item_id}")
+            return (
+                _normalize(detail, listing, target, identifier, detail_ref),
+                None,
+                attempt + 1,
+            )
+        except AdapterError as exc:
+            reason = str(exc)
+            deterministic = any(
+                marker in reason.casefold()
+                for marker in (
+                    "does not match",
+                    "crossed company",
+                    "mixed or ambiguous",
+                    "official job-specific apply",
+                    "reference changed",
+                    "stable numeric id",
+                )
+            )
+            return None, ItemFailure(
+                item_id=item_id,
+                reason=reason,
+                stage="normalization" if deterministic else "hydration",
+                retryable=False,
+                outcome="rejected" if deterministic else "unreadable",
+            ), attempt + 1
+    raise AssertionError("bounded SmartRecruiters hydration loop exhausted")
+
+
+def _normalize_listing(
+    listing: Mapping[str, Any],
+    target: CompanyTarget,
+    identifier: str,
+    job_id: str,
+) -> JobRecord:
+    """Normalize the fields guaranteed by the public inventory contract."""
+    title = _clean(listing.get("name"))
+    if not title:
+        raise AdapterError("SmartRecruiters listing is missing its title")
+    location = _location(listing.get("location"))
+    department = _label(listing.get("department"))
+    function = _label(listing.get("function"))
+    apply_url = f"https://{APPLY_HOST}/{identifier}/{job_id}"
+    return JobRecord(
+        job_id=job_id,
+        title=title,
+        company=target.name,
+        location=location,
+        url=apply_url,
+        updated_at=_iso_date(listing.get("releasedDate")),
+        source=f"smartrecruiters:{identifier.casefold()}",
+        departments=_unique([department, function]),
+        offices=[location] if location else [],
+        raw_metadata={
+            "platform": "smartrecruiters",
+            "endpoint_variant": ENDPOINT_VARIANT,
+            "company_identifier": identifier,
+            "company_name": _clean((listing.get("company") or {}).get("name")),
+            "detail_url": apply_url,
+            "apply_url": apply_url,
+            "api_detail_url": _detail_ref(listing.get("ref"), identifier, job_id),
+            "ref_number": _clean(listing.get("refNumber")),
+            "hydration": "inventory_only",
+        },
+    )
 
 
 def _mark_safety_limit(metadata: SourceScanMetadata, stop_reason: str) -> None:

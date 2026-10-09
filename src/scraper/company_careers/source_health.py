@@ -22,6 +22,8 @@ class SourceScanState(str, Enum):
 
 class SourceHealthCode(str, Enum):
     HEALTHY = "healthy"
+    HYDRATION_DEGRADED = "hydration_degraded"
+    COOLDOWN_SKIPPED = "cooldown_skipped"
     SOURCE_UNREACHABLE = "source_unreachable"
     SOURCE_STALE = "source_stale"
     SOURCE_MIGRATION_SUSPECTED = "source_migration_suspected"
@@ -67,6 +69,9 @@ def finalize_source_scan(
     metadata: MutableMapping[str, Any],
     *,
     jobs_collected: int,
+    inventory_items_collected: int | None = None,
+    unreadable_items: int = 0,
+    rejected_items: int = 0,
     failed: bool = False,
     failure_code: str | None = None,
     activation_state: str = "active",
@@ -79,7 +84,19 @@ def finalize_source_scan(
     consumers should persist and inspect.
     """
     jobs_collected = max(0, int(jobs_collected))
+    inventory_count = (
+        jobs_collected
+        if inventory_items_collected is None
+        else max(0, int(inventory_items_collected))
+    )
+    unreadable_items = max(0, int(unreadable_items))
+    rejected_items = max(0, int(rejected_items))
     metadata["jobs_collected"] = jobs_collected
+    metadata["inventory_items_collected"] = inventory_count
+    metadata["hydrated_items"] = jobs_collected
+    metadata["unreadable_items"] = unreadable_items
+    metadata["rejected_items"] = rejected_items
+    metadata["hydration_complete"] = not (unreadable_items or rejected_items)
     metadata["source_activation_state"] = str(activation_state or "active")
     original_complete = bool(metadata.get("scan_complete"))
     original_reason = str(metadata.get("scan_completeness_reason") or "")
@@ -98,12 +115,24 @@ def finalize_source_scan(
         )
         if metadata["source_health_code"] == SourceHealthCode.IDENTITY_FAILURE.value:
             metadata["source_identity_status"] = "failed"
+        metadata["inventory_complete"] = False
         return metadata
 
     _normalize_started_stop_reason(metadata, jobs_collected)
-    _normalize_legacy_terminal_evidence(metadata, jobs_collected)
-    _reconcile_provisional_terminal(metadata, jobs_collected)
-    code = _completion_contradiction(metadata, jobs_collected)
+    _normalize_legacy_terminal_evidence(metadata, inventory_count)
+    _reconcile_provisional_terminal(metadata, inventory_count)
+    code = _completion_contradiction(metadata, inventory_count)
+    if (
+        code is None
+        and metadata.get("scan_complete")
+        and (unreadable_items or rejected_items)
+        and str(metadata.get("source_identity_status") or "").casefold()
+        not in {"validated", "verified"}
+    ):
+        code = SourceHealthCode.IDENTITY_FAILURE
+        metadata["scan_complete"] = False
+        metadata["scan_completeness_reason"] = code.value
+        metadata["stop_reason"] = code.value
     if str(activation_state or "active").casefold() != "active":
         code = code or SourceHealthCode.PAGINATION_UNPROVEN
         metadata["scan_complete"] = False
@@ -132,13 +161,19 @@ def finalize_source_scan(
 
     if metadata.get("scan_complete"):
         metadata["scan_state"] = SourceScanState.COMPLETE.value
-        metadata["source_health_code"] = SourceHealthCode.HEALTHY.value
+        metadata["source_health_code"] = (
+            SourceHealthCode.HYDRATION_DEGRADED.value
+            if unreadable_items or rejected_items
+            else SourceHealthCode.HEALTHY.value
+        )
+        metadata["inventory_complete"] = True
         # Independently proven terminal evidence supersedes a coincident budget.
         metadata["safety_limit_reached"] = False
     else:
         metadata["scan_state"] = SourceScanState.INCOMPLETE.value
+        metadata["inventory_complete"] = False
         metadata["source_health_code"] = (
-            code or _incomplete_health_code(metadata, jobs_collected)
+            code or _incomplete_health_code(metadata, inventory_count)
         ).value
     return metadata
 
@@ -262,6 +297,8 @@ def _completion_contradiction(
     metadata: MutableMapping[str, Any], jobs_collected: int
 ) -> SourceHealthCode | None:
     reason = str(metadata.get("stop_reason") or "").casefold()
+    if str(metadata.get("source_identity_status") or "").casefold() == "failed":
+        return SourceHealthCode.IDENTITY_FAILURE
     if metadata.get("collection_changed_during_scan") or metadata.get(
         "total_count_changed"
     ):

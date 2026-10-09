@@ -12,7 +12,10 @@ import requests
 from src.scraper.company_careers.models import (
     ADAPTER_SAFETY_BUDGET_DEFAULTS,
     AdapterError,
+    AdapterResult,
     CompanyTarget,
+    InventoryItem,
+    ItemFailure,
     JobRecord,
     SourceScanMetadata,
     explicit_adapter_result,
@@ -42,12 +45,14 @@ def fetch_jobs(
     session: requests.Session,
     target: CompanyTarget,
     timeout: int = 20,
-) -> List[JobRecord]:
+) -> AdapterResult:
     """Scan the compact full-board index and enrich at most 20 postings."""
     metadata = SourceScanMetadata(stop_reason="not_started")
     publish_source_scan_metadata(session, metadata)
     try:
-        jobs = _fetch_jobs(session, target, timeout, metadata)
+        jobs, inventory_items, item_failures, capabilities = _fetch_jobs(
+            session, target, timeout, metadata
+        )
     except requests.RequestException:
         metadata["stop_reason"] = "request_failure"
         metadata["scan_completeness_reason"] = "adapter_failure"
@@ -76,7 +81,13 @@ def fetch_jobs(
         ),
         safety_limit_reached=safety_limit_reached,
     )
-    return jobs
+    return AdapterResult(
+        jobs=jobs,
+        scan=metadata,
+        inventory_items=inventory_items,
+        item_failures=item_failures,
+        capabilities_used=capabilities,
+    )
 
 
 def _fetch_jobs(
@@ -84,7 +95,12 @@ def _fetch_jobs(
     target: CompanyTarget,
     timeout: int,
     metadata: SourceScanMetadata,
-) -> List[JobRecord]:
+) -> tuple[
+    List[JobRecord],
+    tuple[InventoryItem, ...],
+    tuple[ItemFailure, ...],
+    frozenset[str],
+]:
     _validate_target(target)
     board_url = (
         str(target.endpoint_url)
@@ -115,7 +131,12 @@ def _fetch_jobs(
                 "and exact board-owned URLs"
             ),
         )
-        return jobs
+        return (
+            jobs,
+            tuple(InventoryItem(job.job_id, job.source) for job in jobs),
+            (),
+            frozenset({"inventory"}),
+        )
 
     app_data = _app_data(document, "response")
     _validate_board_identity(app_data, target, "response")
@@ -131,6 +152,10 @@ def _fetch_jobs(
         for item in job_board["jobPostings"]
     ]
     _reject_duplicate_ids([record for _item, record in summaries])
+    inventory_items = tuple(
+        InventoryItem(summary.job_id, summary.source)
+        for _item, summary in summaries
+    )
     metadata.update(
         source_identity_status="validated",
         source_identity_diagnostic=(
@@ -147,6 +172,7 @@ def _fetch_jobs(
         summary.job_id for _item, summary in detail_priority[:MAX_DETAIL_REQUESTS]
     }
     jobs: list[JobRecord] = []
+    item_failures: list[ItemFailure] = []
     # Publish validated listing progress before optional detail enrichment.
     # A validation-only request budget may interrupt the detail loop; retaining
     # this metadata lets the canary report already-normalized records without
@@ -166,18 +192,43 @@ def _fetch_jobs(
             jobs.append(summary)
             metadata["jobs_normalized"] = len(jobs)
             continue
-        detail_document, response_bytes = _get_document(
-            session,
-            summary.url,
-            timeout,
-            detail_limit,
-            target.slug,
-            "detail response",
-        )
-        detail_bytes += response_bytes
-        detail_data = _app_data(detail_document, "detail response")
-        _validate_board_identity(detail_data, target, "detail response")
-        jobs.append(_detail_record(detail_data.get("posting"), summary, target))
+        detail_requests = 0
+        try:
+            detail_document, response_bytes, detail_requests = _get_optional_detail(
+                session,
+                summary.url,
+                timeout,
+                detail_limit,
+                target.slug,
+            )
+            detail_bytes += response_bytes
+            detail_data = _app_data(detail_document, "detail response")
+            _validate_board_identity(detail_data, target, "detail response")
+            jobs.append(_detail_record(detail_data.get("posting"), summary, target))
+        except requests.RequestException as exc:
+            item_failures.append(
+                ItemFailure(
+                    item_id=summary.job_id,
+                    reason=f"{exc.__class__.__name__}: {exc}",
+                    retryable=True,
+                )
+            )
+            jobs.append(summary)
+        except AdapterError as exc:
+            item_failures.append(
+                ItemFailure(
+                    item_id=summary.job_id,
+                    reason=str(exc),
+                    retryable=_retryable_detail_error(exc),
+                    outcome=(
+                        "unreadable" if _retryable_detail_error(exc) else "rejected"
+                    ),
+                )
+            )
+            jobs.append(summary)
+        metadata["detail_requests_completed"] = int(
+            metadata.get("detail_requests_completed") or 0
+        ) + detail_requests
         metadata["jobs_normalized"] = len(jobs)
 
     _set_pagination(
@@ -189,10 +240,61 @@ def _fetch_jobs(
         candidates_selected=len(selected),
         listing_bytes=listing_bytes,
         detail_bytes=detail_bytes,
-        detail_requests=len(detail_candidate_ids),
+        detail_requests=int(metadata.get("detail_requests_completed") or 0),
         transport="hosted_compact_index",
     )
-    return jobs
+    return (
+        jobs,
+        inventory_items,
+        tuple(item_failures),
+        frozenset({"inventory", "hydration", "partial_progress", "per_item_failure"}),
+    )
+
+
+def _get_optional_detail(
+    session: requests.Session,
+    url: str,
+    timeout: int,
+    byte_limit: int,
+    slug: str,
+) -> tuple[str, int, int]:
+    """Fetch optional enrichment with one bounded retry for transient failures."""
+    attempts = 0
+    while attempts < 2:
+        attempts += 1
+        try:
+            document, response_bytes = _get_document(
+                session,
+                url,
+                timeout,
+                byte_limit,
+                slug,
+                "detail response",
+            )
+            return document, response_bytes, attempts
+        except requests.RequestException:
+            if attempts >= 2:
+                raise
+        except AdapterError as exc:
+            if attempts >= 2 or not _retryable_detail_error(exc):
+                raise
+    raise RuntimeError("Ashby optional detail retry loop exhausted")
+
+
+def _retryable_detail_error(exc: BaseException) -> bool:
+    message = str(exc).casefold()
+    return any(
+        marker in message
+        for marker in (
+            "http 408",
+            "http 425",
+            "http 429",
+            "http 500",
+            "http 502",
+            "http 503",
+            "http 504",
+        )
+    )
 
 
 def _get_document(

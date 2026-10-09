@@ -22,7 +22,9 @@ import requests
 
 from src.scraper.company_careers.models import (
     AdapterError,
+    AdapterResult,
     CompanyTarget,
+    InventoryItem,
     JobRecord,
     SourceScanMetadata,
     explicit_adapter_result,
@@ -64,7 +66,7 @@ def fetch_jobs(
     session: requests.Session,
     target: CompanyTarget,
     timeout: int = 20,
-) -> list[JobRecord]:
+) -> list[JobRecord] | AdapterResult:
     """Fetch a bounded public collection attributed to one tenant and site."""
     config = validate_target(target)
     timeout = min(max(1, int(timeout)), MAX_TIMEOUT_SECONDS)
@@ -111,6 +113,7 @@ def fetch_jobs(
     endpoint = str(context["endpoints"]["cloud"]).rstrip("/") + SEARCH_PATH
     if endpoint != config["endpoint_url"]:
         raise AdapterError("Cornerstone CSOD shell changed its configured official search endpoint")
+    metadata["source_identity_status"] = "validated"
 
     listing_budget = AdaptiveListingCompletion(
         int(target.max_pages),
@@ -132,12 +135,27 @@ def fetch_jobs(
 
     for page_number in range(1, listing_budget.hard_request_ceiling + 1):
         metadata["pages_requested"] += 1
-        response = session.post(
-            endpoint,
-            headers=headers,
-            json=_search_body(config, page_number),
-            timeout=timeout,
-        )
+        try:
+            response = session.post(
+                endpoint,
+                headers=headers,
+                json=_search_body(config, page_number),
+                timeout=timeout,
+            )
+        except requests.RequestException:
+            metadata["stop_reason"] = "request_failure"
+            metadata["scan_completeness_reason"] = "pagination_failure"
+            metadata["total_available"] = observed_total
+            if jobs:
+                return AdapterResult(
+                    jobs=jobs,
+                    scan=metadata,
+                    inventory_items=tuple(
+                        InventoryItem(job.job_id, job.source) for job in jobs
+                    ),
+                    capabilities_used=frozenset({"inventory", "partial_progress"}),
+                )
+            raise
         payload = _search_json(response, target, page_number)
         metadata["pages_completed"] += 1
         data = payload["data"]

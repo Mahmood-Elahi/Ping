@@ -12,7 +12,9 @@ from lxml import html
 
 from src.scraper.company_careers.models import (
     AdapterError,
+    AdapterResult,
     CompanyTarget,
+    InventoryItem,
     JobRecord,
     SourceScanMetadata,
     explicit_adapter_result,
@@ -50,7 +52,9 @@ ENDPOINT_HOSTS = {
 
 
 @explicit_adapter_result
-def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 20) -> List[JobRecord]:
+def fetch_jobs(
+    session: requests.Session, target: CompanyTarget, timeout: int = 20
+) -> List[JobRecord] | AdapterResult:
     """Enumerate the public board until Lever returns a terminal short page."""
     validate_target(target)
     timeout = min(max(1, int(timeout)), MAX_TIMEOUT_SECONDS)
@@ -222,6 +226,15 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
         scan_metadata["stop_reason"] = "request_failure"
         scan_metadata["scan_completeness_reason"] = "pagination_failure"
         pagination["stop_reason"] = "request_failure"
+        if jobs:
+            return AdapterResult(
+                jobs=jobs,
+                scan=scan_metadata,
+                inventory_items=tuple(
+                    InventoryItem(job.job_id, job.source) for job in jobs
+                ),
+                capabilities_used=frozenset({"inventory", "partial_progress"}),
+            )
         raise
     except AdapterError:
         if scan_metadata["stop_reason"] == "not_started":

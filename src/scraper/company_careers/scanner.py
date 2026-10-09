@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from concurrent.futures import Future, ThreadPoolExecutor
+from datetime import datetime, timezone
 from pathlib import Path
 import re
-from typing import Any, Callable, Iterable, List, Optional, Sequence
+from typing import Any, Callable, Iterable, List, Mapping, Optional, Sequence
 
 import requests
 
@@ -62,6 +63,7 @@ from src.scraper.company_careers.models import (
     CompanyScanResult,
     CompanyTarget,
     CoverageStatus,
+    InventoryItem,
     JobRecord,
     SourceScanMetadata,
     adapter_exception_metadata,
@@ -79,6 +81,10 @@ from src.scraper.company_careers.parent_sources import (
     original_company_coverage,
 )
 from src.scraper.company_careers.source_health import finalize_source_scan
+from src.scraper.company_careers.source_cooldown import (
+    cooldown_active,
+    source_health_key,
+)
 
 
 AdapterFn = Callable[[requests.Session, CompanyTarget, int], AdapterOutput]
@@ -124,6 +130,14 @@ def _completion_result_fields(metadata: SourceScanMetadata) -> dict[str, Any]:
             metadata.get("source_activation_state") or "active"
         ),
         "jobs_collected": int(metadata.get("jobs_collected") or 0),
+        "inventory_items_collected": int(
+            metadata.get("inventory_items_collected") or 0
+        ),
+        "hydrated_items": int(metadata.get("hydrated_items") or 0),
+        "unreadable_items": int(metadata.get("unreadable_items") or 0),
+        "rejected_items": int(metadata.get("rejected_items") or 0),
+        "inventory_complete": bool(metadata.get("inventory_complete")),
+        "hydration_complete": bool(metadata.get("hydration_complete", True)),
         "original_configured_url": metadata.get("original_configured_url"),
         "final_url": metadata.get("final_url"),
         "final_host": metadata.get("final_host"),
@@ -218,6 +232,8 @@ class CompanyCareersScanner:
         parent_source_mappings: Optional[Sequence[ParentSourceMapping]] = None,
         parent_mapping_path: str = DEFAULT_PARENT_MAPPING_PATH,
         original_company_inventory_path: str = DEFAULT_ORIGINAL_COMPANY_INVENTORY_PATH,
+        cooldown_states: Optional[Mapping[str, Mapping[str, Any]]] = None,
+        as_of: Optional[datetime] = None,
     ):
         self.targets = (
             targets
@@ -237,6 +253,10 @@ class CompanyCareersScanner:
         # be thread-safe. Production callers get one isolated Session per source.
         self.max_workers = 1 if session is not None else int(max_workers)
         self.timeout = timeout
+        self.cooldown_states = {
+            str(key): dict(value) for key, value in (cooldown_states or {}).items()
+        }
+        self.as_of = as_of or datetime.now(timezone.utc)
         self.original_company_inventory_path = original_company_inventory_path
         self.parent_source_mappings = list(
             parent_source_mappings
@@ -372,6 +392,23 @@ class CompanyCareersScanner:
         browser_batch_error: Optional[Exception],
     ) -> CompanyScanResult:
         """Scan one source and contain every adapter/session failure to it."""
+        cooldown_state = self.cooldown_states.get(source_health_key(target))
+        if cooldown_active(cooldown_state, as_of=self.as_of):
+            return CompanyScanResult(
+                target=target,
+                status=CoverageStatus.COOLDOWN_SKIPPED,
+                scan_complete=False,
+                scan_completeness_reason="cooldown_active",
+                stop_reason="cooldown_active",
+                scan_state="incomplete",
+                source_health_code="cooldown_skipped",
+                source_activation_state=target.source_activation,
+                error_type="cooldown_skipped",
+                remediation=(
+                    "Run a normal recovery probe after cooldown expiry; no absence "
+                    "evidence was produced by this skipped source."
+                ),
+            )
         adapter = ADAPTERS.get(target.platform)
         if target.platform == "browser_rendered_html" and browser_batch is not None:
             def _browser_adapter(
@@ -473,12 +510,46 @@ class CompanyCareersScanner:
             if isinstance(adapter_output, AdapterResult):
                 fetched_jobs = self._dedupe(adapter_output.jobs)
                 scan_metadata = SourceScanMetadata.from_value(adapter_output.scan)
+                explicit_inventory = bool(adapter_output.inventory_items)
+                inventory_items = adapter_output.inventory_items or tuple(
+                    InventoryItem(job.job_id, job.source)
+                    for job in fetched_jobs
+                    if job.job_id and job.source
+                )
+                item_failures = adapter_output.item_failures
+                capabilities_used = adapter_output.capabilities_used
                 # Explicit results are self-contained and must never inherit
                 # observations left by a previous or nested invocation.
                 clear_source_scan_metadata(adapter_session)
             else:
                 fetched_jobs = self._dedupe(adapter_output)
                 scan_metadata = source_scan_metadata(adapter_session)
+                explicit_inventory = False
+                inventory_items = tuple(
+                    InventoryItem(job.job_id, job.source)
+                    for job in fetched_jobs
+                    if job.job_id and job.source
+                )
+                item_failures = ()
+                capabilities_used = frozenset()
+            inventory_keys = [
+                (item.source.casefold(), item.item_id) for item in inventory_items
+            ]
+            if len(inventory_keys) != len(set(inventory_keys)):
+                scan_metadata.update(
+                    scan_complete=False,
+                    scan_completeness_reason="duplicate_inventory_ids",
+                    stop_reason="duplicate_inventory_ids",
+                    pagination_evidence_malformed=True,
+                )
+            inventory_ids = {item.item_id for item in inventory_items}
+            if any(failure.item_id not in inventory_ids for failure in item_failures):
+                scan_metadata.update(
+                    scan_complete=False,
+                    scan_completeness_reason="item_failure_outside_inventory",
+                    stop_reason="item_failure_outside_inventory",
+                    pagination_evidence_malformed=True,
+                )
             scan_metadata["original_configured_url"] = _configured_source_url(target)
             fetched_jobs = [
                 annotate_child_brand_metadata(job, self.parent_source_mappings)
@@ -514,12 +585,24 @@ class CompanyCareersScanner:
             finalize_source_scan(
                 scan_metadata,
                 jobs_collected=len(fetched_jobs),
+                inventory_items_collected=(
+                    len(inventory_items) if explicit_inventory else None
+                ),
+                unreadable_items=sum(
+                    failure.outcome == "unreadable" for failure in item_failures
+                ),
+                rejected_items=sum(
+                    failure.outcome == "rejected" for failure in item_failures
+                ),
                 activation_state=target.source_activation,
             )
             return CompanyScanResult(
                 target=target,
                 jobs=matched_jobs,
                 normalized_jobs=fetched_jobs,
+                inventory_items=inventory_items,
+                item_failures=item_failures,
+                capabilities_used=capabilities_used,
                 status=status,
                 fetched_count=len(fetched_jobs),
                 **_completion_result_fields(scan_metadata),

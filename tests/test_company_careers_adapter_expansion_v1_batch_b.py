@@ -239,7 +239,10 @@ def hawk_page(
 class SmartRecruitersAdapterTests(unittest.TestCase):
     def test_normalizes_stable_identity_location_detail_and_apply_contract(self):
         session = Session([smartrecruiters_listing(), smartrecruiters_detail()])
-        jobs = smartrecruiters.fetch_jobs(session, smartrecruiters_target())
+        jobs = smartrecruiters.fetch_jobs(
+            session,
+            smartrecruiters_target(selective_detail_enrichment=True),
+        )
 
         self.assertEqual(len(jobs), 1)
         job = jobs[0]
@@ -259,22 +262,26 @@ class SmartRecruitersAdapterTests(unittest.TestCase):
         self.assertEqual((metadata["pages_requested"], metadata["pages_completed"]), (1, 1))
         self.assertEqual(metadata["source_identity_status"], "validated")
 
-    def test_identity_crossing_and_unofficial_apply_urls_fail_closed(self):
-        with self.assertRaisesRegex(AdapterError, "mixed or ambiguous"):
-            smartrecruiters.fetch_jobs(
-                Session([smartrecruiters_listing(), smartrecruiters_detail(company="Other")]),
-                smartrecruiters_target(),
-            )
-        with self.assertRaisesRegex(AdapterError, "official job-specific apply"):
-            smartrecruiters.fetch_jobs(
-                Session(
-                    [
-                        smartrecruiters_listing(),
-                        smartrecruiters_detail(apply_host="evil.test"),
-                    ]
-                ),
-                smartrecruiters_target(),
-            )
+    def test_invalid_detail_is_rejected_without_invalidating_inventory(self):
+        crossed = smartrecruiters.fetch_jobs(
+            Session([smartrecruiters_listing(), smartrecruiters_detail(company="Other")]),
+            smartrecruiters_target(selective_detail_enrichment=True),
+        )
+        unofficial = smartrecruiters.fetch_jobs(
+            Session(
+                [
+                    smartrecruiters_listing(),
+                    smartrecruiters_detail(apply_host="evil.test"),
+                ]
+            ),
+            smartrecruiters_target(selective_detail_enrichment=True),
+        )
+        for result in (crossed, unofficial):
+            self.assertEqual(result.jobs, [])
+            self.assertEqual(len(result.inventory_items), 1)
+            self.assertEqual(result.item_failures[0].outcome, "rejected")
+            self.assertFalse(result.item_failures[0].retryable)
+            self.assertTrue(result.scan["scan_complete"])
 
     @patch.object(smartrecruiters.time, "sleep", return_value=None)
     def test_total_change_restarts_once_without_union(self, _sleep):
@@ -282,12 +289,9 @@ class SmartRecruitersAdapterTests(unittest.TestCase):
         second_id = "744000142609255"
         responses = [
             smartrecruiters_listing(first_id, total=2, offset=0),
-            smartrecruiters_detail(first_id),
             smartrecruiters_listing(second_id, total=3, offset=1),
             smartrecruiters_listing(first_id, total=2, offset=0),
-            smartrecruiters_detail(first_id),
             smartrecruiters_listing(second_id, total=2, offset=1),
-            smartrecruiters_detail(second_id),
         ]
         session = Session(responses)
         jobs = smartrecruiters.fetch_jobs(
@@ -315,7 +319,7 @@ class SmartRecruitersAdapterTests(unittest.TestCase):
         self.assertTrue(metadata["safety_limit_reached"])
         self.assertEqual(metadata["stop_reason"], "maximum_results_reached")
         self.assertEqual(metadata["total_available"], 2)
-        self.assertEqual(len(session.calls), 2)
+        self.assertEqual(len(session.calls), 1)
 
     @patch.object(smartrecruiters.time, "sleep", return_value=None)
     def test_repeated_pagination_id_twice_stays_incomplete(self, _sleep):
@@ -323,10 +327,8 @@ class SmartRecruitersAdapterTests(unittest.TestCase):
         session = Session(
             [
                 smartrecruiters_listing(job_id, total=2, offset=0),
-                smartrecruiters_detail(job_id),
                 smartrecruiters_listing(job_id, total=2, offset=1),
                 smartrecruiters_listing(job_id, total=2, offset=0),
-                smartrecruiters_detail(job_id),
                 smartrecruiters_listing(job_id, total=2, offset=1),
             ]
         )

@@ -26,6 +26,7 @@ class CoverageStatus:
     FAILED_TECHNICAL = "failed_technical"
     NOT_IMPLEMENTED = "not_implemented"
     MANUAL_REVIEW_REQUIRED = "manual_review_required"
+    COOLDOWN_SKIPPED = "cooldown_skipped"
     COVERED_VIA_PARENT_SOURCE = "covered_via_parent_source"
     MAPPED_NO_CURRENT_JOBS = "mapped_no_current_jobs"
     PARENT_FAILED_TECHNICAL = "parent_failed_technical"
@@ -122,6 +123,12 @@ class SourceScanMetadata(dict[str, Any]):
             source_health_code="pagination_unproven",
             source_activation_state="active",
             jobs_collected=0,
+            inventory_items_collected=0,
+            hydrated_items=0,
+            unreadable_items=0,
+            rejected_items=0,
+            inventory_complete=False,
+            hydration_complete=True,
             original_configured_url=None,
             final_url=None,
             final_host=None,
@@ -162,15 +169,56 @@ def source_scan_metadata(session: Any) -> SourceScanMetadata:
 
 
 @dataclass(frozen=True)
-class ItemFailure:
-    """Reserved structural description of one unreadable item.
+class InventoryItem:
+    """One stable identity observed in a provider's listing inventory.
 
-    Phase 2 does not create or interpret these values.  The field exists so the
-    explicit adapter boundary can grow into Phase 3 without changing shape.
+    ``source`` is the same namespace stored on the eventual ``JobRecord``.
+    Keeping inventory identity independent from normalized job data lets a
+    listing protect an existing lifecycle row even when detail hydration fails.
     """
 
     item_id: str
+    source: str
+
+    def __post_init__(self) -> None:
+        item_id = str(self.item_id or "").strip()
+        source = " ".join(str(self.source or "").casefold().split())
+        if not item_id:
+            raise ValueError("inventory item_id cannot be empty")
+        if not source:
+            raise ValueError("inventory source cannot be empty")
+        object.__setattr__(self, "item_id", item_id)
+        object.__setattr__(self, "source", source)
+
+
+@dataclass(frozen=True)
+class ItemFailure:
+    """One item-level failure that does not redefine source-level completion."""
+
+    item_id: str
     reason: str
+    stage: str = "hydration"
+    retryable: bool = False
+    outcome: str = "unreadable"
+
+    def __post_init__(self) -> None:
+        item_id = str(self.item_id or "").strip()
+        reason = str(self.reason or "").strip()
+        stage = str(self.stage or "").strip().casefold()
+        outcome = str(self.outcome or "").strip().casefold()
+        if not item_id:
+            raise ValueError("item failure item_id cannot be empty")
+        if not reason:
+            raise ValueError("item failure reason cannot be empty")
+        if stage not in {"hydration", "normalization"}:
+            raise ValueError("item failure stage must be hydration or normalization")
+        if outcome not in {"unreadable", "rejected"}:
+            raise ValueError("item failure outcome must be unreadable or rejected")
+        object.__setattr__(self, "item_id", item_id)
+        object.__setattr__(self, "reason", reason)
+        object.__setattr__(self, "stage", stage)
+        object.__setattr__(self, "retryable", bool(self.retryable))
+        object.__setattr__(self, "outcome", outcome)
 
 
 @dataclass(frozen=True, eq=False)
@@ -185,6 +233,7 @@ class AdapterResult(Sequence["JobRecord"]):
 
     jobs: List["JobRecord"]
     scan: SourceScanMetadata
+    inventory_items: tuple[InventoryItem, ...] = ()
     item_failures: tuple[ItemFailure, ...] = ()
     capabilities_used: frozenset[str] = frozenset()
 
@@ -195,6 +244,7 @@ class AdapterResult(Sequence["JobRecord"]):
             "scan",
             SourceScanMetadata(**dict(SourceScanMetadata.from_value(self.scan))),
         )
+        object.__setattr__(self, "inventory_items", tuple(self.inventory_items))
         object.__setattr__(self, "item_failures", tuple(self.item_failures))
         object.__setattr__(self, "capabilities_used", frozenset(self.capabilities_used))
 
@@ -218,6 +268,7 @@ class AdapterResult(Sequence["JobRecord"]):
             return (
                 self.jobs == other.jobs
                 and self.scan == other.scan
+                and self.inventory_items == other.inventory_items
                 and self.item_failures == other.item_failures
                 and self.capabilities_used == other.capabilities_used
             )
@@ -538,6 +589,9 @@ class CompanyScanResult:
     target: CompanyTarget
     jobs: List[JobRecord] = field(default_factory=list)
     normalized_jobs: List[JobRecord] = field(default_factory=list, repr=False)
+    inventory_items: tuple[InventoryItem, ...] = field(default_factory=tuple, repr=False)
+    item_failures: tuple[ItemFailure, ...] = field(default_factory=tuple, repr=False)
+    capabilities_used: frozenset[str] = field(default_factory=frozenset, repr=False)
     status: str = CoverageStatus.FETCHED
     error: Optional[str] = None
     error_type: Optional[str] = None
@@ -568,6 +622,12 @@ class CompanyScanResult:
     source_health_code: str = "pagination_unproven"
     source_activation_state: str = "active"
     jobs_collected: int = 0
+    inventory_items_collected: int = 0
+    hydrated_items: int = 0
+    unreadable_items: int = 0
+    rejected_items: int = 0
+    inventory_complete: bool = False
+    hydration_complete: bool = True
     original_configured_url: Optional[str] = None
     final_url: Optional[str] = None
     final_host: Optional[str] = None
@@ -585,6 +645,13 @@ class CompanyScanResult:
     mapped_child_brand_counts: Dict[str, int] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        if self.status == CoverageStatus.COOLDOWN_SKIPPED:
+            self.scan_state = "incomplete"
+            if self.source_health_code == "pagination_unproven":
+                self.source_health_code = "cooldown_skipped"
+            if self.source_activation_state == "active":
+                self.source_activation_state = self.target.source_activation
+            return
         trusted = self.status in {
             CoverageStatus.FETCHED,
             CoverageStatus.FETCHED_NO_MATCHING_ROLES,
@@ -612,12 +679,14 @@ class CompanyScanResult:
             in {CoverageStatus.FETCHED, CoverageStatus.FETCHED_NO_MATCHING_ROLES}
             and self.scan_complete
             and self.scan_state == "complete"
-            and self.source_health_code == "healthy"
+            and self.source_health_code in {"healthy", "hydration_degraded"}
             and self.source_activation_state == "active"
         )
 
     @property
     def scan_health(self) -> str:
+        if self.status == CoverageStatus.COOLDOWN_SKIPPED:
+            return "incomplete"
         if self.status not in {
             CoverageStatus.FETCHED,
             CoverageStatus.FETCHED_NO_MATCHING_ROLES,
@@ -662,6 +731,12 @@ class CompanyScanResult:
             "source_health_code": self.source_health_code,
             "source_activation_state": self.source_activation_state,
             "jobs_collected": self.jobs_collected,
+            "inventory_items_collected": self.inventory_items_collected,
+            "hydrated_items": self.hydrated_items,
+            "unreadable_items": self.unreadable_items,
+            "rejected_items": self.rejected_items,
+            "inventory_complete": self.inventory_complete,
+            "hydration_complete": self.hydration_complete,
             "original_configured_url": self.original_configured_url,
             "final_url": self.final_url,
             "final_host": self.final_host,
@@ -699,6 +774,33 @@ class CompanyCareersReport:
     def normalized_jobs(self) -> List[JobRecord]:
         """Return all normalized jobs, including jobs later excluded by filters."""
         return [job for result in self.results for job in result.normalized_jobs]
+
+    @property
+    def protected_inventory_items(self) -> List[InventoryItem]:
+        """Return listed identities from authoritative inventories only."""
+        return [
+            item
+            for result in self.results
+            if result.authoritative_for_absence
+            for item in result.inventory_items
+        ]
+
+    def protected_source_keys_by_company(self) -> Dict[str, tuple[str, ...]]:
+        """Map authoritative listing identities to persisted lifecycle keys."""
+        from src.integrations.supabase_job_store import source_key_for_external_id
+
+        grouped: Dict[str, set[str]] = {}
+        for result in self.results:
+            if not result.authoritative_for_absence:
+                continue
+            keys = grouped.setdefault(result.target.name, set())
+            keys.update(
+                source_key_for_external_id(item.source, item.item_id)
+                for item in result.inventory_items
+            )
+        return {
+            company: tuple(sorted(keys)) for company, keys in sorted(grouped.items())
+        }
 
     def source_health_summary(self) -> Dict[str, Any]:
         states = Counter(result.scan_health for result in self.results)

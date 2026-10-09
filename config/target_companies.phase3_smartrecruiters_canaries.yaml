@@ -1,0 +1,31 @@
+# Explicit opt-in Phase 3 listing-only canaries. Normal Job Radar execution
+# loads config/target_companies.yaml and cannot load this file implicitly.
+# These definitions do not change either company's production source.
+target_companies:
+  - name: ServiceNow
+    platform: smartrecruiters
+    slug: ServiceNow
+    endpoint_variant: companies_postings_v1
+    careers_url: https://careers.servicenow.com/
+    endpoint_url: https://api.smartrecruiters.com/v1/companies/ServiceNow/postings
+    identity_regex: ^ServiceNow$
+    allowed_apply_hosts: [jobs.smartrecruiters.com]
+    page_size: 100
+    max_pages: 8
+    max_jobs: 800
+    max_response_bytes: 3000000
+    selective_detail_enrichment: false
+
+  - name: Intuitive Surgical
+    platform: smartrecruiters
+    slug: intuitive
+    endpoint_variant: companies_postings_v1
+    careers_url: https://careers.intuitive.com/en/jobs/
+    endpoint_url: https://api.smartrecruiters.com/v1/companies/intuitive/postings
+    identity_regex: '^Intuitive(?: Surgical)?$'
+    allowed_apply_hosts: [jobs.smartrecruiters.com]
+    page_size: 100
+    max_pages: 8
+    max_jobs: 800
+    max_response_bytes: 3000000
+    selective_detail_enrichment: false

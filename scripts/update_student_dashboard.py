@@ -33,6 +33,7 @@ from src.scraper.company_careers.candidate_profile import (
     load_candidate_profile,
 )
 from src.scraper.company_careers.scanner import CompanyCareersScanner
+from src.scraper.company_careers.source_cooldown import reconcile_source_health
 from src.scraper.company_careers.student_roles import (
     build_student_job_filter,
     build_student_search_diagnostics,
@@ -180,8 +181,13 @@ def build_pipeline(
     candidate_profile: CandidateProfile | None,
     freshness_runtime: FreshnessRuntime | None = None,
     as_of: datetime | None = None,
+    source_health: dict[str, dict[str, Any]] | None = None,
 ) -> JobSearchPipeline:
-    scanner = CompanyCareersScanner(targets=targets)
+    scanner = CompanyCareersScanner(
+        targets=targets,
+        cooldown_states=source_health,
+        as_of=as_of,
+    )
     return JobSearchPipeline(
         keywords=student_search_query(args.include_new_grad),
         locations=args.locations,
@@ -271,6 +277,7 @@ def run_update(args: argparse.Namespace) -> int:
         ),
     )
     job_store.validate_setup()
+    source_health = job_store.fetch_source_health()
     freshness_runtime = (
         FreshnessRuntime(
             config=freshness_config,
@@ -281,7 +288,12 @@ def run_update(args: argparse.Namespace) -> int:
     )
     publisher = None if args.skip_sheets else GoogleSheetsPublisher.from_env()
     pipeline = build_pipeline(
-        args, targets, candidate_profile, freshness_runtime, as_of
+        args,
+        targets,
+        candidate_profile,
+        freshness_runtime,
+        as_of,
+        source_health,
     )
 
     try:
@@ -316,12 +328,20 @@ def run_update(args: argparse.Namespace) -> int:
                 freshness_runtime.lifecycle_jobs(report.normalized_jobs)
                 if freshness_runtime else None
             ),
+            protected_source_keys=report.protected_source_keys_by_company(),
             exclusion_counts=summary["exclusion_counts"],
             coverage_report_path=summary["coverage_report_path"],
             ranked_artifact_path=summary["ranked_results_path"],
             normalized_jobs=summary.get("normalized_jobs", len(report.normalized_jobs)),
             source_summary=summary.get("scan_health_counts", {}),
             scan_runtime_seconds=summary.get("scan_runtime_seconds"),
+        )
+        job_store.persist_source_health(
+            reconcile_source_health(
+                report.results,
+                source_health,
+                as_of=as_of,
+            )
         )
     except Exception as exc:
         _record_failed_scan(job_store, pipeline, started_at, exc)

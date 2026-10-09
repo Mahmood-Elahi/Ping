@@ -105,6 +105,31 @@ class FreshnessTests(unittest.TestCase):
         self.assertEqual(entry["first_seen_at"], "2026-08-31T12:00:00Z")
         self.assertEqual(entry["last_seen_at"], "2026-09-02T12:00:00Z")
 
+    def test_unreadable_inventory_identity_protects_prior_record_without_refresh(self):
+        current = job("123")
+        first = self.reconcile([current])
+        source_key = stable_job_key(current)
+        protected = reconcile_lifecycle(
+            [],
+            first.state,
+            complete_companies=("Example",),
+            protected_source_keys=(source_key,),
+            as_of=AS_OF + timedelta(days=1),
+            config=self.config,
+        )
+        entry = protected.state["jobs"][source_key]
+        self.assertEqual(entry["lifecycle_status"], ACTIVE)
+        self.assertEqual(entry["missing_scan_count"], 0)
+        self.assertEqual(entry["last_seen_at"], "2026-08-31T12:00:00Z")
+
+        absent = self.reconcile(
+            [], protected.state, as_of=AS_OF + timedelta(days=2)
+        )
+        self.assertEqual(
+            absent.state["jobs"][source_key]["lifecycle_status"],
+            POSSIBLY_MISSING,
+        )
+
     def test_source_posted_precedence_and_first_seen_fallback(self):
         posted = self.annotation(job("posted", posted="2026-08-21T12:00:00Z"))
         self.assertEqual(posted["age_days"], 10)

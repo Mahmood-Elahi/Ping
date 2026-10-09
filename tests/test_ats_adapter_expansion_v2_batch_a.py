@@ -6,6 +6,7 @@ import json
 import unittest
 from pathlib import Path
 
+import requests
 import yaml
 
 from tests.company_careers_reliability_assertions import with_reliability_repairs
@@ -59,7 +60,10 @@ class Session:
         self.calls.append(("post", url, kwargs))
         if not self.posts:
             raise AssertionError(f"Unexpected POST {url}")
-        return self.posts.pop(0)
+        value = self.posts.pop(0)
+        if isinstance(value, BaseException):
+            raise value
+        return value
 
 
 def _token(*, corp="example", subject=-100, routes="rec-job-search/external"):
@@ -223,6 +227,31 @@ class CornerstoneCsodAdapterTests(unittest.TestCase):
                 Session(gets=[official_page(), csod_shell()], posts=[csod_page(total=26, requisitions=too_many)]),
                 csod_target(max_jobs=50),
             )
+
+    def test_later_transport_failure_keeps_valid_rows_without_authority(self):
+        rows = [
+            dict(
+                csod_page()._value["data"]["requisitions"][0],
+                requisitionId=7790 + index,
+            )
+            for index in range(25)
+        ]
+        session = Session(
+            gets=[official_page(), csod_shell()],
+            posts=[
+                csod_page(total=26, requisitions=rows),
+                requests.Timeout("page 2 timed out"),
+            ],
+        )
+
+        result = cornerstone_csod.fetch_jobs(
+            session, csod_target(max_pages=2, max_jobs=50)
+        )
+
+        self.assertEqual(len(result.jobs), 25)
+        self.assertIn("partial_progress", result.capabilities_used)
+        self.assertFalse(result.scan["scan_complete"])
+        self.assertEqual(result.scan["stop_reason"], "request_failure")
 
 
 class SuccessFactorsColumnizedContractTests(unittest.TestCase):

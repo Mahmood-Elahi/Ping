@@ -34,6 +34,10 @@ LIFECYCLE_STATE_COLUMNS = (
     "first_seen_at,last_seen_at,first_seen_basis,source_posted_at,source_closes_at,"
     "removed_at,lifecycle_status,missing_successful_runs,date_parse_errors"
 )
+SOURCE_HEALTH_COLUMNS = (
+    "source_key,company,platform,consecutive_transient_failures,cooldown_until,"
+    "last_failure_classification,last_successful_authoritative_inventory,updated_at"
+)
 SYNC_SCAN_NAMESPACE = uuid.UUID("fe27c6e0-e7a3-4d18-8e57-554e117f56c6")
 TRACKING_QUERY_PARAMETERS = frozenset(
     {
@@ -140,7 +144,7 @@ def generate_source_key(job: Mapping[str, Any] | Any) -> str:
 
     if _is_genuine_external_id(external_id):
         namespace = source or _normalize_text(values.get("company")) or "unknown"
-        return f"id:{namespace}:{unicodedata.normalize('NFKC', external_id)}"
+        return source_key_for_external_id(namespace, external_id)
 
     normalized_url = normalize_url(
         values.get("source_url")
@@ -162,6 +166,17 @@ def generate_source_key(job: Mapping[str, Any] | Any) -> str:
         separators=(",", ":"),
     ).encode("utf-8")
     return f"sha256:{hashlib.sha256(digest_input).hexdigest()}"
+
+
+def source_key_for_external_id(source: Any, external_id: Any) -> str:
+    """Build the persisted identity for a provider inventory observation."""
+    item_id = str(external_id or "").strip()
+    if not _is_genuine_external_id(item_id):
+        raise ValueError("inventory external ID is not a stable job identity")
+    namespace = _normalize_text(source)
+    if not namespace:
+        raise ValueError("inventory source namespace cannot be empty")
+    return f"id:{namespace}:{unicodedata.normalize('NFKC', item_id)}"
 
 
 def tracked_job_payload(
@@ -399,6 +414,7 @@ class SupabaseJobStore:
             ("job_sync_sessions", "sync_id,status"),
             ("job_sync_chunks", "sync_id,chunk_number"),
             ("job_sync_stage", "sync_id,source_key"),
+            ("job_source_health", "source_key,cooldown_until"),
             ("applications", "job_id"),
         )
         try:
@@ -416,6 +432,45 @@ class SupabaseJobStore:
                 exc, operation="setup validation", secrets=self._redaction_secrets
             ) from None
 
+    def fetch_source_health(self) -> dict[str, dict[str, Any]]:
+        """Load source-local cooldown state before scanner construction."""
+        try:
+            response = (
+                self.client.table("job_source_health")
+                .select(SOURCE_HEALTH_COLUMNS)
+                .execute()
+            )
+            rows = getattr(response, "data", None)
+            if not isinstance(rows, list):
+                raise RuntimeError("source health query returned an invalid response")
+            return {
+                str(row["source_key"]): dict(row)
+                for row in rows
+                if isinstance(row, Mapping) and str(row.get("source_key") or "")
+            }
+        except Exception as exc:
+            raise _supabase_access_error(
+                exc, operation="source health read", secrets=self._redaction_secrets
+            ) from None
+
+    def persist_source_health(self, rows: Iterable[Mapping[str, Any]]) -> None:
+        """Upsert health observations after job persistence succeeds."""
+        payload = [dict(row) for row in rows]
+        if not payload:
+            return
+        try:
+            response = (
+                self.client.table("job_source_health")
+                .upsert(payload, on_conflict="source_key")
+                .execute()
+            )
+            if not isinstance(getattr(response, "data", None), list):
+                raise RuntimeError("source health upsert returned an invalid response")
+        except Exception as exc:
+            raise _supabase_access_error(
+                exc, operation="source health write", secrets=self._redaction_secrets
+            ) from None
+
     def sync_student_jobs(
         self,
         jobs: Iterable[Mapping[str, Any] | Any],
@@ -425,6 +480,7 @@ class SupabaseJobStore:
         companies_checked: int,
         jobs_fetched: int,
         lifecycle_jobs: Optional[Iterable[Mapping[str, Any] | Any]] = None,
+        protected_source_keys: Optional[Mapping[str, Iterable[str]]] = None,
         exclusion_counts: Optional[Mapping[str, int]] = None,
         coverage_report_path: Optional[str] = None,
         ranked_artifact_path: Optional[str] = None,
@@ -469,10 +525,19 @@ class SupabaseJobStore:
             for company in successful_companies
             if str(company).strip()
         }
+        protected_by_company = {
+            str(company).strip(): tuple(
+                sorted({str(key).strip() for key in keys if str(key).strip()})
+            )
+            for company, keys in (protected_source_keys or {}).items()
+            if str(company).strip()
+        }
         rows_by_company: dict[str, list[dict[str, Any]]] = {}
         for payload in jobs_by_key.values():
             rows_by_company.setdefault(str(payload["company"]), []).append(payload)
-        companies = sorted(set(rows_by_company) | complete_companies)
+        companies = sorted(
+            set(rows_by_company) | complete_companies | set(protected_by_company)
+        )
         scan_id = str(uuid.uuid5(SYNC_SCAN_NAMESPACE, scan["started_at"]))
         totals = SyncResult(0, 0, 0, 0, 0)
         total_bytes = 0
@@ -489,6 +554,7 @@ class SupabaseJobStore:
                 company=company,
                 rows=source_rows,
                 reconcile_absence=company in complete_companies,
+                protected_source_keys=protected_by_company.get(company, ()),
                 seen_at=seen_at,
                 payload_bytes=payload_bytes,
             )
@@ -576,6 +642,7 @@ class SupabaseJobStore:
         company: str,
         rows: list[dict[str, Any]],
         reconcile_absence: bool,
+        protected_source_keys: Iterable[str],
         seen_at: datetime,
         payload_bytes: int,
     ) -> Mapping[str, Any]:
@@ -597,6 +664,7 @@ class SupabaseJobStore:
             "p_expected_rows": total_rows,
             "p_expected_bytes": sum(chunk_bytes for _, chunk_bytes in chunks),
             "p_reconcile_absence": bool(reconcile_absence),
+            "p_protected_source_keys": list(protected_source_keys),
             "p_close_after_missing_runs": self.close_after_missing_runs,
             "p_seen_at": _iso_timestamp(seen_at),
         }

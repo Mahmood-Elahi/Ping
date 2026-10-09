@@ -5,6 +5,7 @@ import json
 import unittest
 from pathlib import Path
 
+import requests
 import yaml
 
 from tests.company_careers_reliability_assertions import with_reliability_repairs
@@ -45,7 +46,10 @@ class Session:
         self.calls.append((url, kwargs))
         if not self.responses:
             raise AssertionError(f"Unexpected GET {url}")
-        return self.responses.pop(0)
+        value = self.responses.pop(0)
+        if isinstance(value, BaseException):
+            raise value
+        return value
 
 
 def teamtailor_target(**overrides):
@@ -212,6 +216,33 @@ class GenericAdapterTests(unittest.TestCase):
         session = Session([Response(body, url="https://jobs.deel.test/example-carbon")])
         self.assertEqual(deel.fetch_jobs(session, deel_target()), [])
         self.assertTrue(session.deel_pagination["zero_job_contract"])
+
+    def test_deel_transient_detail_failure_protects_inventory_without_placeholder(self):
+        job_id = "21faddcf-7ad7-43f3-83b6-8a5615416aa2"
+        url = f"https://jobs.deel.test/example-carbon/job-details/{job_id}/overview"
+        listing = f"""<html><script type="application/ld+json">{{"@type":"Organization",
+        "name":"Example Carbon Technologies","url":"https://jobs.deel.test/example-carbon"}}</script>
+        <script type="application/ld+json">{{"@type":"ItemList","itemListElement":[{{"@type":"ListItem",
+        "position":1,"url":"{url}"}}]}}</script></html>"""
+        result = deel.fetch_jobs(
+            Session(
+                [
+                    Response(listing, url="https://jobs.deel.test/example-carbon"),
+                    requests.Timeout("detail timed out"),
+                    requests.Timeout("detail timed out"),
+                ]
+            ),
+            deel_target(),
+        )
+
+        self.assertEqual(result.jobs, [])
+        self.assertEqual(
+            result.inventory_items[0].item_id,
+            f"deel:example-carbon:{job_id}",
+        )
+        self.assertEqual(result.item_failures[0].outcome, "unreadable")
+        self.assertTrue(result.item_failures[0].retryable)
+        self.assertTrue(result.scan["scan_complete"])
 
     def test_identity_challenge_session_and_bounds_fail_closed(self):
         wrong_identity = "<html><title>Other Company</title><ul id='jobs_list_container'></ul></html>"

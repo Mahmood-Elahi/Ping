@@ -3,6 +3,26 @@
 
 create extension if not exists pgcrypto;
 
+create table if not exists public.job_source_health (
+    source_key text primary key,
+    company text not null,
+    platform text not null,
+    consecutive_transient_failures integer not null default 0
+        check (consecutive_transient_failures >= 0),
+    cooldown_until timestamptz,
+    last_failure_classification text,
+    last_successful_authoritative_inventory timestamptz,
+    updated_at timestamptz not null default now()
+);
+
+create index if not exists job_source_health_cooldown_idx
+    on public.job_source_health (cooldown_until)
+    where cooldown_until is not null;
+
+alter table public.job_source_health enable row level security;
+revoke all on table public.job_source_health from public, anon, authenticated;
+grant all on table public.job_source_health to service_role;
+
 create table if not exists public.tracked_jobs (
     id uuid primary key default gen_random_uuid(),
     source_key text not null unique,
@@ -511,6 +531,8 @@ drop function if exists public.sync_student_job_scan(
 
 comment on table public.applications is
     'Manually controlled application tracking; never modified by job refreshes.';
+comment on table public.job_source_health is
+    'Source/config-local transient failure streaks and bounded cooldown recovery state.';
 comment on function public.sync_student_job_source(uuid, text, jsonb, boolean, integer, timestamptz) is
     'Atomically synchronizes one canonical source and idempotently reconciles absence for complete scans.';
 

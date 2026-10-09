@@ -135,6 +135,8 @@ class FakeTable:
             rows = copy.deepcopy(self.client.scan_runs)
         elif self.name == "applications":
             rows = [copy.deepcopy(row) for row in self.client.applications.values()]
+        elif self.name == "job_source_health":
+            rows = [copy.deepcopy(row) for row in self.client.source_health.values()]
         else:
             rows = []
         for field, value in self.filters:
@@ -169,6 +171,11 @@ class FakeTable:
 
     def upsert(self, row, on_conflict=None):
         def perform_upsert():
+            if self.name == "job_source_health":
+                values = row if isinstance(row, list) else [row]
+                for item in values:
+                    self.client.source_health[item["source_key"]] = copy.deepcopy(item)
+                return copy.deepcopy(values)
             if self.name != "scan_runs":
                 raise AssertionError(f"Unexpected upsert table: {self.name}")
             existing = next(
@@ -225,6 +232,7 @@ class FakeSupabaseClient:
         self.tracked_jobs = {}
         self.scan_runs = []
         self.applications = {}
+        self.source_health = {}
         self.source_syncs = {}
         self.sync_sessions = {}
         self.sync_chunks = {}
@@ -293,10 +301,11 @@ class FakeSupabaseClient:
         missing_incremented = 0
         closed = 0
         threshold = params["p_close_after_missing_runs"]
+        protected = set(params.get("p_protected_source_keys") or ())
         for source_key, row in self.tracked_jobs.items():
             if not params["p_reconcile_absence"] or row["company"] != params["p_company"]:
                 continue
-            if row["status"] == "closed" or source_key in incoming:
+            if row["status"] == "closed" or source_key in incoming or source_key in protected:
                 continue
             row["missing_successful_runs"] += 1
             missing_incremented += 1
@@ -387,6 +396,7 @@ class FakeSupabaseClient:
                 "p_company": session["p_company"],
                 "p_jobs": list(self.sync_stage[sync_id].values()),
                 "p_reconcile_absence": session["p_reconcile_absence"],
+                "p_protected_source_keys": session.get("p_protected_source_keys", []),
                 "p_close_after_missing_runs": session["p_close_after_missing_runs"],
                 "p_seen_at": session["p_seen_at"],
             }
@@ -513,6 +523,42 @@ class SupabaseJobStoreTests(unittest.TestCase):
         self.assertIn("create or replace function public.finalize_student_job_source_sync", migration)
         self.assertIn("for update skip locked", migration)
         self.assertNotIn("create temporary table", migration)
+        self.assertNotIn("job_source_health", migration)
+        self.assertNotIn("protected_source_keys", migration)
+
+    def test_phase3_schema_changes_are_in_forward_migration(self):
+        migration = (
+            Path(__file__).resolve().parents[1]
+            / "sql"
+            / "migrations"
+            / "20261009_phase3_source_reliability.sql"
+        ).read_text(encoding="utf-8").casefold()
+
+        for field in (
+            "source_key text primary key",
+            "company text not null",
+            "platform text not null",
+            "consecutive_transient_failures integer not null default 0",
+            "cooldown_until timestamptz",
+            "last_failure_classification text",
+            "last_successful_authoritative_inventory timestamptz",
+            "updated_at timestamptz not null default now()",
+        ):
+            self.assertIn(field, migration)
+        self.assertIn("add column if not exists protected_source_keys", migration)
+        self.assertIn("enable row level security", migration)
+        self.assertIn(
+            "revoke all on table public.job_source_health from public, anon, authenticated",
+            migration,
+        )
+        self.assertIn("grant all on table public.job_source_health to service_role", migration)
+        self.assertIn("job_source_health_cooldown_idx", migration)
+        self.assertIn(
+            "not (tracked.source_key = any(v_session.protected_source_keys))",
+            migration,
+        )
+        self.assertNotIn("grant all on table public.job_source_health to anon", migration)
+        self.assertNotIn("grant all on table public.job_source_health to authenticated", migration)
 
     def setUp(self):
         self.client = FakeSupabaseClient()
@@ -567,6 +613,22 @@ class SupabaseJobStoreTests(unittest.TestCase):
         )
         self.assertEqual(first, "id:greenhouse:example:job-123")
         self.assertEqual(first, changed_url)
+
+    def test_source_health_round_trips_cooldown_fields(self):
+        row = {
+            "source_key": "lever:example",
+            "company": "Example",
+            "platform": "lever",
+            "consecutive_transient_failures": 3,
+            "cooldown_until": "2026-08-03T18:00:00+00:00",
+            "last_failure_classification": "transient_transport",
+            "last_successful_authoritative_inventory": None,
+            "updated_at": "2026-08-03T12:00:00+00:00",
+        }
+
+        self.store.persist_source_health([row])
+
+        self.assertEqual(self.store.fetch_source_health(), {"lever:example": row})
 
     def test_repeated_calls_produce_the_same_fallback_key(self):
         job = self.job(job_id="", url="", title="  Firmware   Intern ")
@@ -730,6 +792,31 @@ class SupabaseJobStoreTests(unittest.TestCase):
         self.assertEqual(self.tracked()["missing_successful_runs"], 0)
         self.assertEqual(self.tracked()["status"], "active")
 
+    def test_cooldown_skipped_source_makes_zero_lifecycle_changes(self):
+        self.sync([self.job()])
+        before = copy.deepcopy(self.tracked())
+
+        # A cooldown skip is not an authoritative scan, so its company is
+        # intentionally absent from the lifecycle reconciliation set.
+        self.sync([], successful_companies=())
+
+        self.assertEqual(self.tracked(), before)
+
+    def test_authoritative_unreadable_key_is_excluded_from_absence_updates(self):
+        current = self.job()
+        self.sync([current])
+        source_key = generate_source_key(current)
+        self.store.sync_student_jobs(
+            [],
+            successful_companies=("Example",),
+            protected_source_keys={"Example": (source_key,)},
+            started_at=self.started_at,
+            companies_checked=1,
+            jobs_fetched=0,
+        )
+        self.assertEqual(self.tracked()["missing_successful_runs"], 0)
+        self.assertEqual(self.tracked()["lifecycle_status"], "active")
+
     def test_partial_or_safety_limited_source_cannot_reconcile_absence(self):
         self.sync([self.job()])
         # The caller deliberately omits incomplete/safety-limited companies
@@ -738,6 +825,24 @@ class SupabaseJobStoreTests(unittest.TestCase):
         self.sync([partial], successful_companies=())
         self.assertEqual(self.tracked()["missing_successful_runs"], 0)
         self.assertEqual(self.tracked()["status"], "active")
+
+    def test_incomplete_inventory_persists_one_hundred_discoveries_without_absence(self):
+        existing = self.job(job_id="existing-old")
+        self.sync([existing])
+        discoveries = [
+            self.job(
+                job_id=f"partial-{index:03}",
+                title=f"Partial discovery {index}",
+                url=f"https://jobs.example.com/postings/partial-{index:03}",
+            )
+            for index in range(100)
+        ]
+
+        result = self.sync(discoveries, successful_companies=())
+
+        self.assertEqual(result.inserted, 100)
+        self.assertEqual(self.tracked(existing)["missing_successful_runs"], 0)
+        self.assertEqual(self.tracked(existing)["status"], "active")
 
     def test_unscanned_companies_remain_untouched(self):
         other = self.job(

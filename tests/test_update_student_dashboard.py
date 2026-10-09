@@ -39,6 +39,8 @@ class FakeStore:
         self.fetch_calls = 0
         self.failed_scan_calls = []
         self.publication_calls = []
+        self.source_health_rows = {}
+        self.source_health_writes = []
         self.dashboard_data = DashboardData(
             active_jobs=[
                 {
@@ -54,6 +56,12 @@ class FakeStore:
 
     def validate_setup(self):
         self.validate_calls += 1
+
+    def fetch_source_health(self):
+        return dict(self.source_health_rows)
+
+    def persist_source_health(self, rows):
+        self.source_health_writes.append(list(rows))
 
     def sync_student_jobs(self, jobs, **kwargs):
         self.sync_calls.append((list(jobs), kwargs))

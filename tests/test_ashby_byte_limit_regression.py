@@ -345,13 +345,13 @@ class AshbyByteLimitRegressionTests(unittest.TestCase):
         oversized = StreamingResponse(b"x" * 1001, chunk_size=31)
         session = StreamingSession([listing, oversized])
 
-        with self.assertRaisesRegex(
-            AdapterError, "detail response exceeded the byte limit"
-        ):
-            ashby.fetch_jobs(session, self.target(max_response_bytes=1000))
+        result = ashby.fetch_jobs(session, self.target(max_response_bytes=1000))
 
         self.assertTrue(oversized.closed)
         self.assertEqual(len(session.get_calls), 2)
+        self.assertEqual([job.job_id for job in result], ["id-1"])
+        self.assertEqual(result.item_failures[0].outcome, "rejected")
+        self.assertIn("exceeded the byte limit", result.item_failures[0].reason)
 
     def test_malformed_index_and_detail_fail_closed(self):
         with self.subTest("index"):
@@ -368,8 +368,10 @@ class AshbyByteLimitRegressionTests(unittest.TestCase):
                     StreamingResponse(html_page({"organization": {"hostedJobsPageSlug": "example"}})),
                 ]
             )
-            with self.assertRaisesRegex(AdapterError, "missing its posting"):
-                ashby.fetch_jobs(session, self.target())
+            result = ashby.fetch_jobs(session, self.target())
+            self.assertEqual([job.job_id for job in result], ["id-1"])
+            self.assertEqual(result.item_failures[0].outcome, "rejected")
+            self.assertIn("missing its posting", result.item_failures[0].reason)
 
     def test_cross_board_and_mismatched_detail_identity_fail_closed(self):
         with self.subTest("board"):
@@ -386,8 +388,10 @@ class AshbyByteLimitRegressionTests(unittest.TestCase):
                     StreamingResponse(detail("example", "id-2")),
                 ]
             )
-            with self.assertRaisesRegex(AdapterError, "stable job ID"):
-                ashby.fetch_jobs(session, self.target())
+            result = ashby.fetch_jobs(session, self.target())
+            self.assertEqual([job.job_id for job in result], ["id-1"])
+            self.assertEqual(result.item_failures[0].outcome, "rejected")
+            self.assertIn("stable job ID", result.item_failures[0].reason)
 
     def test_duplicate_stable_ids_fail_before_detail_fetch(self):
         session = StreamingSession(

@@ -72,8 +72,9 @@ The explicit company-careers flow is:
 provider adapter
     -> AdapterResult
        |-- jobs
+       |-- inventory_items
        |-- scan observations
-       |-- item_failures (structural only)
+       |-- item_failures
        `-- capabilities_used (descriptive only)
     -> finalize_source_scan
     -> CompanyScanResult
@@ -98,10 +99,11 @@ claim of trust. `finalize_source_scan` remains the only component that decides
 whether the evidence is complete, healthy, identity-valid, and authoritative
 for absence.
 
-`item_failures` and `capabilities_used` are structural Phase 3 extension points.
-Phase 2 does not create partial-success semantics from them. Capabilities are
-descriptive only: they cannot create terminal evidence, validate identity, make
-a scan authoritative, or bypass central finalization.
+`inventory_items` contains stable provider IDs and their source namespace.
+`item_failures` distinguishes hydration/normalization stage, retryability, and
+`unreadable` versus `rejected` outcomes. Capabilities remain descriptive only:
+they cannot create terminal evidence, validate identity, make a scan
+authoritative, or bypass central finalization.
 
 Adapters should raise `AdapterError` for parse or endpoint failures that should
 be recorded as source failures. Migrated adapters attach their current scan
@@ -130,7 +132,8 @@ The scanner clears metadata before every invocation and after every explicit
 success or failure. Consequently an explicit result cannot inherit evidence
 from a prior source, even when a test or caller reuses one session.
 
-Only a centrally finalized `CompanyScanResult` with healthy source state,
+Only a centrally finalized `CompanyScanResult` with healthy or explicitly
+hydration-degraded source state,
 validated identity, provider-native terminal evidence, active source state, and
 `scan_complete=True` can be authoritative for absence. Request, page, and job
 budgets remain safety limits and never terminal evidence. Incomplete and failed
@@ -169,9 +172,79 @@ the internal traversal callbacks, while retaining it preserves exactly one
 restart, discards first-traversal jobs, and keeps all existing mutation
 diagnostics. Its caller and the scanner receive explicit observations.
 
-Phase 2 is complete at this boundary. Inventory/hydration, per-item unreadable
-semantics, retries, cooldowns, and partial-progress persistence remain Phase 3
-work and are not implemented here.
+## Phase 3 inventory and hydration
+
+```text
+provider inventory enumeration
+        -> authoritative inventory observations
+        -> optional / required bounded hydration
+           |-- hydrated normalized jobs
+           `-- unreadable or rejected item outcomes
+        -> AdapterResult
+        -> finalize_source_scan
+        -> lifecycle reconciliation and staged Supabase sync
+```
+
+Inventory existence is not hydration success. `finalize_source_scan` compares
+authoritative totals and terminal evidence with `inventory_items_collected`,
+while `jobs_collected` remains the normalized output count. A complete inventory
+may therefore be authoritative with `source_health_code=hydration_degraded`.
+Incomplete inventory always has zero absence authority.
+
+For authoritative results, stable inventory IDs are converted to the same
+namespaced source keys used by persisted jobs. Those keys protect prior records
+from missing/closure transitions in both in-memory lifecycle reconciliation and
+the staged Supabase transaction. Unreadable is never interpreted as gone, and
+an unreadable item is not emitted as a successfully hydrated job. If no prior
+record exists, protection does not invent one.
+
+SmartRecruiters, BambooHR, Ashby, Greenhouse, Deel, Paycor, and PeopleSoft are
+explicit split migrations. Deel, Paycor, and PeopleSoft use listing identity
+only to protect an existing row when required detail transport is unreadable;
+they never create a listing-only placeholder and still require detail/apply
+evidence for creation or update. Lever, SmartRecruiters listing enumeration,
+Cornerstone CSOD after bootstrap identity, and ADP MyJobs expose valid earlier
+pages through an explicit incomplete result only when a later transport request
+fails. Identity, HTTP/schema, duplicate, changed-total, pagination, and terminal
+contradictions still fail closed.
+
+Incomplete inventory discoveries can be inserted or refreshed by staged sync,
+but their company is omitted from absence reconciliation. This means a partial
+source can make positive progress without incrementing missing counters for any
+unseen row. A cooldown skip follows the same no-authority rule and is not a
+freshness observation.
+
+### Persisted source cooldowns
+
+The `job_source_health` Supabase table stores a source/config-local transient
+failure streak, cooldown expiry, last failure classification, and the last
+successful authoritative inventory time. Its primary key includes a short
+SHA-256 fingerprint of stable source identity fields (company/platform,
+tenant/slug/site/board identifiers, endpoint variant and source endpoints), so
+a repaired configuration cannot inherit an obsolete cooldown. Volatile scan
+budgets and selectors are excluded. Failures 1-2 do not pause a source; failure
+3 backs off for 6 hours, failure 4 for 12 hours, and failure 5 or later for 24
+hours. Only comparable transport/upstream failures participate. Identity,
+malformed pagination/contract, contradictory totals, configuration, and safety
+limit failures do not create cooldowns.
+
+While `cooldown_until` is in the future, the scanner emits
+`cooldown_skipped` without making a provider request. After expiry, the normal
+scheduled scan is the recovery probe. It uses the same identity and completion
+requirements as any other scan; only an authoritative inventory clears the
+failure streak. Partial/non-authoritative results preserve it. All timestamps
+are offset-aware UTC. There is no background probe scheduler. A provider-wide
+circuit breaker is deliberately deferred because current evidence cannot
+separate a provider outage from one bad tenant or configuration.
+
+The chronological `20260924_staged_source_sync.sql` migration remains immutable.
+Phase 3 deployment is forward-only through
+`20261009_phase3_source_reliability.sql`; `sql/supabase_schema.sql` remains the
+canonical final-state bootstrap for fresh databases. Both paths retain RLS and
+service-role-only access to source health.
+
+The full 43-adapter classification and remaining coupled work are recorded in
+[PHASE3_INVENTORY_HYDRATION_REVIEW.md](PHASE3_INVENTORY_HYDRATION_REVIEW.md).
 
 ## Coverage States
 
@@ -182,6 +255,7 @@ The company-careers scanner records a status for every configured target:
 - `manual_review_required`: source needs manual follow-up or a future adapter
 - `not_implemented`: configured platform has no adapter
 - `failed_technical`: source or parser failed technically
+- `cooldown_skipped`: source was deliberately not contacted during a persisted transient cooldown
 
 This is the main difference between RoleRadar and a simple scraper. Missing results are not all treated the same way.
 

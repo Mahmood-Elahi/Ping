@@ -13,7 +13,10 @@ from lxml import html
 
 from src.scraper.company_careers.models import (
     AdapterError,
+    AdapterResult,
     CompanyTarget,
+    InventoryItem,
+    ItemFailure,
     JobRecord,
     SourceScanMetadata,
     explicit_adapter_result,
@@ -43,7 +46,7 @@ def fetch_jobs(
     session: requests.Session,
     target: CompanyTarget,
     timeout: int = 20,
-) -> list[JobRecord]:
+) -> AdapterResult:
     """Fetch public PeopleSoft job links and bounded anonymous detail pages."""
     config = validate_target(target)
     timeout = min(max(1, int(timeout)), MAX_TIMEOUT_SECONDS)
@@ -97,9 +100,35 @@ def fetch_jobs(
     effective_jobs = listing_budget.complete_collection_job_ceiling(total_candidates)
     candidates = candidates[:effective_jobs]
 
+    source = (
+        f"peoplesoft:{urlparse(candidates[0][2]).hostname.casefold()}:"
+        f"{config['site_id']}"
+    )
+    inventory_by_id = {
+        job_id: InventoryItem(job_id, source)
+        for job_id, _title, _url, _sequence in candidates
+    }
     jobs: list[JobRecord] = []
+    item_failures: list[ItemFailure] = []
     for job_id, listing_title, detail_url, posting_sequence in candidates:
-        detail_response = _get(session, detail_url, timeout)
+        try:
+            detail_response = _get(session, detail_url, timeout)
+        except requests.RequestException as exc:
+            item_failures.append(
+                ItemFailure(
+                    job_id,
+                    f"{exc.__class__.__name__}: {exc}",
+                    retryable=True,
+                )
+            )
+            continue
+        except AdapterError as exc:
+            if _transient_detail_error(exc):
+                item_failures.append(
+                    ItemFailure(job_id, str(exc), retryable=True)
+                )
+                continue
+            raise
         route_state = _detail_route_state(detail_response, detail_url, config)
         root, page_text = _parse_page(detail_response, "detail")
         if not re.search(str(target.identity_regex), page_text, re.IGNORECASE):
@@ -111,6 +140,9 @@ def fetch_jobs(
                 or root.xpath("//a[normalize-space()='Apply for Job']")
             ):
                 raise AdapterError("PeopleSoft stale-detail redirect contains ambiguous job detail")
+            # The provider explicitly says this posting is stale, so this is
+            # terminal item evidence rather than an unreadable inventory item.
+            inventory_by_id.pop(job_id, None)
             continue
         returned_id = _field_text(root, "HRS_SCH_WRK2_HRS_JOB_OPENING_ID")
         title = _field_text(root, "HRS_SCH_WRK2_POSTING_TITLE")
@@ -134,7 +166,7 @@ def fetch_jobs(
                 location=location,
                 url=detail_url,
                 updated_at="",
-                source=f"peoplesoft:{urlparse(detail_url).hostname.casefold()}:{config['site_id']}",
+                source=source,
                 offices=[location] if location else [],
                 description="\n\n".join(dict.fromkeys(descriptions)) or None,
                 raw_metadata={
@@ -172,7 +204,24 @@ def fetch_jobs(
         complete_collection_response=True,
     )
     publish_source_scan_metadata(session, metadata)
-    return jobs
+    metadata.update(
+        unreadable_items=len(item_failures),
+        jobs_normalized=len(jobs),
+    )
+    return AdapterResult(
+        jobs=jobs,
+        scan=metadata,
+        inventory_items=tuple(inventory_by_id.values()),
+        item_failures=tuple(item_failures),
+        capabilities_used=frozenset({"inventory", "hydration", "per_item_failure"}),
+    )
+
+
+def _transient_detail_error(exc: AdapterError) -> bool:
+    return bool(
+        re.search(r"HTTP (408|425|429|500|502|503|504)\b", str(exc))
+        or "attempts exhausted" in str(exc).casefold()
+    )
 
 
 def validate_target(target: CompanyTarget) -> dict[str, Any]:

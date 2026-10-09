@@ -347,11 +347,13 @@ class GreenhouseByteLimitRegressionTests(unittest.TestCase):
         detail_response = StreamingResponse(body=b"x" * 301, chunk_size=31)
         session = StreamingSession([listing, detail_response])
 
-        with self.assertRaisesRegex(AdapterError, "detail response exceeded the byte limit"):
-            greenhouse.fetch_jobs(session, self.target(max_response_bytes=300))
+        result = greenhouse.fetch_jobs(session, self.target(max_response_bytes=300))
 
         self.assertTrue(detail_response.closed)
         self.assertEqual(len(session.get_calls), 2)
+        self.assertEqual([job.job_id for job in result], ["1"])
+        self.assertEqual(result.item_failures[0].outcome, "rejected")
+        self.assertIn("exceeded the byte limit", result.item_failures[0].reason)
 
     def test_malformed_listing_and_detail_fail_closed(self):
         with self.subTest("listing"):
@@ -366,8 +368,10 @@ class GreenhouseByteLimitRegressionTests(unittest.TestCase):
                     StreamingResponse([]),
                 ]
             )
-            with self.assertRaisesRegex(AdapterError, "detail must be a JSON object"):
-                greenhouse.fetch_jobs(session, self.target())
+            result = greenhouse.fetch_jobs(session, self.target())
+            self.assertEqual([job.job_id for job in result], ["1"])
+            self.assertEqual(result.item_failures[0].outcome, "rejected")
+            self.assertIn("detail must be a JSON object", result.item_failures[0].reason)
 
     def test_mismatched_detail_id_fails_closed(self):
         session = StreamingSession(
@@ -377,8 +381,10 @@ class GreenhouseByteLimitRegressionTests(unittest.TestCase):
             ]
         )
 
-        with self.assertRaisesRegex(AdapterError, "does not match its stable job ID"):
-            greenhouse.fetch_jobs(session, self.target())
+        result = greenhouse.fetch_jobs(session, self.target())
+        self.assertEqual([job.job_id for job in result], ["1"])
+        self.assertEqual(result.item_failures[0].outcome, "rejected")
+        self.assertIn("stable job ID", result.item_failures[0].reason)
 
     def test_large_board_without_student_roles_uses_bounded_backfill(self):
         listings = [

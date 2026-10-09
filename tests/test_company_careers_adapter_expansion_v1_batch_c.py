@@ -5,6 +5,7 @@ import json
 import unittest
 from pathlib import Path
 
+import requests
 import yaml
 
 from tests.company_careers_reliability_assertions import assert_historical_prefix
@@ -55,7 +56,10 @@ class Session:
         self.calls.append(("get", url, kwargs))
         if not self.gets:
             raise AssertionError(f"Unexpected GET {url}")
-        return self.gets.pop(0)
+        value = self.gets.pop(0)
+        if isinstance(value, BaseException):
+            raise value
+        return value
 
     def post(self, url, **kwargs):
         self.calls.append(("post", url, kwargs))
@@ -664,6 +668,29 @@ class AdpAdapterTests(unittest.TestCase):
                 ]),
                 myjobs_target(),
             )
+
+    def test_myjobs_later_transport_failure_keeps_valid_rows_without_authority(self):
+        rows = [
+            myjobs_item(reqId=str(5000000000001 + index))
+            for index in range(20)
+        ]
+        session = Session(
+            gets=[
+                Response(myjobs_config()),
+                Response({"count": 40, "jobRequisitions": rows}),
+                requests.Timeout("second page timed out"),
+            ]
+        )
+
+        result = adp.fetch_jobs(
+            session,
+            myjobs_target(max_pages=2, max_jobs=40),
+        )
+
+        self.assertEqual(len(result.jobs), 20)
+        self.assertIn("partial_progress", result.capabilities_used)
+        self.assertFalse(result.scan["scan_complete"])
+        self.assertEqual(result.scan["stop_reason"], "request_failure")
 
     def test_adp_rejects_unreviewed_hosts_and_unsafe_bounds(self):
         with self.assertRaisesRegex(AdapterError, "recruitment URL"):

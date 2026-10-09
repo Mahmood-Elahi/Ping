@@ -6,9 +6,11 @@ from typing import Any, Callable, Optional
 from urllib.parse import parse_qsl, urlparse
 
 from src.scraper.company_careers.models import (
+    AdapterOutput,
     AdapterResult,
     JobRecord,
     SourceScanMetadata,
+    publish_source_scan_metadata,
     source_scan_metadata,
 )
 from src.scraper.company_careers.listing_completion import record_terminal_evidence
@@ -20,7 +22,7 @@ MAX_COLLECTION_RESTARTS = 1
 
 def fetch_with_mutation_restart(
     session: Any,
-    fetch_once: Callable[[], list[JobRecord]],
+    fetch_once: Callable[[], AdapterOutput],
 ) -> AdapterResult:
     """Return one internally consistent traversal after at most one restart.
 
@@ -28,17 +30,30 @@ def fetch_with_mutation_restart(
     replacement can prove completeness only from its own pagination evidence.
     The first traversal's ID set is retained solely as bounded diagnostics.
     """
-    first_jobs = fetch_once()
+    first_output = fetch_once()
+    first_result = _as_result(first_output, session)
+    first_jobs = first_result.jobs
+    # Use the live traversal metadata object here so provider-specific
+    # diagnostic aliases observe the restart fields too. AdapterResult keeps a
+    # defensive copy for the exported boundary.
     first_metadata = source_scan_metadata(session)
     if not first_metadata.get("collection_changed_during_scan"):
-        return AdapterResult(jobs=first_jobs, scan=first_metadata)
+        return first_result
 
-    first_ids = {job.job_id for job in first_jobs}
+    first_ids = (
+        {item.item_id for item in first_result.inventory_items}
+        or {job.job_id for job in first_jobs}
+    )
     first_requests = int(first_metadata.get("pages_requested") or 0)
     first_pages = int(first_metadata.get("pages_completed") or 0)
-    second_jobs = fetch_once()
+    second_output = fetch_once()
+    second_result = _as_result(second_output, session)
+    second_jobs = second_result.jobs
     metadata = source_scan_metadata(session)
-    second_ids = {job.job_id for job in second_jobs}
+    second_ids = (
+        {item.item_id for item in second_result.inventory_items}
+        or {job.job_id for job in second_jobs}
+    )
     metadata.update(
         collection_restart_count=MAX_COLLECTION_RESTARTS,
         first_traversal_jobs=len(first_jobs),
@@ -57,7 +72,20 @@ def fetch_with_mutation_restart(
         metadata["stop_reason"] = COLLECTION_CHANGED_REASON
     elif metadata.get("scan_complete"):
         metadata["stabilized_after_collection_retry"] = True
-    return AdapterResult(jobs=second_jobs, scan=metadata)
+    publish_source_scan_metadata(session, metadata)
+    return AdapterResult(
+        jobs=second_jobs,
+        scan=metadata,
+        inventory_items=second_result.inventory_items,
+        item_failures=second_result.item_failures,
+        capabilities_used=second_result.capabilities_used,
+    )
+
+
+def _as_result(output: AdapterOutput, session: Any) -> AdapterResult:
+    if isinstance(output, AdapterResult):
+        return output
+    return AdapterResult(jobs=list(output), scan=source_scan_metadata(session))
 
 
 def initialize_mutable_collection(metadata: SourceScanMetadata) -> None:

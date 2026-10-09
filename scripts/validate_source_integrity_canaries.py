@@ -37,7 +37,6 @@ DEFAULT_CANARIES = (
 MAX_CANARIES = 6
 DEFAULT_REQUEST_BUDGET = 15
 STANDARD_MAX_REQUEST_BUDGET = 52
-SMARTRECRUITERS_BUDGET_MARGIN = 2
 REVIEWED_HIGH_VOLUME_SMARTRECRUITERS_TOTALS = {
     "Wise": 403,
     "ServiceNow": 708,
@@ -46,16 +45,15 @@ PRODUCTION_REGISTRY = ROOT / "config" / "target_companies.yaml"
 
 
 def smartrecruiters_canary_request_budget(total: int, page_size: int = 100) -> int:
-    """Budget one listing request per page, one detail per posting, and margin."""
-    listing_requests = (total + page_size - 1) // page_size
-    return total + listing_requests + SMARTRECRUITERS_BUDGET_MARGIN
+    """Budget listing-only SmartRecruiters inventory enumeration."""
+    return (total + page_size - 1) // page_size
 
 
 REVIEWED_HIGH_VOLUME_SMARTRECRUITERS_BUDGETS = {
     company: smartrecruiters_canary_request_budget(total)
     for company, total in REVIEWED_HIGH_VOLUME_SMARTRECRUITERS_TOTALS.items()
 }
-MAX_REQUEST_BUDGET = max(REVIEWED_HIGH_VOLUME_SMARTRECRUITERS_BUDGETS.values())
+MAX_REQUEST_BUDGET = STANDARD_MAX_REQUEST_BUDGET
 
 
 class CanaryBudgetReached(RuntimeError):
@@ -439,18 +437,6 @@ def validate_request_budget(request_budget: int, targets: list[Any]) -> None:
     if not 1 <= request_budget <= MAX_REQUEST_BUDGET:
         raise ValueError(
             f"--request-budget must be between 1 and {MAX_REQUEST_BUDGET}"
-        )
-    if request_budget <= STANDARD_MAX_REQUEST_BUDGET:
-        return
-    expected = (
-        REVIEWED_HIGH_VOLUME_SMARTRECRUITERS_BUDGETS.get(targets[0].name)
-        if len(targets) == 1 and targets[0].platform == "smartrecruiters"
-        else None
-    )
-    if expected is None or request_budget != expected:
-        raise ValueError(
-            "request budgets above 52 are allowed only for one reviewed "
-            "high-volume SmartRecruiters target at its calculated exact budget"
         )
 
 

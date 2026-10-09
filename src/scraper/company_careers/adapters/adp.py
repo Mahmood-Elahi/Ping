@@ -14,7 +14,9 @@ import requests
 from src.scraper.company_careers.diagnostics import structure_diagnostic
 from src.scraper.company_careers.models import (
     AdapterError,
+    AdapterResult,
     CompanyTarget,
+    InventoryItem,
     JobRecord,
     SourceScanMetadata,
     explicit_adapter_result,
@@ -262,7 +264,9 @@ def _fetch_workforce_now(
     return jobs
 
 
-def _fetch_myjobs(session: requests.Session, target: CompanyTarget, timeout: int) -> list[JobRecord]:
+def _fetch_myjobs(
+    session: requests.Session, target: CompanyTarget, timeout: int
+) -> list[JobRecord] | AdapterResult:
     slug = str(target.slug)
     config_url = f"https://{MYJOBS_HOST}/public/staffing/v1/career-site/{slug}"
     config = _get_json(
@@ -322,7 +326,30 @@ def _fetch_myjobs(session: requests.Session, target: CompanyTarget, timeout: int
             "$skip": offset, "tz": "UTC",
         }
         metadata["pages_requested"] += 1
-        payload = _get_json(session, str(target.endpoint_url), f"MyJobs offset={offset}", timeout, params=params, headers=headers)
+        try:
+            payload = _get_json(
+                session,
+                str(target.endpoint_url),
+                f"MyJobs offset={offset}",
+                timeout,
+                params=params,
+                headers=headers,
+            )
+        except requests.RequestException:
+            metadata["stop_reason"] = "request_failure"
+            metadata["scan_completeness_reason"] = "pagination_failure"
+            metadata["source_identity_status"] = "validated"
+            metadata["total_available"] = total
+            if jobs:
+                return AdapterResult(
+                    jobs=jobs,
+                    scan=metadata,
+                    inventory_items=tuple(
+                        InventoryItem(job.job_id, job.source) for job in jobs
+                    ),
+                    capabilities_used=frozenset({"inventory", "partial_progress"}),
+                )
+            raise
         rows, current_total = _myjobs_listing(payload, page_size, offset)
         metadata["pages_completed"] += 1
         total = _stable_total(total, current_total, "ADP MyJobs")

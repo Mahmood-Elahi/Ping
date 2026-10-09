@@ -12,7 +12,10 @@ from lxml import html
 
 from src.scraper.company_careers.models import (
     AdapterError,
+    AdapterResult,
     CompanyTarget,
+    InventoryItem,
+    ItemFailure,
     JobRecord,
     SourceScanMetadata,
     explicit_adapter_result,
@@ -38,7 +41,7 @@ def fetch_jobs(
     session: requests.Session,
     target: CompanyTarget,
     timeout: int = 20,
-) -> list[JobRecord]:
+) -> AdapterResult:
     """Fetch one bounded, anonymous Paycor CareerHome collection."""
     config = validate_target(target)
     response = _get(session, config["endpoint_url"], min(max(1, int(timeout)), MAX_TIMEOUT_SECONDS))
@@ -60,6 +63,7 @@ def fetch_jobs(
         maximum_pages=1,
         maximum_results=int(target.max_jobs),
         detail_requests_coupled=True,
+        source_identity_status="validated",
     )
     publish_source_scan_metadata(session, metadata)
     cards = root.xpath(
@@ -93,6 +97,8 @@ def fetch_jobs(
     )
 
     jobs: list[JobRecord] = []
+    inventory_items: list[InventoryItem] = []
+    item_failures: list[ItemFailure] = []
     seen_ids: set[str] = set()
     for card in cards[: int(target.max_jobs)]:
         links = card.xpath(
@@ -113,13 +119,33 @@ def fetch_jobs(
         if not title:
             raise AdapterError("Paycor job card is missing a title")
         seen_ids.add(job_id.casefold())
+        inventory_items.append(
+            InventoryItem(job_id, f"paycor:{config['client_id']}")
+        )
         locations = card.xpath(
             ".//div[contains(concat(' ', normalize-space(@class), ' '), "
             "' gnewtonCareerGroupJobDescriptionClass ')]"
         )
         location = " ".join(locations[0].text_content().split()) if locations else ""
         detail_url = str(links[0].get("href") or "")
-        detail_response = _get(session, detail_url, timeout)
+        try:
+            detail_response = _get(session, detail_url, timeout)
+        except requests.RequestException as exc:
+            item_failures.append(
+                ItemFailure(
+                    job_id,
+                    f"{exc.__class__.__name__}: {exc}",
+                    retryable=True,
+                )
+            )
+            continue
+        except AdapterError as exc:
+            if _transient_detail_error(exc):
+                item_failures.append(
+                    ItemFailure(job_id, str(exc), retryable=True)
+                )
+                continue
+            raise
         detail_content = _response_bytes(detail_response)
         detail_text = detail_content.decode("utf-8", errors="replace")
         if any(marker in detail_text.casefold() for marker in BLOCKED_MARKERS):
@@ -186,7 +212,24 @@ def fetch_jobs(
         metadata["scan_complete"] = True
         metadata["scan_completeness_reason"] = "complete_listing_container"
         metadata["stop_reason"] = "complete_listing_container"
-    return jobs
+    metadata.update(
+        unreadable_items=len(item_failures),
+        jobs_normalized=len(jobs),
+    )
+    return AdapterResult(
+        jobs=jobs,
+        scan=metadata,
+        inventory_items=tuple(inventory_items),
+        item_failures=tuple(item_failures),
+        capabilities_used=frozenset({"inventory", "hydration", "per_item_failure"}),
+    )
+
+
+def _transient_detail_error(exc: AdapterError) -> bool:
+    return bool(
+        re.search(r"HTTP (408|425|429|500|502|503|504)\b", str(exc))
+        or "attempts exhausted" in str(exc).casefold()
+    )
 
 
 def validate_target(target: CompanyTarget) -> dict[str, str]:

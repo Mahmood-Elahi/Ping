@@ -12,7 +12,10 @@ import requests
 from src.scraper.company_careers.models import (
     ADAPTER_SAFETY_BUDGET_DEFAULTS,
     AdapterError,
+    AdapterResult,
     CompanyTarget,
+    InventoryItem,
+    ItemFailure,
     JobRecord,
     SourceScanMetadata,
     explicit_adapter_result,
@@ -44,7 +47,9 @@ def _secure_apply_url(value: object) -> str:
 
 
 @explicit_adapter_result
-def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 20) -> List[JobRecord]:
+def fetch_jobs(
+    session: requests.Session, target: CompanyTarget, timeout: int = 20
+) -> AdapterResult:
     """Fetch a compact board index and enrich at most 20 postings."""
     metadata = SourceScanMetadata(stop_reason="not_started")
     publish_source_scan_metadata(session, metadata)
@@ -66,7 +71,7 @@ def _fetch_jobs(
     target: CompanyTarget,
     timeout: int,
     metadata: SourceScanMetadata,
-) -> List[JobRecord]:
+) -> AdapterResult:
     if not target.slug:
         raise AdapterError("Greenhouse target is missing slug")
     if not 1 <= int(target.max_jobs) <= MAX_RESULTS:
@@ -178,6 +183,10 @@ def _fetch_jobs(
             str(target.job_attribution_field),
         )
     selected_summaries = prioritized_summaries[:maximum_results]
+    inventory_items = tuple(
+        InventoryItem(summary.job_id, summary.source)
+        for _item, summary in summaries
+    )
     safety_limit_reached = len(summaries) >= maximum_results
     detail_priority, _ = _prioritized_summaries(
         selected_summaries, MAX_DETAIL_REQUESTS
@@ -187,54 +196,100 @@ def _fetch_jobs(
         for _item, summary in detail_priority[:MAX_DETAIL_REQUESTS]
     }
     jobs: list[JobRecord] = []
+    item_failures: list[ItemFailure] = []
     detail_requests = 0
     detail_bytes = 0
     for item, summary in selected_summaries:
         detail = _embedded_detail(item, assume_embedded=expanded_listing)
+        separately_fetched_detail = False
         if detail is None and summary.job_id in detail_candidate_ids:
-            detail, response_bytes, _ = _get_json(
-                session,
-                f"{base_url}/jobs/{summary.job_id}",
-                timeout,
-                detail_limit,
-                target.slug,
-                "detail response",
-            )
             detail_requests += 1
             requests_fetched += 1
-            detail_bytes += response_bytes
+            try:
+                detail, response_bytes, _ = _get_json(
+                    session,
+                    f"{base_url}/jobs/{summary.job_id}",
+                    timeout,
+                    detail_limit,
+                    target.slug,
+                    "detail response",
+                )
+                separately_fetched_detail = True
+                detail_bytes += response_bytes
+            except requests.RequestException as exc:
+                item_failures.append(
+                    ItemFailure(
+                        item_id=summary.job_id,
+                        reason=f"{exc.__class__.__name__}: {exc}",
+                        retryable=True,
+                    )
+                )
+                _retain_greenhouse_listing(summary, target)
+                jobs.append(summary)
+                continue
+            except AdapterError as exc:
+                item_failures.append(
+                    ItemFailure(
+                        item_id=summary.job_id,
+                        reason=str(exc),
+                        retryable=_retryable_detail_error(exc),
+                        outcome=(
+                            "unreadable"
+                            if _retryable_detail_error(exc)
+                            else "rejected"
+                        ),
+                    )
+                )
+                _retain_greenhouse_listing(summary, target)
+                jobs.append(summary)
+                continue
         if detail is None:
-            if allowed_departments:
-                summary.departments = list(target.department_allowlist)
+            _retain_greenhouse_listing(summary, target)
             jobs.append(summary)
             continue
-        if not isinstance(detail, Mapping):
-            raise AdapterError("Greenhouse job detail must be a JSON object")
-        detail_job_id = str(detail.get("id") or "").strip()
-        if detail_job_id != summary.job_id:
-            raise AdapterError("Greenhouse job detail does not match its stable job ID")
+        try:
+            if not isinstance(detail, Mapping):
+                raise AdapterError("Greenhouse job detail must be a JSON object")
+            detail_job_id = str(detail.get("id") or "").strip()
+            if detail_job_id != summary.job_id:
+                raise AdapterError(
+                    "Greenhouse job detail does not match its stable job ID"
+                )
 
-        departments = _names(detail.get("departments"))
-        if allowed_departments and not any(
-            department.casefold() in allowed_departments for department in departments
-        ):
-            continue
-        offices = _names(detail.get("offices"))
-        jobs.append(
-            JobRecord(
-                job_id=summary.job_id,
-                title=summary.title,
-                company=summary.company,
-                location=summary.location,
-                url=summary.url,
-                updated_at=summary.updated_at,
-                source=summary.source,
-                departments=departments,
-                offices=offices,
-                description=detail.get("content"),
-                raw_metadata=summary.raw_metadata,
+            departments = _names(detail.get("departments"))
+            if allowed_departments and not any(
+                department.casefold() in allowed_departments
+                for department in departments
+            ):
+                continue
+            offices = _names(detail.get("offices"))
+            jobs.append(
+                JobRecord(
+                    job_id=summary.job_id,
+                    title=summary.title,
+                    company=summary.company,
+                    location=summary.location,
+                    url=summary.url,
+                    updated_at=summary.updated_at,
+                    source=summary.source,
+                    departments=departments,
+                    offices=offices,
+                    description=detail.get("content"),
+                    raw_metadata=summary.raw_metadata,
+                )
             )
-        )
+        except AdapterError as exc:
+            if not separately_fetched_detail:
+                raise
+            item_failures.append(
+                ItemFailure(
+                    item_id=summary.job_id,
+                    reason=str(exc),
+                    outcome="rejected",
+                )
+            )
+            _retain_greenhouse_listing(summary, target)
+            jobs.append(summary)
 
     setattr(
         session,
@@ -282,7 +337,36 @@ def _fetch_jobs(
         ),
         safety_limit_reached=safety_limit_reached,
     )
-    return jobs
+    return AdapterResult(
+        jobs=jobs,
+        scan=metadata,
+        inventory_items=inventory_items,
+        item_failures=tuple(item_failures),
+        capabilities_used=frozenset(
+            {"inventory", "hydration", "partial_progress", "per_item_failure"}
+        ),
+    )
+
+
+def _retain_greenhouse_listing(summary: JobRecord, target: CompanyTarget) -> None:
+    if target.department_allowlist and not summary.departments:
+        summary.departments = list(target.department_allowlist)
+
+
+def _retryable_detail_error(exc: BaseException) -> bool:
+    message = str(exc).casefold()
+    return any(
+        marker in message
+        for marker in (
+            "http 408",
+            "http 425",
+            "http 429",
+            "http 500",
+            "http 502",
+            "http 503",
+            "http 504",
+        )
+    )
 
 
 def _has_exact_attribution(

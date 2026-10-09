@@ -11,7 +11,10 @@ import requests
 
 from src.scraper.company_careers.models import (
     AdapterError,
+    AdapterResult,
     CompanyTarget,
+    InventoryItem,
+    ItemFailure,
     JobRecord,
     SourceScanMetadata,
     explicit_adapter_result,
@@ -39,7 +42,7 @@ def fetch_jobs(
     session: requests.Session,
     target: CompanyTarget,
     timeout: int = 20,
-) -> list[JobRecord]:
+) -> AdapterResult:
     """Fetch one bounded anonymous BambooHR collection and its public details."""
     contract = validate_target(target)
     timeout = max(1, min(int(timeout), MAX_TIMEOUT_SECONDS))
@@ -55,6 +58,7 @@ def fetch_jobs(
     payload = _json_get(session, contract["listing_url"], timeout)
     all_items = _parse_listing(payload)
     metadata["pages_completed"] = 1
+    metadata["source_identity_status"] = "validated"
     metadata["total_available"] = len(all_items)
     metadata["detail_requests_coupled"] = False
     record_terminal_evidence(
@@ -70,6 +74,7 @@ def fetch_jobs(
     effective_jobs = listing_budget.complete_collection_job_ceiling(len(all_items))
     items = all_items[:effective_jobs]
     jobs: list[JobRecord] = []
+    item_failures: list[ItemFailure] = []
     seen_ids: set[str] = set()
     detail_requests = 0
     for item_index, item in enumerate(items):
@@ -79,11 +84,39 @@ def fetch_jobs(
         seen_ids.add(job_id)
         if item_index < min(int(target.max_jobs), MAX_DETAIL_REQUESTS):
             detail_url = f"{contract['careers_url']}/{job_id}/detail"
-            detail = _parse_detail(
-                _json_get(session, detail_url, timeout), item, contract, job_id
-            )
-            detail_requests += 1
-            jobs.append(_normalize(item, detail, target, contract, job_id))
+            try:
+                detail = _parse_detail(
+                    _json_get(session, detail_url, timeout), item, contract, job_id
+                )
+                detail_requests += 1
+                jobs.append(_normalize(item, detail, target, contract, job_id))
+            except (AdapterError, requests.RequestException) as exc:
+                reason = str(exc)
+                deterministic = any(
+                    marker in reason.casefold()
+                    for marker in (
+                        "does not match",
+                        "identity changed",
+                        "not an open job",
+                        "exact job-specific share url",
+                    )
+                )
+                item_failures.append(
+                    ItemFailure(
+                        item_id=job_id,
+                        reason=f"{exc.__class__.__name__}: {exc}",
+                        stage="normalization" if deterministic else "hydration",
+                        retryable=(
+                            isinstance(exc, requests.RequestException)
+                            or any(
+                                token in reason.casefold()
+                                for token in ("http 408", "http 429", "http 5")
+                            )
+                        ),
+                        outcome="rejected" if deterministic else "unreadable",
+                    )
+                )
+                jobs.append(_normalize_summary(item, target, contract, job_id))
         else:
             jobs.append(_normalize_summary(item, target, contract, job_id))
     metadata["jobs_normalized"] = len(jobs)
@@ -98,7 +131,24 @@ def fetch_jobs(
         metadata["stop_reason"] = "complete_collection_response"
         metadata["scan_completeness_reason"] = "complete_collection_response"
         metadata["scan_complete"] = True
-    return jobs
+    metadata["unreadable_items"] = sum(
+        failure.outcome == "unreadable" for failure in item_failures
+    )
+    metadata["rejected_items"] = sum(
+        failure.outcome == "rejected" for failure in item_failures
+    )
+    return AdapterResult(
+        jobs=jobs,
+        scan=metadata,
+        inventory_items=tuple(
+            InventoryItem(job_id, f"bamboohr:{contract['slug']}")
+            for job_id in sorted(seen_ids)
+        ),
+        item_failures=tuple(item_failures),
+        capabilities_used=frozenset(
+            {"inventory", "hydration", "partial_progress", "per_item_failure"}
+        ),
+    )
 
 
 def _normalize_summary(

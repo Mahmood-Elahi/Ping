@@ -251,6 +251,26 @@ class LeverAdapterTests(unittest.TestCase):
         self.assertEqual(metadata["pages_completed"], 1)
         self.assertEqual(metadata["stop_reason"], "pagination_failure")
 
+    @patch("src.scraper.company_careers.adapters.lever.time.sleep", lambda _: None)
+    def test_20b_transport_failure_after_first_page_returns_partial_progress(self):
+        page = [
+            posting(str(index), hostedUrl=f"https://jobs.lever.co/example/{index}")
+            for index in range(20)
+        ]
+        session = Session(
+            Response(page),
+            requests.ConnectionError("offline"),
+            requests.ConnectionError("offline"),
+        )
+
+        result = lever.fetch_jobs(session, target(max_jobs=60, max_pages=3))
+
+        self.assertEqual(len(result.jobs), 20)
+        self.assertEqual(len(result.inventory_items), 20)
+        self.assertFalse(result.scan["scan_complete"])
+        self.assertEqual(result.scan["stop_reason"], "request_failure")
+        self.assertIn("partial_progress", result.capabilities_used)
+
     def test_21_repeated_page_is_detected(self):
         page = [
             posting(str(index), hostedUrl=f"https://jobs.lever.co/example/{index}")
