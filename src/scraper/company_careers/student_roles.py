@@ -26,6 +26,7 @@ from src.scraper.company_careers.candidate_profile import (
     score_candidate_preferences,
 )
 from src.scraper.company_careers.freshness import stable_job_key
+from src.utils.job_retention import RetentionPolicy
 from src.scraper.company_careers.models import CompanyTarget, JobRecord
 
 
@@ -622,6 +623,7 @@ def rank_student_jobs(
     candidate_profile: Optional[CandidateProfile] = None,
     now: Optional[datetime] = None,
     freshness_by_key: Optional[Mapping[str, Mapping[str, Any]]] = None,
+    retention_policy: Optional[RetentionPolicy] = None,
 ) -> list[dict[str, Any]]:
     freshness_enabled = freshness_by_key is not None
     ranked: list[dict[str, Any]] = []
@@ -653,6 +655,13 @@ def rank_student_jobs(
                 raise ValueError(
                     f"Freshness lifecycle annotation missing for stable job identity {source_key!r}"
                 )
+            if retention_policy is not None:
+                if now is None:
+                    raise ValueError("retention filtering requires an explicit reference time")
+                if not retention_policy.current_output_is_eligible(
+                    freshness, as_of=now
+                ):
+                    continue
         base_ranking_score = int(
             relevance["ranking_score"]
             if candidate_profile is not None
@@ -819,6 +828,7 @@ def write_student_ranked_jobs_artifacts(
     limit: Optional[int] = None, include_new_grad: bool = False,
     candidate_profile: Optional[CandidateProfile] = None,
     freshness_by_key: Optional[Mapping[str, Mapping[str, Any]]] = None,
+    retention_policy: Optional[RetentionPolicy] = None,
     now: Optional[datetime] = None,
 ) -> None:
     del keywords
@@ -829,6 +839,7 @@ def write_student_ranked_jobs_artifacts(
         limit=limit,
         candidate_profile=candidate_profile,
         freshness_by_key=freshness_by_key,
+        retention_policy=retention_policy,
         now=now,
     )
     Path(json_path).write_text(json.dumps(ranked, indent=2, ensure_ascii=False), encoding="utf-8")

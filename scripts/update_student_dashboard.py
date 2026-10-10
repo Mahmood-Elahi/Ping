@@ -214,6 +214,9 @@ def build_pipeline(
             freshness_by_key=(
                 freshness_runtime.annotations if freshness_runtime else None
             ),
+            retention_policy=(
+                freshness_runtime.config.retention if freshness_runtime else None
+            ),
             now=as_of,
         ),
         company_careers_report_processor=(
@@ -275,6 +278,7 @@ def run_update(args: argparse.Namespace) -> int:
             freshness_config.removal.consecutive_complete_scans
             if freshness_config is not None else None
         ),
+        retention_policy=(freshness_config.retention if freshness_config else None),
     )
     job_store.validate_setup()
     source_health = job_store.fetch_source_health()
@@ -309,6 +313,9 @@ def run_update(args: argparse.Namespace) -> int:
             candidate_profile=candidate_profile,
             freshness_by_key=(
                 freshness_runtime.annotations if freshness_runtime else None
+            ),
+            retention_policy=(
+                freshness_config.retention if freshness_config else None
             ),
             now=as_of,
         )

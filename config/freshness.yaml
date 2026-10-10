@@ -18,3 +18,9 @@ urgency:
 
 removal:
   consecutive_complete_scans: 2
+
+retention:
+  max_job_age_days: 60
+  drop_stale: true
+  removed_job_retention_days: 0
+  sync_history_retention_days: 7

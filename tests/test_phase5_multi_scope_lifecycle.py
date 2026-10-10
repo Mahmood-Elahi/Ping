@@ -11,6 +11,7 @@ from src.integrations.supabase_job_store import (
     generate_source_key,
 )
 from src.scraper.company_careers.freshness import (
+    FreshnessRuntime,
     empty_freshness_state,
     load_freshness_config,
     reconcile_lifecycle,
@@ -182,6 +183,32 @@ def test_exact_shared_job_stays_active_while_any_owner_reports_it() -> None:
     assert owners[source_scope_key("Canonical Company X", "early_careers")][
         "lifecycle_status"
     ] == "active"
+
+
+def test_exact_shared_job_emits_one_persistence_row_per_owner_scope() -> None:
+    exact = {"kind": "shared_requisition_id", "value": "REQ-EXACT-2"}
+    professional = job("P-2", scope="professional", equivalence=exact)
+    early = job("E-2", scope="early_careers", equivalence=exact)
+    result = reconcile(
+        [professional, early],
+        empty_freshness_state(),
+        [
+            ("Canonical Company X", "professional"),
+            ("Canonical Company X", "early_careers"),
+        ],
+    )
+    runtime = FreshnessRuntime(
+        config=CONFIG,
+        previous_state=empty_freshness_state(),
+        as_of=AS_OF,
+    )
+    runtime.result = result
+
+    rows = runtime.lifecycle_jobs([professional, early])
+
+    assert len(rows) == 2
+    assert {row["source_scope"] for row in rows} == {"professional", "early_careers"}
+    assert len({row["source_key"] for row in rows}) == 1
 
 
 def test_title_and_location_similarity_never_creates_equivalence() -> None:

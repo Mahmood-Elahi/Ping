@@ -15,6 +15,7 @@ from src.integrations.supabase_job_store import (
     generate_provider_source_key,
     generate_source_key,
 )
+from src.utils.job_retention import RetentionPolicy
 from src.utils.source_scope import (
     DEFAULT_SOURCE_SCOPE,
     normalize_source_scope,
@@ -82,6 +83,7 @@ class FreshnessConfig:
     freshness: FreshnessThresholds
     urgency: UrgencyThresholds
     removal: RemovalPolicy
+    retention: RetentionPolicy
 
 
 @dataclass(frozen=True)
@@ -102,7 +104,7 @@ def load_freshness_config(path: str = DEFAULT_FRESHNESS_CONFIG_PATH) -> Freshnes
         raise FileNotFoundError(f"Freshness config not found: {path}")
     with config_path.open("r", encoding="utf-8") as file:
         root = yaml.safe_load(file) or {}
-    _require_keys(root, {"freshness", "urgency", "removal"}, "root")
+    _require_keys(root, {"freshness", "urgency", "removal", "retention"}, "root")
 
     freshness = _mapping(root["freshness"], "freshness")
     _require_keys(
@@ -140,6 +142,12 @@ def load_freshness_config(path: str = DEFAULT_FRESHNESS_CONFIG_PATH) -> Freshnes
 
     removal = _mapping(root["removal"], "removal")
     _require_keys(removal, {"consecutive_complete_scans"}, "removal")
+    retention = _mapping(root["retention"], "retention")
+    try:
+        retention_policy = RetentionPolicy.from_mapping(retention)
+    except ValueError as exc:
+        raise FreshnessConfigurationError(str(exc)) from exc
+
     return FreshnessConfig(
         freshness=FreshnessThresholds(new_hours, fresh_days, normal_days, aging_days),
         urgency=UrgencyThresholds(
@@ -156,6 +164,7 @@ def load_freshness_config(path: str = DEFAULT_FRESHNESS_CONFIG_PATH) -> Freshnes
                 removal["consecutive_complete_scans"], "removal.consecutive_complete_scans"
             )
         ),
+        retention=retention_policy,
     )
 
 
@@ -606,13 +615,17 @@ class FreshnessRuntime:
         if self.result is None:
             raise RuntimeError("process_report must run before lifecycle jobs are requested")
         rows: list[dict[str, Any]] = []
-        seen: set[str] = set()
+        seen: set[tuple[str, str]] = set()
         for job in jobs:
             values = _job_mapping(job)
             key = stable_job_key(values)
-            if key not in seen:
+            ownership = (
+                key,
+                source_scope_key(values.get("company"), values.get("source_scope")),
+            )
+            if ownership not in seen:
                 rows.append({**values, **self.result.annotations_by_key[key]})
-                seen.add(key)
+                seen.add(ownership)
         return rows
 
 

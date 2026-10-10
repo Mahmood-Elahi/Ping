@@ -14,6 +14,7 @@ from datetime import date, datetime, timezone
 from typing import Any, Callable, Iterable, Mapping, MutableMapping, Optional
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+from src.utils.job_retention import RetentionPolicy
 from src.utils.source_scope import (
     DEFAULT_SOURCE_SCOPE,
     normalize_source_scope,
@@ -31,9 +32,11 @@ DEFAULT_ACTIVE_JOBS_PAGE_SIZE = 500
 MIN_ACTIVE_JOBS_PAGE_SIZE = 100
 DEFAULT_SYNC_CHUNK_ROWS = 200
 DEFAULT_SYNC_CHUNK_BYTES = 512 * 1024
+DEFAULT_RETENTION_BATCH_SIZE = 1000
 ACTIVE_JOBS_COLUMNS = (
     "source_key,company,title,location,apply_url,relevance_score,positive_signals,"
-    "first_seen_at,status,freshness_band,urgency_band"
+    "first_seen_at,last_seen_at,source_posted_at,age_days,status,lifecycle_status,"
+    "freshness_band,urgency_band"
 )
 LIFECYCLE_STATE_COLUMNS = (
     "source_key,company,source_scope,title,location,apply_url,source_url,source_platform,"
@@ -307,6 +310,8 @@ class SupabaseJobStore:
         sync_chunk_bytes: int = DEFAULT_SYNC_CHUNK_BYTES,
         sleep: Callable[[float], None] = time.sleep,
         redaction_secrets: Iterable[str] = (),
+        retention_policy: Optional[RetentionPolicy] = None,
+        retention_batch_size: int = DEFAULT_RETENTION_BATCH_SIZE,
     ) -> None:
         if close_after_missing_runs < 1:
             raise SupabaseConfigurationError("CLOSE_AFTER_MISSING_RUNS must be at least 1")
@@ -320,7 +325,10 @@ class SupabaseJobStore:
         self.sync_chunk_bytes = int(sync_chunk_bytes)
         self._sleep = sleep
         self._redaction_secrets = tuple(str(value) for value in redaction_secrets if value)
+        self.retention_policy = retention_policy
+        self.retention_batch_size = int(retention_batch_size)
         self.last_sync_diagnostics: Optional[SyncDiagnostics] = None
+        self.last_retention_report: Optional[dict[str, Any]] = None
         self._last_scan_id: Optional[str] = None
         self._last_scan_diagnostics: dict[str, Any] = {}
         if self.request_timeout_seconds <= 0:
@@ -343,6 +351,10 @@ class SupabaseJobStore:
             raise SupabaseConfigurationError(
                 f"SUPABASE_SYNC_CHUNK_BYTES cannot exceed {DEFAULT_SYNC_CHUNK_BYTES}"
             )
+        if self.retention_batch_size < 1 or self.retention_batch_size > 5000:
+            raise SupabaseConfigurationError(
+                "retention_batch_size must be between 1 and 5000"
+            )
 
     @classmethod
     def from_env(
@@ -352,6 +364,7 @@ class SupabaseJobStore:
         client_factory: Optional[Callable[[str, str], Any]] = None,
         now_factory: Callable[[], datetime] | None = None,
         close_after_missing_runs: int | None = None,
+        retention_policy: Optional[RetentionPolicy] = None,
     ) -> "SupabaseJobStore":
         """Create a client only when explicitly called, never during module import."""
         environment = environ if environ is not None else os.environ
@@ -448,6 +461,12 @@ class SupabaseJobStore:
                 environment, "SUPABASE_SYNC_CHUNK_BYTES", DEFAULT_SYNC_CHUNK_BYTES
             ),
             redaction_secrets=(service_role_key,),
+            retention_policy=retention_policy,
+            retention_batch_size=_positive_integer_setting(
+                environment,
+                "SUPABASE_RETENTION_BATCH_SIZE",
+                DEFAULT_RETENTION_BATCH_SIZE,
+            ),
         )
 
     def validate_setup(self) -> None:
@@ -583,8 +602,30 @@ class SupabaseJobStore:
         """Synchronize each source atomically, then record the successful scan."""
         seen_at = _ensure_aware(self._now_factory())
         jobs_by_key: MutableMapping[tuple[str, str], dict[str, Any]] = {}
+        retention_protected_by_scope: dict[str, set[str]] = {}
+        retention_scope_labels: dict[str, tuple[str, str]] = {}
         for job in lifecycle_jobs or ():
             values = _job_mapping(job)
+            if (
+                self.retention_policy is not None
+                and not self.retention_policy.observation_is_persistable(
+                    values, as_of=seen_at
+                )
+            ):
+                logical_scope = source_scope_key(
+                    values.get("company"), values.get("source_scope")
+                )
+                retention_protected_by_scope.setdefault(logical_scope, set()).add(
+                    generate_provider_source_key(values)
+                )
+                retention_scope_labels.setdefault(
+                    logical_scope,
+                    (
+                        str(values.get("company") or "").strip(),
+                        normalize_source_scope(values.get("source_scope")),
+                    ),
+                )
+                continue
             payload = tracked_job_payload(
                 {**values, "is_ranked_output": False}, seen_at=seen_at
             )
@@ -593,6 +634,13 @@ class SupabaseJobStore:
         ranked_canonical_keys: set[str] = set()
         for job in jobs:
             values = _job_mapping(job)
+            if (
+                self.retention_policy is not None
+                and not self.retention_policy.current_output_is_eligible(
+                    values, as_of=seen_at
+                )
+            ):
+                continue
             payload = tracked_job_payload(
                 {**values, "is_ranked_output": True}, seen_at=seen_at
             )
@@ -630,20 +678,24 @@ class SupabaseJobStore:
                 (company, DEFAULT_SOURCE_SCOPE),
             )
         protected_by_scope = {
-            str(scope_key).strip(): tuple(
-                sorted({str(key).strip() for key in keys if str(key).strip()})
-            )
+            str(scope_key).strip(): {
+                str(key).strip() for key in keys if str(key).strip()
+            }
             for scope_key, keys in (protected_source_keys_by_scope or {}).items()
             if str(scope_key).strip()
         }
         for company, keys in (protected_source_keys or {}).items():
             if str(company).strip():
                 protected_by_scope.setdefault(
-                    source_scope_key(company, DEFAULT_SOURCE_SCOPE),
-                    tuple(sorted({str(key).strip() for key in keys if str(key).strip()})),
-                )
+                    source_scope_key(company, DEFAULT_SOURCE_SCOPE), set()
+                ).update(str(key).strip() for key in keys if str(key).strip())
+        for logical_scope, keys in retention_protected_by_scope.items():
+            protected_by_scope.setdefault(logical_scope, set()).update(keys)
         rows_by_scope: dict[str, list[dict[str, Any]]] = {}
-        scope_labels: dict[str, tuple[str, str]] = dict(complete_scopes)
+        scope_labels: dict[str, tuple[str, str]] = {
+            **retention_scope_labels,
+            **complete_scopes,
+        }
         for payload in jobs_by_key.values():
             scope_key = str(payload["source_scope_key"])
             rows_by_scope.setdefault(scope_key, []).append(payload)
@@ -675,7 +727,7 @@ class SupabaseJobStore:
                 source_scope_key_value=logical_scope,
                 rows=source_rows,
                 reconcile_absence=logical_scope in complete_scopes,
-                protected_source_keys=protected_by_scope.get(logical_scope, ()),
+                protected_source_keys=sorted(protected_by_scope.get(logical_scope, ())),
                 seen_at=seen_at,
                 payload_bytes=payload_bytes,
             )
@@ -686,6 +738,24 @@ class SupabaseJobStore:
                 totals.missing_incremented + int(data.get("missing_incremented", 0)),
                 totals.closed + int(data.get("closed", 0)),
             )
+
+        if self.retention_policy is not None:
+            try:
+                self.last_retention_report = self.maintain_retention(
+                    execute=True,
+                    as_of=seen_at,
+                    batch_size=self.retention_batch_size,
+                )
+            except SupabaseAccessError as exc:
+                # Maintenance is deliberately best-effort. Source-scoped
+                # persistence has already finalized safely, and a cleanup RPC
+                # outage or not-yet-applied migration must not relabel that
+                # authoritative scan as a failed scan.
+                self.last_retention_report = {
+                    "status": "failed",
+                    "error_type": exc.__class__.__name__,
+                    "error": str(exc),
+                }
 
         elapsed = time.perf_counter() - sync_started
         self.last_sync_diagnostics = SyncDiagnostics(
@@ -717,6 +787,7 @@ class SupabaseJobStore:
                 "chunk_byte_limit": self.sync_chunk_bytes,
                 "elapsed_seconds": round(elapsed, 3),
             },
+            "retention": _json_safe(self.last_retention_report),
         }
         self._record_scan_run(
             scan_id=scan_id,
@@ -728,6 +799,60 @@ class SupabaseJobStore:
         self._last_scan_id = scan_id
         self._last_scan_diagnostics = run_diagnostics
         return totals
+
+    def maintain_retention(
+        self,
+        *,
+        execute: bool = False,
+        as_of: Optional[datetime] = None,
+        batch_size: Optional[int] = None,
+    ) -> dict[str, Any]:
+        """Plan or execute one bounded retention-maintenance batch."""
+        if self.retention_policy is None:
+            raise SupabaseConfigurationError(
+                "retention maintenance requires an explicit RetentionPolicy"
+            )
+        reference = _ensure_aware(as_of or self._now_factory())
+        bounded_batch_size = int(batch_size or self.retention_batch_size)
+        if bounded_batch_size < 1 or bounded_batch_size > 5000:
+            raise ValueError("retention batch_size must be between 1 and 5000")
+        policy = self.retention_policy
+        params = {
+            "p_execute": bool(execute),
+            "p_as_of": _iso_timestamp(reference),
+            "p_max_job_age_days": policy.max_job_age_days,
+            "p_drop_stale": policy.drop_stale,
+            "p_removed_job_retention_days": policy.removed_job_retention_days,
+            "p_sync_history_retention_days": policy.sync_history_retention_days,
+            "p_batch_size": bounded_batch_size,
+        }
+        try:
+            response = self.client.rpc(
+                "maintain_student_job_retention", params
+            ).execute()
+            data = getattr(response, "data", None)
+            if isinstance(data, list) and len(data) == 1 and isinstance(data[0], Mapping):
+                data = data[0]
+            if not isinstance(data, Mapping):
+                raise RuntimeError("retention maintenance RPC returned an invalid response")
+            report = dict(data)
+            for section in ("before", "deleted", "after"):
+                if not isinstance(report.get(section), Mapping):
+                    raise RuntimeError(
+                        f"retention maintenance report omitted {section!r} counts"
+                    )
+            return report
+        except Exception as exc:
+            raise _supabase_access_error(
+                exc,
+                operation=(
+                    "retention maintenance execution"
+                    if execute
+                    else "retention maintenance dry-run"
+                ),
+                payload_rows=bounded_batch_size,
+                secrets=self._redaction_secrets,
+            ) from None
 
     @staticmethod
     def _merge_job_payload(
@@ -1066,6 +1191,7 @@ class SupabaseJobStore:
     def fetch_dashboard_data(self) -> DashboardData:
         """Read active jobs and the latest scan without touching applications."""
         jobs_data: list[Mapping[str, Any]] = []
+        reference = _ensure_aware(self._now_factory())
         seen_source_keys: set[str] = set()
         cursor: Optional[str] = None
         page_number = 1
@@ -1097,7 +1223,14 @@ class SupabaseJobStore:
                 )
             if any(source_key in seen_source_keys for source_key in page_source_keys):
                 raise RuntimeError("Supabase active-jobs pagination returned duplicate rows")
-            jobs_data.extend(page)
+            jobs_data.extend(
+                row
+                for row in page
+                if self.retention_policy is None
+                or self.retention_policy.current_output_is_eligible(
+                    row, as_of=reference
+                )
+            )
             seen_source_keys.update(page_source_keys)
             if len(page) < page_size:
                 break

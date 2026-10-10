@@ -16,6 +16,7 @@ from src.integrations.supabase_job_store import (
     tracked_job_payload,
 )
 from src.utils.job_search_pipeline import JobSearchPipeline
+from src.utils.job_retention import RetentionPolicy
 
 
 class FakeResponse:
@@ -681,6 +682,214 @@ class SupabaseJobStoreTests(unittest.TestCase):
         )
         self.assertEqual(first, "id:greenhouse:example:job-123")
         self.assertEqual(first, changed_url)
+
+    def test_repeated_retention_ineligible_observation_is_not_persisted_or_absent(self):
+        old_job = self.job(
+            source_posted_at="2026-01-01T00:00:00Z",
+            first_seen_at="2026-01-01T00:00:00Z",
+            last_seen_at="2026-08-03T12:00:00Z",
+            age_days=214,
+            freshness_band="stale",
+            lifecycle_status="active",
+            status="active",
+        )
+        store = SupabaseJobStore(
+            self.client,
+            now_factory=self.clock,
+            retention_policy=RetentionPolicy(),
+        )
+        empty_report = {
+            "before": {},
+            "deleted": {},
+            "after": {},
+        }
+        with patch.object(store, "maintain_retention", return_value=empty_report):
+            for offset in range(2):
+                store.sync_student_jobs(
+                    [old_job],
+                    lifecycle_jobs=[old_job],
+                    successful_companies=("Example",),
+                    successful_source_scopes=(("Example", "default"),),
+                    started_at=self.started_at + timedelta(minutes=offset),
+                    companies_checked=1,
+                    jobs_fetched=1,
+                )
+
+        self.assertEqual(self.client.tracked_jobs, {})
+        begin_calls = [
+            params for name, params in self.client.rpc_calls
+            if name == "begin_student_job_source_sync"
+        ]
+        self.assertEqual(len(begin_calls), 2)
+        self.assertTrue(all(call["p_expected_rows"] == 0 for call in begin_calls))
+        self.assertTrue(
+            all(
+                generate_source_key(old_job) in call["p_protected_source_keys"]
+                for call in begin_calls
+            )
+        )
+
+    def test_stale_observation_does_not_advance_absence_for_existing_job(self):
+        eligible = self.job(
+            source_posted_at="2026-08-02T12:00:00Z",
+            first_seen_at="2026-08-02T12:00:00Z",
+            last_seen_at="2026-08-03T12:00:00Z",
+            age_days=1,
+            freshness_band="fresh",
+            lifecycle_status="active",
+            status="active",
+        )
+        store = SupabaseJobStore(
+            self.client,
+            now_factory=self.clock,
+            retention_policy=RetentionPolicy(),
+        )
+        empty_report = {"before": {}, "deleted": {}, "after": {}}
+        with patch.object(store, "maintain_retention", return_value=empty_report):
+            store.sync_student_jobs(
+                [eligible], lifecycle_jobs=[eligible], successful_companies=("Example",),
+                successful_source_scopes=(("Example", "default"),),
+                started_at=self.started_at, companies_checked=1, jobs_fetched=1,
+            )
+            stale = {
+                **eligible,
+                "source_posted_at": "2026-01-01T00:00:00Z",
+                "age_days": 214,
+                "freshness_band": "stale",
+            }
+            store.sync_student_jobs(
+                [stale], lifecycle_jobs=[stale], successful_companies=("Example",),
+                successful_source_scopes=(("Example", "default"),),
+                started_at=self.started_at + timedelta(minutes=1),
+                companies_checked=1, jobs_fetched=1,
+            )
+
+        tracked = self.client.tracked_jobs[generate_source_key(eligible)]
+        self.assertEqual(tracked["lifecycle_status"], "active")
+        self.assertEqual(tracked["missing_successful_runs"], 0)
+        owner = next(iter(self.client.scope_ownership.values()))
+        self.assertEqual(owner["lifecycle_status"], "active")
+        self.assertEqual(owner["missing_successful_runs"], 0)
+
+    def test_retention_maintenance_runs_once_after_all_source_scopes(self):
+        professional = self.job(
+            job_id="pro-retention", source="fixture:professional",
+            source_scope="professional",
+        )
+        early = self.job(
+            job_id="early-retention", source="fixture:early",
+            source_scope="early_careers",
+        )
+        store = SupabaseJobStore(
+            self.client,
+            now_factory=self.clock,
+            retention_policy=RetentionPolicy(),
+        )
+        empty_report = {"before": {}, "deleted": {}, "after": {}}
+        with patch.object(
+            store, "maintain_retention", return_value=empty_report
+        ) as maintenance:
+            store.sync_student_jobs(
+                [professional, early],
+                lifecycle_jobs=[professional, early],
+                successful_companies=(),
+                successful_source_scopes=(
+                    ("Example", "professional"),
+                    ("Example", "early_careers"),
+                ),
+                started_at=self.started_at,
+                companies_checked=1,
+                jobs_fetched=2,
+            )
+
+        maintenance.assert_called_once_with(
+            execute=True,
+            as_of=self.clock.current,
+            batch_size=1000,
+        )
+        finalize_indices = [
+            index for index, (name, _params) in enumerate(self.client.rpc_calls)
+            if name == "finalize_student_job_source_sync"
+        ]
+        self.assertEqual(len(finalize_indices), 2)
+
+    def test_retention_maintenance_failure_does_not_relabel_successful_sync(self):
+        current = self.job(
+            source_posted_at="2026-08-02T12:00:00Z",
+            first_seen_at="2026-08-02T12:00:00Z",
+            freshness_band="fresh",
+        )
+        store = SupabaseJobStore(
+            self.client,
+            now_factory=self.clock,
+            retention_policy=RetentionPolicy(),
+        )
+        with patch.object(
+            store,
+            "maintain_retention",
+            side_effect=SupabaseAccessError("retention RPC unavailable"),
+        ):
+            result = store.sync_student_jobs(
+                [current], lifecycle_jobs=[current],
+                successful_companies=("Example",),
+                successful_source_scopes=(("Example", "default"),),
+                started_at=self.started_at, companies_checked=1, jobs_fetched=1,
+            )
+
+        self.assertEqual(result.inserted, 1)
+        self.assertIn(generate_source_key(current), self.client.tracked_jobs)
+        self.assertEqual(store.last_retention_report["status"], "failed")
+        self.assertTrue(self.client.scan_runs[-1]["success"])
+
+    def test_shared_job_old_in_one_scope_and_fresh_in_another_stays_owned(self):
+        equivalence = {"kind": "shared_requisition_id", "value": "REQ-RETENTION"}
+        old = self.job(
+            job_id="old-owner", source="fixture:professional",
+            source_scope="professional", cross_source_equivalence=equivalence,
+            source_posted_at="2026-01-01T00:00:00Z",
+            first_seen_at="2026-01-01T00:00:00Z", freshness_band="stale",
+        )
+        fresh = self.job(
+            job_id="fresh-owner", source="fixture:early",
+            source_scope="early_careers", cross_source_equivalence=equivalence,
+            source_posted_at="2026-08-02T12:00:00Z",
+            first_seen_at="2026-08-02T12:00:00Z", freshness_band="fresh",
+        )
+        # Seed both owners while retention is disabled, then exercise filtering.
+        self.store.sync_student_jobs(
+            [old, fresh], lifecycle_jobs=[old, fresh], successful_companies=(),
+            successful_source_scopes=(
+                ("Example", "professional"), ("Example", "early_careers")
+            ),
+            started_at=self.started_at, companies_checked=1, jobs_fetched=2,
+        )
+        store = SupabaseJobStore(
+            self.client,
+            now_factory=self.clock,
+            retention_policy=RetentionPolicy(),
+        )
+        with patch.object(
+            store, "maintain_retention",
+            return_value={"before": {}, "deleted": {}, "after": {}},
+        ):
+            store.sync_student_jobs(
+                [old, fresh], lifecycle_jobs=[old, fresh], successful_companies=(),
+                successful_source_scopes=(
+                    ("Example", "professional"), ("Example", "early_careers")
+                ),
+                started_at=self.started_at + timedelta(minutes=1),
+                companies_checked=1, jobs_fetched=2,
+            )
+
+        canonical_key = generate_source_key(fresh)
+        self.assertEqual(generate_source_key(old), canonical_key)
+        self.assertEqual(self.client.tracked_jobs[canonical_key]["lifecycle_status"], "active")
+        owners = [
+            row for row in self.client.scope_ownership.values()
+            if row["source_key"] == canonical_key
+        ]
+        self.assertEqual(len(owners), 2)
+        self.assertTrue(all(row["missing_successful_runs"] == 0 for row in owners))
 
     def test_scope_sync_reconciles_only_owned_inventory(self):
         professional = self.job(
@@ -1620,7 +1829,8 @@ class SupabaseJobStoreTests(unittest.TestCase):
         self.assertEqual(
             call["columns"],
             "source_key,company,title,location,apply_url,relevance_score,"
-            "positive_signals,first_seen_at,status,freshness_band,urgency_band",
+            "positive_signals,first_seen_at,last_seen_at,source_posted_at,age_days,"
+            "status,lifecycle_status,freshness_band,urgency_band",
         )
         self.assertNotIn("raw_data", call["columns"])
         self.assertNotIn("description", call["columns"])
