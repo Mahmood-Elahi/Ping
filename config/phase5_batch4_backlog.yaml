@@ -1,0 +1,34 @@
+phase5_batch: 4
+phase6_started: false
+coding_batch_required_for_lightspeed_rollout: false
+
+VALIDATION_ONLY:
+  - lightspeed_fr_greenhouse
+
+IDENTITY_RESEARCH:
+  - gm_financial_oracle
+  - ultium_spring_hill_adp
+  - ultium_troy_adp
+  - ultium_warren_adp
+  - chevron_university_workday
+  - chevron_stations_workday
+  - catl_global_successfactors_feed
+
+PROTOCOL_DEFERRED:
+  - progress_rail_global_salesforce
+  - progress_rail_us_brassring
+  - blackrock_early_careers_talnet
+  - catl_us_first_party
+  - healthineers_china_campus
+  - healthineers_china_professional
+  - coupang_cfs_frontline
+  - stantec_global_sitemap
+
+SCOPE_UNRESOLVED:
+  - gm_ppu_unresolved
+  - mitsubishi_electric_other_regions
+  - healthineers_global_html
+  - applied_materials_eightfold
+
+REJECTED:
+  - coupang_flex_assistant

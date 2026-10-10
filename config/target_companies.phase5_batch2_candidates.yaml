@@ -1,0 +1,538 @@
+# Offline Phase 5 Batch 2 progression registry. This is evidence and planning
+# data, not a CompanyTarget registry. Normal runtime loads only
+# config/target_companies.yaml.
+phase5_batch: 2
+production_registry_sha256: b5e8e42e1047c03131480ea678e2ca42ba3dbf42bd3f6ca1d3e0290decfbff30
+architecture_conclusion: MULTI_SCOPE_ARCHITECTURE_REQUIRED
+phase6_started: false
+
+phase5_candidates:
+  - candidate_id: gm_financial_oracle
+    rank: 1
+    company: GM Financial
+    canonical_company: GM Financial
+    parent_company: General Motors
+    scope: subsidiary_global
+    source_scope: subsidiary_global
+    proposed_platform: oracle_recruiting
+    proposed_tenant_or_slug: CX_1
+    proposed_source_url: https://fa-exvu-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/jobs
+    previous_status: NEEDS_IDENTITY_EVIDENCE
+    status: NEEDS_IDENTITY_EVIDENCE
+    identity_confidence: medium
+    scope_confidence: high
+    identity_evidence: jobseek boards.csv preserves the exact Oracle host and CX_1 site under GM Financial, but no independent response fixture contains a GM Financial employer marker or organization identifier.
+    scope_evidence: The reference board is explicitly GM Financial and is separate from the GM core recruiting host.
+    overlap_classification: UNKNOWN
+    what_changed_since_batch1: Oracle contract review confirmed that exact host/site reachability cannot replace an employer marker; no stronger local identity evidence exists.
+    main_blocker: Fail-closed Oracle employer identity remains unproven.
+    next_action: Capture an approved deterministic Oracle bootstrap/listing fixture containing the employer marker, then prepare a bounded Oracle canary.
+    manual_validation_required: true
+
+  - candidate_id: ultium_spring_hill_adp
+    rank: 2
+    company: Ultium Cells
+    canonical_company: Ultium Cells
+    parent_company: General Motors
+    scope: subsidiary_spring_hill
+    source_scope: spring_hill
+    proposed_platform: adp
+    proposed_tenant_or_slug: 3aada650-9516-4fad-a8af-527c53c40e64/9200679039949_2
+    proposed_source_url: https://workforcenow.adp.com/mascsr/default/mdf/recruitment/recruitment.html?ccId=9200679039949_2&cid=3aada650-9516-4fad-a8af-527c53c40e64&lang=en_US
+    previous_status: NEEDS_IDENTITY_EVIDENCE
+    status: NEEDS_IDENTITY_EVIDENCE
+    identity_confidence: medium
+    scope_confidence: high
+    identity_evidence: jobseek preserves the exact cid and Spring Hill ccId; no ADP bootstrap employer label is preserved.
+    scope_evidence: The board name is explicitly Ultium Spring Hill.
+    overlap_classification: PARTIAL_OVERLAP
+    what_changed_since_batch1: A preserved GM core fixture contains job JR-202620983 titled Health & Safety Supervisor - Ultium Cells LLC, disproving the prior DISJOINT assumption.
+    main_blocker: ADP employer identity and exact cross-board requisition overlap remain unproven.
+    next_action: Capture the ADP employer bootstrap fixture and compare itemID/clientRequisitionID with GM core before activation.
+    manual_validation_required: true
+
+  - candidate_id: ultium_troy_adp
+    rank: 3
+    company: Ultium Cells
+    canonical_company: Ultium Cells
+    parent_company: General Motors
+    scope: subsidiary_troy
+    source_scope: troy
+    proposed_platform: adp
+    proposed_tenant_or_slug: 3aada650-9516-4fad-a8af-527c53c40e64/9200679042873_2
+    proposed_source_url: https://workforcenow.adp.com/mascsr/default/mdf/recruitment/recruitment.html?ccId=9200679042873_2&cid=3aada650-9516-4fad-a8af-527c53c40e64&lang=en_US
+    previous_status: NEEDS_IDENTITY_EVIDENCE
+    status: NEEDS_IDENTITY_EVIDENCE
+    identity_confidence: medium
+    scope_confidence: high
+    identity_evidence: jobseek preserves the exact cid and Troy ccId; no ADP bootstrap employer label is preserved.
+    scope_evidence: The board name is explicitly Ultium Troy.
+    overlap_classification: UNKNOWN
+    what_changed_since_batch1: Reference review confirmed the Troy offset contract, but supplied no employer bootstrap identity or facility-to-facility overlap evidence.
+    main_blocker: ADP employer identity and facility inventory independence remain unproven.
+    next_action: Capture the ADP employer bootstrap fixture and compare provider IDs across all three Ultium ccIds and GM core.
+    manual_validation_required: true
+
+  - candidate_id: ultium_warren_adp
+    rank: 4
+    company: Ultium Cells
+    canonical_company: Ultium Cells
+    parent_company: General Motors
+    scope: subsidiary_warren
+    source_scope: warren
+    proposed_platform: adp
+    proposed_tenant_or_slug: 3aada650-9516-4fad-a8af-527c53c40e64/9200679038627_2
+    proposed_source_url: https://workforcenow.adp.com/mascsr/default/mdf/recruitment/recruitment.html?ccId=9200679038627_2&cid=3aada650-9516-4fad-a8af-527c53c40e64&lang=en_US
+    previous_status: NEEDS_IDENTITY_EVIDENCE
+    status: NEEDS_IDENTITY_EVIDENCE
+    identity_confidence: medium
+    scope_confidence: high
+    identity_evidence: jobseek preserves the exact cid and Warren ccId; no ADP bootstrap employer label is preserved.
+    scope_evidence: The board name is explicitly Ultium Warren.
+    overlap_classification: UNKNOWN
+    what_changed_since_batch1: Reference review found no additional employer marker or evidence that Warren is an independently authoritative inventory.
+    main_blocker: ADP employer identity and facility inventory independence remain unproven.
+    next_action: Capture the ADP employer bootstrap fixture and compare provider IDs across all three Ultium ccIds and GM core.
+    manual_validation_required: true
+
+  - candidate_id: gm_ppu_unresolved
+    rank: 5
+    company: General Motors
+    canonical_company: General Motors
+    parent_company: General Motors
+    scope: ppu
+    source_scope: ppu
+    proposed_platform: unsupported
+    unsupported_provider: unresolved
+    proposed_tenant_or_slug: null
+    proposed_source_url: null
+    previous_status: NOT_IN_BATCH1
+    status: NEEDS_SCOPE_EVIDENCE
+    identity_confidence: low
+    scope_confidence: low
+    identity_evidence: Phase 1 prose names GM PPU as a separate provider identity, but no exact board URL, tenant, site, or fixture exists locally.
+    scope_evidence: No deterministic artifact defines what PPU includes or whether GM core already carries its postings.
+    overlap_classification: UNKNOWN
+    what_changed_since_batch1: The complete local search proved that the Phase 1 prose is the only evidence; guessing a board would violate the provider-configuration gate.
+    main_blocker: Exact source and scope are both absent.
+    next_action: Obtain a first-party source link and exact board identity before provider mapping.
+    manual_validation_required: true
+
+  - candidate_id: progress_rail_global_salesforce
+    rank: 6
+    company: Progress Rail
+    canonical_company: Progress Rail
+    parent_company: Caterpillar
+    scope: subsidiary_global
+    source_scope: global
+    proposed_platform: unsupported
+    unsupported_provider: salesforce_frecruit
+    proposed_tenant_or_slug: railpeople
+    proposed_source_url: https://railpeople.my.salesforce-sites.com/recruit
+    previous_status: UNSUPPORTED_PROTOCOL
+    status: DEFER
+    provider_decision: DEFER
+    identity_confidence: high
+    scope_confidence: high
+    identity_evidence: Phase 1 and jobseek attribute railpeople.my.salesforce-sites.com to Progress Rail.
+    scope_evidence: The board is labeled global and distinct from the US BrassRing site.
+    overlap_classification: DISJOINT
+    what_changed_since_batch1: Three fRecruit boards show reusable vacancyNo identity, but pagination is configured with board-specific DOM controls and no preserved authoritative total or zero contract.
+    main_blocker: A reusable, fail-closed Salesforce inventory and terminal contract is not defined.
+    next_action: Reconsider only after provider-native count/final-page fixtures exist for at least two fRecruit boards.
+    manual_validation_required: true
+
+  - candidate_id: progress_rail_us_brassring
+    rank: 7
+    company: Progress Rail
+    canonical_company: Progress Rail
+    parent_company: Caterpillar
+    scope: subsidiary_united_states
+    source_scope: united_states
+    proposed_platform: unsupported
+    unsupported_provider: brassring
+    proposed_tenant_or_slug: 26144/5496
+    proposed_source_url: https://xjobs.brassring.com/TGnewUI/Search/Home/Home?partnerid=26144&siteid=5496
+    previous_status: UNSUPPORTED_PROTOCOL
+    status: DEFER
+    provider_decision: DEFER
+    identity_confidence: medium
+    scope_confidence: high
+    identity_evidence: jobseek preserves the exact numeric partner/site pair and attributes it to Progress Rail US; no first-party employer-binding fixture is preserved.
+    scope_evidence: The reference board is explicitly Progress Rail US.
+    overlap_classification: UNKNOWN
+    what_changed_since_batch1: The read-only reference contains a mature BrassRing contract with requisition IDs, JobsCount, stable alphabetical pagination, authoritative zero, mutation retry, and duplicate rejection.
+    main_blocker: Employer ownership is not fail-closed and the mature reference contract requires interactive browser execution; both fail the Batch 2 implementation gate.
+    next_action: Preserve as the strongest future provider candidate; require first-party employer binding and a reviewed use of existing browser infrastructure.
+    manual_validation_required: true
+
+  - candidate_id: blackrock_early_careers_talnet
+    rank: 8
+    company: BlackRock
+    canonical_company: BlackRock
+    parent_company: BlackRock
+    scope: early_careers
+    source_scope: early_careers
+    proposed_platform: unsupported
+    unsupported_provider: tal_net
+    proposed_tenant_or_slug: blackrock/vacancy/1
+    proposed_source_url: https://blackrock.tal.net/vx/candidate/jobboard/vacancy/1/adv
+    previous_status: UNSUPPORTED_PROTOCOL
+    status: DEFER
+    provider_decision: DEFER
+    identity_confidence: high
+    scope_confidence: high
+    identity_evidence: The exact blackrock.tal.net host and board are preserved in jobseek.
+    scope_evidence: The board is explicitly early careers.
+    overlap_classification: PARTIAL_OVERLAP
+    what_changed_since_batch1: Fifteen tal.net boards prove provider reuse and /opp/ stable posting paths, but the reference only performs DOM discovery and preserves no authoritative total, zero, or terminal pagination contract. Historical BlackRock production output already contains internship-program postings.
+    main_blocker: Complete inventory and safe zero behavior are unproven, and exact overlap with the production TalentBrew surface is unknown.
+    next_action: Obtain deterministic tal.net listing fixtures with provider-native count and terminal evidence; compare opportunity IDs/URLs with production.
+    manual_validation_required: true
+
+  - candidate_id: chevron_university_workday
+    rank: 9
+    company: Chevron
+    canonical_company: Chevron
+    parent_company: Chevron
+    scope: university
+    source_scope: university
+    proposed_platform: workday
+    proposed_tenant_or_slug: chevron/University
+    proposed_source_url: https://chevron.wd5.myworkdayjobs.com/University
+    previous_status: NEEDS_IDENTITY_EVIDENCE
+    status: NEEDS_IDENTITY_EVIDENCE
+    identity_confidence: medium
+    scope_confidence: high
+    identity_evidence: Phase 1, the Phase 4 fixture, and jobseek agree on chevron/University, but none binds it from an official first-party Chevron page under the hardened Workday identity model.
+    scope_evidence: The site identifier is explicitly University.
+    overlap_classification: PARTIAL_OVERLAP
+    what_changed_since_batch1: Historical production output contains Chevron internship postings, proving semantic scope overlap with the University board even though exact requisition parity is unavailable.
+    main_blocker: Official first-party Workday binding and exact overlap are unproven.
+    next_action: Capture the official Chevron-to-Workday binding, then compare Workday requisition IDs against the production TalentBrew IDs before any canary.
+    manual_validation_required: true
+
+  - candidate_id: chevron_stations_workday
+    rank: 10
+    company: Chevron Stations
+    canonical_company: Chevron Stations
+    parent_company: Chevron
+    scope: separately_recruiting_entity
+    source_scope: default
+    proposed_platform: workday
+    proposed_tenant_or_slug: chevronstations/CSI
+    proposed_source_url: https://chevronstations.wd1.myworkdayjobs.com/CSI
+    previous_status: NEEDS_IDENTITY_EVIDENCE
+    status: NEEDS_IDENTITY_EVIDENCE
+    identity_confidence: medium
+    scope_confidence: high
+    identity_evidence: Phase 1 and jobseek preserve chevronstations/CSI, but no official first-party binding satisfies Phase 4 identity.
+    scope_evidence: The separate tenant identifies Chevron Stations rather than Chevron corporate recruiting.
+    overlap_classification: DISJOINT
+    what_changed_since_batch1: Hardened Workday review confirmed that tenant/site reachability is insufficient and found no stronger local binding.
+    main_blocker: Official employer identity remains unproven.
+    next_action: Obtain a first-party Chevron Stations recruiting link that binds the exact tenant/site.
+    manual_validation_required: true
+
+  - candidate_id: catl_global_successfactors_feed
+    rank: 11
+    company: CATL
+    canonical_company: CATL
+    parent_company: CATL
+    scope: global
+    source_scope: global
+    proposed_platform: source_xml
+    proposed_tenant_or_slug: null
+    proposed_source_url: https://www.catl-career.com/googlefeed.xml
+    previous_status: NEEDS_IDENTITY_EVIDENCE
+    status: NEEDS_IDENTITY_EVIDENCE
+    identity_confidence: medium
+    scope_confidence: medium
+    identity_evidence: jobseek attributes the official catl-career.com feed to CATL, but no preserved feed fixture supplies the exact publisher required by source_xml.
+    scope_evidence: The paired search route uses en_US and is described as global; its relationship to CATL China remains unmeasured.
+    overlap_classification: UNKNOWN
+    what_changed_since_batch1: Contract review proved source_xml can parse the feed shape only if an exact publisher plus root total or same-run official unfiltered listing total is present; no local artifact provides those fields.
+    main_blocker: Employer identity, stable-ID fields, authoritative total, and terminal semantics are all missing from deterministic fixtures.
+    next_action: Capture the feed and unfiltered listing as approved fixtures; do not change source_xml unless the real feed proves a reusable unsupported variant.
+    manual_validation_required: true
+
+  - candidate_id: catl_us_first_party
+    rank: 12
+    company: CATL
+    canonical_company: CATL
+    parent_company: CATL
+    scope: united_states
+    source_scope: united_states
+    proposed_platform: browser_rendered_html
+    unsupported_provider: catl_us_rendered_site
+    proposed_tenant_or_slug: null
+    proposed_source_url: https://catl-uscareer.com/careers
+    previous_status: UNSUPPORTED_PROTOCOL
+    status: DEFER
+    provider_decision: DEFER
+    identity_confidence: high
+    scope_confidence: high
+    identity_evidence: jobseek binds the CATL US domain and numeric detail paths.
+    scope_evidence: The source is explicitly US-only.
+    overlap_classification: UNKNOWN
+    what_changed_since_batch1: The hardened browser adapter can express host, identity, and numeric IDs unchanged; the missing piece is deterministic terminal configuration, not unsupported navigation.
+    main_blocker: No fixture proves a total, disabled next control, exhausted reviewed navigation, or deterministic single-page collection.
+    next_action: Capture rendered listing and terminal fixtures; do not loosen browser terminal rules.
+    manual_validation_required: true
+
+  - candidate_id: mitsubishi_electric_other_regions
+    rank: 13
+    company: Mitsubishi Electric
+    canonical_company: Mitsubishi Electric
+    parent_company: Mitsubishi Electric
+    scope: non_us_regions
+    source_scope: non_us_regions
+    proposed_platform: unsupported
+    unsupported_provider: unresolved_regional_directory
+    proposed_tenant_or_slug: null
+    proposed_source_url: https://www.mitsubishielectric.com/en/careers/
+    previous_status: NEEDS_SCOPE_EVIDENCE
+    status: NEEDS_SCOPE_EVIDENCE
+    identity_confidence: high
+    scope_confidence: low
+    identity_evidence: The official global directory is preserved and production is explicitly Mitsubishi Electric US.
+    scope_evidence: The directory fans out to regional entities but no exact non-US employer/board pair is preserved.
+    overlap_classification: UNKNOWN
+    what_changed_since_batch1: Exhaustive local review found no safe Canada, Japan, Europe, or other regional inventory to configure without guessing.
+    main_blocker: No exact independently authoritative regional scope exists in deterministic evidence.
+    next_action: Obtain one exact official regional board at a time; never union the directory itself.
+    manual_validation_required: true
+
+  - candidate_id: healthineers_global_html
+    rank: 14
+    company: Siemens Healthineers
+    canonical_company: Siemens Healthineers
+    parent_company: Siemens Healthineers
+    scope: global_html
+    source_scope: global
+    proposed_platform: browser_rendered_html
+    unsupported_provider: avature_folder_portal
+    proposed_tenant_or_slug: en_US/searchjobs
+    proposed_source_url: https://jobs.siemens-healthineers.com/en_US/searchjobs/SearchJobs/
+    previous_status: NEEDS_SCOPE_EVIDENCE
+    status: NEEDS_SCOPE_EVIDENCE
+    identity_confidence: high
+    scope_confidence: medium
+    identity_evidence: jobseek binds the official Healthineers host to the global HTML search.
+    scope_evidence: The page is global, but no local fixture maps its numeric JobDetail IDs to Workday SHSJB requisition IDs.
+    overlap_classification: UNKNOWN
+    what_changed_since_batch1: Historical SHSJB output proves that Workday already carries student roles, but does not establish that SHSJB is a superset of the global HTML collection.
+    main_blocker: The relationship among global HTML, SHSJB, and China remains unknown; adding a second global authority would be unsafe.
+    next_action: Capture paired listing fixtures and compare JobDetail IDs, requisition IDs, and canonical apply URLs.
+    manual_validation_required: true
+
+  - candidate_id: healthineers_china_campus
+    rank: 15
+    company: Siemens Healthineers
+    canonical_company: Siemens Healthineers
+    parent_company: Siemens Healthineers
+    scope: china_campus
+    source_scope: china_campus
+    proposed_platform: unsupported
+    unsupported_provider: tupu360_dom
+    proposed_tenant_or_slug: CAMPUSRECRUITMENT
+    proposed_source_url: https://career.siemens-healthineers.cn/healthineers/position/index?recruitmentType=CAMPUSRECRUITMENT&page=0
+    previous_status: UNSUPPORTED_PROTOCOL
+    status: DEFER
+    provider_decision: DEFER
+    identity_confidence: high
+    scope_confidence: high
+    identity_evidence: The official Healthineers China domain and campus selector are preserved.
+    scope_evidence: CAMPUSRECRUITMENT explicitly identifies campus scope.
+    overlap_classification: UNKNOWN
+    what_changed_since_batch1: jobseek has a reusable Tupu360 detail parser with 24-hex position IDs, but its Healthineers listing remains generic DOM pagination without total, zero, or terminal fixtures.
+    main_blocker: Complete inventory and authoritative zero are unproven.
+    next_action: Revisit only with deterministic listing pagination and terminal fixtures for multiple Tupu360 employers.
+    manual_validation_required: true
+
+  - candidate_id: healthineers_china_professional
+    rank: 16
+    company: Siemens Healthineers
+    canonical_company: Siemens Healthineers
+    parent_company: Siemens Healthineers
+    scope: china_professional
+    source_scope: china_professional
+    proposed_platform: unsupported
+    unsupported_provider: tupu360_dom
+    proposed_tenant_or_slug: SOCIALRECRUITMENT
+    proposed_source_url: null
+    previous_status: NOT_IN_BATCH1
+    status: DEFER
+    provider_decision: DEFER
+    identity_confidence: medium
+    scope_confidence: medium
+    identity_evidence: Tupu360 reference fixtures establish SOCIALRECRUITMENT as a provider scope value, but no exact Healthineers professional listing URL is preserved.
+    scope_evidence: The provider distinguishes social/professional from campus recruitment; the exact Healthineers inventory is absent locally.
+    overlap_classification: UNKNOWN
+    what_changed_since_batch1: The provider family is now identified as Tupu360, but using the generic provider parameter to invent a Healthineers URL would be configuration guessing.
+    main_blocker: Exact first-party listing identity and complete inventory contract are missing.
+    next_action: Obtain the exact official professional board and deterministic terminal fixtures.
+    manual_validation_required: true
+
+  - candidate_id: coupang_cfs_frontline
+    rank: 17
+    company: Coupang Fulfillment Services
+    canonical_company: Coupang Fulfillment Services
+    parent_company: Coupang
+    scope: subsidiary_frontline
+    source_scope: frontline
+    proposed_platform: unsupported
+    unsupported_provider: coupang_cfs_first_party_api
+    proposed_tenant_or_slug: null
+    proposed_source_url: https://coufc.coupang.com/api/posting?openYn=1&closeYn=0
+    previous_status: UNSUPPORTED_PROTOCOL
+    status: DEFER
+    provider_decision: DEFER
+    identity_confidence: high
+    scope_confidence: high
+    identity_evidence: The official coufc host and posting API are attributed to Coupang CFS.
+    scope_evidence: Result fields describe fulfillment-center/frontline postings and the host is CFS-specific.
+    overlap_classification: DISJOINT
+    what_changed_since_batch1: "The API has stable postingId and rich listing fields, but neither existing JSON adapter supports its envelope by configuration: public_json variants are fixed, and first_party_json is the reviewed ByteDance contract."
+    main_blocker: No total, has-more, paging, or atomic-collection marker proves completeness or authoritative zero; the protocol is currently a singleton.
+    next_action: Defer until a reusable provider contract or first-party completeness field is preserved.
+    manual_validation_required: true
+
+  - candidate_id: coupang_flex_assistant
+    rank: 18
+    company: Coupang Logistics Services
+    canonical_company: Coupang Logistics Services
+    parent_company: Coupang
+    scope: subsidiary_flex_assistant_evergreen
+    source_scope: flex_assistant_evergreen
+    proposed_platform: static_html
+    proposed_tenant_or_slug: null
+    proposed_source_url: https://job.coupangcorp.com/fa
+    previous_status: NOT_IN_BATCH1
+    status: REJECTED
+    identity_confidence: high
+    scope_confidence: high
+    identity_evidence: jobseek attributes the exact official page and Korean title to Coupang Logistics Services Flex Assistant recruiting.
+    scope_evidence: The page describes one nationwide evergreen application funnel.
+    overlap_classification: DISJOINT
+    what_changed_since_batch1: Follow-up confirms the surface has no per-vacancy collection or stable job identities, matching the rejected CLS camp/driver funnels.
+    main_blocker: An evergreen application page is not authoritative job inventory.
+    next_action: Do not configure it as a source; revisit only if a real vacancy inventory appears.
+    manual_validation_required: false
+
+  - candidate_id: lightspeed_fr_greenhouse
+    rank: 19
+    company: Lightspeed Commerce
+    canonical_company: Lightspeed Commerce
+    parent_company: Lightspeed Commerce
+    scope: france
+    source_scope: france
+    proposed_platform: greenhouse
+    proposed_tenant_or_slug: lightspeedhqfr
+    proposed_source_url: https://job-boards.greenhouse.io/lightspeedhqfr
+    previous_status: READY_FOR_CANARY
+    status: READY_FOR_CANARY
+    identity_confidence: high
+    scope_confidence: high
+    identity_evidence: Phase 1 and jobseek independently preserve the exact lightspeedhqfr token and board URL.
+    scope_evidence: The board is explicitly France-scoped and distinct from the failed lightspeedhq global Greenhouse token.
+    overlap_classification: UNKNOWN
+    what_changed_since_batch1: Batch 2 found no evidence invalidating readiness; the global token's preserved 404 and the separate Ashby token do not prove disjointness, subset, or duplication.
+    main_blocker: A bounded canary and multi-source overlap-safe lifecycle design are required before activation.
+    next_action: Keep the existing 21-request opt-in canary; do not execute it in Batch 2.
+    manual_validation_required: true
+
+  - candidate_id: stantec_global_sitemap
+    rank: 20
+    company: Stantec
+    canonical_company: Stantec
+    parent_company: Stantec
+    scope: global
+    source_scope: global
+    proposed_platform: unsupported
+    unsupported_provider: sitemap_discovery
+    proposed_tenant_or_slug: null
+    proposed_source_url: https://stantec.jobs/sitemap.xml
+    previous_status: UNSUPPORTED_PROTOCOL
+    status: DEFER
+    provider_decision: DEFER
+    identity_confidence: high
+    scope_confidence: high
+    identity_evidence: Production and jobseek bind stantec.jobs to Stantec.
+    scope_evidence: The sitemap is global while production is explicitly Calgary-filtered.
+    overlap_classification: SUBSET
+    what_changed_since_batch1: The reference filter isolates 32-hex /job/ URLs and can seed detail discovery, but a generic sitemap supplies no proof of all jobs, timely removals, authoritative zero, or complete nested-index traversal.
+    main_blocker: Sitemap discovery is not an absence-authoritative inventory contract.
+    next_action: If used later, treat it only as positive discovery feeding existing detail parsing until a first-party completeness contract is proven.
+    manual_validation_required: true
+
+  - candidate_id: applied_materials_eightfold
+    rank: 21
+    company: Applied Materials
+    canonical_company: Applied Materials
+    parent_company: Applied Materials
+    scope: global_or_regional_unknown
+    source_scope: global_or_regional_unknown
+    proposed_platform: eightfold
+    proposed_tenant_or_slug: appliedmaterials
+    proposed_source_url: https://appliedmaterials.eightfold.ai/careers
+    previous_status: NOT_IN_BATCH1
+    status: NEEDS_IDENTITY_EVIDENCE
+    identity_confidence: medium
+    scope_confidence: low
+    identity_evidence: jobseek preserves the exact Applied Materials Eightfold host, but no organization_id or first-party delegation fixture required by Job Radar is present.
+    scope_evidence: Local evidence does not establish whether Eightfold duplicates, redirects to, broadens, or regionally partitions the production jobs.appliedmaterials.com inventory.
+    overlap_classification: UNKNOWN
+    current_vs_eightfold_disposition: KEEP_CURRENT
+    what_changed_since_batch1: Historical production artifacts demonstrate a functioning first-party Applied Materials inventory with stable numeric IDs; no evidence shows Eightfold is more complete or independently scoped.
+    main_blocker: Eightfold employer identity, completeness advantage, and scope relationship are unproven.
+    next_action: Keep production unchanged; require organization identity plus ID/URL parity fixtures before any Eightfold canary.
+    manual_validation_required: true
+
+provider_decisions:
+  salesforce_frecruit:
+    decision: DEFER
+    reusable_targets_in_reference: 3
+    reason: Stable vacancyNo exists, but pagination is board-specific DOM automation with no shared authoritative total or zero contract.
+  brassring:
+    decision: DEFER
+    reusable_targets_in_reference: 4
+    reason: The mature reference contract proves IDs, totals, zero, pagination, and mutation handling, but employer ownership is not fail-closed and execution requires interactive browser behavior.
+  tal_net:
+    decision: DEFER
+    reusable_targets_in_reference: 15
+    reason: Stable /opp/ identities and broad reuse exist, but complete pagination, total, terminal, and zero semantics are not preserved.
+  stantec_sitemap_model:
+    decision: DEFER
+    reusable_targets_in_reference: 316
+    reason: A sitemap is useful positive discovery but is not inherently authoritative job inventory or removal evidence.
+  coupang_cfs_protocol:
+    decision: DEFER
+    reusable_targets_in_reference: 1
+    reason: Stable postingId exists, but the envelope has no preserved completeness/zero contract and does not fit existing fixed JSON variants.
+  tupu360:
+    decision: DEFER
+    reusable_targets_in_reference: 2
+    reason: Reusable stable detail identity exists, but authoritative listing pagination and zero remain unproven.
+
+multi_scope_model:
+  required: true
+  implemented: false
+  activation_blocker: true
+  evidence:
+    - GM core deterministic fixture includes an Ultium Cells posting while facility boards also exist.
+    - BlackRock and Chevron production artifacts contain early-career or internship roles while specialized boards also exist.
+    - CATL and Siemens Healthineers have independently identified regional/campus surfaces outside one production row.
+  minimum_future_model:
+    - Separate canonical_company_id from source_scope_id and source_id.
+    - Reconcile absence per authoritative source scope, never merely per display company.
+    - Store cross-source canonical_job_key only when an exact provider ID or canonical apply URL proves equivalence.
+    - Keep every source identity and observation inspectable.
+    - Require all authorities covering one canonical job to agree before closing it.
+
+remaining_phase5_backlog:
+  - Capture first-party identity fixtures for GM Financial, Ultium, Chevron University, and Chevron Stations.
+  - Capture CATL global feed publisher/total and CATL US terminal fixtures.
+  - Establish exact ID overlap for BlackRock, Chevron, Lightspeed, Siemens Healthineers, and Ultium.
+  - Design and implement the documented multi-scope lifecycle prerequisite before activating overlapping sources.
+  - Reconsider BrassRing only after employer binding is available; other evaluated providers remain deferred.

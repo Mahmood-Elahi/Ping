@@ -498,6 +498,8 @@ class CompanyCareersScanner:
             clear_source_scan_metadata(adapter_session)
             adapter_output = adapter(adapter_session, target, self.timeout)
             if isinstance(adapter_output, AdapterResult):
+                for job in adapter_output.jobs:
+                    job.source_scope = target.source_scope
                 fetched_jobs = self._dedupe(adapter_output.jobs)
                 scan_metadata = SourceScanMetadata.from_value(adapter_output.scan)
                 explicit_inventory = bool(adapter_output.inventory_items)
@@ -512,6 +514,8 @@ class CompanyCareersScanner:
                 # observations left by a previous or nested invocation.
                 clear_source_scan_metadata(adapter_session)
             else:
+                for job in adapter_output:
+                    job.source_scope = target.source_scope
                 fetched_jobs = self._dedupe(adapter_output)
                 scan_metadata = source_scan_metadata(adapter_session)
                 explicit_inventory = False
@@ -804,10 +808,11 @@ class CompanyCareersScanner:
         self,
         results: Sequence[CompanyScanResult],
     ) -> list[dict[str, Any]]:
-        by_parent = {
-            result.target.name.casefold(): result
-            for result in results
-        }
+        by_parent: dict[str, CompanyScanResult] = {}
+        for result in results:
+            key = result.target.name.casefold()
+            if key not in by_parent or result.target.source_scope == "default":
+                by_parent[key] = result
         rows: list[dict[str, Any]] = []
         for mapping in self.parent_source_mappings:
             parent = by_parent.get(mapping.parent_company.casefold())

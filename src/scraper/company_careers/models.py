@@ -18,6 +18,12 @@ from typing import (
     overload,
 )
 
+from src.utils.source_scope import (
+    DEFAULT_SOURCE_SCOPE,
+    normalize_source_scope,
+    source_scope_key,
+)
+
 
 class CoverageStatus:
     FETCHED = "fetched"
@@ -345,6 +351,8 @@ class JobRecord:
     offices: List[str] = field(default_factory=list)
     description: Optional[str] = None
     raw_metadata: Dict[str, Any] = field(default_factory=dict)
+    source_scope: str = DEFAULT_SOURCE_SCOPE
+    cross_source_equivalence: Optional[Dict[str, str]] = None
 
     def __post_init__(self) -> None:
         self.job_id = str(self.job_id or "").strip()
@@ -359,6 +367,12 @@ class JobRecord:
         if self.description is not None:
             self.description = str(self.description)
         self.raw_metadata = dict(self.raw_metadata or {})
+        self.source_scope = normalize_source_scope(self.source_scope)
+        if self.cross_source_equivalence is not None:
+            self.cross_source_equivalence = {
+                str(key): str(value).strip()
+                for key, value in dict(self.cross_source_equivalence).items()
+            }
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -373,6 +387,8 @@ class JobRecord:
             "offices": self.offices,
             "description": self.description,
             "raw_metadata": self.raw_metadata,
+            "source_scope": self.source_scope,
+            "cross_source_equivalence": self.cross_source_equivalence,
             "child_brands": self.child_brands,
         }
 
@@ -394,6 +410,7 @@ class JobRecord:
 class CompanyTarget:
     name: str
     platform: str
+    source_scope: str = DEFAULT_SOURCE_SCOPE
     slug: Optional[str] = None
     tenant: Optional[str] = None
     wd_subdomain: Optional[str] = None
@@ -489,6 +506,15 @@ class CompanyTarget:
     # but can never produce authoritative absence evidence.
     source_activation: str = "active"
 
+    def __post_init__(self) -> None:
+        self.name = str(self.name or "").strip()
+        self.platform = str(self.platform or "").strip()
+        self.source_scope = normalize_source_scope(self.source_scope)
+
+    @property
+    def source_scope_key(self) -> str:
+        return source_scope_key(self.name, self.source_scope)
+
     @classmethod
     def from_dict(
         cls,
@@ -500,6 +526,7 @@ class CompanyTarget:
         return cls(
             name=str(data["name"]),
             platform=platform,
+            source_scope=normalize_source_scope(data.get("source_scope")),
             slug=data.get("slug"),
             tenant=data.get("tenant"),
             wd_subdomain=data.get("wd_subdomain"),
@@ -729,6 +756,8 @@ class CompanyScanResult:
     def to_coverage_dict(self) -> Dict[str, Any]:
         return {
             "company": self.target.name,
+            "source_scope": self.target.source_scope,
+            "source_scope_key": self.target.source_scope_key,
             "platform": self.target.platform,
             "slug": self.target.slug,
             "tenant": self.target.tenant,
@@ -834,6 +863,29 @@ class CompanyCareersReport:
             company: tuple(sorted(keys)) for company, keys in sorted(grouped.items())
         }
 
+    def protected_source_keys_by_scope(self) -> Dict[str, tuple[str, ...]]:
+        """Map logical source scopes to provider inventory identities."""
+        from src.integrations.supabase_job_store import source_key_for_external_id
+
+        grouped: Dict[str, set[str]] = {}
+        for result in self.results:
+            if not result.authoritative_for_absence:
+                continue
+            keys = grouped.setdefault(result.target.source_scope_key, set())
+            keys.update(
+                source_key_for_external_id(item.source, item.item_id)
+                for item in result.inventory_items
+            )
+        return {key: tuple(sorted(values)) for key, values in sorted(grouped.items())}
+
+    def authoritative_source_scopes(self) -> tuple[tuple[str, str], ...]:
+        """Return the exact logical inventories that may reconcile absence."""
+        return tuple(
+            (result.target.name, result.target.source_scope)
+            for result in self.results
+            if result.authoritative_for_absence
+        )
+
     def source_health_summary(self) -> Dict[str, Any]:
         states = Counter(result.scan_health for result in self.results)
         codes = Counter(result.source_health_code for result in self.results)
@@ -858,8 +910,12 @@ class CompanyCareersReport:
         ]
 
     def to_dict(self) -> Dict[str, Any]:
+        canonical_companies = {result.target.name.casefold() for result in self.results}
+        logical_scopes = {result.target.source_scope_key for result in self.results}
         return {
-            "total_companies": len(self.results),
+            "total_companies": len(canonical_companies),
+            "configured_sources": len(self.results),
+            "source_scopes": len(logical_scopes),
             "canonical_sources_checked": len(self.results),
             "mapped_child_brands": len(self.mapped_coverage),
             "original_coverage": dict(self.original_coverage),

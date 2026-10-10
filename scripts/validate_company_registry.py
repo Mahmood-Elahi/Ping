@@ -20,6 +20,8 @@ from urllib.parse import parse_qs, urlparse
 import requests
 import yaml
 
+from src.utils.source_scope import normalize_source_scope
+
 if str(Path(__file__).resolve().parents[1]) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -163,13 +165,21 @@ def _name_key(entry: Mapping[str, Any]) -> str:
     return " ".join(str(entry.get("name") or "").casefold().split())
 
 
+def _company_scope_key(entry: Mapping[str, Any]) -> tuple[str, str]:
+    return _name_key(entry), normalize_source_scope(entry.get("source_scope"))
+
+
 def detect_additions(
     current_entries: Iterable[Mapping[str, Any]],
     candidate_entries: Iterable[Mapping[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Return candidate entries whose normalized company name is not current."""
-    current_names = {_name_key(entry) for entry in current_entries}
-    return [copy.deepcopy(dict(entry)) for entry in candidate_entries if _name_key(entry) not in current_names]
+    """Return candidate logical sources not already present in the registry."""
+    current_sources = {_company_scope_key(entry) for entry in current_entries}
+    return [
+        copy.deepcopy(dict(entry))
+        for entry in candidate_entries
+        if _company_scope_key(entry) not in current_sources
+    ]
 
 
 def source_key(entry: Mapping[str, Any]) -> Optional[str]:
@@ -899,6 +909,7 @@ def _reported_total(platform: str, response: Any) -> Optional[int]:
 def _base_result(entry: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "company": str(entry.get("name") or ""),
+        "source_scope": normalize_source_scope(entry.get("source_scope")),
         "fingerprint_confidence": entry.get("fingerprint_confidence"),
         "fingerprint_evidence": entry.get("fingerprint_evidence"),
         "platform": str(entry.get("platform") or ""),
@@ -1320,14 +1331,14 @@ def _duplicate_company_owners(
     additions: Iterable[Mapping[str, Any]],
 ) -> dict[int, str]:
     owner_by_name = {
-        _name_key(entry): str(entry.get("name") or "existing entry")
+        _company_scope_key(entry): str(entry.get("name") or "existing entry")
         for entry in current_entries
         if _name_key(entry)
     }
     duplicates: dict[int, str] = {}
     for index, entry in enumerate(additions):
-        key = _name_key(entry)
-        if not key:
+        key = _company_scope_key(entry)
+        if not key[0]:
             continue
         owner = owner_by_name.get(key)
         if owner:
@@ -1464,9 +1475,19 @@ def validate_registry(
         if batch_start + batch_size < len(selected_entries) and batch_delay > 0:
             sleep(batch_delay)
 
+    safe_source_keys = {
+        (
+            " ".join(result["company"].casefold().split()),
+            result["source_scope"],
+        )
+        for result in results
+        if result["safe_to_activate"]
+    }
     safe_names = [result["company"] for result in results if result["safe_to_activate"]]
-    safe_name_keys = {" ".join(name.casefold().split()) for name in safe_names}
-    safe_additions = [entry for entry in selected_entries if _name_key(entry) in safe_name_keys]
+    safe_additions = [
+        entry for entry in selected_entries
+        if _company_scope_key(entry) in safe_source_keys
+    ]
     status_counts = Counter(result["validation_status"] for result in results)
     validated_bytes = build_validated_registry_bytes(current_config, safe_additions)
     validated_data = yaml.safe_load(validated_bytes.decode("utf-8")) or {}
@@ -1518,6 +1539,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--validated-config", type=Path)
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT, help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--attempts",
+        type=int,
+        default=DEFAULT_ATTEMPTS,
+        help="Maximum request attempts per URL (use 1 for no-retry bounded canaries)",
+    )
     parser.add_argument("--dry-run", action="store_true")
     return parser
 
@@ -1558,6 +1585,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             output=args.output,
             validated_config=validated_config,
             timeout=args.timeout,
+            attempts=args.attempts,
             dry_run=args.dry_run,
         )
     except (OSError, ValueError, yaml.YAMLError) as exc:

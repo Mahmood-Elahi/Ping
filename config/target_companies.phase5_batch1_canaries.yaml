@@ -1,0 +1,47 @@
+# Explicit opt-in Phase 5 Batch 1 canary registry. Normal Job Radar runtime
+# loads config/target_companies.yaml and never loads this file implicitly.
+# Do not execute without a separately approved bounded manual validation.
+target_companies:
+  - name: Lightspeed Commerce
+    source_scope: france
+    platform: greenhouse
+    slug: lightspeedhqfr
+    careers_url: https://job-boards.greenhouse.io/lightspeedhqfr
+    endpoint_variant: boards_api_v1_strict
+    allowed_apply_hosts:
+      - job-boards.greenhouse.io
+    max_pages: 1
+    max_jobs: 10000
+    max_response_bytes: 5000000
+    evidence_source: docs/PHASE1_ATS_MIGRATION_REVIEW.md and jobseek apps/crawler/data/boards.csv
+    evidence_confidence: high
+
+phase5_canary_plans:
+  - candidate_id: lightspeed_fr_greenhouse
+    company: Lightspeed Commerce
+    canonical_company: Lightspeed Commerce
+    canary_target_name: Lightspeed Commerce France
+    scope: france
+    source_scope: france
+    identity_bootstrap_requests: 0
+    listing_pages: 1
+    detail_hydration_requests: 20
+    partition_requests: 0
+    retry_allowance: 0
+    hard_request_budget: 21
+    success_criteria:
+      identity: Exact lightspeedhqfr board token and strict Greenhouse URL identity pass.
+      scope: Board remains France-scoped and does not resolve to the global token.
+      inventory: Stable Greenhouse IDs are unique and the complete collection is observed.
+      terminal_evidence: complete_collection_response
+      health: No rejected record, URL-identity mismatch, truncation, or structural contradiction.
+      absence_authority: Central finalization reports complete only after all gates pass.
+    overlap_validation:
+      compare_with:
+        - production Lightspeed Commerce first-party source
+        - Greenhouse lightspeedhq global board
+      authoritative_keys:
+        - greenhouse_job_id
+        - canonical_apply_url
+    activation_allowed: false
+    removal_path: Delete only the future lightspeedhqfr scoped source; production remains unchanged.

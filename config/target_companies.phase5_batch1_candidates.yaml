@@ -1,0 +1,454 @@
+# Offline Phase 5 Batch 1 coverage backlog. This is evidence and planning data,
+# not a CompanyTarget registry. Normal Job Radar runtime only loads
+# config/target_companies.yaml.
+phase5_candidates:
+  - candidate_id: gm_financial_oracle
+    rank: 1
+    company: GM Financial
+    scope: subsidiary_global
+    parent_company: General Motors
+    proposed_platform: oracle_recruiting
+    proposed_tenant_or_slug: CX_1
+    proposed_source_url: https://fa-exvu-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/jobs
+    identity_evidence: jobseek boards.csv records this exact Oracle site as GM Financial, separate from GM core.
+    scope_evidence: The reference row is explicitly named GM Financial and uses its own Oracle site.
+    identity_confidence: medium
+    scope_confidence: high
+    reason_for_expansion: GM Financial recruits independently from the primary GM Workday board.
+    existing_production_overlap: General Motors production covers the primary GM careers surface only.
+    overlap_classification: UNKNOWN
+    duplicate_key_plan: Compare Oracle requisitionNumber, exact job ID, and canonical apply URL with GM core.
+    status: NEEDS_IDENTITY_EVIDENCE
+    main_blocker: No independent employer marker or organizationId is preserved for fail-closed Oracle binding.
+    manual_validation_required: true
+    rollback: Remove the new scoped source; do not alter General Motors production.
+
+  - candidate_id: cadillac_f1_voyse
+    rank: 2
+    company: Cadillac F1 Team
+    scope: subsidiary_motorsport
+    parent_company: General Motors
+    proposed_platform: unsupported
+    unsupported_provider: voyse_first_party_api
+    proposed_tenant_or_slug: null
+    proposed_source_url: https://opportunities.cadillacf1team.com/en/jobs
+    identity_evidence: jobseek boards.csv binds the official Cadillac F1 opportunities host to Voyse employer 67a33c86781bd691e5bf0585.
+    scope_evidence: The host and reference row are specific to Cadillac F1 Team opportunities.
+    identity_confidence: high
+    scope_confidence: high
+    reason_for_expansion: Motorsport roles are not represented by GM's primary corporate board.
+    existing_production_overlap: No Cadillac F1 source exists in production.
+    overlap_classification: DISJOINT
+    duplicate_key_plan: Use the provider permalink and provider job ID if the protocol is later modeled.
+    status: UNSUPPORTED_PROTOCOL
+    main_blocker: Job Radar has no reviewed Voyse pagination, identity, total, or terminal contract.
+    manual_validation_required: true
+    rollback: Remove the new scoped source; do not alter General Motors production.
+
+  - candidate_id: ultium_spring_hill_adp
+    rank: 3
+    company: Ultium Cells
+    scope: subsidiary_spring_hill
+    parent_company: General Motors
+    proposed_platform: adp
+    proposed_tenant_or_slug: 3aada650-9516-4fad-a8af-527c53c40e64/9200679039949_2
+    proposed_source_url: https://workforcenow.adp.com/mascsr/default/mdf/recruitment/recruitment.html?ccId=9200679039949_2&cid=3aada650-9516-4fad-a8af-527c53c40e64&lang=en_US
+    identity_evidence: jobseek boards.csv preserves the exact ADP cid and Spring Hill career-center ID.
+    scope_evidence: The reference board name explicitly identifies Ultium Spring Hill.
+    identity_confidence: medium
+    scope_confidence: high
+    reason_for_expansion: The manufacturing joint venture recruits outside GM core.
+    existing_production_overlap: No Ultium source exists in production.
+    overlap_classification: DISJOINT
+    duplicate_key_plan: Use ADP itemID/clientRequisitionID and canonical ADP apply URL.
+    status: NEEDS_IDENTITY_EVIDENCE
+    main_blocker: The ADP bootstrap employer label needed for identity_regex is not preserved offline.
+    manual_validation_required: true
+    rollback: Remove only this ccId-scoped source.
+
+  - candidate_id: ultium_troy_adp
+    rank: 4
+    company: Ultium Cells
+    scope: subsidiary_troy
+    parent_company: General Motors
+    proposed_platform: adp
+    proposed_tenant_or_slug: 3aada650-9516-4fad-a8af-527c53c40e64/9200679042873_2
+    proposed_source_url: https://workforcenow.adp.com/mascsr/default/mdf/recruitment/recruitment.html?ccId=9200679042873_2&cid=3aada650-9516-4fad-a8af-527c53c40e64&lang=en_US
+    identity_evidence: jobseek boards.csv preserves the exact ADP cid and Troy career-center ID.
+    scope_evidence: The reference board name explicitly identifies Ultium Troy.
+    identity_confidence: medium
+    scope_confidence: high
+    reason_for_expansion: This is a separate Ultium facility board.
+    existing_production_overlap: No Ultium source exists in production.
+    overlap_classification: UNKNOWN
+    duplicate_key_plan: Compare ADP itemID/clientRequisitionID across all Ultium ccIds.
+    status: NEEDS_IDENTITY_EVIDENCE
+    main_blocker: The ADP bootstrap employer label needed for identity_regex is not preserved offline.
+    manual_validation_required: true
+    rollback: Remove only this ccId-scoped source.
+
+  - candidate_id: ultium_warren_adp
+    rank: 5
+    company: Ultium Cells
+    scope: subsidiary_warren
+    parent_company: General Motors
+    proposed_platform: adp
+    proposed_tenant_or_slug: 3aada650-9516-4fad-a8af-527c53c40e64/9200679038627_2
+    proposed_source_url: https://workforcenow.adp.com/mascsr/default/mdf/recruitment/recruitment.html?ccId=9200679038627_2&cid=3aada650-9516-4fad-a8af-527c53c40e64&lang=en_US
+    identity_evidence: jobseek boards.csv preserves the exact ADP cid and Warren career-center ID.
+    scope_evidence: The reference board name explicitly identifies Ultium Warren.
+    identity_confidence: medium
+    scope_confidence: high
+    reason_for_expansion: This is a separate Ultium facility board.
+    existing_production_overlap: No Ultium source exists in production.
+    overlap_classification: UNKNOWN
+    duplicate_key_plan: Compare ADP itemID/clientRequisitionID across all Ultium ccIds.
+    status: NEEDS_IDENTITY_EVIDENCE
+    main_blocker: The ADP bootstrap employer label needed for identity_regex is not preserved offline.
+    manual_validation_required: true
+    rollback: Remove only this ccId-scoped source.
+
+  - candidate_id: progress_rail_global_salesforce
+    rank: 6
+    company: Progress Rail
+    scope: subsidiary_global
+    parent_company: Caterpillar
+    proposed_platform: unsupported
+    unsupported_provider: salesforce_recruiting_site
+    proposed_tenant_or_slug: null
+    proposed_source_url: https://railpeople.my.salesforce-sites.com/recruit
+    identity_evidence: Phase 1 and jobseek boards.csv independently record this as Progress Rail global recruiting.
+    scope_evidence: The reference row is explicitly global and separate from the US BrassRing board.
+    identity_confidence: high
+    scope_confidence: high
+    reason_for_expansion: Progress Rail is a separately recruiting Caterpillar subsidiary.
+    existing_production_overlap: Caterpillar production is the corporate Caterpillar board.
+    overlap_classification: DISJOINT
+    duplicate_key_plan: Use Salesforce vacancyNo and canonical ApplyJob URL.
+    status: UNSUPPORTED_PROTOCOL
+    main_blocker: No reviewed Salesforce pagination or terminal-evidence contract exists.
+    manual_validation_required: true
+    rollback: Remove the Progress Rail source; never union it into Caterpillar lifecycle authority.
+
+  - candidate_id: progress_rail_us_brassring
+    rank: 7
+    company: Progress Rail
+    scope: subsidiary_united_states
+    parent_company: Caterpillar
+    proposed_platform: unsupported
+    unsupported_provider: brassring
+    proposed_tenant_or_slug: 26144/5496
+    proposed_source_url: https://xjobs.brassring.com/TGnewUI/Search/Home/Home?partnerid=26144&siteid=5496
+    identity_evidence: Phase 1 and jobseek boards.csv record exact partner/site IDs for Progress Rail US.
+    scope_evidence: The reference distinguishes this US board from Progress Rail global.
+    identity_confidence: high
+    scope_confidence: high
+    reason_for_expansion: The US subsidiary inventory may not be present on the global Progress Rail surface.
+    existing_production_overlap: Caterpillar production does not represent Progress Rail.
+    overlap_classification: UNKNOWN
+    duplicate_key_plan: Use BrassRing requisition ID and canonical apply URL; compare with global vacancyNo only after a canary.
+    status: UNSUPPORTED_PROTOCOL
+    main_blocker: Job Radar has no BrassRing identity, pagination, or terminal contract.
+    manual_validation_required: true
+    rollback: Remove the Progress Rail US source independently.
+
+  - candidate_id: blackrock_early_careers_talnet
+    rank: 8
+    company: BlackRock
+    scope: early_careers
+    parent_company: BlackRock
+    proposed_platform: unsupported
+    unsupported_provider: tal_net
+    proposed_tenant_or_slug: vacancy/1/adv
+    proposed_source_url: https://blackrock.tal.net/vx/candidate/jobboard/vacancy/1/adv
+    identity_evidence: Phase 1 and jobseek boards.csv bind this exact tal.net board to BlackRock.
+    scope_evidence: Both sources label it early careers, distinct from Workday BlackRock_Professional.
+    identity_confidence: high
+    scope_confidence: high
+    reason_for_expansion: Student and internship roles may not appear on the professional inventory.
+    existing_production_overlap: Production static HTML may mix scopes; the proposed professional Workday board is explicitly narrower.
+    overlap_classification: UNKNOWN
+    duplicate_key_plan: Use tal.net opportunity ID and canonical application URL; compare against production data-job-id.
+    status: UNSUPPORTED_PROTOCOL
+    main_blocker: Job Radar has no tal.net authoritative pagination or stable-ID contract.
+    manual_validation_required: true
+    rollback: Remove the early-career source without changing BlackRock production.
+
+  - candidate_id: chevron_university_workday
+    rank: 9
+    company: Chevron
+    scope: university
+    parent_company: Chevron
+    proposed_platform: workday
+    proposed_tenant_or_slug: chevron/University
+    proposed_source_url: https://chevron.wd5.myworkdayjobs.com/University
+    identity_evidence: Phase 1, the Phase 4 fixture, and jobseek boards.csv agree on tenant chevron and site University.
+    scope_evidence: The Workday site identifier and all three repository records explicitly say University.
+    identity_confidence: medium
+    scope_confidence: high
+    reason_for_expansion: University roles are a distinct inventory from Chevron professional jobs.
+    existing_production_overlap: Production static HTML may aggregate scopes; stable-ID parity is unproven.
+    overlap_classification: UNKNOWN
+    duplicate_key_plan: Use Workday externalPath/requisition ID and canonical apply URL across jobs and University.
+    status: NEEDS_IDENTITY_EVIDENCE
+    main_blocker: Phase 4 records the Workday employer identity as unproven; workday_identity cannot be invented.
+    manual_validation_required: true
+    rollback: Remove the University site source; keep Chevron production unchanged.
+
+  - candidate_id: chevron_stations_workday
+    rank: 10
+    company: Chevron Stations
+    scope: separately_recruiting_entity
+    parent_company: Chevron
+    proposed_platform: workday
+    proposed_tenant_or_slug: chevronstations/CSI
+    proposed_source_url: https://chevronstations.wd1.myworkdayjobs.com/CSI
+    identity_evidence: Phase 1 and jobseek boards.csv preserve the separate chevronstations tenant and CSI site.
+    scope_evidence: The source is explicitly Chevron Stations, not Chevron corporate professional or university recruiting.
+    identity_confidence: medium
+    scope_confidence: high
+    reason_for_expansion: Retail-station hiring is independently scoped.
+    existing_production_overlap: No Chevron Stations source exists in production.
+    overlap_classification: DISJOINT
+    duplicate_key_plan: Use Workday externalPath/requisition ID; do not share lifecycle authority with Chevron corporate.
+    status: NEEDS_IDENTITY_EVIDENCE
+    main_blocker: No configured Phase 4 workday_identity evidence exists for chevronstations/CSI.
+    manual_validation_required: true
+    rollback: Remove the separate Chevron Stations source only.
+
+  - candidate_id: catl_global_successfactors_feed
+    rank: 11
+    company: CATL
+    scope: global
+    parent_company: CATL
+    proposed_platform: source_xml
+    proposed_tenant_or_slug: null
+    proposed_source_url: https://www.catl-career.com/googlefeed.xml
+    identity_evidence: jobseek boards.csv attributes this exact official CATL careers feed to the SuccessFactors preset.
+    scope_evidence: The corresponding official search URL uses locale en_US and is described as the CATL careers/global surface.
+    identity_confidence: medium
+    scope_confidence: medium
+    reason_for_expansion: Production covers the catlhr China Mokahr organization, not the recorded global feed.
+    existing_production_overlap: Possible geographic overlap with the China inventory is unknown.
+    overlap_classification: UNKNOWN
+    duplicate_key_plan: Use feed job ID and canonical apply URL; compare with production Mokahr IDs only as secondary evidence.
+    status: NEEDS_IDENTITY_EVIDENCE
+    main_blocker: The feed's exact employer marker and authoritative count/terminal fields are not preserved in fixtures.
+    manual_validation_required: true
+    rollback: Remove the global feed source; retain CATL China production.
+
+  - candidate_id: catl_us_first_party
+    rank: 12
+    company: CATL
+    scope: united_states
+    parent_company: CATL
+    proposed_platform: unsupported
+    unsupported_provider: catl_us_rendered_site
+    proposed_tenant_or_slug: null
+    proposed_source_url: https://catl-uscareer.com/careers
+    identity_evidence: jobseek boards.csv binds the CATL US careers domain and job-detail path.
+    scope_evidence: The domain and reference row are explicitly US-only.
+    identity_confidence: high
+    scope_confidence: high
+    reason_for_expansion: The US inventory is separate from CATL China and the global feed.
+    existing_production_overlap: Production is CATL's China catlhr organization.
+    overlap_classification: UNKNOWN
+    duplicate_key_plan: Use the numeric /careers/{id} path and canonical URL.
+    status: UNSUPPORTED_PROTOCOL
+    main_blocker: The reference proves rendered job links but no authoritative total or terminal pagination.
+    manual_validation_required: true
+    rollback: Remove the US source independently.
+
+  - candidate_id: mitsubishi_electric_other_regions
+    rank: 13
+    company: Mitsubishi Electric
+    scope: non_us_regions
+    parent_company: Mitsubishi Electric
+    proposed_platform: unsupported
+    unsupported_provider: unresolved_regional_directory
+    proposed_tenant_or_slug: null
+    proposed_source_url: https://www.mitsubishielectric.com/en/careers/
+    identity_evidence: The official global Mitsubishi Electric directory is already preserved in production evidence.
+    scope_evidence: Historical recovery evidence says the directory fans out to regional company sites but names no safe union.
+    identity_confidence: high
+    scope_confidence: low
+    reason_for_expansion: Production is explicitly Mitsubishi Electric US only.
+    existing_production_overlap: Any future regional source must remain separate from the US HRMDirect inventory.
+    overlap_classification: UNKNOWN
+    duplicate_key_plan: Require source-owned requisition ID or canonical apply URL for each independently discovered region.
+    status: NEEDS_SCOPE_EVIDENCE
+    main_blocker: No exact non-US entity, region, board URL, or provider identifier is deterministically preserved.
+    manual_validation_required: true
+    rollback: Remove each future regional source independently; retain the US source.
+
+  - candidate_id: lightspeed_fr_greenhouse
+    rank: 14
+    company: Lightspeed Commerce
+    canonical_company: Lightspeed Commerce
+    scope: france
+    source_scope: france
+    parent_company: Lightspeed Commerce
+    proposed_platform: greenhouse
+    proposed_tenant_or_slug: lightspeedhqfr
+    proposed_source_url: https://job-boards.greenhouse.io/lightspeedhqfr
+    identity_evidence: Phase 1 and jobseek boards.csv independently record the exact Lightspeed France Greenhouse token and board URL.
+    scope_evidence: The distinct company/board slug is explicitly France-scoped rather than the global lightspeedhq board.
+    identity_confidence: high
+    scope_confidence: high
+    reason_for_expansion: A separate France inventory may contain roles absent from the production first-party global collection.
+    existing_production_overlap: Overlap with production Lightspeed Commerce and the global Greenhouse token is unmeasured.
+    overlap_classification: UNKNOWN
+    duplicate_key_plan: Compare Greenhouse job ID and canonical apply URL with production UUIDs and the global Greenhouse board.
+    status: READY_FOR_CANARY
+    main_blocker: Manual bounded overlap and completeness validation remains required before activation.
+    manual_validation_required: true
+    rollback: Add only as a scoped source; removal is deletion of the lightspeedhqfr source with production untouched.
+
+  - candidate_id: healthineers_china_campus
+    rank: 15
+    company: Siemens Healthineers
+    scope: china_campus
+    parent_company: Siemens Healthineers
+    proposed_platform: unsupported
+    unsupported_provider: healthineers_china_html
+    proposed_tenant_or_slug: CAMPUSRECRUITMENT
+    proposed_source_url: https://career.siemens-healthineers.cn/healthineers/position/index?recruitmentType=CAMPUSRECRUITMENT&page=0
+    identity_evidence: jobseek boards.csv records this official Healthineers China domain and detail path.
+    scope_evidence: The exact query value is CAMPUSRECRUITMENT, proving campus scope rather than all China jobs.
+    identity_confidence: high
+    scope_confidence: high
+    reason_for_expansion: Campus roles are not proven present on the production global Workday board.
+    existing_production_overlap: Relationship to onehealthineers/SHSJB is unknown.
+    overlap_classification: UNKNOWN
+    duplicate_key_plan: Use the position-detail ID and canonical apply URL; compare with Workday requisition IDs when present.
+    status: UNSUPPORTED_PROTOCOL
+    main_blocker: No provider-native total or reviewed terminal pagination evidence exists for this HTML variant.
+    manual_validation_required: true
+    rollback: Remove the China campus source only.
+
+  - candidate_id: healthineers_global_html
+    rank: 16
+    company: Siemens Healthineers
+    scope: global_html
+    parent_company: Siemens Healthineers
+    proposed_platform: browser_rendered_html
+    proposed_tenant_or_slug: null
+    proposed_source_url: https://jobs.siemens-healthineers.com/en_US/searchjobs/SearchJobs/
+    identity_evidence: jobseek boards.csv binds this official host to Siemens Healthineers.
+    scope_evidence: The reference labels it global, but does not prove its relationship to production Workday SHSJB.
+    identity_confidence: high
+    scope_confidence: medium
+    reason_for_expansion: The official global HTML inventory may differ from the Workday site.
+    existing_production_overlap: Potentially duplicates or fronts onehealthineers/SHSJB.
+    overlap_classification: UNKNOWN
+    duplicate_key_plan: Compare JobDetail ID, canonical apply URL, and any Workday requisition ID.
+    status: NEEDS_SCOPE_EVIDENCE
+    main_blocker: Offline evidence cannot show whether this is distinct, a subset, or a facade over SHSJB.
+    manual_validation_required: true
+    rollback: Remove the HTML source and retain production Workday.
+
+  - candidate_id: coupang_cfs_frontline
+    rank: 17
+    company: Coupang Fulfillment Services
+    scope: subsidiary_frontline
+    parent_company: Coupang
+    proposed_platform: unsupported
+    unsupported_provider: coupang_cfs_first_party_api
+    proposed_tenant_or_slug: null
+    proposed_source_url: https://coufc.coupang.com/api/posting?openYn=1&closeYn=0
+    identity_evidence: Phase 1 and jobseek boards.csv attribute the official coufc host to Coupang CFS frontline recruiting.
+    scope_evidence: The API exposes fulfillment-center and posting-type fields and is explicitly CFS/frontline.
+    identity_confidence: high
+    scope_confidence: high
+    reason_for_expansion: CFS operational roles are distinct from Coupang's global professional board.
+    existing_production_overlap: Production covers www.coupang.jobs professional inventory.
+    overlap_classification: DISJOINT
+    duplicate_key_plan: Use postingId and the canonical posting/contents URL.
+    status: UNSUPPORTED_PROTOCOL
+    main_blocker: The first-party result envelope lacks preserved authoritative-total and terminal semantics in Job Radar.
+    manual_validation_required: true
+    rollback: Remove the CFS source independently.
+
+  - candidate_id: coupang_cls_camp
+    rank: 18
+    company: Coupang Logistics Services
+    scope: subsidiary_camp_evergreen
+    parent_company: Coupang
+    proposed_platform: static_html
+    proposed_tenant_or_slug: null
+    proposed_source_url: https://job.coupangcorp.com/cls_b
+    identity_evidence: jobseek boards.csv attributes the official page text to Coupang Logistics Services camp recruiting.
+    scope_evidence: The preserved description says it is a nationwide evergreen camp application.
+    identity_confidence: high
+    scope_confidence: high
+    reason_for_expansion: It is separately recruiting operational work.
+    existing_production_overlap: It does not appear on the professional board.
+    overlap_classification: DISJOINT
+    duplicate_key_plan: None available; the page has no source-owned vacancy identity.
+    status: REJECTED
+    main_blocker: One evergreen application page is not an authoritative inventory and has no stable per-job IDs.
+    manual_validation_required: false
+    rollback: Not applicable; do not configure it as a job inventory.
+
+  - candidate_id: coupang_cls_drivers
+    rank: 19
+    company: Coupang Logistics Services
+    scope: subsidiary_driver_evergreen
+    parent_company: Coupang
+    proposed_platform: static_html
+    proposed_tenant_or_slug: null
+    proposed_source_url: https://job.coupangcorp.com/
+    identity_evidence: jobseek boards.csv attributes the official page and Korean employer text to CLS driver recruiting.
+    scope_evidence: The preserved description is specifically the evergreen Coupang Friend driver funnel.
+    identity_confidence: high
+    scope_confidence: high
+    reason_for_expansion: Driver hiring is operational and separate from professional jobs.
+    existing_production_overlap: It does not appear on the professional board.
+    overlap_classification: DISJOINT
+    duplicate_key_plan: None available; the page has no source-owned vacancy identity.
+    status: REJECTED
+    main_blocker: One evergreen application page is not an authoritative job inventory and has no stable per-job IDs.
+    manual_validation_required: false
+    rollback: Not applicable; do not configure it as a job inventory.
+
+  - candidate_id: stantec_global_sitemap
+    rank: 20
+    company: Stantec
+    scope: global
+    parent_company: Stantec
+    proposed_platform: unsupported
+    unsupported_provider: sitemap_inventory
+    proposed_tenant_or_slug: null
+    proposed_source_url: https://stantec.jobs/sitemap.xml
+    identity_evidence: Phase 1, production browser identity, and jobseek boards.csv all bind stantec.jobs to Stantec.
+    scope_evidence: The sitemap reference is global while production intentionally queries Calgary only.
+    identity_confidence: high
+    scope_confidence: high
+    reason_for_expansion: Global roles are outside the current Calgary-only source.
+    existing_production_overlap: Calgary is a subset of the proposed global inventory.
+    overlap_classification: SUBSET
+    duplicate_key_plan: Use the 32-hex job ID already encoded in canonical Stantec URLs.
+    status: UNSUPPORTED_PROTOCOL
+    main_blocker: Job Radar has no reviewed sitemap inventory adapter and the browser source cannot prove global terminal enumeration offline.
+    manual_validation_required: true
+    rollback: Remove the global source; preserve the Calgary production source until overlap lifecycle is intentionally resolved.
+
+pinpoint_decision:
+  decision: NOT_WORTH_IT
+  reference_board_count: 99
+  canonical_target_matches: 0
+  protocol_evidence: jobseek implements GET https://{slug}.pinpointhq.com/postings.json as one complete rich collection with URL-backed stable posting identities.
+  identity_evidence: Employer identity can be bound to the exact subdomain plus the native careers-page title, but no Job Radar target currently needs it.
+  rationale: The deterministic contract is strong, but a new adapter would add no identified Batch 1 target coverage.
+
+remaining_phase5_backlog:
+  - General Motors PPU exact board discovery
+  - Coupang Flex Assistant evergreen/non-inventory disposition
+  - Lightspeed Commerce Ashby/global overlap
+  - Applied Materials Workday versus Eightfold regional overlap
+  - Mitsubishi Electric exact non-US regional boards
+  - Siemens Healthineers China professional board, distinct from campus
+  - Progress Rail provider support decision
+  - BlackRock tal.net provider support decision
+  - CATL feed identity and terminal fixture capture
+  - Stantec sitemap protocol decision

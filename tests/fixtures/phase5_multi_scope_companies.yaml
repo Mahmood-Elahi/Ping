@@ -1,0 +1,56 @@
+# Deterministic architecture fixtures only. No source below is production-active.
+multi_scope_companies:
+  - canonical_company: BlackRock
+    source_scopes: [professional, early_careers]
+    observations:
+      - source_scope: professional
+        source: fixture:blackrock-professional
+        job_id: PRO-1
+        title: Portfolio Engineer
+        location: New York
+      - source_scope: professional
+        source: fixture:blackrock-professional
+        job_id: SHARED-P
+        title: Technology Analyst
+        location: New York
+        cross_source_equivalence:
+          kind: shared_requisition_id
+          value: BR-EXACT-1
+      - source_scope: professional
+        source: fixture:blackrock-professional
+        job_id: SIMILAR-P
+        title: Summer Analyst
+        location: New York
+      - source_scope: early_careers
+        source: fixture:blackrock-early
+        job_id: EARLY-1
+        title: Graduate Analyst
+        location: London
+      - source_scope: early_careers
+        source: fixture:blackrock-early
+        job_id: SHARED-E
+        title: Technology Analyst
+        location: New York
+        cross_source_equivalence:
+          kind: shared_requisition_id
+          value: BR-EXACT-1
+      - source_scope: early_careers
+        source: fixture:blackrock-early
+        job_id: SIMILAR-E
+        title: Summer Analyst
+        location: New York
+
+  - canonical_company: Chevron
+    source_scopes: [professional, university]
+  - canonical_company: Chevron Stations
+    source_scopes: [default]
+  - canonical_company: Lightspeed Commerce
+    source_scopes: [global, france]
+    overlap: unknown
+  - canonical_company: Ultium Cells
+    source_scopes: [spring_hill, troy, warren]
+    equivalence_assumption: none
+  - canonical_company: CATL
+    source_scopes: [global, regional]
+  - canonical_company: Siemens Healthineers
+    source_scopes: [global, regional, specialized]

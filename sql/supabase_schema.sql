@@ -6,6 +6,7 @@ create extension if not exists pgcrypto;
 create table if not exists public.job_source_health (
     source_key text primary key,
     company text not null,
+    source_scope text not null default 'default',
     platform text not null,
     consecutive_transient_failures integer not null default 0
         check (consecutive_transient_failures >= 0),
@@ -14,6 +15,8 @@ create table if not exists public.job_source_health (
     last_successful_authoritative_inventory timestamptz,
     updated_at timestamptz not null default now()
 );
+alter table public.job_source_health
+    add column if not exists source_scope text not null default 'default';
 
 create index if not exists job_source_health_cooldown_idx
     on public.job_source_health (cooldown_until)
@@ -27,6 +30,7 @@ create table if not exists public.tracked_jobs (
     id uuid primary key default gen_random_uuid(),
     source_key text not null unique,
     company text not null,
+    source_scope text not null default 'default',
     title text not null,
     location text,
     department text,
@@ -75,6 +79,45 @@ create table if not exists public.tracked_jobs (
     check (jsonb_typeof(date_parse_errors) = 'array'),
     check (jsonb_typeof(raw_data) = 'object')
 );
+alter table public.tracked_jobs
+    add column if not exists source_scope text not null default 'default';
+
+create table if not exists public.tracked_job_source_scopes (
+    ownership_key text primary key,
+    source_key text not null references public.tracked_jobs(source_key) on delete cascade,
+    canonical_company text not null,
+    source_scope text not null default 'default',
+    source_scope_key text not null,
+    provider_source_key text not null,
+    first_seen_at timestamptz not null default now(),
+    last_seen_at timestamptz not null default now(),
+    missing_successful_runs integer not null default 0 check (missing_successful_runs >= 0),
+    lifecycle_status text not null default 'active'
+        check (lifecycle_status in ('active', 'possibly_missing', 'removed')),
+    removed_at timestamptz,
+    unique (source_key, source_scope_key)
+);
+
+create table if not exists public.source_scope_retirements (
+    source_scope_key text primary key,
+    canonical_company text not null,
+    source_scope text not null,
+    reason text not null check (length(btrim(reason)) >= 8),
+    approved_by text not null check (length(btrim(approved_by)) >= 2),
+    retired_at timestamptz not null default now()
+);
+
+create index if not exists tracked_job_source_scopes_scope_idx
+    on public.tracked_job_source_scopes (source_scope_key, lifecycle_status);
+create index if not exists tracked_job_source_scopes_source_idx
+    on public.tracked_job_source_scopes (source_key);
+
+alter table public.tracked_job_source_scopes enable row level security;
+revoke all on table public.tracked_job_source_scopes from public, anon, authenticated;
+grant all on table public.tracked_job_source_scopes to service_role;
+alter table public.source_scope_retirements enable row level security;
+revoke all on table public.source_scope_retirements from public, anon, authenticated;
+grant all on table public.source_scope_retirements to service_role;
 
 -- Idempotent Freshness/Urgency v1 migration for an existing tracked_jobs table.
 alter table public.tracked_jobs add column if not exists source_posted_at text;
@@ -539,7 +582,83 @@ comment on function public.sync_student_job_source(uuid, text, jsonb, boolean, i
 -- The direct JSON-array RPC above is retained only so this historical base
 -- schema can upgrade older installations in place. It is removed immediately;
 -- apply sql/migrations/20260924_staged_source_sync.sql next to install the
--- bounded durable-staging RPCs used by the application.
+-- bounded durable-staging RPCs used by the application, then apply the later
+-- chronological migrations through 20261010_phase5_multi_scope_lifecycle.sql.
 drop function if exists public.sync_student_job_source(
     uuid, text, jsonb, boolean, integer, timestamptz
 );
+
+-- Administrative-only source retirement is deliberately separate from scan
+-- reconciliation. Installations upgraded from Phase 3 receive the identical
+-- contract from 20261010_phase5_multi_scope_lifecycle.sql.
+create or replace function public.retire_student_job_source_scope(
+    p_company text, p_source_scope text, p_source_scope_key text,
+    p_reason text, p_approved_by text, p_retired_at timestamptz
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+    v_owned integer := 0; v_retired integer := 0; v_closed integer := 0;
+begin
+    if nullif(btrim(p_company), '') is null
+       or nullif(btrim(p_source_scope), '') is null
+       or nullif(btrim(p_source_scope_key), '') is null
+       or length(btrim(coalesce(p_reason, ''))) < 8
+       or length(btrim(coalesce(p_approved_by, ''))) < 2
+       or p_retired_at is null then
+        raise exception 'source retirement requires company, scope, exact key, reason, approver, and timestamp';
+    end if;
+    if p_source_scope !~ '^[a-z0-9]+(?:[a-z0-9_]*[a-z0-9])?(?::[a-z0-9]+(?:[a-z0-9_]*[a-z0-9])?)?$'
+       or p_source_scope_key is distinct from
+          lower(regexp_replace(btrim(p_company), '\s+', ' ', 'g')) || '::' || p_source_scope then
+        raise exception 'invalid source scope identity';
+    end if;
+    perform pg_advisory_xact_lock(hashtextextended('retire:' || p_source_scope_key, 0));
+    insert into public.source_scope_retirements (
+        source_scope_key, canonical_company, source_scope, reason, approved_by, retired_at
+    ) values (
+        p_source_scope_key, p_company, p_source_scope, btrim(p_reason),
+        btrim(p_approved_by), p_retired_at
+    ) on conflict (source_scope_key) do nothing;
+    select count(*) into v_owned from public.tracked_job_source_scopes
+        where source_scope_key = p_source_scope_key;
+    with retired as (
+        update public.tracked_job_source_scopes set lifecycle_status='removed',
+            removed_at=coalesce(removed_at,p_retired_at)
+        where source_scope_key=p_source_scope_key and lifecycle_status<>'removed'
+        returning source_key
+    ) select count(*) into v_retired from retired;
+    update public.tracked_jobs tracked set
+        status=case when a.has_active or a.has_possible then 'active' else 'closed' end,
+        lifecycle_status=case when a.has_active then 'active'
+            when a.has_possible then 'possibly_missing' else 'removed' end,
+        missing_successful_runs=a.minimum_missing,
+        removed_at=case when a.has_active or a.has_possible then null
+            else coalesce(tracked.removed_at,p_retired_at) end
+    from (
+        select source_key, bool_or(lifecycle_status='active') has_active,
+            bool_or(lifecycle_status='possibly_missing') has_possible,
+            min(missing_successful_runs) minimum_missing
+        from public.tracked_job_source_scopes group by source_key
+    ) a
+    where tracked.source_key=a.source_key and tracked.source_key in (
+        select source_key from public.tracked_job_source_scopes
+        where source_scope_key=p_source_scope_key
+    );
+    select count(*) into v_closed from public.tracked_jobs where status='closed'
+      and source_key in (select source_key from public.tracked_job_source_scopes
+                         where source_scope_key=p_source_scope_key);
+    return jsonb_build_object('source_scope_key',p_source_scope_key,'owned',v_owned,
+        'owners_retired',v_retired,'canonical_jobs_closed',v_closed,
+        'replayed',v_retired=0);
+end;
+$$;
+revoke all on function public.retire_student_job_source_scope(
+    text,text,text,text,text,timestamptz
+) from public,anon,authenticated;
+grant execute on function public.retire_student_job_source_scope(
+    text,text,text,text,text,timestamptz
+) to service_role;

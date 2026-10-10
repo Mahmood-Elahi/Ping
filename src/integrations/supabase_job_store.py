@@ -14,6 +14,12 @@ from datetime import date, datetime, timezone
 from typing import Any, Callable, Iterable, Mapping, MutableMapping, Optional
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+from src.utils.source_scope import (
+    DEFAULT_SOURCE_SCOPE,
+    normalize_source_scope,
+    source_scope_key,
+)
+
 
 DEFAULT_CLOSE_AFTER_MISSING_RUNS = 2
 DEFAULT_SYNC_MAX_ATTEMPTS = 3
@@ -30,12 +36,16 @@ ACTIVE_JOBS_COLUMNS = (
     "first_seen_at,status,freshness_band,urgency_band"
 )
 LIFECYCLE_STATE_COLUMNS = (
-    "source_key,company,title,location,apply_url,source_url,source_platform,"
+    "source_key,company,source_scope,title,location,apply_url,source_url,source_platform,"
     "first_seen_at,last_seen_at,first_seen_basis,source_posted_at,source_closes_at,"
     "removed_at,lifecycle_status,missing_successful_runs,date_parse_errors"
 )
+SOURCE_SCOPE_OWNERSHIP_COLUMNS = (
+    "ownership_key,source_key,canonical_company,source_scope,source_scope_key,"
+    "provider_source_key,last_seen_at,missing_successful_runs,lifecycle_status,removed_at"
+)
 SOURCE_HEALTH_COLUMNS = (
-    "source_key,company,platform,consecutive_transient_failures,cooldown_until,"
+    "source_key,company,source_scope,platform,consecutive_transient_failures,cooldown_until,"
     "last_failure_classification,last_successful_authoritative_inventory,updated_at"
 )
 SYNC_SCAN_NAMESPACE = uuid.UUID("fe27c6e0-e7a3-4d18-8e57-554e117f56c6")
@@ -50,6 +60,15 @@ TRACKING_QUERY_PARAMETERS = frozenset(
         "msclkid",
         "twclid",
         "wbraid",
+    }
+)
+EXACT_EQUIVALENCE_KINDS = frozenset(
+    {
+        "shared_requisition_id",
+        "provider_global_id",
+        "canonical_apply_url",
+        "first_party_job_url",
+        "configured",
     }
 )
 
@@ -137,7 +156,27 @@ def normalize_url(value: Any) -> str:
 
 
 def generate_source_key(job: Mapping[str, Any] | Any) -> str:
-    """Build a deterministic key using external ID, URL, then a SHA-256 fallback."""
+    """Build canonical lifecycle identity, using only exact equivalence evidence."""
+    values = _job_mapping(job)
+    equivalence = _cross_source_equivalence(values)
+    if equivalence is not None:
+        kind, evidence_value = equivalence
+        company = _normalize_text(values.get("company"))
+        if not company:
+            raise ValueError("cross-source equivalence requires a canonical company")
+        digest = hashlib.sha256(
+            json.dumps(
+                [company, kind, evidence_value],
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        return f"equiv:{kind}:{digest}"
+    return generate_provider_source_key(values)
+
+
+def generate_provider_source_key(job: Mapping[str, Any] | Any) -> str:
+    """Build independently traceable provider identity without equivalence."""
     values = _job_mapping(job)
     external_id = str(values.get("job_id") or "").strip()
     source = _normalize_text(values.get("source"))
@@ -156,6 +195,7 @@ def generate_source_key(job: Mapping[str, Any] | Any) -> str:
 
     fallback_fields = [
         _normalize_text(values.get("company")),
+        source or "unknown",
         _normalize_text(values.get("title")),
         _normalize_text(values.get("location")),
         normalized_url,
@@ -196,12 +236,17 @@ def tracked_job_payload(
         or ""
     ).strip()
     lifecycle_status = str(values.get("lifecycle_status") or "active").strip()
+    source_scope = normalize_source_scope(values.get("source_scope"))
+    canonical_scope_key = source_scope_key(values.get("company"), source_scope)
     first_seen_at = _normalized_timestamp(values.get("first_seen_at"))
     last_seen_at = _normalized_timestamp(values.get("last_seen_at"))
 
     return {
         "source_key": generate_source_key(values),
+        "provider_source_key": generate_provider_source_key(values),
         "company": str(values.get("company") or "").strip(),
+        "source_scope": source_scope,
+        "source_scope_key": canonical_scope_key,
         "title": str(values.get("title") or "").strip(),
         "location": str(values.get("location") or "").strip() or None,
         "department": "; ".join(departments) or None,
@@ -411,9 +456,11 @@ class SupabaseJobStore:
             ("tracked_jobs", "id"),
             ("scan_runs", "id,failure_stage,diagnostics"),
             ("scan_source_syncs", "scan_id"),
-            ("job_sync_sessions", "sync_id,status"),
+            ("job_sync_sessions", "sync_id,status,source_scope_key"),
             ("job_sync_chunks", "sync_id,chunk_number"),
-            ("job_sync_stage", "sync_id,source_key"),
+            ("job_sync_stage", "sync_id,source_key,source_scope_key"),
+            ("tracked_job_source_scopes", "ownership_key,source_scope_key"),
+            ("source_scope_retirements", "source_scope_key,approved_by,retired_at"),
             ("job_source_health", "source_key,cooldown_until"),
             ("applications", "job_id"),
         )
@@ -471,6 +518,47 @@ class SupabaseJobStore:
                 exc, operation="source health write", secrets=self._redaction_secrets
             ) from None
 
+    def retire_source_scope(
+        self,
+        *,
+        company: str,
+        source_scope: str,
+        reason: str,
+        approved_by: str,
+        retired_at: datetime,
+    ) -> Mapping[str, Any]:
+        """Deliberately retire one logical source; never called by scan flow."""
+        company = str(company or "").strip()
+        scope = normalize_source_scope(source_scope, default=False)
+        reason = str(reason or "").strip()
+        approved_by = str(approved_by or "").strip()
+        if not company or len(reason) < 8 or len(approved_by) < 2:
+            raise ValueError(
+                "source retirement requires company, reason (8+ chars), and approved_by"
+            )
+        params = {
+            "p_company": company,
+            "p_source_scope": scope,
+            "p_source_scope_key": source_scope_key(company, scope),
+            "p_reason": reason,
+            "p_approved_by": approved_by,
+            "p_retired_at": _iso_timestamp(_ensure_aware(retired_at)),
+        }
+        try:
+            response = self.client.rpc(
+                "retire_student_job_source_scope", params
+            ).execute()
+            data = getattr(response, "data", None)
+            if not isinstance(data, Mapping):
+                raise RuntimeError("source retirement RPC returned an invalid response")
+            return dict(data)
+        except Exception as exc:
+            raise _supabase_access_error(
+                exc,
+                operation="explicit source-scope retirement",
+                secrets=self._redaction_secrets,
+            ) from None
+
     def sync_student_jobs(
         self,
         jobs: Iterable[Mapping[str, Any] | Any],
@@ -481,6 +569,10 @@ class SupabaseJobStore:
         jobs_fetched: int,
         lifecycle_jobs: Optional[Iterable[Mapping[str, Any] | Any]] = None,
         protected_source_keys: Optional[Mapping[str, Iterable[str]]] = None,
+        successful_source_scopes: Optional[Iterable[tuple[str, str]]] = None,
+        protected_source_keys_by_scope: Optional[
+            Mapping[str, Iterable[str]]
+        ] = None,
         exclusion_counts: Optional[Mapping[str, int]] = None,
         coverage_report_path: Optional[str] = None,
         ranked_artifact_path: Optional[str] = None,
@@ -490,7 +582,7 @@ class SupabaseJobStore:
     ) -> SyncResult:
         """Synchronize each source atomically, then record the successful scan."""
         seen_at = _ensure_aware(self._now_factory())
-        jobs_by_key: MutableMapping[str, dict[str, Any]] = {}
+        jobs_by_key: MutableMapping[tuple[str, str], dict[str, Any]] = {}
         for job in lifecycle_jobs or ():
             values = _job_mapping(job)
             payload = tracked_job_payload(
@@ -498,13 +590,15 @@ class SupabaseJobStore:
             )
             self._merge_job_payload(jobs_by_key, payload, ranked=False)
         ranked_count = 0
+        ranked_canonical_keys: set[str] = set()
         for job in jobs:
             values = _job_mapping(job)
             payload = tracked_job_payload(
                 {**values, "is_ranked_output": True}, seen_at=seen_at
             )
-            if not jobs_by_key.get(payload["source_key"], {}).get("is_ranked_output"):
+            if payload["source_key"] not in ranked_canonical_keys:
                 ranked_count += 1
+                ranked_canonical_keys.add(payload["source_key"])
             self._merge_job_payload(jobs_by_key, payload, ranked=True)
 
         scan = {
@@ -525,26 +619,51 @@ class SupabaseJobStore:
             for company in successful_companies
             if str(company).strip()
         }
-        protected_by_company = {
-            str(company).strip(): tuple(
-                sorted({str(key).strip() for key in keys if str(key).strip()})
-            )
-            for company, keys in (protected_source_keys or {}).items()
+        complete_scopes = {
+            source_scope_key(company, scope): (str(company).strip(), normalize_source_scope(scope))
+            for company, scope in (successful_source_scopes or ())
             if str(company).strip()
         }
-        rows_by_company: dict[str, list[dict[str, Any]]] = {}
+        for company in complete_companies:
+            complete_scopes.setdefault(
+                source_scope_key(company, DEFAULT_SOURCE_SCOPE),
+                (company, DEFAULT_SOURCE_SCOPE),
+            )
+        protected_by_scope = {
+            str(scope_key).strip(): tuple(
+                sorted({str(key).strip() for key in keys if str(key).strip()})
+            )
+            for scope_key, keys in (protected_source_keys_by_scope or {}).items()
+            if str(scope_key).strip()
+        }
+        for company, keys in (protected_source_keys or {}).items():
+            if str(company).strip():
+                protected_by_scope.setdefault(
+                    source_scope_key(company, DEFAULT_SOURCE_SCOPE),
+                    tuple(sorted({str(key).strip() for key in keys if str(key).strip()})),
+                )
+        rows_by_scope: dict[str, list[dict[str, Any]]] = {}
+        scope_labels: dict[str, tuple[str, str]] = dict(complete_scopes)
         for payload in jobs_by_key.values():
-            rows_by_company.setdefault(str(payload["company"]), []).append(payload)
-        companies = sorted(
-            set(rows_by_company) | complete_companies | set(protected_by_company)
+            scope_key = str(payload["source_scope_key"])
+            rows_by_scope.setdefault(scope_key, []).append(payload)
+            scope_labels.setdefault(
+                scope_key,
+                (str(payload["company"]), str(payload["source_scope"])),
+            )
+        logical_scopes = sorted(
+            set(rows_by_scope) | set(complete_scopes) | set(protected_by_scope)
         )
         scan_id = str(uuid.uuid5(SYNC_SCAN_NAMESPACE, scan["started_at"]))
         totals = SyncResult(0, 0, 0, 0, 0)
         total_bytes = 0
         sync_started = time.perf_counter()
-        for company in companies:
+        for logical_scope in logical_scopes:
+            company, scope = scope_labels.get(logical_scope, ("", ""))
+            if not company:
+                raise ValueError(f"Unknown source-scope identity: {logical_scope!r}")
             source_rows = sorted(
-                rows_by_company.get(company, []),
+                rows_by_scope.get(logical_scope, []),
                 key=lambda row: str(row["source_key"]),
             )
             payload_bytes = _serialized_bytes(source_rows)
@@ -552,9 +671,11 @@ class SupabaseJobStore:
             data = self._execute_source_sync(
                 scan_id=scan_id,
                 company=company,
+                source_scope=scope,
+                source_scope_key_value=logical_scope,
                 rows=source_rows,
-                reconcile_absence=company in complete_companies,
-                protected_source_keys=protected_by_company.get(company, ()),
+                reconcile_absence=logical_scope in complete_scopes,
+                protected_source_keys=protected_by_scope.get(logical_scope, ()),
                 seen_at=seen_at,
                 payload_bytes=payload_bytes,
             )
@@ -570,7 +691,7 @@ class SupabaseJobStore:
         self.last_sync_diagnostics = SyncDiagnostics(
             scan_id=scan_id,
             operation="source-scoped job synchronization",
-            source_count=len(companies),
+            source_count=len(logical_scopes),
             payload_rows=len(jobs_by_key),
             payload_bytes=total_bytes,
             elapsed_seconds=round(elapsed, 3),
@@ -589,7 +710,7 @@ class SupabaseJobStore:
             "missing_incremented": totals.missing_incremented,
             "closed": totals.closed,
             "source_sync": {
-                "source_count": len(companies),
+                "source_count": len(logical_scopes),
                 "payload_rows": len(jobs_by_key),
                 "payload_bytes": total_bytes,
                 "chunk_row_limit": self.sync_chunk_rows,
@@ -610,14 +731,15 @@ class SupabaseJobStore:
 
     @staticmethod
     def _merge_job_payload(
-        jobs_by_key: MutableMapping[str, dict[str, Any]],
+        jobs_by_key: MutableMapping[tuple[str, str], dict[str, Any]],
         payload: dict[str, Any],
         *,
         ranked: bool,
     ) -> None:
         """Merge lifecycle/ranked views while rejecting ambiguous identities."""
         source_key = str(payload["source_key"])
-        existing = jobs_by_key.get(source_key)
+        ownership_key = (str(payload["source_scope_key"]), source_key)
+        existing = jobs_by_key.get(ownership_key)
         if existing is not None:
             identity_fields = ("company", "title", "source_url")
             existing_identity = tuple(existing.get(field) for field in identity_fields)
@@ -633,20 +755,22 @@ class SupabaseJobStore:
                     f"{source_key}"
                 )
         if existing is None or ranked:
-            jobs_by_key[source_key] = payload
+            jobs_by_key[ownership_key] = payload
 
     def _execute_source_sync(
         self,
         *,
         scan_id: str,
         company: str,
+        source_scope: str,
+        source_scope_key_value: str,
         rows: list[dict[str, Any]],
         reconcile_absence: bool,
         protected_source_keys: Iterable[str],
         seen_at: datetime,
         payload_bytes: int,
     ) -> Mapping[str, Any]:
-        """Stage bounded chunks, then atomically finalize one company."""
+        """Stage bounded chunks, then atomically finalize one logical scope."""
         sync_id = str(uuid.uuid4())
         chunks = _bounded_payload_chunks(
             rows,
@@ -660,6 +784,8 @@ class SupabaseJobStore:
             "p_sync_id": sync_id,
             "p_scan_id": scan_id,
             "p_company": company,
+            "p_source_scope": source_scope,
+            "p_source_scope_key": source_scope_key_value,
             "p_expected_chunks": len(chunks),
             "p_expected_rows": total_rows,
             "p_expected_bytes": sum(chunk_bytes for _, chunk_bytes in chunks),
@@ -1120,6 +1246,38 @@ class SupabaseJobStore:
                 )
             cursor = next_cursor
             page_number += 1
+        try:
+            ownership_response = (
+                self.client.table("tracked_job_source_scopes")
+                .select(SOURCE_SCOPE_OWNERSHIP_COLUMNS)
+                .execute()
+            )
+            ownership_rows = getattr(ownership_response, "data", None)
+            if not isinstance(ownership_rows, list) or not all(
+                isinstance(row, Mapping) for row in ownership_rows
+            ):
+                raise RuntimeError("source-scope ownership query returned an invalid response")
+        except Exception as exc:
+            raise _supabase_access_error(
+                exc,
+                operation="source-scope ownership read",
+                secrets=self._redaction_secrets,
+            ) from None
+        for raw_owner in ownership_rows:
+            owner = dict(raw_owner)
+            source_key = str(owner.get("source_key") or "")
+            logical_scope = str(owner.get("source_scope_key") or "")
+            if source_key in jobs and logical_scope:
+                jobs[source_key].setdefault("scope_ownership", {})[logical_scope] = {
+                    "source_scope": owner.get("source_scope") or DEFAULT_SOURCE_SCOPE,
+                    "provider_source_key": owner.get("provider_source_key") or source_key,
+                    "last_seen_at": owner.get("last_seen_at"),
+                    "missing_scan_count": int(
+                        owner.get("missing_successful_runs", 0) or 0
+                    ),
+                    "lifecycle_status": owner.get("lifecycle_status") or "active",
+                    "removed_at": owner.get("removed_at"),
+                }
         return {"schema_version": 1, "updated_at": latest, "jobs": jobs}
 
     def _fetch_lifecycle_page(
@@ -1498,6 +1656,35 @@ def _is_genuine_external_id(value: str) -> bool:
         "null",
         "unknown",
     } and not normalized.startswith(("http://", "https://"))
+
+
+def _cross_source_equivalence(values: Mapping[str, Any]) -> Optional[tuple[str, str]]:
+    """Validate opt-in exact evidence; presentation similarity is never identity."""
+    raw = values.get("cross_source_equivalence")
+    if raw is None:
+        metadata = values.get("raw_metadata")
+        raw = metadata.get("cross_source_equivalence") if isinstance(metadata, Mapping) else None
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping):
+        raise ValueError("cross_source_equivalence must be a mapping")
+    kind = str(raw.get("kind") or "").strip().casefold()
+    evidence_value = str(raw.get("value") or "").strip()
+    if kind not in EXACT_EQUIVALENCE_KINDS:
+        raise ValueError(
+            "cross_source_equivalence kind must be exact provider/global ID, "
+            "canonical URL, first-party URL, or explicit configured evidence"
+        )
+    if not evidence_value:
+        raise ValueError("cross_source_equivalence value cannot be empty")
+    if kind in {"canonical_apply_url", "first_party_job_url"}:
+        evidence_value = normalize_url(evidence_value)
+        parsed = urlsplit(evidence_value)
+        if parsed.scheme != "https" or not parsed.hostname:
+            raise ValueError("cross-source URL equivalence requires an exact HTTPS URL")
+    else:
+        evidence_value = unicodedata.normalize("NFKC", evidence_value)
+    return kind, evidence_value
 
 
 def _string_list(value: Any) -> list[str]:

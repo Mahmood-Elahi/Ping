@@ -137,6 +137,8 @@ class FakeTable:
             rows = [copy.deepcopy(row) for row in self.client.applications.values()]
         elif self.name == "job_source_health":
             rows = [copy.deepcopy(row) for row in self.client.source_health.values()]
+        elif self.name == "tracked_job_source_scopes":
+            rows = [copy.deepcopy(row) for row in self.client.scope_ownership.values()]
         else:
             rows = []
         for field, value in self.filters:
@@ -233,6 +235,7 @@ class FakeSupabaseClient:
         self.scan_runs = []
         self.applications = {}
         self.source_health = {}
+        self.scope_ownership = {}
         self.source_syncs = {}
         self.sync_sessions = {}
         self.sync_chunks = {}
@@ -258,7 +261,11 @@ class FakeSupabaseClient:
         return FakeTable(self, name)
 
     def _sync(self, params):
-        ledger_key = (params["p_scan_id"], params["p_company"])
+        source_scope = params.get("p_source_scope", "default")
+        logical_scope = params.get(
+            "p_source_scope_key", f'{params["p_company"].casefold()}::{source_scope}'
+        )
+        ledger_key = (params["p_scan_id"], params["p_company"], source_scope)
         if ledger_key in self.source_syncs:
             return {**copy.deepcopy(self.source_syncs[ledger_key]), "replayed": True}
         incoming = {
@@ -275,47 +282,103 @@ class FakeSupabaseClient:
                 inserted += 1
                 incoming_row["id"] = f"job-{len(self.tracked_jobs) + 1}"
                 self.tracked_jobs[source_key] = incoming_row
-                continue
-
-            changed = (
-                any(
-                    existing.get(field) != incoming_row.get(field)
-                    for field in self.MUTABLE_FIELDS
-                )
-                or existing.get("status") != "active"
-                or existing.get("missing_successful_runs") != 0
-            )
-            if changed:
-                updated += 1
             else:
-                unchanged += 1
-            first_seen_at = existing["first_seen_at"]
-            row_id = existing["id"]
-            existing.update(incoming_row)
-            existing["first_seen_at"] = first_seen_at
-            existing["id"] = row_id
-            existing["status"] = "active"
-            existing["lifecycle_status"] = "active"
-            existing["missing_successful_runs"] = 0
+                changed = (
+                    any(
+                        existing.get(field) != incoming_row.get(field)
+                        for field in self.MUTABLE_FIELDS
+                    )
+                    or existing.get("status") != "active"
+                    or existing.get("missing_successful_runs") != 0
+                )
+                if changed:
+                    updated += 1
+                else:
+                    unchanged += 1
+                first_seen_at = existing["first_seen_at"]
+                row_id = existing["id"]
+                existing.update(incoming_row)
+                existing["first_seen_at"] = first_seen_at
+                existing["id"] = row_id
+                existing["status"] = "active"
+                existing["lifecycle_status"] = "active"
+                existing["missing_successful_runs"] = 0
+
+            owner_key = (source_key, logical_scope)
+            prior_owner = self.scope_ownership.get(owner_key, {})
+            self.scope_ownership[owner_key] = {
+                "ownership_key": f"{source_key}|{logical_scope}",
+                "source_key": source_key,
+                "canonical_company": params["p_company"],
+                "source_scope": source_scope,
+                "source_scope_key": logical_scope,
+                "provider_source_key": incoming_row.get(
+                    "provider_source_key", source_key
+                ),
+                "first_seen_at": prior_owner.get(
+                    "first_seen_at", incoming_row["first_seen_at"]
+                ),
+                "last_seen_at": incoming_row["last_seen_at"],
+                "missing_successful_runs": 0,
+                "lifecycle_status": incoming_row.get("lifecycle_status", "active"),
+                "removed_at": incoming_row.get("removed_at"),
+            }
 
         missing_incremented = 0
         closed = 0
         threshold = params["p_close_after_missing_runs"]
         protected = set(params.get("p_protected_source_keys") or ())
-        for source_key, row in self.tracked_jobs.items():
-            if not params["p_reconcile_absence"] or row["company"] != params["p_company"]:
+        affected = set(incoming)
+        for (source_key, owner_scope), owner in self.scope_ownership.items():
+            if not params["p_reconcile_absence"] or owner_scope != logical_scope:
                 continue
-            if row["status"] == "closed" or source_key in incoming or source_key in protected:
+            if (
+                owner["lifecycle_status"] == "removed"
+                or source_key in incoming
+                or owner["provider_source_key"] in protected
+            ):
                 continue
-            row["missing_successful_runs"] += 1
+            owner["missing_successful_runs"] += 1
             missing_incremented += 1
-            if row["missing_successful_runs"] >= threshold:
+            affected.add(source_key)
+            if owner["missing_successful_runs"] >= threshold:
+                owner["lifecycle_status"] = "removed"
+                owner["removed_at"] = params["p_seen_at"]
+            else:
+                owner["lifecycle_status"] = "possibly_missing"
+
+        for source_key in affected:
+            row = self.tracked_jobs[source_key]
+            owners = [
+                owner
+                for (owned_key, _scope), owner in self.scope_ownership.items()
+                if owned_key == source_key
+            ]
+            statuses = {owner["lifecycle_status"] for owner in owners}
+            was_closed = row.get("status") == "closed"
+            if "active" in statuses:
+                row["status"] = "active"
+                row["lifecycle_status"] = "active"
+                row["missing_successful_runs"] = 0
+                row["removed_at"] = None
+            elif "possibly_missing" in statuses:
+                row["status"] = "active"
+                row["lifecycle_status"] = "possibly_missing"
+                row["missing_successful_runs"] = min(
+                    owner["missing_successful_runs"]
+                    for owner in owners
+                    if owner["lifecycle_status"] == "possibly_missing"
+                )
+                row["removed_at"] = None
+            else:
                 row["status"] = "closed"
                 row["lifecycle_status"] = "removed"
-                row["removed_at"] = params["p_seen_at"]
-                closed += 1
-            else:
-                row["lifecycle_status"] = "possibly_missing"
+                row["missing_successful_runs"] = min(
+                    owner["missing_successful_runs"] for owner in owners
+                )
+                row["removed_at"] = row.get("removed_at") or params["p_seen_at"]
+                if not was_closed:
+                    closed += 1
 
         result = {
             "inserted": inserted,
@@ -337,7 +400,8 @@ class FakeSupabaseClient:
                 "result": copy.deepcopy(existing.get("result")),
                 "replayed": True,
             }
-        ledger_key = (params["p_scan_id"], params["p_company"])
+        source_scope = params.get("p_source_scope", "default")
+        ledger_key = (params["p_scan_id"], params["p_company"], source_scope)
         prior = self.source_syncs.get(ledger_key)
         self.sync_sessions[sync_id] = {
             **copy.deepcopy(params),
@@ -371,6 +435,8 @@ class FakeSupabaseClient:
         for row in params["p_jobs"]:
             if row["company"] != session["p_company"]:
                 raise RuntimeError("company mismatch")
+            if row.get("source_scope", "default") != session.get("p_source_scope", "default"):
+                raise RuntimeError("source scope mismatch")
             if row["source_key"] in self.sync_stage[sync_id]:
                 raise RuntimeError("duplicate staged source key")
             self.sync_stage[sync_id][row["source_key"]] = copy.deepcopy(row)
@@ -394,6 +460,8 @@ class FakeSupabaseClient:
             {
                 "p_scan_id": session["p_scan_id"],
                 "p_company": session["p_company"],
+                "p_source_scope": session.get("p_source_scope", "default"),
+                "p_source_scope_key": session.get("p_source_scope_key"),
                 "p_jobs": list(self.sync_stage[sync_id].values()),
                 "p_reconcile_absence": session["p_reconcile_absence"],
                 "p_protected_source_keys": session.get("p_protected_source_keys", []),
@@ -613,6 +681,105 @@ class SupabaseJobStoreTests(unittest.TestCase):
         )
         self.assertEqual(first, "id:greenhouse:example:job-123")
         self.assertEqual(first, changed_url)
+
+    def test_scope_sync_reconciles_only_owned_inventory(self):
+        professional = self.job(
+            job_id="pro-1", source="fixture:professional", source_scope="professional"
+        )
+        early = self.job(
+            job_id="early-1", source="fixture:early", source_scope="early_careers"
+        )
+        self.store.sync_student_jobs(
+            [professional, early],
+            lifecycle_jobs=[professional, early],
+            successful_companies=(),
+            successful_source_scopes=(
+                ("Example", "professional"),
+                ("Example", "early_careers"),
+            ),
+            started_at=self.started_at,
+            companies_checked=1,
+            jobs_fetched=2,
+        )
+        self.started_at += timedelta(minutes=1)
+        self.store.sync_student_jobs(
+            [professional],
+            lifecycle_jobs=[professional],
+            successful_companies=(),
+            successful_source_scopes=(("Example", "professional"),),
+            started_at=self.started_at,
+            companies_checked=1,
+            jobs_fetched=1,
+        )
+        early_row = self.client.tracked_jobs[generate_source_key(early)]
+        assert early_row["lifecycle_status"] == "active"
+        assert early_row["missing_successful_runs"] == 0
+
+    def test_exact_shared_job_closes_only_after_all_scope_owners_close(self):
+        evidence = {"kind": "shared_requisition_id", "value": "REQ-1"}
+        professional = self.job(
+            job_id="pro-shared",
+            source="fixture:professional",
+            source_scope="professional",
+            cross_source_equivalence=evidence,
+        )
+        early = self.job(
+            job_id="early-shared",
+            source="fixture:early",
+            source_scope="early_careers",
+            cross_source_equivalence=evidence,
+        )
+        self.store.sync_student_jobs(
+            [professional, early],
+            lifecycle_jobs=[professional, early],
+            successful_companies=(),
+            successful_source_scopes=(
+                ("Example", "professional"),
+                ("Example", "early_careers"),
+            ),
+            started_at=self.started_at,
+            companies_checked=1,
+            jobs_fetched=2,
+        )
+        shared_key = generate_source_key(professional)
+        assert shared_key == generate_source_key(early)
+        for offset in (1, 2):
+            self.store.sync_student_jobs(
+                [],
+                successful_companies=(),
+                successful_source_scopes=(("Example", "professional"),),
+                started_at=self.started_at + timedelta(minutes=offset),
+                companies_checked=1,
+                jobs_fetched=0,
+            )
+        assert self.client.tracked_jobs[shared_key]["status"] == "active"
+        for offset in (3, 4):
+            self.store.sync_student_jobs(
+                [],
+                successful_companies=(),
+                successful_source_scopes=(("Example", "early_careers"),),
+                started_at=self.started_at + timedelta(minutes=offset),
+                companies_checked=1,
+                jobs_fetched=0,
+            )
+        assert self.client.tracked_jobs[shared_key]["status"] == "closed"
+
+    def test_scope_rpc_parameters_are_explicit_and_atomic(self):
+        scoped = self.job(source_scope="france")
+        self.store.sync_student_jobs(
+            [scoped],
+            successful_companies=(),
+            successful_source_scopes=(("Example", "france"),),
+            started_at=self.started_at,
+            companies_checked=1,
+            jobs_fetched=1,
+        )
+        begin = next(
+            params for name, params in self.client.rpc_calls
+            if name == "begin_student_job_source_sync"
+        )
+        assert begin["p_source_scope"] == "france"
+        assert begin["p_source_scope_key"] == "example::france"
 
     def test_source_health_round_trips_cooldown_fields(self):
         row = {
@@ -1256,10 +1423,14 @@ class SupabaseJobStoreTests(unittest.TestCase):
 
         self.store.fetch_lifecycle_state()
 
-        call = self.client.select_calls[-1]
+        call = next(
+            item
+            for item in reversed(self.client.select_calls)
+            if item["table"] == "tracked_jobs"
+        )
         self.assertEqual(
             call["columns"],
-            "source_key,company,title,location,apply_url,source_url,source_platform,"
+            "source_key,company,source_scope,title,location,apply_url,source_url,source_platform,"
             "first_seen_at,last_seen_at,first_seen_basis,source_posted_at,"
             "source_closes_at,removed_at,lifecycle_status,missing_successful_runs,"
             "date_parse_errors",

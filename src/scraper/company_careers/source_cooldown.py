@@ -8,6 +8,7 @@ import json
 from typing import Any, Iterable, Mapping
 
 from src.scraper.company_careers.models import CompanyScanResult, CompanyTarget
+from src.utils.source_scope import DEFAULT_SOURCE_SCOPE
 
 
 COOLDOWN_HOURS = {3: 6, 4: 12}
@@ -101,14 +102,22 @@ def source_health_key(target: CompanyTarget) -> str:
         )
         if _stable_config_value(getattr(target, name, None)) not in (None, "", [], {})
     }
+    # Preserve the exact pre-Phase-5 fingerprint for the default scope so all
+    # existing production health/cooldown rows remain addressable. Non-default
+    # scopes include their logical identity and therefore cannot collide.
+    identity = {"company": company, "platform": platform, **source_fields}
+    if target.source_scope != DEFAULT_SOURCE_SCOPE:
+        identity["source_scope"] = target.source_scope
     canonical = json.dumps(
-        {"company": company, "platform": platform, **source_fields},
+        identity,
         ensure_ascii=True,
         separators=(",", ":"),
         sort_keys=True,
     )
     fingerprint = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
-    return f"{platform}:{company}:{fingerprint}"
+    if target.source_scope == DEFAULT_SOURCE_SCOPE:
+        return f"{platform}:{company}:{fingerprint}"
+    return f"{platform}:{company}:{target.source_scope}:{fingerprint}"
 
 
 def cooldown_hours(failure_count: int) -> int:
@@ -188,6 +197,7 @@ def reconcile_source_health(
         base = {
             "source_key": key,
             "company": result.target.name,
+            "source_scope": result.target.source_scope,
             "platform": result.target.platform,
             "updated_at": observed_at.isoformat(),
             "last_successful_authoritative_inventory": prior.get(

@@ -316,7 +316,7 @@ def run_update(args: argparse.Namespace) -> int:
         successful_companies = [
             result.target.name
             for result in report.results
-            if result.authoritative_for_absence
+            if result.authoritative_for_absence and result.target.source_scope == "default"
         ]
         sync_result = job_store.sync_student_jobs(
             ranked_jobs,
@@ -328,7 +328,8 @@ def run_update(args: argparse.Namespace) -> int:
                 freshness_runtime.lifecycle_jobs(report.normalized_jobs)
                 if freshness_runtime else None
             ),
-            protected_source_keys=report.protected_source_keys_by_company(),
+            successful_source_scopes=report.authoritative_source_scopes(),
+            protected_source_keys_by_scope=report.protected_source_keys_by_scope(),
             exclusion_counts=summary["exclusion_counts"],
             coverage_report_path=summary["coverage_report_path"],
             ranked_artifact_path=summary["ranked_results_path"],

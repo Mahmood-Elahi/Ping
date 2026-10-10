@@ -1,0 +1,50 @@
+# OFFLINE PROPOSAL ONLY. Normal runtime never loads this file implicitly.
+# Activation remains forbidden until every Phase 5 Batch 4 gate passes.
+target_companies:
+  - name: Lightspeed Commerce
+    source_scope: default
+    platform: static_html
+    careers_url: https://www.lightspeedhq.com/careers/
+    identity_url: https://www.lightspeedhq.com/careers/openings/
+    listing_url: https://www.lightspeedhq.com/careers/openings/
+    endpoint_variant: server_rendered_cards
+    source_identity_regex: Lightspeed
+    identity_regex: Lightspeed
+    listing_selector: ul.filter__results__list
+    job_card_selector: li.job
+    title_selector: span.job-title
+    location_selector: span.job-office
+    department_selector: span.job-dept
+    detail_link_selector: a[href*=/careers/job/]
+    external_id_regex: /([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})(?:[/?]|$)
+    allowed_apply_hosts:
+      - www.lightspeedhq.com
+    single_page_collection: true
+    max_pages: 1
+    max_jobs: 20
+    max_response_bytes: 3000000
+    evidence_source: https://www.lightspeedhq.com/careers/openings/
+    evidence_confidence: high
+    evidence_timestamp: '2026-09-29T00:00:00+00:00'
+
+  - name: Lightspeed Commerce
+    source_scope: france
+    platform: greenhouse
+    slug: lightspeedhqfr
+    careers_url: https://job-boards.greenhouse.io/lightspeedhqfr
+    endpoint_variant: boards_api_v1_strict
+    allowed_apply_hosts:
+      - job-boards.greenhouse.io
+    max_pages: 1
+    max_jobs: 10000
+    max_response_bytes: 5000000
+    evidence_source: docs/PHASE1_ATS_MIGRATION_REVIEW.md and jobseek apps/crawler/data/boards.csv
+    evidence_confidence: high
+
+phase5_activation:
+  production_active: false
+  required_canary: PASS_COMPLETE
+  migration_deployed_and_verified: false
+  production_config_diff_reviewed: false
+  rollback_prepared: true
+  hard_request_budget: 21

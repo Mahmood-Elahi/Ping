@@ -352,6 +352,93 @@ service-role-only access to source health.
 The full 43-adapter classification and remaining coupled work are recorded in
 [PHASE3_INVENTORY_HYDRATION_REVIEW.md](PHASE3_INVENTORY_HYDRATION_REVIEW.md).
 
+## Phase 5 multi-scope activation prerequisite
+
+Phase 5 Batch 2 proved that one canonical company can have more than one real
+recruiting authority. This is no longer hypothetical: a preserved General
+Motors fixture contains an Ultium Cells posting while three facility-specific
+Ultium ADP boards also exist; specialized early-career, university, regional,
+and campus boards also coexist with broad BlackRock, Chevron, CATL, Lightspeed,
+and Siemens Healthineers sources.
+
+The current registry and lifecycle are safe while only one source row is active
+for each display company. They are not safe for overlapping sources under the
+same company name:
+
+- persistence reconciles absence by `company`, so one complete source can
+  currently authorize company-wide missing transitions even when another
+  source is incomplete;
+- provider job IDs are source-namespaced, so the same logical posting exposed
+  by two providers becomes two lifecycle rows; disappearance from one source
+  can close that row while the equivalent posting remains active elsewhere;
+- giving every scope a different display-company name avoids the immediate
+  reconciliation collision but fragments one canonical employer and does not
+  solve cross-source job equivalence.
+
+Before any overlapping Phase 5 boards are activated, the smallest acceptable
+model is:
+
+```text
+canonical company
+    -> source scope (global, region, university, subsidiary, facility, ...)
+       -> independently authoritative source
+          -> source observation for a provider-owned stable job ID
+             -> optional canonical job equivalence
+```
+
+Absence must reconcile per authoritative source scope. A canonical job may be
+closed only after every active authority known to cover that job reports it
+absent. Cross-source equivalence must use an exact provider requisition ID or a
+canonical apply URL; title/location similarity is diagnostic only. Source and
+scope identity must remain inspectable on every observation.
+
+Phase 5 Batch 3 implements this prerequisite without activating a second
+production scope. Registry representation is multiple flat rows sharing the
+same canonical `name`, distinguished by an explicit normalized
+`source_scope`. Missing legacy values resolve to `default`, so all 533 current
+production rows retain their existing behavior without a registry rewrite.
+
+The identities are deliberately separate:
+
+```text
+canonical company + source_scope -> logical lifecycle authority
+provider/board configuration      -> source/config cooldown fingerprint
+provider namespace + job ID       -> provider observation identity
+exact equivalence evidence        -> optional canonical lifecycle job key
+```
+
+Changing an endpoint, board token, or tenant changes the cooldown fingerprint
+but does not silently create a new logical recruiting scope. A complete scan
+reconciles only ownership rows whose `source_scope_key` matches that scan. An
+incomplete scan or cooldown skip has no absence authority. `tracked_jobs`
+remains the canonical/dashboard row; `tracked_job_source_scopes` stores each
+scope's provider identity, last observation, missing count, and lifecycle
+state. The canonical row stays active while any owning scope is active.
+
+Cross-source equivalence is opt-in and accepts only a shared requisition ID,
+provider-owned global ID, exact canonical apply URL, exact first-party job URL,
+or explicit configured equivalence. Title/location similarity never merges
+lifecycle records. Unknown overlap therefore remains independently traceable.
+The staged finalizer locks and commits one logical scope atomically, updates
+only that scope's ownership rows, then derives canonical activity across all
+owners in the same transaction.
+
+### Explicit source-scope retirement
+
+Removing a source from configuration is not absence evidence: the source may
+have failed, entered cooldown, or been removed only from an offline candidate
+fixture. Consequently, normal scanning never infers retirement from registry
+absence.
+
+Intentional retirement is a separate service-role administrative operation.
+`retire_student_job_source_scope` requires the exact canonical company, scope,
+scope key, human reason, approver, and timestamp. It records the decision in
+`source_scope_retirements`, retires only ownership rows for that logical scope,
+and derives canonical activity across remaining owners. A France-only job can
+close when France is retired; an exactly shared global/France job stays active
+while the global/default owner remains active. The multi-scope schema is
+forward-compatible infrastructure and is not rolled back with one source.
+
 ## Coverage States
 
 The company-careers scanner records a status for every configured target:

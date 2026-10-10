@@ -10,6 +10,8 @@ from urllib.parse import urlparse
 
 import yaml
 
+from src.utils.source_scope import normalize_source_scope
+
 
 class SourceActivationState(str, Enum):
     ACTIVE = "active"
@@ -308,14 +310,22 @@ def assess_registry(
     retained_by_company = retained_by_company or {}
     effective_bounds_by_company = effective_bounds_by_company or {}
     results: list[SourceIntegrityAssessment] = []
-    seen: set[str] = set()
+    seen: set[tuple[str, str]] = set()
     for entry in entries:
         company = str(entry.get("name") or "").strip()
-        key = _company_key(company)
+        company_key = _company_key(company)
+        scope = normalize_source_scope(entry.get("source_scope"))
+        key = (company_key, scope)
         assessment = assess_registry_entry(
             entry,
-            retained=retained_by_company.get(key),
-            effective_bounds=effective_bounds_by_company.get(key),
+            retained=(
+                retained_by_company.get(f"{company_key}::{scope}")
+                or retained_by_company.get(company_key)
+            ),
+            effective_bounds=(
+                effective_bounds_by_company.get(f"{company_key}::{scope}")
+                or effective_bounds_by_company.get(company_key)
+            ),
         )
         if key in seen:
             assessment = SourceIntegrityAssessment(
@@ -323,7 +333,10 @@ def assess_registry(
                     **assessment.__dict__,
                     "activation_state": SourceActivationState.QUARANTINED,
                     "action": IntegrityAction.ARCHITECTURAL,
-                    "reasons": (*assessment.reasons, "duplicate normalized company identity"),
+                    "reasons": (
+                        *assessment.reasons,
+                        "duplicate normalized company and source_scope identity",
+                    ),
                 }
             )
         seen.add(key)

@@ -11,7 +11,15 @@ from typing import Any, Iterable, Mapping, MutableMapping, Optional
 
 import yaml
 
-from src.integrations.supabase_job_store import generate_source_key
+from src.integrations.supabase_job_store import (
+    generate_provider_source_key,
+    generate_source_key,
+)
+from src.utils.source_scope import (
+    DEFAULT_SOURCE_SCOPE,
+    normalize_source_scope,
+    source_scope_key,
+)
 
 
 DEFAULT_FRESHNESS_CONFIG_PATH = "config/freshness.yaml"
@@ -248,6 +256,7 @@ def reconcile_lifecycle(
     previous_state: Mapping[str, Any],
     *,
     complete_companies: Iterable[str],
+    complete_source_scopes: Iterable[tuple[str, str]] = (),
     protected_source_keys: Iterable[str] = (),
     as_of: datetime,
     config: FreshnessConfig,
@@ -259,16 +268,39 @@ def reconcile_lifecycle(
     seen_at = _timestamp_text(reference)
     prior_jobs = {str(key): dict(value) for key, value in previous_state["jobs"].items()}
     incoming: MutableMapping[str, dict[str, Any]] = {}
+    incoming_owners: dict[str, dict[str, tuple[str, dict[str, Any]]]] = {}
     for raw_job in current_jobs:
         values = _job_mapping(raw_job)
         source_key = stable_job_key(values)
+        scope = normalize_source_scope(values.get("source_scope"))
+        logical_scope = source_scope_key(values.get("company"), scope)
+        provider_key = generate_provider_source_key(values)
         if source_key in incoming:
-            if _identity_payload(incoming[source_key]) != _identity_payload(values):
+            if (
+                not source_key.startswith("equiv:")
+                and _identity_payload(incoming[source_key]) != _identity_payload(values)
+            ):
                 raise FreshnessStateError(f"Conflicting jobs share stable identity {source_key!r}")
-            continue
-        incoming[source_key] = values
+        else:
+            incoming[source_key] = values
+        owner = incoming_owners.setdefault(source_key, {}).get(logical_scope)
+        if owner is not None and owner[0] != provider_key:
+            raise FreshnessStateError(
+                f"One source scope produced conflicting provider identities for {source_key!r}"
+            )
+        incoming_owners[source_key][logical_scope] = (provider_key, values)
 
     complete = {_normalize_company(value) for value in complete_companies if str(value).strip()}
+    complete_scopes = {
+        source_scope_key(company, scope)
+        for company, scope in complete_source_scopes
+        if str(company).strip()
+    }
+    complete_scopes.update(
+        source_scope_key(company, DEFAULT_SOURCE_SCOPE)
+        for company in complete_companies
+        if str(company).strip()
+    )
     protected = {
         str(value).strip() for value in protected_source_keys if str(value).strip()
     }
@@ -313,6 +345,7 @@ def reconcile_lifecycle(
                 "reappeared_at": None,
                 "reappearance_count": 0,
                 "date_parse_errors": error_codes,
+                "scope_ownership": {},
             }
             transition = "explicitly_closed" if explicit_closed else "new"
         else:
@@ -337,6 +370,36 @@ def reconcile_lifecycle(
                     transition = "reappeared"
                     entry["reappeared_at"] = seen_at
                     entry["reappearance_count"] = int(entry.get("reappearance_count", 0)) + 1
+        ownership = _ownership_for_entry(entry, source_key)
+        for logical_scope, (provider_key, owner_values) in incoming_owners[source_key].items():
+            owner_explicit_closed = _explicitly_closed(owner_values)
+            old_owner = ownership.get(logical_scope, {})
+            ownership[logical_scope] = {
+                "source_scope": normalize_source_scope(owner_values.get("source_scope")),
+                "provider_source_key": provider_key,
+                "last_seen_at": seen_at,
+                "lifecycle_status": REMOVED if owner_explicit_closed else ACTIVE,
+                "missing_scan_count": 0,
+                "removed_at": (
+                    old_owner.get("removed_at") or seen_at
+                    if owner_explicit_closed
+                    else None
+                ),
+            }
+        for logical_scope, owner in ownership.items():
+            if logical_scope in incoming_owners[source_key]:
+                continue
+            if str(owner.get("provider_source_key") or "") in protected:
+                continue
+            if logical_scope in complete_scopes and owner["lifecycle_status"] != REMOVED:
+                owner["missing_scan_count"] = int(owner.get("missing_scan_count", 0)) + 1
+                if owner["missing_scan_count"] >= config.removal.consecutive_complete_scans:
+                    owner["lifecycle_status"] = REMOVED
+                    owner["removed_at"] = owner.get("removed_at") or seen_at
+                else:
+                    owner["lifecycle_status"] = POSSIBLY_MISSING
+        entry["scope_ownership"] = ownership
+        _apply_aggregate_ownership(entry, seen_at=seen_at)
         state_jobs[source_key] = entry
         transitions.append(_transition(source_key, entry, transition))
 
@@ -344,21 +407,26 @@ def reconcile_lifecycle(
     for source_key in sorted(set(prior_jobs) - current_keys):
         entry = _canonical_entry(prior_jobs[source_key], source_key)
         transition: Optional[str] = None
-        if source_key in protected:
-            # Listing presence is not hydration success. Preserve the prior
-            # record verbatim instead of refreshing descriptive fields or
-            # advancing absence state.
-            state_jobs[source_key] = entry
-            continue
-        if _normalize_company(entry["company"]) in complete and entry["lifecycle_status"] != REMOVED:
-            entry["missing_scan_count"] += 1
-            if entry["missing_scan_count"] >= config.removal.consecutive_complete_scans:
-                entry["lifecycle_status"] = REMOVED
-                entry["removed_at"] = entry.get("removed_at") or seen_at
-                transition = "removed_after_complete_absence"
-            else:
-                entry["lifecycle_status"] = POSSIBLY_MISSING
-                transition = "possibly_missing"
+        old_status = entry["lifecycle_status"]
+        ownership = _ownership_for_entry(entry, source_key)
+        for logical_scope, owner in ownership.items():
+            if str(owner.get("provider_source_key") or "") in protected:
+                continue
+            if logical_scope in complete_scopes and owner["lifecycle_status"] != REMOVED:
+                owner["missing_scan_count"] = int(owner.get("missing_scan_count", 0)) + 1
+                if owner["missing_scan_count"] >= config.removal.consecutive_complete_scans:
+                    owner["lifecycle_status"] = REMOVED
+                    owner["removed_at"] = owner.get("removed_at") or seen_at
+                else:
+                    owner["lifecycle_status"] = POSSIBLY_MISSING
+        entry["scope_ownership"] = ownership
+        _apply_aggregate_ownership(entry, seen_at=seen_at)
+        if entry["lifecycle_status"] != old_status:
+            transition = (
+                "removed_after_complete_absence"
+                if entry["lifecycle_status"] == REMOVED
+                else "possibly_missing"
+            )
         state_jobs[source_key] = entry
         if transition:
             transitions.append(_transition(source_key, entry, transition))
@@ -516,13 +584,15 @@ class FreshnessRuntime:
         complete_companies = [
             result.target.name for result in report.results
             if bool(getattr(result, "authoritative_for_absence", False))
+            and result.target.source_scope == DEFAULT_SOURCE_SCOPE
         ]
         self.result = reconcile_lifecycle(
             report.normalized_jobs, self.previous_state,
             complete_companies=complete_companies, as_of=self.as_of,
+            complete_source_scopes=report.authoritative_source_scopes(),
             protected_source_keys={
                 key
-                for keys in report.protected_source_keys_by_company().values()
+                for keys in report.protected_source_keys_by_scope().values()
                 for key in keys
             },
             config=self.config, first_seen_basis=self.first_seen_basis,
@@ -655,6 +725,11 @@ def _canonical_entry(raw: Mapping[str, Any], source_key: str) -> dict[str, Any]:
         "reappeared_at": raw.get("reappeared_at"),
         "reappearance_count": int(raw.get("reappearance_count", 0) or 0),
         "date_parse_errors": list(raw.get("date_parse_errors") or []),
+        "scope_ownership": {
+            str(key): dict(value)
+            for key, value in dict(raw.get("scope_ownership") or {}).items()
+            if isinstance(value, Mapping)
+        },
     }
 
 
@@ -663,12 +738,74 @@ def _descriptive_fields(source_key: str, values: Mapping[str, Any]) -> dict[str,
         "source_key": source_key,
         "identity_strength": source_key.split(":", 1)[0],
         "company": str(values.get("company") or "").strip(),
+        "source_scope": normalize_source_scope(values.get("source_scope")),
         "source": str(values.get("source") or values.get("source_platform") or "").strip(),
         "job_id": str(values.get("job_id") or "").strip(),
         "url": str(values.get("source_url") or values.get("apply_url") or values.get("url") or "").strip(),
         "title": str(values.get("title") or values.get("position") or "").strip(),
         "location": str(values.get("location") or "").strip(),
     }
+
+
+def _ownership_for_entry(
+    entry: Mapping[str, Any], source_key: str
+) -> dict[str, dict[str, Any]]:
+    ownership = {
+        str(key): dict(value)
+        for key, value in dict(entry.get("scope_ownership") or {}).items()
+        if isinstance(value, Mapping)
+    }
+    if ownership:
+        # Schema-v1 callers historically edited only the aggregate lifecycle
+        # fields. For a single owner those fields are equivalent, so preserve
+        # that backward-compatible state-shaping contract. Multi-owner rows
+        # remain association-authoritative.
+        if len(ownership) == 1:
+            owner = next(iter(ownership.values()))
+            owner["lifecycle_status"] = entry.get("lifecycle_status", ACTIVE)
+            owner["missing_scan_count"] = int(
+                entry.get("missing_scan_count", 0) or 0
+            )
+            owner["removed_at"] = entry.get("removed_at")
+        return ownership
+    logical_scope = source_scope_key(
+        entry.get("company"), entry.get("source_scope", DEFAULT_SOURCE_SCOPE)
+    )
+    return {
+        logical_scope: {
+            "source_scope": normalize_source_scope(
+                entry.get("source_scope", DEFAULT_SOURCE_SCOPE)
+            ),
+            "provider_source_key": source_key,
+            "last_seen_at": entry.get("last_seen_at"),
+            "lifecycle_status": entry.get("lifecycle_status", ACTIVE),
+            "missing_scan_count": int(entry.get("missing_scan_count", 0) or 0),
+            "removed_at": entry.get("removed_at"),
+        }
+    }
+
+
+def _apply_aggregate_ownership(entry: dict[str, Any], *, seen_at: str) -> None:
+    owners = list(entry["scope_ownership"].values())
+    statuses = {str(owner.get("lifecycle_status") or ACTIVE) for owner in owners}
+    if ACTIVE in statuses:
+        entry["lifecycle_status"] = ACTIVE
+        entry["missing_scan_count"] = 0
+        entry["removed_at"] = None
+    elif POSSIBLY_MISSING in statuses:
+        entry["lifecycle_status"] = POSSIBLY_MISSING
+        pending = [
+            int(owner.get("missing_scan_count", 0) or 0)
+            for owner in owners
+            if owner.get("lifecycle_status") == POSSIBLY_MISSING
+        ]
+        entry["missing_scan_count"] = min(pending) if pending else 0
+        entry["removed_at"] = None
+    else:
+        entry["lifecycle_status"] = REMOVED
+        counts = [int(owner.get("missing_scan_count", 0) or 0) for owner in owners]
+        entry["missing_scan_count"] = min(counts) if counts else 0
+        entry["removed_at"] = entry.get("removed_at") or seen_at
 
 
 def _transition(source_key: str, entry: Mapping[str, Any], transition: str) -> dict[str, Any]:
