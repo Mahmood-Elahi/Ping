@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping
 from urllib.parse import urlparse
 
@@ -10,7 +11,9 @@ import requests
 
 from src.scraper.company_careers.models import (
     AdapterError,
+    AdapterResult,
     CompanyTarget,
+    InventoryItem,
     JobRecord,
     SourceScanMetadata,
     explicit_adapter_result,
@@ -40,6 +43,12 @@ BULLET_REQUISITION_RE = re.compile(r"^[A-Za-z]{0,8}[-_]?\d{1,20}$")
 PAGE_SIZE = 20
 MAX_PAGES = 25
 MAX_RESULTS = PAGE_SIZE * MAX_PAGES
+SAFE_QUERY_CAPACITY = 2_000
+DEFAULT_REQUEST_BUDGET = 500
+MAX_REQUEST_BUDGET = 2_000
+MAX_PARTITION_DEPTH = 3
+MAX_PARTITIONS = 128
+MAX_WORKDAY_JOBS = 10_000
 MAX_DISCOVERY_CANDIDATES = 3
 MAX_DISCOVERY_BYTES = 3_000_000
 SITE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
@@ -56,8 +65,74 @@ class _FirstPageHttpError(AdapterError):
         self.status_code = status_code
 
 
+class _RequestBudgetExceeded(AdapterError):
+    """Raised before a request that would exceed the source-wide budget."""
+
+
+@dataclass
+class _RequestBudget:
+    limit: int
+    used: int = 0
+    categories: dict[str, int] = field(default_factory=dict)
+
+    def consume(self, category: str) -> None:
+        if self.used >= self.limit:
+            raise _RequestBudgetExceeded("Workday source request budget exhausted")
+        self.used += 1
+        self.categories[category] = self.categories.get(category, 0) + 1
+
+    def record(self, metadata: SourceScanMetadata) -> None:
+        metadata["request_budget"] = self.limit
+        metadata["requests_used"] = self.used
+        counts = {
+            key: self.categories.get(key, 0)
+            for key in (
+                "identity",
+                "root_facet_discovery",
+                "partition_listing",
+                "listing",
+                "root_validation",
+                "detail",
+                "retry",
+            )
+        }
+        metadata["request_counts"] = counts
+
+
+@dataclass(frozen=True)
+class _FacetValue:
+    facet: str
+    value: str
+    count: int
+
+
+@dataclass
+class _PartitionContext:
+    budget: _RequestBudget
+    metadata: SourceScanMetadata
+    api_url: str
+    site_id: str
+    base_url: str
+    timeout: int
+    body_index: int
+    target: CompanyTarget
+    root_total: int
+    partitions_seen: set[tuple[tuple[str, tuple[str, ...]], ...]] = field(
+        default_factory=set
+    )
+    partition_count: int = 0
+    raw_rows: int = 0
+    cross_partition_duplicates: int = 0
+    jobs_by_identity: dict[str, JobRecord] = field(default_factory=dict)
+    partial_jobs_by_identity: dict[str, JobRecord] = field(default_factory=dict)
+    failed: bool = False
+    failure_reason: str = ""
+
+
 @explicit_adapter_result
-def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 20) -> List[JobRecord]:
+def fetch_jobs(
+    session: requests.Session, target: CompanyTarget, timeout: int = 20
+) -> AdapterResult:
     if not target.tenant or not target.wd_subdomain or not (target.site_id or target.site_ids):
         raise AdapterError("Workday target needs tenant, wd_subdomain, and site_id/site_ids")
     if not TENANT_RE.fullmatch(str(target.tenant)) or not WD_SUBDOMAIN_RE.fullmatch(
@@ -68,17 +143,63 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
     _validate_applied_facets(target)
     if not 1 <= int(target.max_pages) <= MAX_PAGES:
         raise AdapterError(f"Workday max_pages must be between 1 and {MAX_PAGES}")
+    if not 1 <= int(target.workday_request_budget) <= MAX_REQUEST_BUDGET:
+        raise AdapterError(
+            f"Workday request budget must be between 1 and {MAX_REQUEST_BUDGET}"
+        )
+    if not 0 <= int(target.workday_max_partition_depth) <= MAX_PARTITION_DEPTH:
+        raise AdapterError(
+            f"Workday partition depth must be between 0 and {MAX_PARTITION_DEPTH}"
+        )
+    if not 1 <= int(target.workday_max_partitions) <= MAX_PARTITIONS:
+        raise AdapterError(
+            f"Workday partition count must be between 1 and {MAX_PARTITIONS}"
+        )
+    if not 1 <= int(target.workday_max_jobs) <= MAX_WORKDAY_JOBS:
+        raise AdapterError(
+            f"Workday job limit must be between 1 and {MAX_WORKDAY_JOBS}"
+        )
+    budget = _RequestBudget(int(target.workday_request_budget))
     site_ids = _candidate_site_ids(target)
+    if target.workday_identity:
+        expected_site = str(
+            target.workday_identity.get("expected_workday_site") or ""
+        ).casefold()
+        matching_sites = [
+            value for value in site_ids if value.casefold() == expected_site
+        ]
+        preflight_site = matching_sites[0] if matching_sites else site_ids[0]
+        identity_status, identity_diagnostic = _configured_identity_evidence(
+            target, preflight_site, _expected_workday_host(target)
+        )
+        if identity_status == "failed":
+            metadata = SourceScanMetadata(
+                source_identity_status="failed",
+                source_identity_diagnostic=identity_diagnostic,
+                scan_completeness_reason="workday_identity_failure",
+                stop_reason="workday_identity_failure",
+            )
+            budget.record(metadata)
+            publish_source_scan_metadata(session, metadata)
+            return AdapterResult(jobs=[], scan=metadata)
+        site_ids = matching_sites
     last_error = None
-    discovery_allowed = True
+    discovery_allowed = not bool(target.workday_identity)
     configured_attempts: list[dict[str, str]] = []
 
     for site_id in site_ids:
         result, last_error, site_discovery_allowed = _try_site(
-            session, target, site_id, timeout, hostname=_expected_workday_host(target)
+            session,
+            target,
+            site_id,
+            timeout,
+            hostname=_expected_workday_host(target),
+            budget=budget,
         )
         if result is not None:
-            return result
+            return _finalize_workday_result(
+                session, target, site_id, _expected_workday_host(target), result, budget
+            )
         configured_attempts.append(
             {"site_id": site_id, "reason": str(last_error or "request failed")[:160]}
         )
@@ -95,13 +216,13 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
         configured = {
             (_expected_workday_host(target), value.casefold()) for value in site_ids
         }
-        discovered, discovery = _discover_site_ids(session, target, timeout)
+        discovered, discovery = _discover_site_ids(session, target, timeout, budget)
         discovery["configured_attempts"] = configured_attempts
         for hostname, site_id in discovered:
             if (hostname, site_id.casefold()) in configured:
                 continue
             result, last_error, _ = _try_site(
-                session, target, site_id, timeout, hostname=hostname
+                session, target, site_id, timeout, hostname=hostname, budget=budget
             )
             if result is not None:
                 metadata = source_scan_metadata(session)
@@ -110,7 +231,9 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
                 metadata["resolved_site_id"] = site_id
                 metadata["resolved_hostname"] = hostname
                 metadata.setdefault("diagnostics", []).append(discovery)
-                return result
+                return _finalize_workday_result(
+                    session, target, site_id, hostname, result, budget
+                )
             discovery["candidates"].append(
                 {
                     "hostname": hostname,
@@ -123,6 +246,19 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
         discovery["discovery_status"] = "not_attempted_non_contract_failure"
 
     metadata = source_scan_metadata(session)
+    if budget.used >= budget.limit:
+        metadata.update(
+            scan_complete=False,
+            authoritative_total_present=False,
+            safety_limit_reached=True,
+            scan_completeness_reason="workday_request_budget_exhausted",
+            stop_reason="workday_request_budget_exhausted",
+        )
+        budget.record(metadata)
+        metadata.setdefault("diagnostics", []).append(discovery)
+        publish_source_scan_metadata(session, metadata)
+        return AdapterResult(jobs=[], scan=metadata)
+    budget.record(metadata)
     metadata.setdefault("diagnostics", []).append(discovery)
     publish_source_scan_metadata(session, metadata)
     diagnostic = _format_discovery_diagnostic(discovery)
@@ -138,6 +274,7 @@ def _try_site(
     timeout: int,
     *,
     hostname: str,
+    budget: _RequestBudget,
 ) -> tuple[List[JobRecord] | None, AdapterError | None, bool]:
     api_url = (
         f"https://{hostname}/wday/cxs/{target.tenant}/{site_id}/jobs"
@@ -147,8 +284,24 @@ def _try_site(
     discovery_allowed = True
     for body_index in range(body_count):
         try:
-            return (
-                _fetch_pages(
+            jobs = _fetch_pages(
+                session,
+                target,
+                api_url,
+                site_id,
+                body_index,
+                timeout,
+                base_url=f"https://{hostname}",
+                budget=budget,
+            )
+            first = source_scan_metadata(session)
+            if first.get("workday_partitioned") and first.get(
+                "collection_changed_during_scan"
+            ):
+                first_ids = {job.job_id for job in jobs}
+                first_requests = int(first.get("pages_requested") or 0)
+                retry_request_start = budget.used
+                jobs = _fetch_pages(
                     session,
                     target,
                     api_url,
@@ -156,10 +309,32 @@ def _try_site(
                     body_index,
                     timeout,
                     base_url=f"https://{hostname}",
-                ),
-                None,
-                discovery_allowed,
-            )
+                    budget=budget,
+                )
+                mutation_retry_requests = budget.used - retry_request_start
+                budget.categories["retry"] = (
+                    budget.categories.get("retry", 0) + mutation_retry_requests
+                )
+                metadata = source_scan_metadata(session)
+                second_ids = {job.job_id for job in jobs}
+                metadata.update(
+                    collection_restart_count=1,
+                    first_traversal_jobs=len(first_ids),
+                    stable_id_set_match_across_restart=first_ids == second_ids,
+                    stable_ids_added_after_restart=len(second_ids - first_ids),
+                    stable_ids_removed_after_restart=len(first_ids - second_ids),
+                    total_pages_requested_across_traversals=(
+                        first_requests + int(metadata.get("pages_requested") or 0)
+                    ),
+                    mutation_retry_requests=mutation_retry_requests,
+                )
+                budget.record(metadata)
+                if metadata.get("collection_changed_during_scan"):
+                    metadata["collection_retry_exhausted"] = True
+                elif metadata.get("scan_complete"):
+                    metadata["stabilized_after_collection_retry"] = True
+                publish_source_scan_metadata(session, metadata)
+            return jobs, None, discovery_allowed
         except AdapterError as exc:
             last_error = exc
             # Body variants and alternate site IDs are first-page
@@ -188,6 +363,7 @@ def _discover_site_ids(
     session: requests.Session,
     target: CompanyTarget,
     timeout: int,
+    budget: _RequestBudget,
 ) -> tuple[list[tuple[str, str]], dict[str, Any]]:
     """Discover a bounded set of site IDs from authoritative Workday metadata."""
     expected_host = _expected_workday_host(target)
@@ -210,7 +386,7 @@ def _discover_site_ids(
         (expected_host, value.casefold()) for value in _candidate_site_ids(target)
     }
     for seed in seeds[:MAX_DISCOVERY_CANDIDATES]:
-        response, rejection = _discovery_page(session, seed, target, timeout)
+        response, rejection = _discovery_page(session, seed, target, timeout, budget)
         if response is None:
             diagnostic["page_rejections"].append(
                 {
@@ -273,7 +449,9 @@ def _discover_site_ids(
             (host, value.casefold()) for host, value in validated
         }:
             continue
-        response, rejection = _discovery_page(session, candidate_url, target, timeout)
+        response, rejection = _discovery_page(
+            session, candidate_url, target, timeout, budget
+        )
         if response is None:
             _record_workday_candidate(
                 diagnostic, candidate_host, site_id, "rejected", rejection
@@ -317,8 +495,10 @@ def _discovery_page(
     url: str,
     target: CompanyTarget,
     timeout: int,
+    budget: _RequestBudget,
 ) -> tuple[tuple[str, str] | None, str]:
     try:
+        budget.consume("identity")
         response = session.get(
             url,
             headers={
@@ -327,6 +507,8 @@ def _discovery_page(
             },
             timeout=timeout,
         )
+    except _RequestBudgetExceeded:
+        return None, "request budget exhausted"
     except requests.RequestException:
         return None, "request failed"
     if getattr(response, "status_code", None) != 200:
@@ -412,6 +594,111 @@ def _expected_workday_host(target: CompanyTarget) -> str:
         f"{str(target.tenant).casefold()}.{str(target.wd_subdomain).casefold()}"
         ".myworkdayjobs.com"
     )
+
+
+def _finalize_workday_result(
+    session: requests.Session,
+    target: CompanyTarget,
+    site_id: str,
+    hostname: str,
+    jobs: List[JobRecord],
+    budget: _RequestBudget,
+) -> AdapterResult:
+    """Apply the employer-binding gate once, after the selected site resolves."""
+    metadata = source_scan_metadata(session)
+    status, diagnostic = _configured_identity_evidence(target, site_id, hostname)
+    metadata["source_identity_status"] = status
+    metadata["source_identity_diagnostic"] = diagnostic
+    metadata["workday_identity_checks"] = 1
+    if status not in {"validated", "verified"}:
+        # A provider total is useful partition evidence but cannot make an
+        # identity-unproven source authoritative.  Clearing this trust bit also
+        # prevents central legacy-total normalization from re-promoting it.
+        metadata["authoritative_total_present"] = False
+        if metadata.get("scan_complete"):
+            metadata["scan_complete"] = False
+            metadata["scan_completeness_reason"] = "workday_identity_unproven"
+            metadata["stop_reason"] = "workday_identity_unproven"
+    budget.record(metadata)
+    publish_source_scan_metadata(session, metadata)
+    inventory = tuple(
+        InventoryItem(job.job_id, job.source)
+        for job in jobs
+        if job.job_id and job.source
+    )
+    return AdapterResult(
+        jobs=jobs,
+        scan=metadata,
+        inventory_items=inventory,
+        capabilities_used=frozenset(
+            {"inventory_listing", "workday_partitioning"}
+            if metadata.get("workday_partitioned")
+            else {"inventory_listing"}
+        ),
+    )
+
+
+def _configured_identity_evidence(
+    target: CompanyTarget, site_id: str, hostname: str
+) -> tuple[str, dict[str, Any]]:
+    """Validate exact, configuration-bound official recruiting evidence.
+
+    The evidence is intentionally declarative: adding it is a reviewed registry
+    action backed by an official employer page.  It is fingerprinted with the
+    source configuration and never inferred from CXS jobs or tenant names.
+    """
+    evidence = dict(target.workday_identity or {})
+    required = {
+        "official_source_url",
+        "expected_workday_tenant",
+        "expected_workday_site",
+    }
+    base = {
+        "proof": "configured_official_recruiting_surface",
+        "configured_tenant": str(target.tenant),
+        "configured_site_id": site_id,
+        "configured_hostname": hostname.casefold(),
+    }
+    if not evidence:
+        return "unproven", {
+            **base,
+            "proof": "unavailable_in_workday_cxs_listing",
+            "reason": (
+                "Workday CXS reachability does not prove employer ownership; "
+                "no configuration-bound official recruiting evidence is present"
+            ),
+        }
+    missing = sorted(required - evidence.keys())
+    official = urlparse(evidence.get("official_source_url", ""))
+    expected_host = evidence.get("expected_workday_hostname", hostname).casefold()
+    exact = (
+        evidence.get("expected_workday_tenant", "").casefold()
+        == str(target.tenant).casefold()
+        and evidence.get("expected_workday_site", "").casefold()
+        == site_id.casefold()
+        and expected_host == hostname.casefold()
+    )
+    official_host = (official.hostname or "").casefold()
+    official_is_first_party = bool(
+        official.scheme == "https"
+        and official_host
+        and not official_host.endswith(".myworkdayjobs.com")
+    )
+    if missing or not exact or not official_is_first_party:
+        return "failed", {
+            **base,
+            "official_source_url": evidence.get("official_source_url"),
+            "missing_fields": missing,
+            "exact_binding": exact,
+            "official_source_is_first_party_https": official_is_first_party,
+            "reason": "configured Workday identity evidence is invalid or mismatched",
+        }
+    return "validated", {
+        **base,
+        "official_source_url": evidence["official_source_url"],
+        "expected_workday_hostname": expected_host,
+        "reason": "reviewed official recruiting evidence exactly binds tenant and site",
+    }
 
 
 def _tenant_workday_hostname(hostname: str, target: CompanyTarget) -> bool:
@@ -625,6 +912,7 @@ def _fetch_pages(
     timeout: int,
     *,
     base_url: str,
+    budget: _RequestBudget,
 ) -> List[JobRecord]:
     jobs: List[JobRecord] = []
     metadata = SourceScanMetadata(
@@ -663,9 +951,20 @@ def _fetch_pages(
         body = _body_variants(offset, target.applied_facets)[body_index]
         metadata["pages_requested"] += 1
         try:
+            budget.consume(
+                "retry"
+                if offset == 0 and body_index > 0
+                else ("root_facet_discovery" if offset == 0 else "listing")
+            )
             response = session.post(
                 api_url, json=body, headers=HEADERS, timeout=timeout
             )
+        except _RequestBudgetExceeded:
+            metadata["stop_reason"] = "workday_request_budget_exhausted"
+            metadata["scan_completeness_reason"] = "workday_request_budget_exhausted"
+            metadata["safety_limit_reached"] = True
+            budget.record(metadata)
+            break
         except requests.RequestException:
             metadata["stop_reason"] = "request_failure"
             metadata["scan_completeness_reason"] = "pagination_failure"
@@ -711,6 +1010,20 @@ def _fetch_pages(
             metadata["stop_reason"] = "malformed_total"
             metadata["scan_completeness_reason"] = "malformed_total"
             raise
+        if page == 0 and reported_total is not None and reported_total >= SAFE_QUERY_CAPACITY:
+            jobs = _fetch_partitioned_inventory(
+                session,
+                target,
+                api_url,
+                site_id,
+                body_index,
+                timeout,
+                base_url=base_url,
+                budget=budget,
+                root_payload=payload,
+                root_total=reported_total,
+            )
+            return jobs
         # Many Workday CXS tenants expose the board total only on offset zero
         # and send a literal zero on subsequent pages. A zero alongside a
         # positive first-page total is an observed "not repeated" sentinel,
@@ -818,6 +1131,15 @@ def _fetch_pages(
         metadata["pages_completed"] += 1
 
         enumerated = offset + len(items)
+        if expected_total is None and enumerated >= SAFE_QUERY_CAPACITY:
+            # Without a trustworthy total, reaching the known provider
+            # boundary is itself cap evidence.  A later empty/repeated offset
+            # cannot prove that the underlying inventory ended here.
+            metadata["stop_reason"] = "workday_provider_cap_reached"
+            metadata["scan_completeness_reason"] = "workday_provider_cap_reached"
+            metadata["authoritative_total_present"] = False
+            metadata["workday_safe_query_capacity"] = SAFE_QUERY_CAPACITY
+            break
         if expected_total is not None and enumerated == expected_total:
             finish_terminal(metadata, complete_reason="reported_total_reached")
             break
@@ -834,7 +1156,7 @@ def _fetch_pages(
             metadata["total_available"] = enumerated
             finish_terminal(metadata, complete_reason="natural_terminal_page")
             break
-        if page + 1 >= int(
+        if expected_total is not None and page + 1 >= int(
             metadata.get(
                 "effective_listing_request_ceiling",
                 listing_budget.normal_request_budget,
@@ -855,7 +1177,497 @@ def _fetch_pages(
         else:
             metadata["scan_completeness_reason"] = "safety_limit_reached"
 
+    budget.record(metadata)
     return jobs
+
+
+def _fetch_partitioned_inventory(
+    session: requests.Session,
+    target: CompanyTarget,
+    api_url: str,
+    site_id: str,
+    body_index: int,
+    timeout: int,
+    *,
+    base_url: str,
+    budget: _RequestBudget,
+    root_payload: Mapping[str, Any],
+    root_total: int,
+) -> List[JobRecord]:
+    """Enumerate a cap-bound query through provider-advertised facets."""
+    metadata = source_scan_metadata(session)
+    metadata.update(
+        workday_partitioned=True,
+        workday_safe_query_capacity=SAFE_QUERY_CAPACITY,
+        workday_root_total=root_total,
+        total_available=root_total,
+        authoritative_total_present=False,
+        scan_complete=False,
+        scan_completeness_reason="provider_cap_requires_partition",
+        stop_reason="provider_cap_requires_partition",
+        maximum_partition_depth=int(target.workday_max_partition_depth),
+        maximum_partitions=int(target.workday_max_partitions),
+        maximum_workday_jobs=int(target.workday_max_jobs),
+    )
+    context = _PartitionContext(
+        budget=budget,
+        metadata=metadata,
+        api_url=api_url,
+        site_id=site_id,
+        base_url=base_url,
+        timeout=timeout,
+        body_index=body_index,
+        target=target,
+        root_total=root_total,
+        raw_rows=len(_payload_items(root_payload)),
+    )
+    root_state = _partition_state(target.applied_facets)
+    context.partitions_seen.add(root_state)
+    context.partition_count = 1
+
+    root_jobs = _jobs_from_items(
+        _payload_items(root_payload), target, site_id, base_url
+    )
+    for job in root_jobs:
+        context.partial_jobs_by_identity.setdefault(job.job_id.casefold(), job)
+
+    options = _partition_dimensions(
+        root_payload, root_total, excluded=set(target.applied_facets)
+    )
+    if root_total > int(target.workday_max_jobs):
+        metadata["safety_limit_reached"] = True
+        _fail_partition(context, "workday_max_jobs_reached")
+    elif not options:
+        _fail_partition(context, "workday_unsplittable_partition")
+    else:
+        facet, values = options[0]
+        _traverse_partition_children(
+            session,
+            context,
+            dict(target.applied_facets),
+            facet,
+            values,
+            depth=1,
+        )
+
+    if not context.failed:
+        recheck = _partition_payload(
+            session,
+            context,
+            dict(target.applied_facets),
+            offset=0,
+            category="root_validation",
+        )
+        if recheck is None:
+            pass
+        else:
+            recheck_total = _safe_partition_total(recheck, context)
+            root_ids = {
+                _page_item_identity(item).casefold()
+                for item in _payload_items(root_payload)
+            }
+            recheck_ids = {
+                _page_item_identity(item).casefold()
+                for item in _payload_items(recheck)
+            }
+            if recheck_total != root_total or recheck_ids != root_ids:
+                mark_collection_changed(metadata)
+                _fail_partition(context, "workday_partition_contradiction")
+
+    unique_jobs = list(context.jobs_by_identity.values())
+    if not context.failed and len(unique_jobs) != root_total:
+        _fail_partition(context, "workday_partition_contradiction")
+    if not context.failed and len(unique_jobs) > int(target.workday_max_jobs):
+        metadata["safety_limit_reached"] = True
+        _fail_partition(context, "workday_max_jobs_reached")
+
+    metadata.update(
+        partition_count=context.partition_count,
+        partition_states_seen=len(context.partitions_seen),
+        raw_rows_fetched=context.raw_rows,
+        duplicate_rows_across_partitions=context.cross_partition_duplicates,
+        unique_inventory_ids=len(context.jobs_by_identity),
+        reported_partition_totals=metadata.get("reported_partition_totals", []),
+    )
+    if context.failed:
+        for key, job in context.jobs_by_identity.items():
+            context.partial_jobs_by_identity.setdefault(key, job)
+        jobs = list(context.partial_jobs_by_identity.values())
+        metadata["scan_complete"] = False
+        metadata["authoritative_total_present"] = False
+        metadata["scan_completeness_reason"] = context.failure_reason
+        metadata["stop_reason"] = context.failure_reason
+    else:
+        jobs = unique_jobs
+        metadata["total_available"] = root_total
+        metadata["authoritative_total_present"] = True
+        finish_terminal(
+            metadata,
+            complete_reason="workday_partition_union_complete",
+        )
+    budget.record(metadata)
+    publish_source_scan_metadata(session, metadata)
+    return jobs
+
+
+def _traverse_partition_children(
+    session: requests.Session,
+    context: _PartitionContext,
+    parent_facets: Dict[str, List[str]],
+    facet: str,
+    values: List[_FacetValue],
+    *,
+    depth: int,
+) -> None:
+    if context.failed:
+        return
+    if depth > int(context.target.workday_max_partition_depth):
+        context.metadata["safety_limit_reached"] = True
+        _fail_partition(context, "workday_partition_depth_limit")
+        return
+    if context.partition_count + len(values) > int(
+        context.target.workday_max_partitions
+    ):
+        context.metadata["safety_limit_reached"] = True
+        _fail_partition(context, "workday_partition_count_limit")
+        return
+
+    for value in values:
+        facets = {key: list(items) for key, items in parent_facets.items()}
+        facets[facet] = [value.value]
+        state = _partition_state(facets)
+        if state in context.partitions_seen:
+            _fail_partition(context, "workday_duplicate_partition_state")
+            return
+        context.partitions_seen.add(state)
+        context.partition_count += 1
+        payload = _partition_payload(
+            session, context, facets, offset=0, category="partition_listing"
+        )
+        if payload is None:
+            return
+        total = _safe_partition_total(payload, context)
+        if total is None:
+            return
+        context.metadata.setdefault("reported_partition_totals", []).append(
+            {"facets": facets, "total": total}
+        )
+        if total != value.count:
+            mark_collection_changed(context.metadata)
+            _fail_partition(context, "workday_partition_contradiction")
+            return
+        if not _partition_filters_applied(payload, facets, total):
+            _fail_partition(context, "workday_partition_contradiction")
+            return
+        if total >= SAFE_QUERY_CAPACITY:
+            options = _partition_dimensions(
+                payload, total, excluded=set(facets)
+            )
+            if not options:
+                _fail_partition(context, "workday_unsplittable_partition")
+                return
+            next_facet, next_values = options[0]
+            _traverse_partition_children(
+                session,
+                context,
+                facets,
+                next_facet,
+                next_values,
+                depth=depth + 1,
+            )
+        else:
+            _traverse_leaf(session, context, facets, payload, total)
+        if context.failed:
+            return
+
+
+def _traverse_leaf(
+    session: requests.Session,
+    context: _PartitionContext,
+    facets: Dict[str, List[str]],
+    first_payload: Mapping[str, Any],
+    total: int,
+) -> None:
+    local: dict[str, JobRecord] = {}
+    payload = first_payload
+    offset = 0
+    while True:
+        items = _payload_items(payload)
+        context.raw_rows += len(items)
+        try:
+            jobs = _jobs_from_items(
+                items, context.target, context.site_id, context.base_url
+            )
+        except AdapterError:
+            _fail_partition(context, "workday_partition_contradiction")
+            return
+        for job in jobs:
+            key = job.job_id.casefold()
+            existing = local.get(key)
+            if existing is not None:
+                if immutable_job_fingerprint(existing) != immutable_job_fingerprint(job):
+                    mark_collection_changed(context.metadata)
+                    _fail_partition(context, "workday_partition_contradiction")
+                    return
+                mark_collection_changed(
+                    context.metadata, offset=offset, overlap_count=1
+                )
+                _fail_partition(context, "workday_partition_contradiction")
+                return
+            local[key] = job
+        context.metadata["pages_completed"] += 1
+        if len(local) == total:
+            break
+        if len(items) < PAGE_SIZE or len(local) > total:
+            _fail_partition(context, "workday_partition_contradiction")
+            return
+        offset += PAGE_SIZE
+        payload = _partition_payload(
+            session,
+            context,
+            facets,
+            offset=offset,
+            category="partition_listing",
+        )
+        if payload is None:
+            return
+        observed = _safe_partition_total(payload, context, allow_zero_sentinel=True)
+        if observed not in {None, total}:
+            mark_collection_changed(context.metadata)
+            _fail_partition(context, "workday_partition_contradiction")
+            return
+
+    for key, job in local.items():
+        existing = context.jobs_by_identity.get(key)
+        if existing is not None:
+            if immutable_job_fingerprint(existing) != immutable_job_fingerprint(job):
+                mark_collection_changed(context.metadata)
+                _fail_partition(context, "workday_partition_contradiction")
+                return
+            context.cross_partition_duplicates += 1
+            continue
+        context.jobs_by_identity[key] = job
+
+
+def _partition_payload(
+    session: requests.Session,
+    context: _PartitionContext,
+    facets: Dict[str, List[str]],
+    *,
+    offset: int,
+    category: str,
+) -> Mapping[str, Any] | None:
+    # Partitioning necessarily uses Workday's explicit appliedFacets contract.
+    # Compatibility root bodies that omit this key cannot express a partition.
+    body = _body_variants(offset, facets)[0]
+    context.metadata["pages_requested"] += 1
+    try:
+        context.budget.consume(category)
+        response = session.post(
+            context.api_url,
+            json=body,
+            headers=HEADERS,
+            timeout=context.timeout,
+        )
+    except _RequestBudgetExceeded:
+        context.metadata["safety_limit_reached"] = True
+        _fail_partition(context, "workday_request_budget_exhausted")
+        return None
+    except requests.RequestException:
+        _fail_partition(context, "workday_partition_transport_failure")
+        return None
+    if response.status_code != 200:
+        reason = (
+            "workday_partition_transient_http"
+            if response.status_code in {408, 425, 429, 500, 502, 503, 504}
+            else "workday_partition_request_failure"
+        )
+        _fail_partition(context, reason)
+        return None
+    try:
+        payload = response.json()
+    except (TypeError, ValueError):
+        _fail_partition(context, "workday_partition_contradiction")
+        return None
+    if not isinstance(payload, Mapping):
+        _fail_partition(context, "workday_partition_contradiction")
+        return None
+    try:
+        _payload_items(payload)
+    except AdapterError:
+        _fail_partition(context, "workday_partition_contradiction")
+        return None
+    return payload
+
+
+def _safe_partition_total(
+    payload: Mapping[str, Any],
+    context: _PartitionContext,
+    *,
+    allow_zero_sentinel: bool = False,
+) -> int | None:
+    try:
+        total = _reported_total(payload)
+    except AdapterError:
+        _fail_partition(context, "workday_partition_contradiction")
+        return None
+    if total is None:
+        _fail_partition(context, "workday_partition_contradiction")
+        return None
+    if allow_zero_sentinel and total == 0:
+        return None
+    return total
+
+
+def _partition_dimensions(
+    payload: Mapping[str, Any], parent_total: int, *, excluded: set[str]
+) -> List[tuple[str, List[_FacetValue]]]:
+    candidates: List[tuple[str, List[_FacetValue]]] = []
+    for facet, values in _facet_dimensions(payload.get("facets", [])):
+        if facet in excluded:
+            continue
+        usable = [
+            value
+            for value in values
+            if 0 < value.count < parent_total
+        ]
+        if len(usable) < 2 or sum(value.count for value in usable) < parent_total:
+            continue
+        candidates.append((facet, usable))
+    candidates.sort(
+        key=lambda item: (
+            max(value.count for value in item[1]),
+            len(item[1]),
+            item[0].casefold(),
+        )
+    )
+    return candidates
+
+
+def _facet_dimensions(
+    facets: object,
+) -> List[tuple[str, List[_FacetValue]]]:
+    found: List[tuple[str, List[_FacetValue]]] = []
+    if not isinstance(facets, list):
+        return found
+    for entry in facets:
+        if not isinstance(entry, Mapping):
+            continue
+        key = str(entry.get("facetParameter") or "")
+        raw_values = entry.get("values")
+        if FACET_KEY_RE.fullmatch(key) and isinstance(raw_values, list):
+            values: List[_FacetValue] = []
+            seen: set[str] = set()
+            for raw in raw_values:
+                if not isinstance(raw, Mapping):
+                    continue
+                value = str(raw.get("id") or "")
+                count = raw.get("count")
+                if (
+                    FACET_VALUE_RE.fullmatch(value)
+                    and not isinstance(count, bool)
+                    and isinstance(count, int)
+                    and count >= 0
+                    and value.casefold() not in seen
+                ):
+                    seen.add(value.casefold())
+                    values.append(_FacetValue(key, value, count))
+            if values:
+                found.append((key, values))
+        nested = [
+            raw
+            for raw in (raw_values if isinstance(raw_values, list) else [])
+            if isinstance(raw, Mapping) and isinstance(raw.get("values"), list)
+        ]
+        found.extend(_facet_dimensions(nested))
+    return found
+
+
+def _partition_filters_applied(
+    payload: Mapping[str, Any], facets: Dict[str, List[str]], total: int
+) -> bool:
+    dimensions = dict(_facet_dimensions(payload.get("facets", [])))
+    for key, selected in facets.items():
+        values = dimensions.get(key)
+        if not values or len(selected) != 1:
+            return False
+        match = next(
+            (value for value in values if value.value == selected[0]), None
+        )
+        if match is None or match.count != total:
+            return False
+    return True
+
+
+def _partition_state(
+    facets: Mapping[str, List[str]],
+) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    return tuple(
+        sorted(
+            (
+                key.casefold(),
+                tuple(sorted(value.casefold() for value in values)),
+            )
+            for key, values in facets.items()
+        )
+    )
+
+
+def _payload_items(payload: Mapping[str, Any]) -> List[Mapping[str, Any]]:
+    items = payload.get("jobPostings")
+    if not isinstance(items, list) or any(
+        not isinstance(item, Mapping) for item in items
+    ):
+        raise AdapterError("Workday response must contain a jobPostings list")
+    if len(items) > PAGE_SIZE:
+        raise AdapterError("Workday response exceeded the requested page size")
+    return list(items)
+
+
+def _jobs_from_items(
+    items: List[Mapping[str, Any]],
+    target: CompanyTarget,
+    site_id: str,
+    base_url: str,
+) -> List[JobRecord]:
+    jobs: List[JobRecord] = []
+    for item in items:
+        identity = _page_item_identity(item)
+        if not identity:
+            raise AdapterError("Workday job posting has no stable identity")
+        external_path = str(item.get("externalPath") or "")
+        bullet_fields = item.get("bulletFields") or []
+        if not isinstance(bullet_fields, list):
+            bullet_fields = []
+        job_id = _stable_job_id(bullet_fields, external_path)
+        location = _location(
+            item.get("locationsText", ""), bullet_fields, job_id, external_path
+        )
+        jobs.append(
+            JobRecord(
+                job_id=job_id,
+                title=str(item.get("title") or ""),
+                company=target.name,
+                location=location,
+                url=f"{base_url}/en-US/{site_id}{external_path}",
+                updated_at=str(item.get("postedOn") or ""),
+                source=f"workday:{target.tenant}",
+                departments=[],
+                offices=[location] if location else [],
+                raw_metadata={"source_posted_at": item.get("postedOn")},
+            )
+        )
+    return jobs
+
+
+def _fail_partition(context: _PartitionContext, reason: str) -> None:
+    if not context.failed:
+        context.failed = True
+        context.failure_reason = reason
+    context.metadata["scan_complete"] = False
+    context.metadata["authoritative_total_present"] = False
+    context.metadata["scan_completeness_reason"] = context.failure_reason
+    context.metadata["stop_reason"] = context.failure_reason
 
 
 def _reported_total(payload: Mapping[str, Any]) -> int | None:

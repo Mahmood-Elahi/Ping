@@ -211,21 +211,36 @@ class Batch10RecoveryTests(unittest.TestCase):
 
         self.assertEqual(len(jobs), 71)
         self.assertEqual(metadata["total_available"], 71)
-        self.assertEqual(metadata["stop_reason"], "total_jobs_reached")
-        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["stop_reason"], "identity_unproven")
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["source_identity_status"], "unproven")
         self.assertEqual(
             [call[2]["json"]["paginationStart"] for call in session.calls if call[0] == "POST"],
             [0, 25, 50],
         )
 
-    def test_chemelex_total_mutation_remains_fatal(self) -> None:
+    def test_chemelex_second_total_mutation_remains_incomplete(self) -> None:
         target = self.targets["Chemelex"]
         session = Session(
-            [dayforce_shell(), Response({"csrfToken": "a" * 64})],
-            [dayforce_page(1, 25), dayforce_page(26, 25, total=72)],
+            [
+                dayforce_shell(),
+                Response({"csrfToken": "a" * 64}),
+                dayforce_shell(),
+                Response({"csrfToken": "b" * 64}),
+            ],
+            [
+                dayforce_page(1, 25),
+                dayforce_page(26, 25, total=72),
+                dayforce_page(1, 25),
+                dayforce_page(26, 25, total=72),
+            ],
         )
-        with self.assertRaisesRegex(AdapterError, "total job count changed"):
-            dayforce.fetch_jobs(session, target)
+        result = dayforce.fetch_jobs(session, target)
+        self.assertFalse(result.scan["scan_complete"])
+        self.assertTrue(result.scan["collection_retry_exhausted"])
+        self.assertEqual(
+            result.scan["stop_reason"], "collection_changed_during_scan"
+        )
 
     def test_chemelex_68_rows_reconcile_to_66_jobs_duplicate_and_rejection(self) -> None:
         target = self.targets["Chemelex"]
@@ -261,11 +276,16 @@ class Batch10RecoveryTests(unittest.TestCase):
             metadata["rejected_record_ids"],
             [{"posting_id": 10068, "requisition_id": 20068}],
         )
-        self.assertEqual(metadata["stop_reason"], "total_jobs_reached")
+        self.assertEqual(metadata["stop_reason"], "identity_unproven")
         self.assertFalse(metadata["scan_complete"])
         self.assertEqual(
-            metadata["scan_completeness_reason"], "malformed_listing_records"
+            metadata["scan_completeness_reason"], "identity_unproven"
         )
+        self.assertEqual(metadata["raw_source_postings"], 68)
+        self.assertEqual(metadata["terminal_accounted_items"], 68)
+        self.assertEqual(len(jobs.inventory_items), 67)
+        self.assertEqual(len(jobs.item_failures), 1)
+        self.assertEqual(jobs.item_failures[0].outcome, "rejected")
 
 
 if __name__ == "__main__":

@@ -49,6 +49,12 @@ def target(**overrides):
         "wd_subdomain": "wd1",
         "site_id": "External",
         "max_pages": 5,
+        "workday_identity": {
+            "official_source_url": "https://careers.example.com/jobs",
+            "expected_workday_tenant": "example",
+            "expected_workday_site": "External",
+            "expected_workday_hostname": "example.wd1.myworkdayjobs.com",
+        },
     }
     values.update(overrides)
     return CompanyTarget(**values)
@@ -190,7 +196,7 @@ class WorkdayCompletenessTests(unittest.TestCase):
         self.assertEqual(len(jobs), 20)
         self.assertFalse(metadata["scan_complete"])
         self.assertTrue(metadata["safety_limit_reached"])
-        self.assertEqual(metadata["stop_reason"], "maximum_pages_reached")
+        self.assertEqual(metadata["stop_reason"], "workday_max_jobs_reached")
 
     def test_page_budget_above_hard_emergency_ceiling_is_rejected(self):
         session = Session()

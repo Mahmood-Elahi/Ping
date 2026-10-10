@@ -400,6 +400,21 @@ class CompanyTarget:
     site_id: Optional[str] = None
     site_ids: List[str] = field(default_factory=list)
     applied_facets: Dict[str, List[str]] = field(default_factory=dict)
+    # Workday CXS reachability is not employer identity.  This optional,
+    # configuration-bound proof records the exact tenant/site linked from an
+    # official employer recruiting surface.  The Workday adapter validates the
+    # structure and exact binding before granting absence authority.
+    workday_identity: Dict[str, str] = field(default_factory=dict)
+    workday_request_budget: int = 500
+    workday_max_partition_depth: int = 3
+    workday_max_partitions: int = 128
+    workday_max_jobs: int = 10_000
+    # Reviewed provider identity evidence is deliberately distinct from a
+    # responsive shared ATS endpoint.  These values are part of the source
+    # fingerprint; the request budget below is an operational control and is
+    # intentionally excluded from it.
+    dayforce_identity: Dict[str, str] = field(default_factory=dict)
+    protocol_request_budget: int = 2_500
     careers_url: Optional[str] = None
     search_url: Optional[str] = None
     endpoint_variant: Optional[str] = None
@@ -494,6 +509,23 @@ class CompanyTarget:
                 str(key): _clean_list(value if isinstance(value, list) else [])
                 for key, value in dict(data.get("applied_facets") or {}).items()
             },
+            workday_identity={
+                str(key): str(value).strip()
+                for key, value in dict(data.get("workday_identity") or {}).items()
+                if str(value).strip()
+            },
+            workday_request_budget=int(data.get("workday_request_budget") or 500),
+            workday_max_partition_depth=int(
+                data.get("workday_max_partition_depth") or 3
+            ),
+            workday_max_partitions=int(data.get("workday_max_partitions") or 128),
+            workday_max_jobs=int(data.get("workday_max_jobs") or 10_000),
+            dayforce_identity={
+                str(key): str(value).strip()
+                for key, value in dict(data.get("dayforce_identity") or {}).items()
+                if str(value).strip()
+            },
+            protocol_request_budget=int(data.get("protocol_request_budget") or 2_500),
             careers_url=data.get("careers_url"),
             search_url=data.get("search_url"),
             endpoint_variant=data.get("endpoint_variant"),

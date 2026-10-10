@@ -166,7 +166,7 @@ receiving an explicit result.
 `fetch_with_mutation_restart` returns an explicit `AdapterResult`. It still
 reads the generic session alias between the first and optional replacement
 traversals for Avature, Atlassian, Eightfold, first-party JSON, iCIMS, Oracle
-Recruiting, public JSON, SAP SuccessFactors, SmartRecruiters, and Uber. This is
+Recruiting, public JSON, Dayforce, SAP SuccessFactors, SmartRecruiters, and Uber. This is
 a restart-internal compatibility detail: replacing it would require changing
 the internal traversal callbacks, while retaining it preserves exactly one
 restart, discards first-traversal jobs, and keeps all existing mutation
@@ -213,6 +213,112 @@ but their company is omitted from absence reconciliation. This means a partial
 source can make positive progress without incrementing missing counters for any
 unseen row. A cooldown skip follows the same no-authority rule and is not a
 freshness observation.
+
+## Phase 4 Workday protocol hardening
+
+Workday CXS reachability and Workday employer identity are separate evidence.
+An authoritative Workday scan requires a `workday_identity` registry block
+whose official first-party HTTPS recruiting URL is bound to the exact expected
+tenant, site, and (when present) hostname. CXS job titles, descriptions, tenant
+name similarity, and Workday bootstrap metadata are not employer proof. The
+identity decision is made once for the resolved site in a scan and the complete
+block participates in the source/config cooldown fingerprint.
+
+An unfiltered Workday total below 2,000 follows the ordinary bounded listing
+path. A total at or above 2,000 is never accepted directly: the adapter chooses
+only facet parameters and opaque values advertised by the CXS response,
+requires their counts to cover the parent query, and recursively forms
+conjunctive partitions. Every authoritative leaf has a reported total below
+2,000, exact applied-facet echoes, stable totals, and complete pagination.
+
+Leaf jobs are unioned by the path-corroborated Workday requisition identity.
+Identical overlap is counted and deduplicated; conflicting duplicates fail
+closed. Completeness additionally requires every required leaf, a stable root
+recheck, and a unique union count exactly equal to the root total. The adapter
+returns discovered `InventoryItem`s on an incomplete partition traversal, but
+central finalization grants no global absence authority.
+
+The Workday hard bounds are depth 3, 128 partition states, 10,000 unique jobs,
+and a configurable source-wide request budget defaulting to 500 (hard maximum
+2,000). Identity/discovery, root/facet, partition listing, root validation, and
+replacement-traversal requests share that budget. Repeated partition state,
+unsplittable cap-bound leaves, contradictory totals, and every exhausted bound
+are non-terminal. Observable partition mutation permits exactly one whole-tree
+restart; first-traversal jobs are discarded and never unioned with the second.
+
+See [PHASE4_WORKDAY_PROTOCOL_REVIEW.md](PHASE4_WORKDAY_PROTOCOL_REVIEW.md) for
+the production audit, deterministic fixtures, and opt-in canary status.
+
+## Phase 4 Dayforce and SAP SuccessFactors protocol hardening
+
+Dayforce supports one repository-evidenced contract:
+`nextjs_jobposting_search`. It requires the exact locale/tenant/board Candidate
+Portal shell, one unambiguous `__NEXT_DATA__` site-info record, an anonymous
+NextAuth CSRF token from the same session, and the fixed tenant search POST.
+The shell proves protocol routing only. Employer ownership requires a reviewed
+`dayforce_identity` block binding a first-party official recruiting URL to the
+exact tenant and board. All current production Dayforce entries remain useful
+for positive discovery but identity-unproven for absence decisions.
+
+Dayforce pagination accounts separately for raw postings, duplicate
+requisitions, rejected records, unreadable details, and normalized jobs. A raw
+provider total may therefore exceed unique lifecycle inventory. Explicit
+`terminal_accounted_items` records the raw reconciliation without changing the
+stable requisition inventory. A transient detail failure protects the listed
+requisition as unreadable and emits no placeholder. A later transient search
+failure can return incomplete partial progress only after employer identity and
+earlier pages are valid. Total mutation gets one whole-traversal restart;
+pagination loops and malformed contracts do not.
+
+SuccessFactors supports the three repository-evidenced RMK variants:
+`rmk_table`, `rmk_tile`, and `rmk_columnized`. HTML variants bind table values
+through unique header IDs (not column position) and reject duplicate headers,
+unknown/duplicate cell attribution, malformed row lengths, and missing stable
+title/apply identity. Columnized RMK requires the reviewed surface identity
+marker, standard client markers, one CSRF token, named JSON fields, canonical
+detail identity, and job-specific apply evidence. A transient columnized detail
+failure is an unreadable listed requisition; deterministic detail identity or
+apply contradictions remain source failures.
+
+Both providers share a configurable source-wide `protocol_request_budget`
+(default 2,500, hard maximum 5,000). Bootstrap/identity, CSRF, listing, detail,
+and retry requests share it across the optional mutation restart. The budget is
+operational and excluded from the cooldown fingerprint; tenant/board, host,
+locale, variant, official identity evidence, and SuccessFactors identity marker
+are fingerprinted. Budget exhaustion, identity/CSRF/schema failures, pagination
+contradictions, unsupported variants, and mutation exhaustion are non-transient
+for cooldown purposes. Only timeouts, connections, 429, and selected 5xx
+responses advance a cooldown streak.
+
+See [PHASE4_DAYFORCE_SUCCESSFACTORS_REVIEW.md](PHASE4_DAYFORCE_SUCCESSFACTORS_REVIEW.md)
+for protocol diagrams, variant matrices, the production disposition audit, and
+the opt-in canary budget calculation.
+
+## Phase 4 ADP and browser-rendered protocol hardening
+
+ADP is two explicit contracts. Workforce Now validates the exact configured
+host/cid/ccId/locale against runtime career-center metadata, then enumerates a
+stable provider total and offset sequence. Listing `itemID` establishes
+inventory independently; detail remains coupled only to hydrated job/apply
+output and a transient detail failure becomes an unreadable protected item.
+MyJobs validates active external site, exact slug/organization/client identity,
+token, row site attribution, and official apply action. Valid earlier pages may
+survive only a later transient failure. Both variants share one request budget
+and one optional whole-traversal mutation restart.
+
+For `browser_rendered_html`, the browser collector owns navigation and final-URL
+identity, while the delegated static adapter owns pagination and terminal
+evidence. Every final URL must stay on HTTPS and an exact reviewed host, and the
+rendered employer marker must match without ambiguity. Completion requires a
+provider/runtime terminal signal: disabled next, explicit final page, matched
+total, exhausted reviewed next control, complete structured response, or a
+reviewed deterministic single-page contract. Empty DOMs, timeouts, selector
+failures, and action limits are never terminal.
+
+The central finalizer now enforces `identity_required` evidence before granting
+completion or absence authority. The scanner consumes browser evidence instead
+of synthesizing it. See [PHASE4_ADP_BROWSER_REVIEW.md](PHASE4_ADP_BROWSER_REVIEW.md)
+and [PHASE4_PROTOCOL_HARDENING_SUMMARY.md](PHASE4_PROTOCOL_HARDENING_SUMMARY.md).
 
 ### Persisted source cooldowns
 

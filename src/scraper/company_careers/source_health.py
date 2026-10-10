@@ -39,6 +39,10 @@ class SourceHealthCode(str, Enum):
     TERMINAL_CONTRADICTION = "terminal_contradiction"
     AUTHORITATIVE_TOTAL_NOT_REACHED = "authoritative_total_not_reached"
     UNPROVEN_EMPTY = "unproven_empty"
+    PROVIDER_CAP_REQUIRES_PARTITION = "provider_cap_requires_partition"
+    UNSPLITTABLE_PARTITION = "unsplittable_partition"
+    PARTITION_INCOMPLETE = "partition_incomplete"
+    PARTITION_CONTRADICTION = "partition_contradiction"
 
 
 _COMPLETE_COLLECTION_REASONS = {
@@ -252,10 +256,11 @@ def _normalize_legacy_terminal_evidence(
     stop_reason = str(metadata.get("stop_reason") or "")
     total = metadata.get("total_available")
 
+    terminal_count = _terminal_accounted_count(metadata, jobs_collected)
     if (
         metadata.get("authoritative_total_present")
         and _valid_total(total)
-        and int(total) == jobs_collected
+        and int(total) == terminal_count
     ):
         metadata["terminal_evidence_type"] = "authoritative_total"
         metadata["terminal_evidence_value"] = int(total)
@@ -266,7 +271,7 @@ def _normalize_legacy_terminal_evidence(
         metadata["scan_completeness_reason"] = "reported_total_reached"
         metadata["stop_reason"] = "reported_total_reached"
     elif reason == "reported_total_reached" or stop_reason == "total_jobs_reached":
-        if _valid_total(total) and int(total) == jobs_collected:
+        if _valid_total(total) and int(total) == terminal_count:
             metadata["authoritative_total_present"] = True
             metadata["terminal_evidence_type"] = "authoritative_total"
             metadata["terminal_evidence_value"] = int(total)
@@ -297,7 +302,11 @@ def _completion_contradiction(
     metadata: MutableMapping[str, Any], jobs_collected: int
 ) -> SourceHealthCode | None:
     reason = str(metadata.get("stop_reason") or "").casefold()
-    if str(metadata.get("source_identity_status") or "").casefold() == "failed":
+    identity_status = str(metadata.get("source_identity_status") or "").casefold()
+    if identity_status == "failed" or (
+        metadata.get("identity_required")
+        and identity_status not in {"validated", "verified"}
+    ):
         return SourceHealthCode.IDENTITY_FAILURE
     if metadata.get("collection_changed_during_scan") or metadata.get(
         "total_count_changed"
@@ -309,9 +318,13 @@ def _completion_contradiction(
         return SourceHealthCode.TERMINAL_CONTRADICTION
     if reason in _LOOP_REASONS:
         return SourceHealthCode.PAGINATION_LOOP
-    if int(metadata.get("rejected_record_count") or 0) > 0 or int(
-        metadata.get("malformed_records") or 0
-    ) > 0:
+    if (
+        not metadata.get("rejected_records_accounted")
+        and (
+            int(metadata.get("rejected_record_count") or 0) > 0
+            or int(metadata.get("malformed_records") or 0) > 0
+        )
+    ):
         return SourceHealthCode.MALFORMED_RECORDS
     # A validation harness stopping before the next request is not evidence
     # about the source.  Keep any continuation/total diagnostics, but classify
@@ -328,7 +341,7 @@ def _completion_contradiction(
 
     total = metadata.get("total_available")
     if metadata.get("authoritative_total_present") and _valid_total(total):
-        if jobs_collected != int(total):
+        if _terminal_accounted_count(metadata, jobs_collected) != int(total):
             return SourceHealthCode.AUTHORITATIVE_TOTAL_NOT_REACHED
 
     if not metadata.get("scan_complete"):
@@ -350,7 +363,9 @@ def _has_terminal_evidence(metadata: MutableMapping[str, Any], jobs_collected: i
         return False
     if evidence_type == "authoritative_total":
         total = metadata.get("total_available")
-        return _valid_total(total) and int(total) == jobs_collected
+        return _valid_total(total) and int(total) == _terminal_accounted_count(
+            metadata, jobs_collected
+        )
     return bool(
         metadata.get("terminal_page_observed")
         or metadata.get("complete_collection_response")
@@ -386,6 +401,21 @@ def _valid_empty_evidence(metadata: MutableMapping[str, Any]) -> bool:
     )
 
 
+def _terminal_accounted_count(
+    metadata: MutableMapping[str, Any], fallback: int
+) -> int:
+    """Return provider-declared raw accounting only when it is well formed.
+
+    Some providers report raw postings while lifecycle inventory is keyed by a
+    requisition identity.  A duplicate requisition and a deterministically
+    rejected posting still count toward traversal of that raw provider total.
+    """
+    value = metadata.get("terminal_accounted_items")
+    if isinstance(value, bool) or not isinstance(value, int) or value < fallback:
+        return fallback
+    return value
+
+
 def _incomplete_health_code(
     metadata: MutableMapping[str, Any], jobs_collected: int
 ) -> SourceHealthCode:
@@ -403,8 +433,25 @@ def _incomplete_health_code(
         return SourceHealthCode.AUTHENTICATION_OR_BLOCK
     if "identity" in reason:
         return SourceHealthCode.IDENTITY_FAILURE
-    if "safety" in reason or "maximum_" in reason or "max_" in reason:
+    if "partition_transport_failure" in reason or "partition_transient_http" in reason:
+        return SourceHealthCode.TEMPORARY_UNEXPECTED_RESPONSE
+    if "unsplittable_partition" in reason:
+        return SourceHealthCode.UNSPLITTABLE_PARTITION
+    if "provider_cap" in reason:
+        return SourceHealthCode.PROVIDER_CAP_REQUIRES_PARTITION
+    if "partition_contradiction" in reason:
+        return SourceHealthCode.PARTITION_CONTRADICTION
+    if (
+        "safety" in reason
+        or "maximum_" in reason
+        or "max_" in reason
+        or "budget" in reason
+        or "depth_limit" in reason
+        or "count_limit" in reason
+    ):
         return SourceHealthCode.SAFETY_LIMIT_REACHED
+    if "partition" in reason:
+        return SourceHealthCode.PARTITION_INCOMPLETE
     if jobs_collected == 0:
         return SourceHealthCode.UNPROVEN_EMPTY
     return SourceHealthCode.PAGINATION_UNPROVEN

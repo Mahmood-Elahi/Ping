@@ -1,0 +1,59 @@
+# Opt-in deterministic-review candidates only. Normal production loading never
+# imports this file. No canary was executed during Phase 4 Batch 3.
+target_companies:
+  - name: Beckhoff Automation
+    platform: adp
+    careers_url: https://workforcenow.adp.com/mascsr/default/mdf/recruitment/recruitment.html?cid=a779a6fa-3c8a-4324-8d68-d71fbb4c1516&ccId=19000101_000001&lang=en_US
+    endpoint_url: https://workforcenow.adp.com/mascsr/default/careercenter/public/events/staffing/v1/job-requisitions
+    endpoint_variant: workforce_now_requisitions_v1
+    identity_regex: \bBeckhoff\b
+    allowed_apply_hosts: [workforcenow.adp.com]
+    page_size: 10
+    max_pages: 2
+    max_jobs: 20
+    protocol_request_budget: 46
+    canary_budget_basis: "2 x (1 identity + 2 expected pages + 20 coupled details)"
+  - name: Vector Institute
+    platform: adp
+    careers_url: https://workforcenow.adp.com/mascsr/default/mdf/recruitment/recruitment.html?ccId=9200420850870_2&cid=4ed2be93-8bc5-40e2-915f-931884eac404&lang=en_CA
+    endpoint_url: https://workforcenow.adp.com/mascsr/default/careercenter/public/events/staffing/v1/job-requisitions
+    endpoint_variant: workforce_now_requisitions_v1
+    identity_regex: Vector
+    allowed_apply_hosts: [workforcenow.adp.com]
+    page_size: 10
+    max_pages: 1
+    max_jobs: 20
+    protocol_request_budget: 44
+    canary_budget_basis: "2 x (1 identity + 1 expected page + 20 coupled details)"
+  - name: Diodes Incorporated
+    platform: adp
+    careers_url: https://workforcenow.adp.com/mascsr/default/mdf/recruitment/recruitment.html?ccId=19000101_000001&cid=d72519df-1ce1-4f1d-b01b-50a082de06d5&lang=en_US
+    endpoint_url: https://workforcenow.adp.com/mascsr/default/careercenter/public/events/staffing/v1/job-requisitions
+    endpoint_variant: workforce_now_requisitions_v1
+    identity_regex: 'Diodes(?: Incorporated|, Inc\.)?'
+    allowed_apply_hosts: [workforcenow.adp.com]
+    page_size: 10
+    max_pages: 2
+    max_jobs: 20
+    protocol_request_budget: 46
+    canary_budget_basis: "2 x (1 identity + 2 expected pages + 20 coupled details)"
+  - name: MediaTek
+    platform: browser_rendered_html
+    listing_url: https://careers.mediatek.com/en/jobs?query=&locations=
+    endpoint_variant: browser_rendered_html_v1
+    browser_wait_selector: "a[href*='/en/jobs/']"
+    browser_scroll_steps: 0
+    browser_static_variant: server_rendered_links
+    browser_identity_selector: head title
+    browser_identity_regex: MediaTek
+    listing_selector: "a[href*=/en/jobs/]"
+    job_card_selector: "a[href*=/en/jobs/]"
+    title_selector: h1.h3
+    detail_link_selector: ':self'
+    external_id_regex: '/jobs/([A-Z]{3}[0-9]+)(?:[/?]|$)'
+    allowed_apply_hosts: [careers.mediatek.com]
+    single_page_collection: true
+    max_pages: 1
+    max_jobs: 20
+    protocol_request_budget: 2
+    canary_budget_basis: "1 reviewed navigation/page load + 1 bounded retry allowance"

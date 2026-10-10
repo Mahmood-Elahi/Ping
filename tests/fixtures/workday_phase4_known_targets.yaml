@@ -1,0 +1,28 @@
+# Repository-evidence fixtures only.  These are not a runtime registry and do
+# not assert a current hostname, identity proof, or activation decision.
+targets:
+  - company: Applied Materials
+    tenant: amat
+    site: External
+    deterministic_risk: identity_ambiguity
+  - company: BlackRock
+    tenant: blackrock
+    site: BlackRock_Professional
+    deterministic_risk: distinct_professional_scope
+  - company: Caterpillar
+    tenant: cat
+    site: CaterpillarCareers
+    deterministic_risk: identity_ambiguity
+  - company: Chevron
+    tenant: chevron
+    site: jobs
+    additional_distinct_site: University
+    deterministic_risk: multiple_distinct_scopes
+  - company: General Motors
+    tenant: generalmotors
+    site: careers_gm
+    deterministic_risk: multiple_distinct_scopes
+  - company: Zalando
+    tenant: zalando
+    site: ZalandoSiteWD
+    deterministic_risk: cap_and_identity_ambiguity

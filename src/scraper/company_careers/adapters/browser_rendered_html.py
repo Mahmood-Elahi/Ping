@@ -21,6 +21,7 @@ from src.scraper.company_careers.models import (
     AdapterError,
     AdapterResult,
     CompanyTarget,
+    InventoryItem,
     JobRecord,
     SourceScanMetadata,
 )
@@ -46,7 +47,24 @@ _REJECTED_TEXT = (
     "cookie consent required",
     "session required",
     "session expired",
+    "page not found",
+    "something went wrong",
+    "service unavailable",
 )
+MAX_ACTION_BUDGET = 2_500
+
+
+class _ActionBudget:
+    def __init__(self, maximum: int) -> None:
+        self.maximum = maximum
+        self.consumed = 0
+        self.counts: dict[str, int] = {}
+
+    def consume(self, kind: str) -> None:
+        if self.consumed >= self.maximum:
+            raise AdapterError("Browser-rendered source action budget exhausted")
+        self.consumed += 1
+        self.counts[kind] = self.counts.get(kind, 0) + 1
 
 
 class _RenderedResponse:
@@ -97,6 +115,8 @@ def validate_target(target: CompanyTarget) -> None:
         raise AdapterError("Browser-rendered page or result limit exceeds the hard maximum")
     if not 1 <= int(target.max_response_bytes) <= MAX_RENDERED_HTML_BYTES:
         raise AdapterError("Browser-rendered HTML byte limit exceeds the hard maximum")
+    if not 1 <= int(target.protocol_request_budget) <= MAX_ACTION_BUDGET:
+        raise AdapterError("Browser-rendered action budget exceeds the hard maximum")
     static_target = _static_target(target)
     static_html.validate_target(static_target)
     try:
@@ -149,21 +169,57 @@ def _validate_document(content: bytes, url: str, target: CompanyTarget) -> None:
         raise AdapterError("Browser-rendered company identity is missing, mixed, or ambiguous")
 
 
+def _validate_navigation(requested_url: str, final_url: str, target: CompanyTarget) -> None:
+    """Bind every rendered response to an explicitly reviewed source host."""
+    requested = urlparse(requested_url)
+    final = urlparse(final_url)
+    configured = urlparse(str(target.listing_url))
+    approved = {
+        (configured.hostname or "").casefold(),
+        *(str(host).strip().casefold() for host in target.allowed_source_hosts),
+        *(str(host).strip().casefold() for host in target.allowed_apply_hosts),
+    }
+    approved.discard("")
+    final_host = (final.hostname or "").casefold()
+    if final.scheme != "https" or final_host not in approved:
+        raise AdapterError("Browser-rendered unexpected redirect left the reviewed source hosts")
+    if any(part in final.path.casefold() for part in _REJECTED_URL_PARTS):
+        raise AdapterError("Browser-rendered access or login redirect rejected")
+    configured_path = configured.path.rstrip("/") or "/"
+    final_path = final.path.rstrip("/") or "/"
+    if (
+        final_host == (configured.hostname or "").casefold()
+        and configured_path not in {"/", "/careers"}
+        and final_path in {"/", "/home", "/careers"}
+    ):
+        raise AdapterError("Browser-rendered retired careers route redirected to a generic page")
+    requested_host = (requested.hostname or "").casefold()
+    if requested_host and requested_host not in approved:
+        raise AdapterError("Browser-rendered pagination attempted an unreviewed source host")
+
+
 class _RenderedSession:
-    def __init__(self, page: Any, target: CompanyTarget, timeout: int) -> None:
+    def __init__(
+        self, page: Any, target: CompanyTarget, timeout: int, budget: _ActionBudget
+    ) -> None:
         self.page = page
         self.target = target
         self.timeout_seconds = min(max(1, int(timeout)), MAX_TIMEOUT_SECONDS)
         self.pages_rendered = 0
         self.rendered_urls: list[str] = []
         self.rendered_bytes = 0
+        self.redirect_count = 0
+        self.identity_validated = False
+        self.budget = budget
 
     def get(self, url: str, **_: Any) -> _RenderedResponse:
         if self.pages_rendered >= min(int(self.target.max_pages), MAX_PAGES):
             raise AdapterError("Browser-rendered page limit exceeded")
         started = time.monotonic()
         budget_ms = self.timeout_seconds * 1000
+        phase = "navigation"
         try:
+            self.budget.consume("navigation")
             response = self.page.goto(url, wait_until="domcontentloaded", timeout=budget_ms)
             status = getattr(response, "status", 200) if response is not None else 200
             if status in {401, 407}:
@@ -174,6 +230,7 @@ class _RenderedSession:
                 raise AdapterError(f"Browser-rendered HTTP {status}")
             elapsed_ms = int((time.monotonic() - started) * 1000)
             remaining_ms = max(1, budget_ms - elapsed_ms)
+            phase = "selector"
             self.page.wait_for_selector(
                 str(self.target.browser_wait_selector), state="attached", timeout=remaining_ms
             )
@@ -181,6 +238,7 @@ class _RenderedSession:
                 elapsed_ms = int((time.monotonic() - started) * 1000)
                 if elapsed_ms + SCROLL_SETTLE_MS >= budget_ms:
                     raise AdapterError("Browser-rendered page exceeded the 30-second timeout")
+                self.budget.consume("scroll")
                 self.page.mouse.wheel(0, SCROLL_PIXELS)
                 self.page.wait_for_timeout(SCROLL_SETTLE_MS)
             body = str(self.page.content()).encode("utf-8")
@@ -189,10 +247,16 @@ class _RenderedSession:
         except Exception as exc:
             name = exc.__class__.__name__.casefold()
             if "timeout" in name or "timeout" in str(exc).casefold():
+                if phase == "navigation":
+                    raise AdapterError("Browser-rendered navigation timeout") from exc
                 raise AdapterError("Browser-rendered timeout or wait selector failure") from exc
             raise AdapterError(f"Browser-rendered navigation failed: {exc}") from exc
         final_url = str(getattr(self.page, "url", url) or url)
+        _validate_navigation(url, final_url, self.target)
+        if final_url.rstrip("/") != url.rstrip("/"):
+            self.redirect_count += 1
         _validate_document(body, final_url, self.target)
+        self.identity_validated = True
         if self.rendered_bytes + len(body) > min(
             int(self.target.max_response_bytes), MAX_RENDERED_HTML_BYTES
         ):
@@ -247,19 +311,77 @@ class BrowserBatch:
     def fetch_jobs(
         self, target: CompanyTarget, timeout: Optional[int] = None
     ) -> AdapterResult:
+        # Each _fetch_once traversal creates ``self._browser.new_context()``,
+        # then ``context.new_page()``, and guarantees ``context.close()``;
+        # mutation restart therefore discards both DOM and browser state.
         validate_target(target)
         if self._browser is None:
             raise AdapterError("Browser batch is not active")
+        budget = _ActionBudget(int(target.protocol_request_budget))
+        first = self._fetch_once(target, timeout or self.timeout, budget)
+        if not _browser_mutation(first.scan):
+            return first
+        first_ids = {item.item_id for item in first.inventory_items}
+        second = self._fetch_once(target, timeout or self.timeout, budget)
+        second_ids = {item.item_id for item in second.inventory_items}
+        second.scan.update(
+            collection_restart_count=1,
+            first_traversal_jobs=len(first.jobs),
+            stable_id_set_match_across_restart=first_ids == second_ids,
+            stable_ids_added_after_restart=len(second_ids - first_ids),
+            stable_ids_removed_after_restart=len(first_ids - second_ids),
+            actions_consumed_across_traversals=budget.consumed,
+        )
+        if _browser_mutation(second.scan):
+            second.scan.update(
+                collection_retry_exhausted=True,
+                scan_complete=False,
+                scan_completeness_reason="collection_changed_during_scan",
+                stop_reason="collection_changed_during_scan",
+                collection_changed_during_scan=True,
+            )
+        else:
+            second.scan["stabilized_after_collection_retry"] = True
+        return AdapterResult(
+            jobs=second.jobs,
+            scan=second.scan,
+            inventory_items=second.inventory_items,
+            item_failures=second.item_failures,
+            capabilities_used=second.capabilities_used,
+        )
+
+    def _fetch_once(
+        self, target: CompanyTarget, timeout: int, budget: _ActionBudget
+    ) -> AdapterResult:
         context = page = None
         started = time.monotonic()
         try:
             context = self._browser.new_context()
             context.route("**/*", _route_resources)
             page = context.new_page()
-            rendered_session = _RenderedSession(page, target, timeout or self.timeout)
-            static_output = static_html.fetch_jobs(
-                rendered_session, _static_target(target), timeout or self.timeout
-            )
+            rendered_session = _RenderedSession(page, target, timeout, budget)
+            try:
+                static_output = static_html.fetch_jobs(
+                    rendered_session, _static_target(target), timeout
+                )
+            except AdapterError as exc:
+                partial = list(getattr(rendered_session, "static_html_partial_jobs", []))
+                metadata = SourceScanMetadata.from_value(
+                    getattr(rendered_session, "static_html_pagination", {})
+                )
+                if partial and rendered_session.identity_validated and _transient_browser_failure(exc):
+                    metadata.update(
+                        scan_complete=False,
+                        scan_completeness_reason="browser_transient_action_failure",
+                        stop_reason="browser_transient_action_failure",
+                        source_identity_status="validated",
+                        identity_required=True,
+                        browser_terminal_evidence=False,
+                    )
+                    jobs = partial
+                    static_output = AdapterResult(jobs=jobs, scan=metadata)
+                else:
+                    raise
             if isinstance(static_output, AdapterResult):
                 jobs = list(static_output.jobs)
                 static_metadata = static_output.scan
@@ -274,6 +396,43 @@ class BrowserBatch:
                 job.job_id = job.job_id.replace("static_html:", "browser_rendered_html:", 1)
                 job.source = job.source.replace("static_html:", "browser_rendered_html:", 1)
                 job.raw_metadata["platform"] = "browser_rendered_html"
+            static_metadata.update(
+                identity_required=True,
+                source_identity_status=(
+                    "validated" if rendered_session.identity_validated else "failed"
+                ),
+                navigation_owner="browser_collector",
+                pagination_owner="static_html_adapter",
+                terminal_evidence_owner="static_html_adapter",
+                browser_terminal_evidence=bool(
+                    static_metadata.get("terminal_page_observed")
+                    or static_metadata.get("complete_collection_response")
+                    or static_metadata.get("disabled_next_control")
+                    or static_metadata.get("explicit_final_page")
+                    or (
+                        static_metadata.get("authoritative_total_present")
+                        and static_metadata.get("terminal_evidence_type")
+                        == "authoritative_total"
+                    )
+                ),
+                request_budget=int(target.protocol_request_budget),
+                actions_consumed=budget.consumed,
+                action_counts=dict(budget.counts),
+                redirect_count=rendered_session.redirect_count,
+                final_url=(rendered_session.rendered_urls[-1] if rendered_session.rendered_urls else None),
+                final_host=(
+                    urlparse(rendered_session.rendered_urls[-1]).hostname
+                    if rendered_session.rendered_urls
+                    else None
+                ),
+                host_remained_approved=True,
+            )
+            if target.browser_scroll_steps and not static_metadata.get("browser_terminal_evidence"):
+                static_metadata.update(
+                    scan_complete=False,
+                    scan_completeness_reason="infinite_scroll_terminal_unproven",
+                    stop_reason="infinite_scroll_terminal_unproven",
+                )
             self.last_run = {
                 "company": target.name,
                 "runtime_seconds": round(time.monotonic() - started, 3),
@@ -283,7 +442,18 @@ class BrowserBatch:
                 "jobs_normalized": len(jobs),
                 "static_parser": static_metadata,
             }
-            return AdapterResult(jobs=jobs, scan=static_metadata)
+            return AdapterResult(
+                jobs=jobs,
+                scan=static_metadata,
+                inventory_items=tuple(
+                    InventoryItem(job.job_id, job.source) for job in jobs
+                ),
+                capabilities_used=frozenset(
+                    {"inventory", "partial_progress"}
+                    if not static_metadata.get("scan_complete") and jobs
+                    else {"inventory"}
+                ),
+            )
         finally:
             try:
                 if page is not None:
@@ -291,6 +461,43 @@ class BrowserBatch:
             finally:
                 if context is not None:
                     context.close()
+
+
+def _transient_browser_failure(exc: BaseException) -> bool:
+    message = str(exc).casefold()
+    return any(
+        marker in message
+        for marker in (
+            "timeout",
+            "timed out",
+            "navigation failed",
+            "connection reset",
+            "http 429",
+            "http 500",
+            "http 502",
+            "http 503",
+            "http 504",
+        )
+    ) and not any(
+        marker in message
+        for marker in ("selector", "identity", "redirect", "login", "captcha", "contract")
+    )
+
+
+def _browser_mutation(metadata: SourceScanMetadata) -> bool:
+    changed = bool(
+        metadata.get("collection_changed_during_scan")
+        or metadata.get("repeated_page")
+        or metadata.get("repeated_stable_ids")
+        or metadata.get("total_count_changed")
+    )
+    if changed:
+        metadata.update(
+            collection_changed_during_scan=True,
+            scan_complete=False,
+            scan_completeness_reason="collection_changed_during_scan",
+        )
+    return changed
 
 
 def fetch_jobs(

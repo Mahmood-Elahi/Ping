@@ -549,9 +549,8 @@ class CompanyCareersTests(unittest.TestCase):
                 "configured_site_id": "External",
                 "configured_hostname": "example.wd1.myworkdayjobs.com",
                 "reason": (
-                    "Workday CXS jobPostings responses expose no independently "
-                    "verifiable employer identity; exact tenant/site routing alone "
-                    "is insufficient for validated source identity"
+                    "Workday CXS reachability does not prove employer ownership; "
+                    "no configuration-bound official recruiting evidence is present"
                 ),
             },
         )

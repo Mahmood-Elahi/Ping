@@ -133,6 +133,7 @@ def target(variant=sf.TABLE_VARIANT, **overrides):
         "search_url": "https://jobs.example.com/search/",
         "endpoint_variant": variant,
         "max_pages": 1,
+        "identity_regex": r"\bExample\b",
     }
     values.update(overrides)
     return CompanyTarget(**values)
@@ -189,7 +190,7 @@ def table_html(jobs, *, total=None, offset=0, next_offset=None):
         )
     start = 0 if total == 0 else offset + 1
     end = offset + len(jobs)
-    return f'''<!doctype html><html><body>
+    return f'''<!doctype html><html><head><title>Example Jobs</title></head><body>
       <span class="paginationLabel">Results {start} – {end} of {total}</span>{next_link}
       <table id="searchresults"><thead><tr>
         <th id="hdrTitle">Title</th><th id="hdrRequisition">Requisition ID</th>
@@ -227,7 +228,7 @@ def tile_html(jobs, *, total=None, page_size=25):
     jobs = list(jobs)
     total = len(jobs) if total is None else total
     tiles = "".join(tile_markup(item, index) for index, item in enumerate(jobs, start=1))
-    return f'''<!doctype html><html><body>
+    return f'''<!doctype html><html><head><title>Example Jobs</title></head><body>
       <span id="tile-search-results-label">Showing 1 to {len(jobs)} of {total} Jobs</span>
       <ul id="job-tile-list" data-per-page="{page_size}" data-record-returned="{len(jobs)}">{tiles}</ul>
       <script>j2w.SearchResults.init({{apiEndpoint: "tile-search-results", searchQuery: "?q=&sortColumn=referencedate&sortDirection=desc", jobRecordsPerPage: parseInt("{page_size}"), jobRecordsFound: parseInt("{total}")}});</script>
@@ -1299,8 +1300,9 @@ class SapSuccessFactorsTests(unittest.TestCase):
             requests.ConnectionError("page two unavailable"),
             requests.ConnectionError("page two unavailable"),
         ])
-        with self.assertRaisesRegex(requests.ConnectionError, "page two unavailable"):
-            sf.fetch_jobs(session, target(max_pages=2))
+        result = sf.fetch_jobs(session, target(max_pages=2))
+        self.assertEqual(len(result.jobs), 25)
+        self.assertEqual(len(result.inventory_items), 25)
         metadata = source_scan_metadata(session)
         self.assertFalse(metadata["scan_complete"])
         self.assertEqual(metadata["pages_requested"], 2)
@@ -1405,21 +1407,154 @@ class SapSuccessFactorsTests(unittest.TestCase):
             self.assertEqual(metadata["stop_reason"], "validated_zero_jobs")
 
     def test_explicit_zero_job_message_without_table_is_valid(self):
-        html = '<html><body>There are no matches. The 0 most recent jobs posted are listed below.</body></html>'
+        html = '<html><body>Example: There are no matches. The 0 most recent jobs posted are listed below.</body></html>'
         self.assertEqual(sf.fetch_jobs(FakeSession([FakeResponse(html)]), target()), [])
 
     def test_malformed_http_200_is_rejected(self):
         with self.assertRaisesRegex(AdapterError, "missing searchresults"):
-            sf.fetch_jobs(FakeSession([FakeResponse("<html><body>Welcome</body></html>")]), target())
+            sf.fetch_jobs(FakeSession([FakeResponse("<html><body>Example Welcome</body></html>")]), target())
 
-    def test_malformed_entry_is_skipped_with_diagnostic(self):
+    def test_malformed_entry_fails_closed_with_diagnostic(self):
         good = table_job(1)
         bad = table_job(2, id="not-stable")
         session = FakeSession([FakeResponse(table_html([good, bad], total=2))])
-        jobs = sf.fetch_jobs(session, target())
-        self.assertEqual(len(jobs), 1)
+        with self.assertRaisesRegex(AdapterError, "official stable apply URL"):
+            sf.fetch_jobs(session, target())
         self.assertEqual(len(session.sap_successfactors_pagination["diagnostics"]), 1)
-        self.assertTrue(source_scan_metadata(session)["scan_complete"])
+        self.assertFalse(source_scan_metadata(session)["scan_complete"])
+        self.assertEqual(
+            source_scan_metadata(session)["stop_reason"],
+            "protocol_contract_invalid",
+        )
+
+    def test_table_columns_are_header_bound_reorderable_and_localizable(self):
+        html = table_html([table_job(1)])
+        requisition = '<td headers="hdrRequisition">REQ-1</td>'
+        location = '<td headers="hdrLocation" class="colLocation">Calgary, AB, CA</td>'
+        html = html.replace(requisition + "\n              " + location, location + "\n              " + requisition)
+        html = html.replace(">Title<", ">Titre<").replace(">Location<", ">Emplacement<")
+
+        jobs = sf.fetch_jobs(FakeSession([FakeResponse(html)]), target())
+
+        self.assertEqual(len(jobs), 1)
+        self.assertIn("Calgary, AB, CA", jobs[0].location)
+        self.assertEqual(jobs[0].raw_metadata["external_job_id"], "REQ-1")
+
+    def test_duplicate_headers_missing_required_cell_and_bad_row_length_fail_closed(self):
+        base = table_html([table_job(1)])
+        cases = (
+            (
+                base.replace(
+                    '<th id="hdrAdditional">Additional Locations</th>',
+                    '<th id="hdrAdditional">Location</th>',
+                ),
+                "duplicate column headers",
+            ),
+            (
+                base.replace(
+                    '<td headers="hdrTitle" class="colTitle"><a class="jobTitle-link" href="/job/Test/1001/">Controls Engineer 1</a></td>',
+                    "",
+                ),
+                "missing its title link",
+            ),
+            (
+                base.replace('headers="hdrDepartment"', 'headers="hdrLocation"'),
+                "duplicate column attribution",
+            ),
+        )
+        for html, message in cases:
+            with self.subTest(message=message):
+                with self.assertRaisesRegex(AdapterError, message):
+                    sf.fetch_jobs(FakeSession([FakeResponse(html)]), target())
+
+    def test_html_zero_with_unproven_or_failed_identity_is_not_authoritative(self):
+        unproven = sf.fetch_jobs(
+            FakeSession([FakeResponse(table_html([], total=0))]),
+            target(identity_regex=None),
+        )
+        self.assertFalse(unproven.scan["scan_complete"])
+        self.assertEqual(unproven.scan["source_identity_status"], "unproven")
+
+        with self.assertRaisesRegex(AdapterError, "identity did not match"):
+            sf.fetch_jobs(
+                FakeSession([FakeResponse(table_html([], total=0))]),
+                target(identity_regex=r"Wrong Employer"),
+            )
+
+    def test_columnized_transient_detail_is_unreadable_without_placeholder(self):
+        class DetailTimeoutSession(SequencedColumnizedSession):
+            def get(self, url, **kwargs):
+                if url == "https://jobs.example.com/search/":
+                    return super().get(url, **kwargs)
+                self.get_calls.append((url, kwargs))
+                raise requests.Timeout("detail timed out")
+
+        session = DetailTimeoutSession(
+            [{"totalJobs": 1, "jobSearchResult": [columnized_row(1)]}]
+        )
+        result = sf.fetch_jobs(
+            session,
+            target(
+                sf.COLUMNIZED_VARIANT,
+                endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
+                locale="en_US",
+                allowed_apply_hosts=["jobs.example.com"],
+                page_size=10,
+                max_jobs=10,
+            ),
+        )
+
+        self.assertEqual(result.jobs, [])
+        self.assertEqual(len(result.inventory_items), 1)
+        self.assertEqual(result.item_failures[0].outcome, "unreadable")
+        self.assertTrue(result.scan["scan_complete"])
+
+    def test_columnized_source_wide_request_budget_is_incomplete(self):
+        session = SequencedColumnizedSession(
+            [{"totalJobs": 1, "jobSearchResult": [columnized_row(1)]}]
+        )
+        result = sf.fetch_jobs(
+            session,
+            target(
+                sf.COLUMNIZED_VARIANT,
+                endpoint_url="https://jobs.example.com/services/recruiting/v1/jobs",
+                locale="en_US",
+                allowed_apply_hosts=["jobs.example.com"],
+                page_size=10,
+                max_jobs=10,
+                protocol_request_budget=2,
+            ),
+        )
+
+        self.assertEqual(result.scan["requests_used"], 2)
+        self.assertTrue(result.scan["safety_limit_reached"])
+        self.assertEqual(
+            result.scan["stop_reason"],
+            "successfactors_request_budget_exhausted",
+        )
+
+    def test_phase4_canary_manifest_is_opt_in_and_has_exact_budgets(self):
+        canary_path = (
+            Path(__file__).resolve().parents[1]
+            / "config"
+            / "target_companies.phase4_batch2_canaries.yaml"
+        )
+        canaries = load_target_companies(str(canary_path))
+        budgets = {item.name: item.protocol_request_budget for item in canaries}
+
+        self.assertEqual(len(canaries), 13)
+        self.assertEqual(budgets["Gibson Energy"], 4)
+        self.assertEqual(budgets["CPKC"], 88)
+        self.assertEqual(budgets["Seagate"], 86)
+        self.assertEqual(budgets["CN Rail"], 2044)
+        for item in canaries:
+            sf.validate_target(item)
+
+        production = {item.name: item for item in load_target_companies()}
+        self.assertEqual(
+            production["Gibson Energy"].protocol_request_budget,
+            2500,
+        )
 
     def test_invalid_search_url_and_variant_are_rejected_without_network(self):
         session = FakeSession([])

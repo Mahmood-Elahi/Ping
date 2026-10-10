@@ -416,48 +416,38 @@ class CompanyCareersScanner:
                 current: CompanyTarget,
                 timeout: int,
             ) -> AdapterResult:
-                jobs = browser_batch.fetch_jobs(current, timeout)
+                # Browser navigation and identity stay in the browser adapter;
+                # the delegated static parser owns pagination and terminal
+                # evidence.  Scanner orchestration never manufactures either.
+                output = browser_batch.fetch_jobs(current, timeout)
+                if isinstance(output, AdapterResult):
+                    return output
+                # Compatibility for pre-Phase-4 test doubles and third-party
+                # collectors. Production BrowserBatch always returns the
+                # self-contained result above.
                 metadata = SourceScanMetadata.from_value(
                     browser_batch.last_run.get("static_parser")
                 )
-                metadata["rendered_collection_observed"] = True
-                terminal_stop = str(metadata.get("stop_reason") or "")
-                browser_terminal = bool(
+                terminal = bool(
                     metadata.get("terminal_page_observed")
-                    or metadata.get("complete_collection_response")
-                    or metadata.get("has_more") is False
-                    or metadata.get("next_url_present") is False
                     or metadata.get("disabled_next_control")
                     or metadata.get("explicit_final_page")
-                    or terminal_stop
-                    in {
-                        "validated_zero_jobs",
-                        "no_next_page",
-                        "explicit_terminal_page",
-                        "reported_total_reached",
-                        "proven_structured_collection",
-                    }
-                )
-                metadata["browser_terminal_evidence"] = browser_terminal
-                if browser_terminal and not metadata.get(
-                    "collection_changed_during_scan"
-                ):
-                    metadata["scan_complete"] = True
-                    if metadata.get("scan_completeness_reason") in {
-                        None,
-                        "adapter_completeness_not_proven",
-                    }:
-                        metadata["scan_completeness_reason"] = (
-                            "validated_browser_terminal"
-                        )
-                elif not browser_terminal:
-                    metadata["scan_complete"] = False
-                    metadata["scan_completeness_reason"] = (
-                        "browser_exhaustion_not_proven"
+                    or (
+                        metadata.get("authoritative_total_present")
+                        and metadata.get("total_available") == len(output)
                     )
-                    if terminal_stop == "no_pagination_configured":
-                        metadata["stop_reason"] = "browser_exhaustion_not_proven"
-                return AdapterResult(jobs=jobs, scan=metadata)
+                    or metadata.get("stop_reason")
+                    in {"no_next_page", "explicit_terminal_page"}
+                )
+                metadata["scan_complete"] = terminal
+                metadata["scan_completeness_reason"] = (
+                    "validated_browser_terminal"
+                    if terminal
+                    else "browser_exhaustion_not_proven"
+                )
+                if not terminal and metadata.get("stop_reason") == "no_pagination_configured":
+                    metadata["stop_reason"] = "browser_exhaustion_not_proven"
+                return AdapterResult(jobs=list(output), scan=metadata)
 
             adapter = _browser_adapter
         if target.platform == "browser_rendered_html" and browser_batch_error is not None:

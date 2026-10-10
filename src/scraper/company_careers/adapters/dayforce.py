@@ -8,6 +8,7 @@ browser state is required.
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from datetime import date
 from html import unescape
 import json
@@ -19,12 +20,20 @@ import requests
 
 from src.scraper.company_careers.diagnostics import structure_diagnostic
 from src.scraper.company_careers.models import (
+    AdapterResult,
     AdapterError,
     CompanyTarget,
+    InventoryItem,
+    ItemFailure,
     JobRecord,
     SourceScanMetadata,
     explicit_adapter_result,
     publish_source_scan_metadata,
+)
+from src.scraper.company_careers.mutable_collection import (
+    fetch_with_mutation_restart,
+    initialize_mutable_collection,
+    mark_collection_changed,
 )
 
 
@@ -41,6 +50,8 @@ MAX_DETAIL_REQUESTS = 10
 MAX_REJECTED_RECORD_IDS = 20
 MAX_DETAIL_NODES = 10_000
 MAX_DETAIL_DEPTH = 24
+MAX_REQUEST_BUDGET = 5_000
+TRANSIENT_STATUSES = {408, 425, 429, 500, 502, 503, 504}
 NEXT_DATA_RE = re.compile(
     r'<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>',
     re.IGNORECASE | re.DOTALL,
@@ -59,52 +70,126 @@ class _IdentityValidatedMissingStructuredLocationError(AdapterError):
         self.requisition_id = requisition_id
 
 
+class _TransientDayforceError(AdapterError):
+    """A transient response that may permit safe partial progress."""
+
+
+class _RequestBudgetExceeded(AdapterError):
+    """Raised before a request would exceed the source-wide hard limit."""
+
+
+@dataclass
+class _RequestBudget:
+    limit: int
+    used: int = 0
+    categories: dict[str, int] = field(default_factory=dict)
+
+    def consume(self, category: str) -> None:
+        if self.used >= self.limit:
+            raise _RequestBudgetExceeded("Dayforce source request budget exhausted")
+        self.used += 1
+        self.categories[category] = self.categories.get(category, 0) + 1
+
+    def record(self, metadata: SourceScanMetadata) -> None:
+        metadata["request_budget"] = self.limit
+        metadata["requests_used"] = self.used
+        metadata["request_counts"] = {
+            name: self.categories.get(name, 0)
+            for name in ("shell", "csrf", "search", "detail", "retry")
+        }
+
+
+
 @explicit_adapter_result
 def fetch_jobs(
     session: requests.Session,
     target: CompanyTarget,
     timeout: int = 20,
-) -> list[JobRecord]:
-    """Fetch one bounded, deterministic public Dayforce job collection."""
+) -> AdapterResult:
+    """Fetch a bounded collection and restart one mutated traversal."""
     config = validate_target(target)
     timeout = min(max(1, int(timeout)), MAX_TIMEOUT_SECONDS)
-
-    shell = session.get(
-        config["search_url"],
-        headers={
-            "Accept": "text/html,application/xhtml+xml",
-            "User-Agent": "job-radar/1.0 (read-only public careers scan)",
-        },
-        timeout=timeout,
+    budget = _RequestBudget(int(target.protocol_request_budget))
+    return fetch_with_mutation_restart(
+        session,
+        lambda: _fetch_jobs_once(session, target, config, timeout, budget),
     )
-    next_data = _bootstrap_json(shell)
-    site_info = _site_info(next_data, config)
-    csrf_token = _csrf_token(session, config, timeout)
 
-    metadata = SourceScanMetadata(**{
-        "endpoint_variant": ENDPOINT_VARIANT,
-        "request_method": "GET shell + GET CSRF + POST search",
-        "page_size": PAGE_SIZE,
-        "maximum_pages": int(target.max_pages),
-        "maximum_results": int(target.max_jobs),
-        "pages": [],
-        "jobs_normalized": 0,
-        "duplicate_requisitions_skipped": 0,
-        "duplicate_posting_ids_skipped": [],
-        "duplicate_requisition_ids": [],
-        "detail_requests": 0,
-        "maximum_detail_requests": MAX_DETAIL_REQUESTS,
-        "rejected_record_count": 0,
-        "rejected_record_ids": [],
-        "rejected_posting_ids": [],
-        "rejected_requisition_ids": [],
-        "rejected_record_reason": None,
-        "malformed_records": 0,
-        "total_available": None,
-        "stop_reason": "not_started",
-    })
+
+def _fetch_jobs_once(
+    session: requests.Session,
+    target: CompanyTarget,
+    config: Mapping[str, str],
+    timeout: int,
+    budget: _RequestBudget,
+) -> AdapterResult:
+    metadata = SourceScanMetadata(
+        endpoint_variant=ENDPOINT_VARIANT,
+        request_method="GET shell + GET CSRF + POST search",
+        page_size=PAGE_SIZE,
+        maximum_pages=int(target.max_pages),
+        maximum_results=int(target.max_jobs),
+        pages=[],
+        jobs_normalized=0,
+        raw_source_postings=0,
+        duplicate_requisitions_skipped=0,
+        duplicate_posting_ids_skipped=[],
+        duplicate_requisition_ids=[],
+        detail_requests=0,
+        maximum_detail_requests=MAX_DETAIL_REQUESTS,
+        rejected_record_count=0,
+        rejected_record_ids=[],
+        rejected_posting_ids=[],
+        rejected_requisition_ids=[],
+        rejected_record_reason=None,
+        rejected_records_accounted=True,
+        malformed_records=0,
+        total_available=None,
+        authoritative_total_present=True,
+        detail_requests_coupled=False,
+    )
+    initialize_mutable_collection(metadata)
     setattr(session, "dayforce_pagination", metadata)
     publish_source_scan_metadata(session, metadata)
+    budget.record(metadata)
+
+    try:
+        budget.consume("shell")
+        shell = session.get(
+            config["search_url"],
+            headers={
+                "Accept": "text/html,application/xhtml+xml",
+                "User-Agent": "job-radar/1.0 (read-only public careers scan)",
+            },
+            timeout=timeout,
+        )
+    except _RequestBudgetExceeded:
+        return _budget_exhausted_result(session, metadata, budget, [], [], [])
+    next_data = _bootstrap_json(shell)
+    site_info = _site_info(next_data, config)
+    identity_status, identity_diagnostic = _configured_identity_evidence(
+        target, config
+    )
+    metadata.update(
+        source_identity_status=identity_status,
+        source_identity_diagnostic=identity_diagnostic,
+    )
+    if identity_status == "failed":
+        metadata["stop_reason"] = "identity_failure"
+        metadata["scan_completeness_reason"] = "identity_failure"
+        budget.record(metadata)
+        raise AdapterError("Dayforce configured employer identity evidence is invalid")
+
+    try:
+        budget.consume("csrf")
+        csrf_token = _csrf_token(session, config, timeout)
+    except _RequestBudgetExceeded:
+        return _budget_exhausted_result(session, metadata, budget, [], [], [])
+    except AdapterError:
+        metadata["stop_reason"] = "bootstrap_invalid"
+        metadata["scan_completeness_reason"] = "bootstrap_invalid"
+        budget.record(metadata)
+        raise
 
     headers = {
         "Accept": "application/json",
@@ -115,6 +200,8 @@ def fetch_jobs(
         "X-CSRF-TOKEN": csrf_token,
     }
     jobs: list[JobRecord] = []
+    inventory_items: list[InventoryItem] = []
+    item_failures: list[ItemFailure] = []
     seen_posting_ids: set[int] = set()
     seen_requisition_ids: set[int] = set()
     seen_pages: set[tuple[int, ...]] = set()
@@ -129,65 +216,107 @@ def fetch_jobs(
             "paginationStart": offset,
         }
         metadata["pages_requested"] += 1
-        response = session.post(
-            config["endpoint_url"],
-            headers=headers,
-            json=body,
-            timeout=timeout,
-        )
-        payload = _search_json(response, target, offset)
+        try:
+            budget.consume("search")
+            response = session.post(
+                config["endpoint_url"], headers=headers, json=body, timeout=timeout
+            )
+            payload = _search_json(response, target, offset)
+        except _RequestBudgetExceeded:
+            return _budget_exhausted_result(
+                session, metadata, budget, jobs, inventory_items, item_failures
+            )
+        except (requests.RequestException, _TransientDayforceError) as exc:
+            if metadata["pages_completed"] and identity_status == "validated":
+                metadata.update(
+                    scan_complete=False,
+                    stop_reason="request_failure",
+                    scan_completeness_reason="inventory_incomplete",
+                )
+                metadata["diagnostics"].append(
+                    {"offset": offset, "error": f"{type(exc).__name__}: {exc}"}
+                )
+                budget.record(metadata)
+                return _dayforce_result(
+                    session, metadata, jobs, inventory_items, item_failures
+                )
+            raise
+
         rows = payload["jobPostings"]
         total = payload["maxCount"]
         if observed_total is None:
             observed_total = total
         elif total != observed_total:
-            raise AdapterError("Dayforce total job count changed during pagination")
+            metadata["total_count_changed"] = True
+            mark_collection_changed(metadata, offset=offset)
+            metadata["stop_reason"] = "collection_changed_during_scan"
+            break
         if total > offset and not rows:
             raise AdapterError("Dayforce results ended before the reported total")
 
-        page_ids = tuple(_positive_int(row, "jobPostingId", "posting") for row in rows)
+        page_ids = tuple(
+            _positive_int(row, "jobPostingId", "posting") for row in rows
+        )
         if page_ids and page_ids in seen_pages:
+            metadata["stop_reason"] = "repeated_page"
             raise AdapterError("Dayforce repeated a result page during pagination")
         seen_pages.add(page_ids)
 
         for row in rows:
+            metadata["raw_source_postings"] += 1
             posting_id = _positive_int(row, "jobPostingId", "posting")
             if posting_id in seen_posting_ids:
+                metadata["stop_reason"] = "repeated_stable_ids"
                 raise AdapterError(f"Dayforce repeated stable posting ID: {posting_id}")
             seen_posting_ids.add(posting_id)
             requisition_id = _positive_int(row, "jobReqId", "requisition")
             if requisition_id in seen_requisition_ids:
                 metadata["duplicate_requisitions_skipped"] += 1
-                if (
-                    len(metadata["duplicate_requisition_ids"])
-                    < MAX_REJECTED_RECORD_IDS
-                ):
+                if len(metadata["duplicate_requisition_ids"]) < MAX_REJECTED_RECORD_IDS:
                     metadata["duplicate_posting_ids_skipped"].append(posting_id)
                     metadata["duplicate_requisition_ids"].append(requisition_id)
                 continue
             seen_requisition_ids.add(requisition_id)
+            item_id = _job_id(config, requisition_id)
+            inventory_items.append(InventoryItem(item_id, _source(config)))
             normalized_row = row
             if _needs_detail_location(row):
                 if metadata["detail_requests"] >= MAX_DETAIL_REQUESTS:
-                    metadata["stop_reason"] = "detail_enrichment_limit_reached"
-                    metadata["scan_completeness_reason"] = (
-                        "missing_location_detail_enrichment_limit_reached"
+                    metadata.update(
+                        stop_reason="detail_enrichment_limit_reached",
+                        scan_completeness_reason=(
+                            "missing_location_detail_enrichment_limit_reached"
+                        ),
+                        safety_limit_reached=True,
                     )
-                    metadata["safety_limit_reached"] = True
                     raise AdapterError(
                         "Dayforce missing-location detail enrichment exceeded "
                         f"the {MAX_DETAIL_REQUESTS}-request bound"
                     )
                 metadata["detail_requests"] += 1
-                detail = _fetch_detail_posting(
-                    session, row, target, config, site_info, timeout
-                )
+                try:
+                    budget.consume("detail")
+                    detail = _fetch_detail_posting(
+                        session, row, target, config, site_info, timeout
+                    )
+                except _RequestBudgetExceeded:
+                    return _budget_exhausted_result(
+                        session, metadata, budget, jobs, inventory_items, item_failures
+                    )
+                except (requests.RequestException, _TransientDayforceError) as exc:
+                    item_failures.append(
+                        ItemFailure(
+                            item_id,
+                            f"{type(exc).__name__}: {exc}",
+                            retryable=True,
+                        )
+                    )
+                    continue
                 try:
                     normalized_row = _merge_detail_location(row, detail)
                 except _IdentityValidatedMissingStructuredLocationError as exc:
-                    rejected_count = int(metadata["rejected_record_count"]) + 1
-                    metadata["rejected_record_count"] = rejected_count
-                    metadata["malformed_records"] = rejected_count
+                    metadata["rejected_record_count"] += 1
+                    metadata["malformed_records"] += 1
                     if len(metadata["rejected_record_ids"]) < MAX_REJECTED_RECORD_IDS:
                         metadata["rejected_record_ids"].append(
                             {
@@ -201,6 +330,14 @@ def fetch_jobs(
                         )
                     metadata["rejected_record_reason"] = (
                         "missing_structured_location"
+                    )
+                    item_failures.append(
+                        ItemFailure(
+                            item_id,
+                            "missing_structured_location",
+                            stage="normalization",
+                            outcome="rejected",
+                        )
                     )
                     continue
             jobs.append(_normalize(normalized_row, target, config, site_info))
@@ -217,32 +354,85 @@ def fetch_jobs(
         if offset + len(rows) >= total:
             metadata["stop_reason"] = "total_jobs_reached"
             break
-        if len(jobs) >= int(target.max_jobs):
+        if len(inventory_items) >= int(target.max_jobs):
             metadata["stop_reason"] = "maximum_results_reached"
             break
     else:
         metadata["stop_reason"] = "maximum_pages_reached"
 
     metadata["total_available"] = observed_total
+    metadata["terminal_accounted_items"] = int(metadata["raw_source_postings"])
     if metadata["stop_reason"] == "total_jobs_reached":
-        metadata["scan_complete"] = True
-        metadata["scan_completeness_reason"] = "reported_total_enumerated"
-    else:
+        metadata.update(
+            scan_complete=True,
+            scan_completeness_reason="reported_total_enumerated",
+            terminal_evidence_type="authoritative_total",
+            terminal_evidence_value=observed_total,
+            terminal_page_observed=True,
+            has_more=False,
+        )
+    elif not metadata.get("collection_changed_during_scan"):
         metadata["scan_complete"] = False
         metadata["safety_limit_reached"] = metadata["stop_reason"] in {
             "maximum_results_reached",
             "maximum_pages_reached",
         }
         metadata["scan_completeness_reason"] = metadata["stop_reason"]
-    if metadata["rejected_record_count"]:
-        metadata["scan_complete"] = False
-        metadata["scan_completeness_reason"] = "malformed_listing_records"
-        if not jobs:
-            raise AdapterError(
-                "Dayforce had no valid jobs after rejecting identity-validated "
-                "postings with no structured location"
-            )
-    return jobs[: int(target.max_jobs)]
+    if item_failures:
+        metadata["hydration_complete"] = False
+    if identity_status != "validated":
+        metadata.update(
+            scan_complete=False,
+            scan_completeness_reason="identity_unproven",
+            stop_reason="identity_unproven",
+        )
+    budget.record(metadata)
+    return _dayforce_result(
+        session,
+        metadata,
+        jobs[: int(target.max_jobs)],
+        inventory_items,
+        item_failures,
+    )
+
+
+def _dayforce_result(
+    session: requests.Session,
+    metadata: SourceScanMetadata,
+    jobs: list[JobRecord],
+    inventory_items: list[InventoryItem],
+    item_failures: list[ItemFailure],
+) -> AdapterResult:
+    publish_source_scan_metadata(session, metadata)
+    return AdapterResult(
+        jobs=jobs,
+        scan=metadata,
+        inventory_items=tuple(inventory_items),
+        item_failures=tuple(item_failures),
+        capabilities_used=frozenset(
+            {"inventory_listing", "partial_progress", "per_item_failure"}
+        ),
+    )
+
+
+def _budget_exhausted_result(
+    session: requests.Session,
+    metadata: SourceScanMetadata,
+    budget: _RequestBudget,
+    jobs: list[JobRecord],
+    inventory_items: list[InventoryItem],
+    item_failures: list[ItemFailure],
+) -> AdapterResult:
+    metadata.update(
+        scan_complete=False,
+        scan_completeness_reason="dayforce_request_budget_exhausted",
+        stop_reason="dayforce_request_budget_exhausted",
+        safety_limit_reached=True,
+    )
+    budget.record(metadata)
+    return _dayforce_result(
+        session, metadata, jobs, inventory_items, item_failures
+    )
 
 
 def validate_target(target: CompanyTarget) -> dict[str, str]:
@@ -291,6 +481,10 @@ def validate_target(target: CompanyTarget) -> dict[str, str]:
         raise AdapterError("Dayforce max_jobs exceeds the configured page capacity")
     if not 1 <= int(target.max_response_bytes) <= MAX_RESPONSE_BYTES:
         raise AdapterError(f"Dayforce max_response_bytes must be between 1 and {MAX_RESPONSE_BYTES}")
+    if not 1 <= int(target.protocol_request_budget) <= MAX_REQUEST_BUDGET:
+        raise AdapterError(
+            f"Dayforce protocol_request_budget must be between 1 and {MAX_REQUEST_BUDGET}"
+        )
     origin = f"{search.scheme}://{search.netloc}"
     return {
         "tenant": tenant,
@@ -301,6 +495,65 @@ def validate_target(target: CompanyTarget) -> dict[str, str]:
         "endpoint_url": endpoint.geturl(),
         "csrf_url": f"{origin}/api/auth/csrf",
     }
+
+
+def _configured_identity_evidence(
+    target: CompanyTarget, config: Mapping[str, str]
+) -> tuple[str, dict[str, Any]]:
+    """Validate reviewed official evidence independently of ATS reachability."""
+    evidence = dict(target.dayforce_identity or {})
+    required = {"official_source_url", "expected_tenant", "expected_board"}
+    base = {
+        "proof": "configured_official_recruiting_surface",
+        "configured_tenant": config["tenant"],
+        "configured_board": config["board"],
+    }
+    if not evidence:
+        return "unproven", {
+            **base,
+            "proof": "unavailable_in_candidate_portal",
+            "reason": (
+                "Dayforce shell reachability proves the tenant/board protocol, "
+                "not employer ownership; no reviewed official evidence is configured"
+            ),
+        }
+    missing = sorted(required - evidence.keys())
+    official = urlparse(evidence.get("official_source_url", ""))
+    official_host = (official.hostname or "").casefold()
+    official_is_first_party = bool(
+        official.scheme == "https"
+        and official_host
+        and official_host != HOST
+        and not official_host.endswith(".dayforcehcm.com")
+    )
+    exact = (
+        evidence.get("expected_tenant", "").casefold()
+        == config["tenant"].casefold()
+        and evidence.get("expected_board", "").casefold()
+        == config["board"].casefold()
+    )
+    if missing or not official_is_first_party or not exact:
+        return "failed", {
+            **base,
+            "official_source_url": evidence.get("official_source_url"),
+            "missing_fields": missing,
+            "exact_binding": exact,
+            "official_source_is_first_party_https": official_is_first_party,
+            "reason": "configured Dayforce identity evidence is invalid or mismatched",
+        }
+    return "validated", {
+        **base,
+        "official_source_url": evidence["official_source_url"],
+        "reason": "reviewed official evidence exactly binds tenant and board",
+    }
+
+
+def _source(config: Mapping[str, str]) -> str:
+    return f"dayforce:{config['tenant'].casefold()}:{config['board'].casefold()}"
+
+
+def _job_id(config: Mapping[str, str], requisition_id: int) -> str:
+    return f"{_source(config)}:{requisition_id}"
 
 
 def _bootstrap_json(response: Any) -> Mapping[str, Any]:
@@ -402,6 +655,10 @@ def _csrf_token(
 def _search_json(response: Any, target: CompanyTarget, offset: int) -> Mapping[str, Any]:
     status = getattr(response, "status_code", None)
     if status != 200:
+        if status in TRANSIENT_STATUSES:
+            raise _TransientDayforceError(
+                f"Dayforce HTTP {status} for {target.name} offset={offset}"
+            )
         raise AdapterError(f"Dayforce HTTP {status} for {target.name} offset={offset}")
     if len(bytes(getattr(response, "content", b"") or b"")) > min(
         int(target.max_response_bytes), MAX_RESPONSE_BYTES
@@ -531,6 +788,8 @@ def _fetch_detail_posting(
     )
     status = getattr(response, "status_code", None)
     if status != 200:
+        if status in TRANSIENT_STATUSES:
+            raise _TransientDayforceError(f"Dayforce job detail HTTP {status}")
         raise AdapterError(f"Dayforce job detail HTTP {status}")
     content = bytes(getattr(response, "content", b"") or b"")
     if len(content) > min(int(target.max_response_bytes), MAX_RESPONSE_BYTES):

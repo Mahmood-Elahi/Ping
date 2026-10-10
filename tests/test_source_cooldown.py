@@ -10,6 +10,7 @@ from src.scraper.company_careers.models import (
 )
 from src.scraper.company_careers.scanner import CompanyCareersScanner
 from src.scraper.company_careers.source_cooldown import (
+    classify_failure,
     cooldown_active,
     reconcile_source_health,
     source_health_key,
@@ -226,6 +227,82 @@ class SourceCooldownTests(unittest.TestCase):
         self.assertFalse(result.authoritative_for_absence)
         self.assertEqual(result.jobs, [])
         self.assertEqual(result.pages_requested, 0)
+
+    def test_dayforce_and_successfactors_identity_fields_are_fingerprinted_but_budget_is_not(self):
+        dayforce = CompanyTarget(
+            name="Example",
+            platform="dayforce",
+            tenant="tenant-a",
+            site_id="BOARD",
+            locale="en-CA",
+            endpoint_variant="nextjs_jobposting_search",
+            search_url="https://jobs.dayforcehcm.com/en-CA/tenant-a/BOARD",
+            endpoint_url="https://jobs.dayforcehcm.com/api/geo/tenant-a/jobposting/search",
+            dayforce_identity={
+                "official_source_url": "https://example.com/careers",
+                "expected_tenant": "tenant-a",
+                "expected_board": "BOARD",
+            },
+        )
+        tuned = CompanyTarget(**{**dayforce.__dict__, "protocol_request_budget": 17})
+        reboarded = CompanyTarget(**{**dayforce.__dict__, "site_id": "OTHER"})
+        self.assertEqual(source_health_key(dayforce), source_health_key(tuned))
+        self.assertNotEqual(source_health_key(dayforce), source_health_key(reboarded))
+
+        successfactors = CompanyTarget(
+            name="Example",
+            platform="sap_successfactors",
+            careers_url="https://example.com/careers",
+            search_url="https://jobs.example.com/search/",
+            endpoint_variant="rmk_table",
+            locale="en_US",
+            identity_regex="Example",
+        )
+        changed_locale = CompanyTarget(
+            **{**successfactors.__dict__, "locale": "fr_CA"}
+        )
+        changed_identity = CompanyTarget(
+            **{**successfactors.__dict__, "identity_regex": "Example Canada"}
+        )
+        self.assertNotEqual(
+            source_health_key(successfactors), source_health_key(changed_locale)
+        )
+        self.assertNotEqual(
+            source_health_key(successfactors), source_health_key(changed_identity)
+        )
+
+    def test_protocol_contradictions_do_not_advance_cooldown_but_transient_http_does(self):
+        for reason in (
+            "bootstrap_invalid",
+            "identity_unproven",
+            "pagination_contradiction",
+            "protocol_contract_invalid",
+            "dayforce_request_budget_exhausted",
+            "successfactors_request_budget_exhausted",
+        ):
+            with self.subTest(reason=reason):
+                result = CompanyScanResult(
+                    target=target(),
+                    status=CoverageStatus.FETCHED,
+                    scan_complete=False,
+                    stop_reason=reason,
+                    scan_state="incomplete",
+                    source_health_code=(
+                        "safety_limit_reached" if "budget" in reason else "pagination_unproven"
+                    ),
+                )
+                self.assertEqual(classify_failure(result), "non_transient")
+
+        transient = CompanyScanResult(
+            target=target(),
+            status=CoverageStatus.FAILED_TECHNICAL,
+            error="HTTP 503",
+            error_type="transient_upstream_http",
+            stop_reason="request_failure",
+            scan_state="failed",
+            source_health_code="temporary_unexpected_response",
+        )
+        self.assertTrue(classify_failure(transient).startswith("transient_"))
 
 
 if __name__ == "__main__":

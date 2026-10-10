@@ -1,0 +1,142 @@
+# Opt-in only. Normal runtime does not load this file.
+# Budgets cover at most one whole-traversal restart. HTML: 2 attempts per page
+# x 2 traversals. Columnized: 2 identity attempts + listing POSTs + 2 detail
+# attempts per expected job, x 2 traversals.
+target_companies:
+  - name: Gibson Energy
+    platform: sap_successfactors
+    careers_url: https://www.gibsonenergy.com/careers/
+    search_url: https://careers.gibsonenergy.com/search/
+    endpoint_variant: rmk_table
+    identity_regex: Gibson Energy Jobs|Gibson Energy
+    max_pages: 1
+    max_jobs: 20
+    protocol_request_budget: 4
+  - name: NOVA Chemicals
+    platform: sap_successfactors
+    careers_url: https://jobs.novachem.com
+    search_url: https://jobs.novachem.com/search/
+    endpoint_variant: rmk_table
+    identity_regex: NOVA Chemicals
+    max_pages: 1
+    max_jobs: 20
+    protocol_request_budget: 4
+  - name: Trans Mountain
+    platform: sap_successfactors
+    careers_url: https://careers.transmountain.com/?locale=en_US
+    search_url: https://careers.transmountain.com/search/
+    endpoint_variant: rmk_tile
+    identity_regex: Trans Mountain
+    max_pages: 1
+    max_jobs: 20
+    protocol_request_budget: 4
+  - name: CPKC
+    platform: sap_successfactors
+    careers_url: https://www.cpkcr.com/en/careers
+    search_url: https://careers.cpr.ca/search/
+    endpoint_url: https://careers.cpr.ca/services/recruiting/v1/jobs
+    endpoint_variant: rmk_columnized
+    locale: en_US
+    identity_regex: \bCPKC\b
+    allowed_apply_hosts: [careers.cpr.ca]
+    page_size: 10
+    max_pages: 2
+    max_jobs: 20
+    protocol_request_budget: 88
+  - name: Hydro One
+    platform: sap_successfactors
+    careers_url: https://jobs.hydroone.com/
+    search_url: https://jobs.hydroone.com/search/
+    endpoint_variant: rmk_table
+    identity_regex: Hydro One
+    max_pages: 1
+    max_jobs: 20
+    protocol_request_budget: 4
+  - name: Enerflex
+    platform: sap_successfactors
+    careers_url: https://www.enerflex.com/careers/
+    search_url: https://jobs.enerflex.com/search/
+    endpoint_variant: rmk_tile
+    identity_regex: Enerflex
+    max_pages: 1
+    max_jobs: 20
+    protocol_request_budget: 4
+  - name: Bombardier
+    platform: sap_successfactors
+    careers_url: https://bombardier.com/en/careers
+    search_url: https://jobs.bombardier.com/search/
+    endpoint_url: https://jobs.bombardier.com/services/recruiting/v1/jobs
+    endpoint_variant: rmk_columnized
+    locale: en_US
+    identity_regex: \bBombardier\b
+    allowed_apply_hosts: [jobs.bombardier.com]
+    page_size: 10
+    max_pages: 2
+    max_jobs: 20
+    protocol_request_budget: 88
+  - name: SAP
+    platform: sap_successfactors
+    careers_url: https://jobs.sap.com/
+    search_url: https://jobs.sap.com/search/
+    endpoint_variant: rmk_table
+    identity_regex: \bSAP\b
+    max_pages: 1
+    max_jobs: 20
+    protocol_request_budget: 4
+  - name: Qorvo
+    platform: sap_successfactors
+    careers_url: https://www.qorvo.com/careers
+    search_url: https://careers.qorvo.com/search/
+    endpoint_variant: rmk_table
+    identity_regex: \bQorvo\b
+    max_pages: 1
+    max_jobs: 20
+    protocol_request_budget: 4
+  - name: CN Rail
+    platform: sap_successfactors
+    careers_url: https://www.cn.ca/en/careers
+    search_url: https://careers.cn.ca/search/
+    endpoint_url: https://careers.cn.ca/services/recruiting/v1/jobs
+    endpoint_variant: rmk_columnized
+    locale: en_US
+    identity_regex: Canadian National|\bCN\b
+    allowed_apply_hosts: [careers.cn.ca]
+    page_size: 10
+    max_pages: 20
+    max_jobs: 500
+    protocol_request_budget: 2044
+  - name: Rogers Communications
+    platform: sap_successfactors
+    careers_url: https://jobs.rogers.com/
+    search_url: https://jobs.rogers.com/search/
+    endpoint_variant: rmk_table
+    identity_regex: Rogers
+    max_pages: 1
+    max_jobs: 20
+    protocol_request_budget: 4
+  - name: Seagate
+    platform: sap_successfactors
+    careers_url: https://www.seagate.com/ca/en/jobs/
+    search_url: https://seagatecareers.com/search/
+    endpoint_url: https://seagatecareers.com/services/recruiting/v1/jobs
+    endpoint_variant: rmk_columnized
+    locale: en_US
+    identity_regex: \bSeagate\b
+    allowed_apply_hosts: [seagatecareers.com]
+    page_size: 10
+    max_pages: 1
+    max_jobs: 20
+    protocol_request_budget: 86
+  - name: Kinross Gold
+    platform: sap_successfactors
+    careers_url: https://www.kinross.com/careers/
+    search_url: https://jobs.kinross.com/search/
+    endpoint_url: https://jobs.kinross.com/services/recruiting/v1/jobs
+    endpoint_variant: rmk_columnized
+    locale: en_US
+    identity_regex: \bKinross\b
+    allowed_apply_hosts: [jobs.kinross.com]
+    page_size: 10
+    max_pages: 1
+    max_jobs: 20
+    protocol_request_budget: 86

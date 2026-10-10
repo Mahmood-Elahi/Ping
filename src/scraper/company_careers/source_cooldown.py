@@ -29,6 +29,10 @@ NON_TRANSIENT_HEALTH_CODES = {
     "authoritative_total_not_reached",
     "pagination_unproven",
     "unproven_empty",
+    "provider_cap_requires_partition",
+    "unsplittable_partition",
+    "partition_incomplete",
+    "partition_contradiction",
 }
 TRANSIENT_ERROR_TYPES = {
     "request_error",
@@ -83,6 +87,17 @@ def source_health_key(target: CompanyTarget) -> str:
             "listing_url",
             "pagination_url_template",
             "applied_facets",
+            "workday_identity",
+            "dayforce_identity",
+            "identity_regex",
+            "allowed_source_hosts",
+            "allowed_apply_hosts",
+            "browser_static_variant",
+            "browser_identity_selector",
+            "browser_identity_regex",
+            "single_page_collection",
+            "pagination_contract",
+            "next_page_selector",
         )
         if _stable_config_value(getattr(target, name, None)) not in (None, "", [], {})
     }
@@ -130,6 +145,11 @@ def classify_failure(result: CompanyScanResult) -> str | None:
     }:
         return "non_transient"
     if reason == "request_failure" or error_type in TRANSIENT_ERROR_TYPES:
+        return "transient_transport"
+    if reason in {
+        "workday_partition_transport_failure",
+        "workday_partition_transient_http",
+    }:
         return "transient_transport"
     if health in TRANSIENT_HEALTH_CODES:
         return "transient_source"

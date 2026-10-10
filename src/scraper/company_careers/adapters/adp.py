@@ -17,10 +17,16 @@ from src.scraper.company_careers.models import (
     AdapterResult,
     CompanyTarget,
     InventoryItem,
+    ItemFailure,
     JobRecord,
     SourceScanMetadata,
     explicit_adapter_result,
     publish_source_scan_metadata,
+)
+from src.scraper.company_careers.mutable_collection import (
+    fetch_with_mutation_restart,
+    initialize_mutable_collection,
+    mark_collection_changed,
 )
 from src.scraper.company_careers.listing_completion import (
     AdaptiveListingCompletion,
@@ -47,6 +53,33 @@ SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9:_-]{0,127}$")
 SAFE_SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 BLOCKED_MARKERS = ("captcha", "access denied", "verify you are human", "challenge-platform")
 MAX_REJECTED_RECORD_IDS = 20
+MAX_REQUEST_BUDGET = 2_500
+
+
+class _RequestBudget:
+    """One ADP source budget shared by bootstrap, pages, details, and restart."""
+
+    def __init__(self, maximum: int) -> None:
+        self.maximum = maximum
+        self.consumed = 0
+
+    def consume(self, metadata: SourceScanMetadata, label: str) -> None:
+        if self.consumed >= self.maximum:
+            metadata.update(
+                scan_complete=False,
+                scan_completeness_reason="request_budget_exhausted",
+                stop_reason="request_budget_exhausted",
+                safety_limit_reached=True,
+                request_budget_exhausted=True,
+            )
+            raise _BudgetExhausted("ADP source request budget exhausted")
+        self.consumed += 1
+        metadata["requests_consumed"] = self.consumed
+        metadata["last_request_kind"] = label
+
+
+class _BudgetExhausted(AdapterError):
+    pass
 
 
 class _MissingStableLocationError(AdapterError):
@@ -70,9 +103,14 @@ def fetch_jobs(
     """Fetch a deterministic public ADP prefix and fail on contract drift."""
     validate_target(target)
     timeout = min(MAX_TIMEOUT_SECONDS, max(1, int(timeout)))
-    if target.endpoint_variant == WORKFORCE_NOW:
-        return _fetch_workforce_now(session, target, timeout)
-    return _fetch_myjobs(session, target, timeout)
+    budget = _RequestBudget(int(target.protocol_request_budget))
+
+    def fetch_once() -> AdapterResult:
+        if target.endpoint_variant == WORKFORCE_NOW:
+            return _fetch_workforce_now(session, target, timeout, budget)
+        return _fetch_myjobs(session, target, timeout, budget)
+
+    return fetch_with_mutation_restart(session, fetch_once)
 
 
 def validate_target(target: CompanyTarget) -> None:
@@ -85,6 +123,10 @@ def validate_target(target: CompanyTarget) -> None:
         raise AdapterError(f"ADP max_pages must be between 1 and {MAX_PAGES}")
     if not 1 <= int(target.max_jobs) <= MAX_RESULTS:
         raise AdapterError(f"ADP max_jobs must be between 1 and {MAX_RESULTS}")
+    if not 1 <= int(target.protocol_request_budget) <= MAX_REQUEST_BUDGET:
+        raise AdapterError(
+            f"ADP protocol_request_budget must be between 1 and {MAX_REQUEST_BUDGET}"
+        )
     try:
         re.compile(str(target.identity_regex), re.I)
     except re.error as exc:
@@ -152,8 +194,11 @@ def _validate_myjobs_target(target: CompanyTarget, careers: Any, endpoint: Any, 
 
 
 def _fetch_workforce_now(
-    session: requests.Session, target: CompanyTarget, timeout: int
-) -> list[JobRecord]:
+    session: requests.Session,
+    target: CompanyTarget,
+    timeout: int,
+    budget: _RequestBudget,
+) -> AdapterResult:
     careers = urlparse(str(target.careers_url))
     query = {key: values[0] for key, values in parse_qs(careers.query).items()}
     base = urlunparse(careers._replace(path="", query="", fragment="")).rstrip("/")
@@ -168,9 +213,15 @@ def _fetch_workforce_now(
         "locale": locale,
         "x-forwarded-host": careers.hostname or "",
     }
+    limit = int(target.max_jobs)
+    page_size = int(target.page_size)
+    metadata = _metadata(target, "GET", page_size, limit)
+    setattr(session, "adp_pagination", metadata)
+    publish_source_scan_metadata(session, metadata)
     identity = _get_json(
         session, base + WFN_IDENTITY_PATH, "Workforce Now career-center identity",
-        timeout, params=common, headers=headers,
+        timeout, budget=budget, metadata=metadata, request_kind="identity_bootstrap",
+        params=common, headers=headers,
     )
     links = identity.get("contentLinks") if isinstance(identity, Mapping) else None
     if not isinstance(links, list) or not links:
@@ -178,20 +229,24 @@ def _fetch_workforce_now(
     identity_text = json.dumps(identity, ensure_ascii=False, sort_keys=True)
     if not re.search(str(target.identity_regex), identity_text, re.I):
         raise AdapterError("ADP Workforce Now tenant identity did not match identity_regex")
+    metadata["source_identity_status"] = "validated"
+    metadata["tenant_identity"] = {
+        "host": (careers.hostname or "").casefold(),
+        "cid": query["cid"].casefold(),
+        "ccId": query["ccId"],
+    }
 
-    limit = int(target.max_jobs)
-    page_size = int(target.page_size)
     jobs: list[JobRecord] = []
     seen: set[str] = set()
+    seen_pages: set[tuple[str, ...]] = set()
+    inventory: list[InventoryItem] = []
+    failures: list[ItemFailure] = []
     total: int | None = None
-    metadata = _metadata(target, "GET", page_size, limit)
     metadata.update(
         rejected_record_count=0,
         rejected_record_ids=[],
         rejected_record_reason=None,
     )
-    setattr(session, "adp_pagination", metadata)
-    publish_source_scan_metadata(session, metadata)
     listing_budget = AdaptiveListingCompletion(int(target.max_pages), limit)
     listing_budget.record(metadata)
     for page in range(listing_budget.hard_request_ceiling):
@@ -206,10 +261,26 @@ def _fetch_workforce_now(
         offset = page * page_size
         params = {**common, "$skip": offset, "$top": page_size, "userQuery": ""}
         metadata["pages_requested"] += 1
-        payload = _get_json(session, str(target.endpoint_url), f"Workforce Now offset={offset}", timeout, params=params, headers=headers)
+        try:
+            payload = _get_json(
+                session, str(target.endpoint_url), f"Workforce Now offset={offset}", timeout,
+                budget=budget, metadata=metadata, request_kind="search_page",
+                params=params, headers=headers,
+            )
+        except (requests.RequestException, _BudgetExhausted):
+            return _partial_result(metadata, jobs, inventory, failures)
         rows, current_total = _wfn_listing(payload, offset, page_size)
         metadata["pages_completed"] += 1
-        total = _stable_total(total, current_total, "ADP Workforce Now")
+        total = _stable_total(total, current_total, "ADP Workforce Now", metadata)
+        page_ids = tuple(
+            _stable_id(row.get("itemID"), "ADP Workforce Now itemID") for row in rows
+        )
+        if page_ids in seen_pages:
+            metadata.update(repeated_page=True, stop_reason="repeated_page")
+            mark_collection_changed(metadata, offset=offset)
+        seen_pages.add(page_ids)
+        if metadata.get("collection_changed_during_scan"):
+            break
         listing_budget.record_decision(
             metadata,
             current_total,
@@ -222,10 +293,33 @@ def _fetch_workforce_now(
         for row in rows:
             item_id = _stable_id(row.get("itemID"), "ADP Workforce Now itemID")
             if item_id in seen:
-                raise AdapterError(f"ADP Workforce Now repeated stable job ID: {item_id}")
+                metadata.update(repeated_stable_ids=True, stop_reason="repeated_stable_ids")
+                mark_collection_changed(metadata, offset=offset, overlap_count=1)
+                break
             seen.add(item_id)
+            inventory_item = InventoryItem(_wfn_job_id(target, query, item_id), _wfn_source(target, query))
+            inventory.append(inventory_item)
             detail_url = f"{target.endpoint_url}/{item_id}"
-            detail = _get_json(session, detail_url, f"Workforce Now detail {item_id}", timeout, params=common, headers=headers)
+            try:
+                detail = _get_json(
+                    session, detail_url, f"Workforce Now detail {item_id}", timeout,
+                    budget=budget, metadata=metadata, request_kind="detail",
+                    params=common, headers=headers,
+                )
+            except requests.RequestException as exc:
+                failures.append(
+                    ItemFailure(inventory_item.item_id, str(exc), retryable=True)
+                )
+                continue
+            except _BudgetExhausted:
+                failures.append(
+                    ItemFailure(
+                        inventory_item.item_id,
+                        "ADP source request budget exhausted before detail hydration",
+                        retryable=False,
+                    )
+                )
+                return _partial_result(metadata, jobs, inventory, failures)
             try:
                 job = _normalize_wfn(row, detail, target, query, detail_url)
             except _WfnIdentityValidatedMissingLocationError as exc:
@@ -261,16 +355,31 @@ def _fetch_workforce_now(
             "identity-validated records without stable locations"
         )
     jobs.sort(key=lambda job: (job.updated_at, job.job_id), reverse=True)
-    return jobs
+    return AdapterResult(
+        jobs=jobs,
+        scan=metadata,
+        inventory_items=tuple(inventory),
+        item_failures=tuple(failures),
+        capabilities_used=frozenset({"inventory", "hydration"}),
+    )
 
 
 def _fetch_myjobs(
-    session: requests.Session, target: CompanyTarget, timeout: int
-) -> list[JobRecord] | AdapterResult:
+    session: requests.Session,
+    target: CompanyTarget,
+    timeout: int,
+    budget: _RequestBudget,
+) -> AdapterResult:
     slug = str(target.slug)
     config_url = f"https://{MYJOBS_HOST}/public/staffing/v1/career-site/{slug}"
+    page_size = int(target.page_size)
+    limit = int(target.max_jobs)
+    metadata = _metadata(target, "GET", page_size, limit)
+    setattr(session, "adp_pagination", metadata)
+    publish_source_scan_metadata(session, metadata)
     config = _get_json(
         session, config_url, "MyJobs career-site configuration", timeout,
+        budget=budget, metadata=metadata, request_kind="identity_bootstrap",
         headers={"Accept": "application/json", "Referer": f"https://{MYJOBS_HOST}/"},
     )
     if not isinstance(config, Mapping):
@@ -283,6 +392,8 @@ def _fetch_myjobs(
     token = config.get("myJobsToken")
     if not isinstance(settings, Mapping) or settings.get("careerSiteType") != "External" or not isinstance(token, str) or len(token) < 20:
         raise AdapterError("ADP MyJobs public configuration is malformed")
+    metadata["source_identity_status"] = "validated"
+    metadata["tenant_identity"] = {"slug": slug, "organization_id": target.organization_id}
 
     headers = {
         "Accept": "application/json",
@@ -297,14 +408,10 @@ def _fetch_myjobs(
         "workLevelCode,clientRequisitionID,postingDate,requisitionLocations,"
         "easyApplyEnabled,careerSiteDomains,canApply"
     )
-    page_size = int(target.page_size)
-    limit = int(target.max_jobs)
     jobs: list[JobRecord] = []
     seen: set[str] = set()
+    seen_pages: set[tuple[str, ...]] = set()
     total: int | None = None
-    metadata = _metadata(target, "GET", page_size, limit)
-    setattr(session, "adp_pagination", metadata)
-    publish_source_scan_metadata(session, metadata)
     listing_budget = AdaptiveListingCompletion(
         int(target.max_pages),
         limit,
@@ -332,8 +439,18 @@ def _fetch_myjobs(
                 str(target.endpoint_url),
                 f"MyJobs offset={offset}",
                 timeout,
+                budget=budget,
+                metadata=metadata,
+                request_kind="search_page",
                 params=params,
                 headers=headers,
+            )
+        except _BudgetExhausted:
+            return _partial_result(
+                metadata,
+                jobs,
+                [InventoryItem(job.job_id, job.source) for job in jobs],
+                [],
             )
         except requests.RequestException:
             metadata["stop_reason"] = "request_failure"
@@ -352,7 +469,14 @@ def _fetch_myjobs(
             raise
         rows, current_total = _myjobs_listing(payload, page_size, offset)
         metadata["pages_completed"] += 1
-        total = _stable_total(total, current_total, "ADP MyJobs")
+        total = _stable_total(total, current_total, "ADP MyJobs", metadata)
+        page_ids = tuple(_stable_id(row.get("reqId"), "ADP MyJobs reqId") for row in rows)
+        if page_ids in seen_pages:
+            metadata.update(repeated_page=True, stop_reason="repeated_page")
+            mark_collection_changed(metadata, offset=offset)
+        seen_pages.add(page_ids)
+        if metadata.get("collection_changed_during_scan"):
+            break
         listing_budget.record_decision(
             metadata,
             current_total,
@@ -364,7 +488,9 @@ def _fetch_myjobs(
         for row in rows:
             req_id = _stable_id(row.get("reqId"), "ADP MyJobs reqId")
             if req_id in seen:
-                raise AdapterError(f"ADP MyJobs repeated stable job ID: {req_id}")
+                metadata.update(repeated_stable_ids=True, stop_reason="repeated_stable_ids")
+                mark_collection_changed(metadata, offset=offset, overlap_count=1)
+                break
             jobs.append(_normalize_myjobs(row, target))
             seen.add(req_id)
             if len(jobs) >= effective_limit:
@@ -385,7 +511,12 @@ def _fetch_myjobs(
     metadata["authoritative_total_present"] = total is not None
     _finalize_metadata(metadata)
     jobs.sort(key=lambda job: (job.updated_at, job.job_id), reverse=True)
-    return jobs
+    return AdapterResult(
+        jobs=jobs,
+        scan=metadata,
+        inventory_items=tuple(InventoryItem(job.job_id, job.source) for job in jobs),
+        capabilities_used=frozenset({"inventory", "hydration"}),
+    )
 
 
 def _wfn_listing(payload: Any, offset: int, page_size: int) -> tuple[list[Mapping[str, Any]], int]:
@@ -489,7 +620,18 @@ def _normalize_myjobs(row: Mapping[str, Any], target: CompanyTarget) -> JobRecor
     )
 
 
-def _get_json(session: requests.Session, url: str, label: str, timeout: int, **kwargs: Any) -> Any:
+def _get_json(
+    session: requests.Session,
+    url: str,
+    label: str,
+    timeout: int,
+    *,
+    budget: _RequestBudget,
+    metadata: SourceScanMetadata,
+    request_kind: str,
+    **kwargs: Any,
+) -> Any:
+    budget.consume(metadata, request_kind)
     response = session.get(url, timeout=timeout, **kwargs)
     # Legacy Workforce Now tenants can be redirected by ADP's edge to a
     # branded maintenance page that deliberately returns HTTP 200.  This is
@@ -504,6 +646,8 @@ def _get_json(session: requests.Session, url: str, label: str, timeout: int, **k
         and re.fullmatch(r"/maintenance/[A-Za-z0-9]+/?", resolved.path)
     ):
         raise AdapterError(f"ADP {label} returned transient upstream maintenance redirect")
+    if response.status_code in {408, 425, 429, 500, 502, 503, 504}:
+        raise requests.HTTPError(f"ADP {label} returned HTTP {response.status_code}")
     if response.status_code != 200:
         raise AdapterError(f"ADP {label} returned HTTP {response.status_code}")
     content = bytes(getattr(response, "content", b"") or b"")
@@ -806,13 +950,18 @@ def _wfn_external_id(item: Mapping[str, Any]) -> str:
 def _metadata(
     target: CompanyTarget, method: str, page_size: int, limit: int
 ) -> SourceScanMetadata:
-    return SourceScanMetadata(**{
+    metadata = SourceScanMetadata(**{
         "endpoint_variant": target.endpoint_variant, "request_method": method,
         "page_size": page_size, "maximum_pages": int(target.max_pages),
         "maximum_results": limit, "pages": [], "jobs_normalized": 0,
         "detail_requests_coupled": target.endpoint_variant == WORKFORCE_NOW,
+        "identity_required": True,
+        "requests_consumed": 0,
+        "request_budget": int(target.protocol_request_budget),
         "stop_reason": "not_started",
     })
+    initialize_mutable_collection(metadata)
+    return metadata
 
 
 def _finalize_metadata(metadata: SourceScanMetadata) -> None:
@@ -832,10 +981,54 @@ def _finalize_metadata(metadata: SourceScanMetadata) -> None:
         metadata["scan_completeness_reason"] = "malformed_listing_records"
 
 
-def _stable_total(previous: int | None, current: int, label: str) -> int:
+def _stable_total(
+    previous: int | None,
+    current: int,
+    label: str,
+    metadata: SourceScanMetadata | None = None,
+) -> int:
     if previous is not None and previous != current:
-        raise AdapterError(f"{label} total changed during pagination: {previous} -> {current}")
+        if metadata is None:
+            raise AdapterError(f"{label} total changed during pagination: {previous} -> {current}")
+        metadata["total_count_changed"] = True
+        metadata["observed_total_counts"] = [previous, current]
+        mark_collection_changed(metadata)
     return current
+
+
+def _wfn_source(target: CompanyTarget, query: Mapping[str, str]) -> str:
+    host = (urlparse(str(target.careers_url)).hostname or "").casefold()
+    return f"adp:{host}:{query['cid'].casefold()}"
+
+
+def _wfn_job_id(
+    target: CompanyTarget, query: Mapping[str, str], item_id: str
+) -> str:
+    return f"{_wfn_source(target, query)}:{item_id}"
+
+
+def _partial_result(
+    metadata: SourceScanMetadata,
+    jobs: list[JobRecord],
+    inventory: list[InventoryItem],
+    failures: list[ItemFailure],
+) -> AdapterResult:
+    metadata["scan_complete"] = False
+    metadata.setdefault("scan_completeness_reason", "pagination_failure")
+    if metadata.get("scan_completeness_reason") == "adapter_completeness_not_proven":
+        metadata["scan_completeness_reason"] = "pagination_failure"
+    metadata["jobs_normalized"] = len(jobs)
+    return AdapterResult(
+        jobs=jobs,
+        scan=metadata,
+        inventory_items=tuple(inventory),
+        item_failures=tuple(failures),
+        capabilities_used=frozenset(
+            {"inventory", "partial_progress"}
+            if inventory
+            else {"inventory"}
+        ),
+    )
 
 
 def _nonnegative_int(value: Any, label: str) -> int:

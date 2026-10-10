@@ -132,6 +132,10 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
         else 1
     )
     jobs: list[JobRecord] = []
+    # Browser rendering may fail on a later navigation after earlier pages were
+    # fully normalized.  Publish only completed-page snapshots so the browser
+    # owner can preserve those stable discoveries without inventing records.
+    setattr(session, "static_html_partial_jobs", [])
     seen_jobs: dict[str, JobRecord] = {}
     seen_canonical_urls: dict[str, str] = {}
     seen_pages: set[tuple[str, ...]] = set()
@@ -395,6 +399,7 @@ def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 
         page_record["jobs_normalized"] = new_ids
         metadata["jobs_normalized"] = len(jobs)
         metadata["raw_results_observed"] = raw_records_observed
+        setattr(session, "static_html_partial_jobs", list(jobs))
         if cross_page_duplicate:
             metadata["repeated_stable_ids"] = True
             metadata["stop_reason"] = "repeated_stable_ids"

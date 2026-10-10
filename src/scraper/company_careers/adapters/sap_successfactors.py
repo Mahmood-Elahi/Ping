@@ -25,8 +25,11 @@ from src.scraper.company_careers.diagnostics import (
     structure_diagnostic,
 )
 from src.scraper.company_careers.models import (
+    AdapterResult,
     AdapterError,
     CompanyTarget,
+    InventoryItem,
+    ItemFailure,
     JobRecord,
     SourceScanMetadata,
     explicit_adapter_result,
@@ -61,6 +64,7 @@ SEARCH_PATH_SUFFIX = "/search/"
 TILE_ENDPOINT = "tile-search-results"
 COLUMNIZED_ENDPOINT = "/services/recruiting/v1/jobs"
 COLUMNIZED_PAGE_SIZE = 10
+MAX_REQUEST_BUDGET = 5_000
 
 # RMK's ``primLocation`` is a display projection, not an opaque location ID.
 # Most values are comma-separated city/region/country displays, but tenants also
@@ -176,14 +180,46 @@ class _DomParser(HTMLParser):
         self.stack[-1].content.append(data)
 
 
+class _RequestBudgetExceeded(AdapterError):
+    """Raised before a request would exceed the source-wide hard limit."""
+
+
+class _TransientSuccessFactorsError(AdapterError):
+    """A transient upstream response eligible for bounded partial progress."""
+
+
+@dataclass
+class _RequestBudget:
+    limit: int
+    used: int = 0
+    categories: dict[str, int] = field(default_factory=dict)
+
+    def consume(self, category: str) -> None:
+        if self.used >= self.limit:
+            raise _RequestBudgetExceeded(
+                "SAP SuccessFactors source request budget exhausted"
+            )
+        self.used += 1
+        self.categories[category] = self.categories.get(category, 0) + 1
+
+    def record(self, metadata: SourceScanMetadata) -> None:
+        metadata["request_budget"] = self.limit
+        metadata["requests_used"] = self.used
+        metadata["request_counts"] = {
+            name: self.categories.get(name, 0)
+            for name in ("identity", "listing", "detail", "retry")
+        }
+
+
 @explicit_adapter_result
 def fetch_jobs(
     session: requests.Session,
     target: CompanyTarget,
     timeout: int = 20,
-) -> List[JobRecord]:
+) -> AdapterResult:
+    budget = _RequestBudget(int(target.protocol_request_budget))
     return fetch_with_mutation_restart(
-        session, lambda: _fetch_jobs_once(session, target, timeout)
+        session, lambda: _fetch_jobs_once(session, target, timeout, budget)
     )
 
 
@@ -191,19 +227,22 @@ def _fetch_jobs_once(
     session: requests.Session,
     target: CompanyTarget,
     timeout: int = 20,
-) -> List[JobRecord]:
+    budget: Optional[_RequestBudget] = None,
+) -> AdapterResult:
     """Fetch a bounded, deterministically ordered public RMK job collection."""
     metadata = _new_scan_metadata(target)
     initialize_mutable_collection(metadata)
     publish_source_scan_metadata(session, metadata)
+    budget = budget or _RequestBudget(int(target.protocol_request_budget))
+    budget.record(metadata)
     # Keep the adapter-specific diagnostics contract used by registry validation.
     setattr(session, "sap_successfactors_pagination", metadata)
     try:
         validate_target(target)
         timeout = max(1, min(int(timeout), MAX_TIMEOUT_SECONDS))
         if target.endpoint_variant == COLUMNIZED_VARIANT:
-            return _fetch_columnized_jobs(session, target, timeout, metadata)
-        return _fetch_html_jobs(session, target, timeout, metadata)
+            return _fetch_columnized_jobs(session, target, timeout, metadata, budget)
+        return _fetch_html_jobs(session, target, timeout, metadata, budget)
     except requests.RequestException:
         metadata["stop_reason"] = "request_failure"
         metadata["scan_completeness_reason"] = "pagination_failure"
@@ -310,7 +349,8 @@ def _fetch_html_jobs(
     target: CompanyTarget,
     timeout: int,
     metadata: SourceScanMetadata,
-) -> List[JobRecord]:
+    budget: _RequestBudget,
+) -> AdapterResult:
     max_pages = max(1, int(target.max_pages))
     if max_pages > MAX_PAGES:
         raise AdapterError(f"SAP SuccessFactors max_pages cannot exceed {MAX_PAGES}")
@@ -331,6 +371,7 @@ def _fetch_html_jobs(
         str(target.search_url),
         None,
     )
+    identity_status = "unproven"
 
     for page_index in range(listing_budget.hard_request_ceiling):
         effective_limit = int(
@@ -343,7 +384,41 @@ def _fetch_html_jobs(
         offset = current_offset
         url, params = next_request
         metadata["pages_requested"] += 1
-        response = _get_page(session, target, url, params, offset, timeout)
+        try:
+            response = _get_page(
+                session,
+                target,
+                url,
+                params,
+                offset,
+                timeout,
+                budget,
+                "identity" if page_index == 0 else "listing",
+            )
+        except _RequestBudgetExceeded:
+            metadata.update(
+                scan_complete=False,
+                scan_completeness_reason="successfactors_request_budget_exhausted",
+                stop_reason="successfactors_request_budget_exhausted",
+                safety_limit_reached=True,
+            )
+            budget.record(metadata)
+            return _successfactors_result(session, metadata, jobs)
+        except (requests.RequestException, _TransientSuccessFactorsError) as exc:
+            if metadata["pages_completed"] and identity_status == "validated":
+                metadata.update(
+                    scan_complete=False,
+                    scan_completeness_reason="inventory_incomplete",
+                    stop_reason="request_failure",
+                )
+                metadata["diagnostics"].append(
+                    {"offset": offset, "error": f"{type(exc).__name__}: {exc}"}
+                )
+                budget.record(metadata)
+                return _successfactors_result(session, metadata, jobs)
+            raise
+        if page_index == 0:
+            identity_status = _validate_html_identity(response, target, metadata)
         page = _parse_page(
             response,
             target,
@@ -407,6 +482,9 @@ def _fetch_html_jobs(
             try:
                 job = _normalize_item(item, target)
             except AdapterError as exc:
+                metadata["pagination_evidence_malformed"] = True
+                metadata["stop_reason"] = "protocol_contract_invalid"
+                metadata["scan_completeness_reason"] = "protocol_contract_invalid"
                 metadata["diagnostics"].append(
                     {
                         "offset": offset,
@@ -414,7 +492,7 @@ def _fetch_html_jobs(
                         "item_shape": structure_diagnostic(item),
                     }
                 )
-                continue
+                raise
             if job.job_id in seen_ids:
                 metadata["diagnostics"].append(
                     {"offset": offset, "error": f"Duplicate stable job ID: {job.job_id}"}
@@ -505,7 +583,73 @@ def _fetch_html_jobs(
         _mark_safety_limit(metadata, "maximum_pages_reached")
     elif metadata["stop_reason"] == "not_started" and len(jobs) >= MAX_RESULTS:
         _mark_safety_limit(metadata, "maximum_results_reached")
-    return jobs
+    if identity_status != "validated":
+        metadata.update(
+            scan_complete=False,
+            scan_completeness_reason="identity_unproven",
+            stop_reason="identity_unproven",
+        )
+    budget.record(metadata)
+    return _successfactors_result(session, metadata, jobs)
+
+
+def _validate_html_identity(
+    response: Any, target: CompanyTarget, metadata: SourceScanMetadata
+) -> str:
+    marker = str(target.identity_regex or "").strip()
+    if not marker:
+        metadata.update(
+            source_identity_status="unproven",
+            source_identity_diagnostic=(
+                "A responsive RMK host is not employer ownership; no reviewed "
+                "identity_regex is configured for the recruiting surface"
+            ),
+        )
+        return "unproven"
+    try:
+        matched = bool(re.search(marker, str(getattr(response, "text", "") or ""), re.I))
+    except re.error as exc:
+        raise AdapterError(f"SAP SuccessFactors identity_regex is invalid: {exc}") from exc
+    if not matched:
+        metadata.update(
+            source_identity_status="failed",
+            scan_completeness_reason="identity_failure",
+            stop_reason="identity_failure",
+        )
+        raise AdapterError(
+            "SAP SuccessFactors recruiting surface identity did not match identity_regex"
+        )
+    metadata.update(
+        source_identity_status="validated",
+        source_identity_diagnostic=(
+            "The exact configured first-party RMK surface matched the reviewed "
+            "employer identity marker"
+        ),
+    )
+    return "validated"
+
+
+def _successfactors_result(
+    session: requests.Session,
+    metadata: SourceScanMetadata,
+    jobs: list[JobRecord],
+    inventory_items: Optional[list[InventoryItem]] = None,
+    item_failures: Optional[list[ItemFailure]] = None,
+) -> AdapterResult:
+    inventory = inventory_items or [
+        InventoryItem(job.job_id, job.source) for job in jobs
+    ]
+    failures = item_failures or []
+    publish_source_scan_metadata(session, metadata)
+    return AdapterResult(
+        jobs=jobs,
+        scan=metadata,
+        inventory_items=tuple(inventory),
+        item_failures=tuple(failures),
+        capabilities_used=frozenset(
+            {"inventory_listing", "partial_progress", "per_item_failure"}
+        ),
+    )
 
 
 def validate_target(target: CompanyTarget) -> None:
@@ -523,6 +667,11 @@ def validate_target(target: CompanyTarget) -> None:
     if target.endpoint_variant not in SUPPORTED_VARIANTS:
         raise AdapterError(
             f"SAP SuccessFactors endpoint_variant must be one of {sorted(SUPPORTED_VARIANTS)}"
+        )
+    if not 1 <= int(target.protocol_request_budget) <= MAX_REQUEST_BUDGET:
+        raise AdapterError(
+            "SAP SuccessFactors protocol_request_budget must be between 1 and "
+            f"{MAX_REQUEST_BUDGET}"
         )
 
     search = urlparse(str(target.search_url))
@@ -570,10 +719,18 @@ def _fetch_columnized_jobs(
     target: CompanyTarget,
     timeout: int,
     metadata: SourceScanMetadata,
-) -> List[JobRecord]:
+    budget: _RequestBudget,
+) -> AdapterResult:
     """Use the public JSON service defined by the standard columnized RMK client."""
     identity_response = _get_page(
-        session, target, str(target.search_url), None, 0, timeout
+        session,
+        target,
+        str(target.search_url),
+        None,
+        0,
+        timeout,
+        budget,
+        "identity",
     )
     identity_html = str(getattr(identity_response, "text", "") or "")
     if not re.search(str(target.identity_regex), identity_html, re.I):
@@ -605,6 +762,8 @@ def _fetch_columnized_jobs(
     limit = int(target.max_jobs)
     max_pages = int(target.max_pages)
     jobs: list[JobRecord] = []
+    inventory_items: list[InventoryItem] = []
+    item_failures: list[ItemFailure] = []
     seen: set[str] = set()
     seen_fingerprints: dict[str, str] = {}
     duplicate_source_id = False
@@ -625,6 +784,7 @@ def _fetch_columnized_jobs(
         request_page_number = 0 if page_index == 0 else page_index + 1
         metadata["pages_requested"] += 1
         try:
+            budget.consume("listing")
             response = session.post(
                 str(target.endpoint_url),
                 headers=headers,
@@ -643,6 +803,17 @@ def _fetch_columnized_jobs(
                 offset=offset,
                 page_number=request_page_number,
             )
+        except _RequestBudgetExceeded:
+            metadata.update(
+                scan_complete=False,
+                scan_completeness_reason="successfactors_request_budget_exhausted",
+                stop_reason="successfactors_request_budget_exhausted",
+                safety_limit_reached=True,
+            )
+            budget.record(metadata)
+            return _successfactors_result(
+                session, metadata, jobs, inventory_items, item_failures
+            )
         except requests.RequestException as exc:
             metadata["diagnostics"].append(
                 {
@@ -653,6 +824,30 @@ def _fetch_columnized_jobs(
             )
             metadata["stop_reason"] = "request_failure"
             metadata["scan_completeness_reason"] = "pagination_failure"
+            if metadata["pages_completed"]:
+                metadata["scan_completeness_reason"] = "inventory_incomplete"
+                budget.record(metadata)
+                return _successfactors_result(
+                    session, metadata, jobs, inventory_items, item_failures
+                )
+            raise
+        except _TransientSuccessFactorsError as exc:
+            metadata["diagnostics"].append(
+                {
+                    "offset": offset,
+                    "page_number": request_page_number,
+                    "error": str(exc),
+                }
+            )
+            metadata["stop_reason"] = "request_failure"
+            metadata["scan_completeness_reason"] = (
+                "inventory_incomplete" if metadata["pages_completed"] else "pagination_failure"
+            )
+            if metadata["pages_completed"]:
+                budget.record(metadata)
+                return _successfactors_result(
+                    session, metadata, jobs, inventory_items, item_failures
+                )
             raise
         except AdapterError as exc:
             metadata["diagnostics"].append(
@@ -730,6 +925,19 @@ def _fetch_columnized_jobs(
                 f"{origin}/job/{quote(unquote(url_title), safe='._~-')}/"
                 f"{external_id}-{target.locale}"
             )
+            item_id = f"sap_successfactors:{(search.hostname or '').casefold()}:{external_id}"
+            inventory_items.append(
+                InventoryItem(
+                    item_id,
+                    f"sap_successfactors:{(search.hostname or '').casefold()}",
+                )
+            )
+            # The validated listing establishes existence independently of
+            # detail hydration.  Register it before the detail request so a
+            # transient detail failure cannot look like a repeated empty page.
+            seen.add(external_id)
+            seen_fingerprints[external_id] = fingerprint
+            page_new_ids += 1
             try:
                 listing_job = _normalize_columnized_listing(
                     row, target, external_id, title, detail_url
@@ -742,12 +950,39 @@ def _fetch_columnized_jobs(
                     metadata["detail_requests_skipped"] += 1
                 else:
                     detail_response = _get_page(
-                        session, target, detail_url, None, offset, timeout
+                        session,
+                        target,
+                        detail_url,
+                        None,
+                        offset,
+                        timeout,
+                        budget,
+                        "detail",
                     )
                     metadata["detail_requests"] += 1
                     job = _normalize_columnized_detail(
                         row, detail_response, target, external_id, title, detail_url
                     )
+            except _RequestBudgetExceeded:
+                metadata.update(
+                    scan_complete=False,
+                    scan_completeness_reason="successfactors_request_budget_exhausted",
+                    stop_reason="successfactors_request_budget_exhausted",
+                    safety_limit_reached=True,
+                )
+                budget.record(metadata)
+                return _successfactors_result(
+                    session, metadata, jobs, inventory_items, item_failures
+                )
+            except (requests.RequestException, _TransientSuccessFactorsError) as exc:
+                item_failures.append(
+                    ItemFailure(
+                        item_id,
+                        f"{type(exc).__name__}: {exc}",
+                        retryable=True,
+                    )
+                )
+                continue
             except AdapterError as exc:
                 metadata["diagnostics"].append(
                     {
@@ -759,9 +994,6 @@ def _fetch_columnized_jobs(
                 )
                 raise
             jobs.append(job)
-            seen.add(external_id)
-            seen_fingerprints[external_id] = fingerprint
-            page_new_ids += 1
             if len(jobs) >= limit:
                 break
         if rows and page_new_ids == 0:
@@ -799,7 +1031,10 @@ def _fetch_columnized_jobs(
     else:
         _mark_safety_limit(metadata, "maximum_pages_reached")
     jobs.sort(key=lambda job: (job.updated_at, job.job_id), reverse=True)
-    return jobs
+    budget.record(metadata)
+    return _successfactors_result(
+        session, metadata, jobs, inventory_items, item_failures
+    )
 
 
 def _columnized_row_identity(envelope: Any) -> str:
@@ -819,6 +1054,10 @@ def _columnized_json(
 ) -> Mapping[str, Any]:
     request_label = f"offset={offset}, pageNumber={page_number}"
     if response.status_code != 200:
+        if response.status_code in TRANSIENT_STATUSES:
+            raise _TransientSuccessFactorsError(
+                f"SAP SuccessFactors HTTP {response.status_code} for {target.name} ({request_label})"
+            )
         raise AdapterError(
             f"SAP SuccessFactors HTTP {response.status_code} for {target.name} ({request_label})"
         )
@@ -1319,9 +1558,12 @@ def _get_page(
     params: Optional[dict[str, str]],
     offset: int,
     timeout: int,
+    budget: _RequestBudget,
+    category: str,
 ) -> Any:
     for attempt in range(MAX_ATTEMPTS):
         try:
+            budget.consume(category if attempt == 0 else "retry")
             response = session.get(url, params=params, headers=HEADERS, timeout=timeout)
         except requests.RequestException:
             if attempt + 1 >= MAX_ATTEMPTS:
@@ -1332,6 +1574,11 @@ def _get_page(
             time.sleep(RETRY_DELAY_SECONDS)
             continue
         if response.status_code != 200:
+            if response.status_code in TRANSIENT_STATUSES:
+                raise _TransientSuccessFactorsError(
+                    f"SAP SuccessFactors HTTP {response.status_code} for "
+                    f"{target.name} offset={offset}"
+                )
             raise AdapterError(
                 f"SAP SuccessFactors HTTP {response.status_code} for {target.name} offset={offset}"
             )
@@ -1391,12 +1638,22 @@ def _parse_table_page(
         raise AdapterError("SAP SuccessFactors table response is missing searchresults")
 
     table = tables[0]
-    headers = {
-        node.attrs["id"].casefold(): _node_text(node)
-        for node in _walk(table)
-        if node.tag == "th" and node.attrs.get("id")
-    }
-    items = [_table_item(row, headers) for row in _walk(table) if "data-row" in row.classes]
+    header_nodes = [node for node in _walk(table) if node.tag == "th"]
+    header_ids = [node.attrs.get("id", "").casefold() for node in header_nodes]
+    header_labels = [_clean_text(_node_text(node)) for node in header_nodes]
+    if (
+        not header_nodes
+        or any(not value for value in header_ids)
+        or len(header_ids) != len(set(header_ids))
+        or any(not value for value in header_labels)
+        or len({value.casefold() for value in header_labels}) != len(header_labels)
+    ):
+        raise AdapterError(
+            "SAP SuccessFactors table response has malformed or duplicate column headers"
+        )
+    headers = dict(zip(header_ids, header_labels))
+    row_nodes = [node for node in _walk(table) if "data-row" in node.classes]
+    items = [_table_item(row, headers) for row in row_nodes]
     items = [item for item in items if item]
     result_range = _table_result_range(root)
     if result_range is None:
@@ -1489,17 +1746,25 @@ def _parse_tile_page(
 def _table_item(row: _Node, headers: Mapping[str, str]) -> Optional[dict[str, Any]]:
     link = _first_descendant(row, lambda node: node.tag == "a" and "jobtitle-link" in node.classes)
     if link is None:
-        return None
+        raise AdapterError("SAP SuccessFactors table row is missing its title link")
+    cells = [cell for cell in row.children if cell.tag == "td"]
+    if len(cells) != len(headers):
+        raise AdapterError("SAP SuccessFactors table row length does not match its schema")
     fields: dict[str, list[str]] = {}
-    for cell in row.children:
-        if cell.tag != "td":
-            continue
-        label = ""
-        header_id = cell.attrs.get("headers", "").split(" ")[0].casefold()
-        if header_id:
-            label = headers.get(header_id, "")
-        if not label:
-            label = _label_from_classes(cell.classes)
+    seen_headers: set[str] = set()
+    for cell in cells:
+        references = cell.attrs.get("headers", "").split()
+        if len(references) != 1:
+            raise AdapterError(
+                "SAP SuccessFactors table cell has malformed column attribution"
+            )
+        header_id = references[0].casefold()
+        label = headers.get(header_id, "")
+        if not label or header_id in seen_headers:
+            raise AdapterError(
+                "SAP SuccessFactors table row has unknown or duplicate column attribution"
+            )
+        seen_headers.add(header_id)
         value = _node_text(cell)
         if label and value:
             fields.setdefault(label, []).append(value)

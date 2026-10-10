@@ -5,6 +5,7 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
+import requests
 import yaml
 
 from scripts import validate_company_registry as registry_validator
@@ -53,18 +54,26 @@ class Session:
     def get(self, url, **kwargs):
         self.calls.append(("get", url, kwargs))
         if "/jobs/" in url:
-            return self.details.pop(0)
-        return self.get_responses.pop(0)
+            response = self.details.pop(0)
+        else:
+            response = self.get_responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
 
     def post(self, url, **kwargs):
         self.calls.append(("post", url, kwargs))
-        return self.posts.pop(0)
+        response = self.posts.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
 
 
 def target(**overrides):
     values = dict(
         name="Example Canada",
         platform="dayforce",
+        careers_url="https://www.example.com/careers/",
         tenant="example",
         site_id="CANDIDATEPORTAL",
         locale="en-CA",
@@ -75,6 +84,11 @@ def target(**overrides):
         page_size=25,
         max_pages=2,
         max_jobs=50,
+        dayforce_identity={
+            "official_source_url": "https://www.example.com/careers/",
+            "expected_tenant": "example",
+            "expected_board": "CANDIDATEPORTAL",
+        },
     )
     values.update(overrides)
     return CompanyTarget(**values)
@@ -219,6 +233,25 @@ class DayforceTests(unittest.TestCase):
         self.assertEqual(session.dayforce_pagination["stop_reason"], "total_jobs_reached")
         self.assertEqual(session.dayforce_pagination["total_available"], 30)
 
+    def test_exact_full_page_is_terminal_only_by_total_and_missing_total_fails(self):
+        rows = [posting(index, 1000 + index) for index in range(1, 26)]
+        exact = Session([page(rows, total=25)])
+
+        result = dayforce.fetch_jobs(exact, target(max_pages=1, max_jobs=25))
+
+        self.assertEqual(len(result.jobs), 25)
+        self.assertTrue(result.scan["scan_complete"])
+        self.assertEqual(result.scan["terminal_evidence_type"], "authoritative_total")
+        self.assertEqual(
+            len([call for call in exact.calls if call[0] == "post"]), 1
+        )
+
+        missing_total = Response(
+            {"jobPostings": [], "offset": 0, "count": 0}
+        )
+        with self.assertRaisesRegex(AdapterError, "maxCount"):
+            dayforce.fetch_jobs(Session([missing_total]), target())
+
     def test_zero_result_board_is_valid(self):
         session = Session([page([], total=0)])
 
@@ -301,14 +334,15 @@ class DayforceTests(unittest.TestCase):
         self.assertEqual(job.location, "Remote")
         self.assertEqual(job.offices, ["Remote"])
 
-        with self.assertRaisesRegex(AdapterError, "no structured location"):
-            dayforce.fetch_jobs(
-                Session(
-                    [page([posting(postingLocations=None)])],
-                    details=[detail_html(posting(postingLocations=None))],
-                ),
-                target(),
-            )
+        result = dayforce.fetch_jobs(
+            Session(
+                [page([posting(postingLocations=None)])],
+                details=[detail_html(posting(postingLocations=None))],
+            ),
+            target(),
+        )
+        self.assertEqual(result.jobs, [])
+        self.assertEqual(result.item_failures[0].outcome, "rejected")
 
     def test_singleton_posting_location_uses_the_same_object_contract(self):
         singleton = {
@@ -335,14 +369,15 @@ class DayforceTests(unittest.TestCase):
 
         self.assertEqual(job.location, "")
         self.assertEqual(job.offices, [])
-        with self.assertRaisesRegex(AdapterError, "no structured location"):
-            dayforce.fetch_jobs(
-                Session(
-                    [page([posting(postingLocations=None)])],
-                    details=[detail_html(posting(postingLocations=None))],
-                ),
-                target(),
-            )
+        result = dayforce.fetch_jobs(
+            Session(
+                [page([posting(postingLocations=None)])],
+                details=[detail_html(posting(postingLocations=None))],
+            ),
+            target(),
+        )
+        self.assertEqual(result.jobs, [])
+        self.assertEqual(result.item_failures[0].outcome, "rejected")
 
     def test_null_posting_locations_uses_explicit_structured_fallback(self):
         job = dayforce.fetch_jobs(
@@ -441,12 +476,12 @@ class DayforceTests(unittest.TestCase):
         )
         self.assertEqual(metadata["malformed_records"], 1)
         self.assertEqual(metadata["stop_reason"], "total_jobs_reached")
-        self.assertFalse(metadata["scan_complete"])
+        self.assertTrue(metadata["scan_complete"])
         self.assertEqual(
-            metadata["scan_completeness_reason"], "malformed_listing_records"
+            metadata["scan_completeness_reason"], "reported_total_enumerated"
         )
 
-    def test_all_identity_valid_locationless_postings_fail_the_source(self):
+    def test_all_identity_valid_locationless_postings_are_accounted_as_rejected(self):
         listings = [
             posting(101, 501, postingLocations=None),
             posting(102, 502, postingLocations=None),
@@ -457,15 +492,20 @@ class DayforceTests(unittest.TestCase):
         ]
         session = Session([page(listings, total=2)], details=details)
 
-        with self.assertRaisesRegex(AdapterError, "no structured location"):
-            dayforce.fetch_jobs(session, target())
+        result = dayforce.fetch_jobs(session, target())
 
         metadata = source_scan_metadata(session)
+        self.assertEqual(result.jobs, [])
+        self.assertEqual(len(result.inventory_items), 2)
+        self.assertEqual(
+            [failure.outcome for failure in result.item_failures],
+            ["rejected", "rejected"],
+        )
         self.assertEqual(metadata["rejected_record_count"], 2)
         self.assertEqual(metadata["malformed_records"], 2)
-        self.assertFalse(metadata["scan_complete"])
+        self.assertTrue(metadata["scan_complete"])
         self.assertEqual(
-            metadata["scan_completeness_reason"], "malformed_listing_records"
+            metadata["scan_completeness_reason"], "reported_total_enumerated"
         )
 
     def test_locationless_isolation_does_not_relax_identity_contracts(self):
@@ -789,6 +829,141 @@ class DayforceTests(unittest.TestCase):
         source_keys = [registry_validator.source_key(row) for row in registry]
         populated = [key for key in source_keys if key]
         self.assertEqual(len(populated), len(set(populated)))
+
+    def test_unproven_identity_never_makes_zero_authoritative(self):
+        session = Session([page([], total=0)])
+
+        result = dayforce.fetch_jobs(
+            session, target(dayforce_identity={})
+        )
+
+        self.assertEqual(result.jobs, [])
+        self.assertFalse(result.scan["scan_complete"])
+        self.assertEqual(result.scan["source_identity_status"], "unproven")
+        self.assertEqual(result.scan["stop_reason"], "identity_unproven")
+
+    def test_bad_csrf_and_mismatched_reviewed_identity_fail_closed(self):
+        bad_csrf = Session([page([], total=0)], csrf=Response({"csrfToken": "short"}))
+        with self.assertRaisesRegex(AdapterError, "valid token"):
+            dayforce.fetch_jobs(bad_csrf, target())
+        self.assertEqual(source_scan_metadata(bad_csrf)["stop_reason"], "bootstrap_invalid")
+
+        evidence = dict(target().dayforce_identity)
+        evidence["expected_tenant"] = "other"
+        with self.assertRaisesRegex(AdapterError, "identity evidence"):
+            dayforce.fetch_jobs(Session([]), target(dayforce_identity=evidence))
+
+    def test_later_page_transient_failure_returns_incomplete_partial_progress(self):
+        first = [posting(index, 1000 + index) for index in range(1, 26)]
+        session = Session(
+            [page(first, total=30), requests.Timeout("page two timed out")]
+        )
+
+        result = dayforce.fetch_jobs(session, target())
+
+        self.assertEqual(len(result.jobs), 25)
+        self.assertEqual(len(result.inventory_items), 25)
+        self.assertFalse(result.scan["scan_complete"])
+        self.assertEqual(result.scan["stop_reason"], "request_failure")
+        self.assertEqual(result.scan["scan_completeness_reason"], "inventory_incomplete")
+
+    def test_transient_detail_failure_is_unreadable_and_protects_listing_identity(self):
+        listing = posting(postingLocations=None)
+        result = dayforce.fetch_jobs(
+            Session([page([listing])], details=[requests.Timeout("detail timeout")]),
+            target(),
+        )
+
+        self.assertEqual(result.jobs, [])
+        self.assertEqual(len(result.inventory_items), 1)
+        self.assertEqual(len(result.item_failures), 1)
+        self.assertEqual(result.item_failures[0].outcome, "unreadable")
+        self.assertTrue(result.item_failures[0].retryable)
+        self.assertTrue(result.scan["scan_complete"])
+
+    def test_total_mutation_restarts_once_and_discards_first_traversal(self):
+        first = [posting(index, 1000 + index) for index in range(1, 26)]
+        second = [posting(index, 1000 + index) for index in range(26, 31)]
+        session = Session(
+            [
+                page(first, total=30),
+                page(second, total=31, offset=25),
+                page(first, total=30),
+                page(second, total=30, offset=25),
+            ]
+        )
+        session.get_responses.extend(
+            [
+                Response(text=shell_html(), content_type="text/html; charset=utf-8"),
+                Response({"csrfToken": "b" * 64}),
+            ]
+        )
+
+        result = dayforce.fetch_jobs(session, target())
+
+        self.assertEqual(len(result.jobs), 30)
+        self.assertTrue(result.scan["scan_complete"])
+        self.assertEqual(result.scan["collection_restart_count"], 1)
+        self.assertTrue(result.scan["stabilized_after_collection_retry"])
+
+    def test_second_total_mutation_remains_incomplete(self):
+        first = [posting(index, 1000 + index) for index in range(1, 26)]
+        second = [posting(index, 1000 + index) for index in range(26, 31)]
+        session = Session(
+            [
+                page(first, total=30),
+                page(second, total=31, offset=25),
+                page(first, total=30),
+                page(second, total=31, offset=25),
+            ]
+        )
+        session.get_responses.extend(
+            [
+                Response(text=shell_html(), content_type="text/html; charset=utf-8"),
+                Response({"csrfToken": "b" * 64}),
+            ]
+        )
+
+        result = dayforce.fetch_jobs(session, target())
+
+        self.assertFalse(result.scan["scan_complete"])
+        self.assertTrue(result.scan["collection_retry_exhausted"])
+        self.assertEqual(result.scan["stop_reason"], "collection_changed_during_scan")
+
+    def test_source_wide_request_budget_exhaustion_is_incomplete(self):
+        result = dayforce.fetch_jobs(
+            Session([]), target(protocol_request_budget=2)
+        )
+
+        self.assertEqual(result.jobs, [])
+        self.assertEqual(result.scan["requests_used"], 2)
+        self.assertTrue(result.scan["safety_limit_reached"])
+        self.assertEqual(result.scan["stop_reason"], "dayforce_request_budget_exhausted")
+
+    def test_known_68_posting_accounting_is_explicit(self):
+        rows = [posting(index, 1000 + index) for index in range(1, 69)]
+        rows[66]["jobReqId"] = rows[0]["jobReqId"]
+        rows[67]["postingLocations"] = None
+        session = Session(
+            [
+                page(rows[:25], total=68),
+                page(rows[25:50], total=68, offset=25),
+                page(rows[50:], total=68, offset=50),
+            ],
+            details=[detail_html(rows[67])],
+        )
+
+        result = dayforce.fetch_jobs(
+            session, target(max_pages=3, max_jobs=75)
+        )
+
+        self.assertEqual(result.scan["raw_source_postings"], 68)
+        self.assertEqual(result.scan["duplicate_requisitions_skipped"], 1)
+        self.assertEqual(result.scan["rejected_record_count"], 1)
+        self.assertEqual(len(result.jobs), 66)
+        self.assertEqual(len(result.inventory_items), 67)
+        self.assertEqual(result.scan["terminal_accounted_items"], 68)
+        self.assertTrue(result.scan["scan_complete"])
 
 
 if __name__ == "__main__":
