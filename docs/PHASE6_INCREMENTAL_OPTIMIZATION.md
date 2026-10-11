@@ -137,7 +137,7 @@ activation approval.
 | Adapter/platform | Repository-only classification | Evidence / missing proof |
 |---|---|---|
 | Greenhouse | Promising inventory + selective hydration; promising timestamp | Explicit `InventoryItem`; listing summaries carry `updated_at`; detail hydration is separable. Ordering/version semantics still need a provider-contract review. |
-| SmartRecruiters | Promising inventory + selective hydration | Explicit complete listing inventory and existing `selective_detail_enrichment`; `releasedDate` is present. Must prove it is a material version, not merely publish time. |
+| SmartRecruiters | **FULL_CRAWL_ONLY** | The anonymous listing endpoint has stable posting IDs, complete `totalFound` plus offset/limit inventory, and a `releasedAfter` filter. The provider documents `releasedDate` as the date the posting was released, not a last-modified/material-version field. No reviewed update ordering, opaque cursor, deletion feed, or conditional-response contract exists for the anonymous production source. All production targets are already listing-only, so there are no detail requests to save. |
 | Ashby | Promising inventory + selective hydration | Explicit inventory and separated summary/detail paths; summary timestamps vary by endpoint and need contract validation. |
 | BambooHR | Promising inventory + selective hydration | Explicit inventory plus detail endpoint and `datePosted`; no proven material version yet. |
 | SAP SuccessFactors | Promising inventory + selective hydration | Explicit inventory and configured selective detail enrichment; multiple protocol variants make a single generic watermark unsafe. |
@@ -153,14 +153,209 @@ activation approval.
 | Meta, Google, IBM Search, Amazon custom, Atlassian custom, Uber custom | Insufficient deterministic evidence | Bespoke feeds expose some dates/cursors, but no reviewed deletion, ordering, or checkpoint contract. |
 | Source-specific manual/browser aliases | Full-crawl only | No deterministic incremental evidence. |
 
-Best future canary candidates, in order:
+Remaining future canary candidates, in order:
 
-1. **SmartRecruiters** — strongest existing inventory/detail split and explicit
-   opt-in enrichment path.
-2. **Greenhouse** — stable inventory IDs and listing `updated_at`, subject to
+1. **Greenhouse** — stable inventory IDs and listing `updated_at`, subject to
    proving timestamp semantics against recorded deterministic fixtures.
-3. **Eightfold** — only after a dedicated contract review of pagination and
+2. **Eightfold** — only after a dedicated contract review of pagination and
    enrichment, using Jobseek as reference rather than as lifecycle authority.
+
+SmartRecruiters is removed from the canary queue by the adapter-specific review
+below. It can re-enter only after stronger provider evidence or a different
+reviewed endpoint proves exact new-and-changed discovery.
+
+## SmartRecruiters Stage B contract audit
+
+### Verdict
+
+Classification: **A. FULL_CRAWL_ONLY**.
+
+The adapter policy is explicit and production-safe:
+
+```python
+INCREMENTAL_POLICY = IncrementalPolicy(
+    capability=IncrementalCapability.NONE,
+    strategy_version="smartrecruiters_v1",
+)
+TRUSTED_LISTING_VERSION_FIELD = None
+```
+
+No production registry entry enables incremental behavior. No checkpoint is
+initialized, read, proposed, or advanced for SmartRecruiters.
+
+### Evidence and rejected paths
+
+The exact anonymous production endpoint is
+`GET /v1/companies/{companyIdentifier}/postings`.
+The reviewed primary references are the provider's
+[v1 list-postings contract](https://developers.smartrecruiters.com/reference/v1listpostings),
+[posting object definition](https://developers.smartrecruiters.com/docs/objects),
+[single-posting contract](https://developers.smartrecruiters.com/reference/v1getposting),
+and the separate authenticated
+[publication-feed contract](https://developers.smartrecruiters.com/reference/postingsjsonstream-1).
+
+- Posting `id` is a stable provider posting identity. Job Radar validates an
+  all-numeric ID on both listing and detail records and requires the exact
+  company-scoped detail reference.
+- The listing response supplies `totalFound`, `limit`, `offset`, and `content`.
+  Job Radar pages at 100, rejects changing totals and duplicate/overlapping
+  identities, and grants completion only when the collected unique inventory
+  exactly reaches the advertised total.
+- The endpoint supports offset/limit and a documented `releasedAfter` filter.
+  It exposes no reviewed `updated_since`, last-modified ordering, or opaque
+  continuation cursor.
+- The provider object contract defines `releasedDate` as the date a posting was
+  released. It is a posting timestamp, not a trustworthy job-level material
+  update version. Job Radar therefore must not pass it to
+  `can_skip_hydration(...)`.
+- The provider notes that changing public posting content requires re-posting,
+  but the reviewed contract does not guarantee whether every material edit
+  changes `releasedDate`, retains/replaces the posting ID, or is returned by
+  `releasedAfter`. A field name plus a re-post requirement is not a monotonic
+  watermark contract.
+- The authenticated `/feed/publications` job-board integration exposes statuses
+  including unpost events and an `updatedAfter` parameter. It is a separate,
+  tokened, stateful integration contract. Job Radar's production sources use the
+  anonymous company postings endpoint and possess neither the credentials nor
+  the state-transition protocol required by that feed. It cannot be borrowed as
+  authority for these sources.
+- No deterministic fixture or sibling implementation proves ETag,
+  Last-Modified, 304, or another conditional representation contract.
+- Freehire and Jobseek both enumerate complete offset inventories. Freehire
+  hydrates every detail; Jobseek either returns the complete URL inventory or
+  hydrates its configured canonical modes. Neither sibling supplies a
+  SmartRecruiters update watermark or deletion authority.
+
+Rejected classifications:
+
+- **B. INVENTORY_PLUS_SELECTIVE_HYDRATION:** every current production
+  SmartRecruiters target has `selective_detail_enrichment: false`; its normal
+  result is already produced entirely from listing rows. There are no detail
+  calls to skip. For hypothetical hydrated targets, `releasedDate` is not a
+  trusted version, so ID-plus-release-date cannot authorize a skip.
+- **C. TIMESTAMP_INCREMENTAL_POSITIVE_ONLY:** `releasedAfter` is release-time
+  filtering, not proven complete new-and-materially-changed discovery.
+- **D. CURSOR_INCREMENTAL_POSITIVE_ONLY:** the endpoint has page offsets only.
+- **E. EXPLICIT_CHANGE_FEED:** the only reviewed removal/change-status feed is a
+  different authenticated integration and is not the production source.
+- **F. VALIDATED_SNAPSHOT_REUSE:** no reviewed response validator or 304
+  representation contract exists.
+
+Content fingerprints cannot replace discovery. They can prove that two fetched
+records differ, but cannot reveal an edit to a posting that an incremental
+request failed to return.
+
+### Production inventory and request model
+
+The production registry currently contains 15 SmartRecruiters sources: Wise,
+ASML, Renesas Electronics, Bosch, Tower Research Capital, Western Digital,
+Kioxia, Canva, Ubisoft, SGS, Avery Dennison, Genetec, Gameloft, Arista Networks,
+and Assent. All use source scope `default`, the exact anonymous company endpoint,
+and listing-only normalization.
+
+For a complete board of `N` postings, the normal request model is exactly
+`ceil(N / 100)` listing requests, bounded by the target's `max_pages` and
+`max_jobs`. It makes zero detail requests in production. Completion requires
+all `N` unique stable IDs and the authoritative total; reaching either safety
+limit is incomplete.
+
+There is no accepted optimized request model and therefore no defensible
+expected savings. A `releasedAfter` request might be smaller on a quiet board,
+but it could omit a material edit and is not an optimization Job Radar may use.
+
+### Future company decision
+
+No company is selected for a runnable Phase 6 SmartRecruiters A/B canary because
+there is no accepted strategy to canary. Running two full crawls would not test
+an optimization; running `releasedAfter` would test a contract already known to
+be insufficient for exact changed-job discovery.
+
+If stronger provider evidence later re-opens the review, **Wise / `default` /
+tenant `wise`** is the preferred re-evaluation target. It has stable official
+identity, a previously complete 403-posting observation, and a bounded five-page
+full baseline, while ASML and the smallest boards often need only one listing
+request and cannot demonstrate material savings. Wise is a blocked research
+candidate, not an approved canary. Its full request budget is 5; an optimized
+budget remains undefined until a valid strategy exists.
+
+### Authority, checkpoints, fallback, and retention
+
+- Only the complete offset/total inventory may authorize absence.
+- A release-filtered slice, if ever used diagnostically, is positive-only and
+  has `absence_authorized=false`; it cannot increment missing counters, close
+  jobs, publish a dashboard, or mutate lifecycle state.
+- The intended provider identity is `smartrecruiters:{tenant.casefold()}` and
+  the checkpoint key remains bound to the exact canonical company plus
+  `source_scope`.
+- A future configuration fingerprint would include tenant/slug, endpoint
+  variant and URL, source scope, page size and caps, enrichment mode, trusted
+  version field, overlap rule, forced-full interval, and strategy version.
+- There is no initial checkpoint for capability `none`. Missing/corrupt state,
+  config-fingerprint change, strategy-version change, timestamp rollback,
+  provider regression, pagination ambiguity, detail failure, or request-budget
+  exhaustion must select or retain full-crawl behavior and cannot propose a
+  checkpoint.
+- Even after a future strategy is approved, a checkpoint candidate may advance
+  only through the existing atomic persistence finalizer after all observations
+  persist. Failed/incomplete canaries and persistence failures never advance it.
+- Retention age is never provider absence. Forced full scans must occur more
+  frequently than any retention window, and positive-only runs cannot defer the
+  recorded last successful full crawl.
+
+### Hydration and material fingerprint audit
+
+Hydration skipping is rejected. SmartRecruiters has no trusted listing-level
+version. Matching only posting ID or `releasedDate` is insufficient, including
+when content happens to be unchanged in a fixture.
+
+The generic material fingerprint covers all fields currently normalized by the
+adapter: provider ID and source, title, company, location, canonical/apply URL,
+description, department/function categories, offices, posting/release date, and
+stable raw metadata including company identity, API detail URL, apply URL,
+reference number, endpoint variant, and hydration mode. SmartRecruiters exposes
+no normalized closing-date field. Observation-only timestamps remain excluded.
+Deterministic tests additionally prove that a title, description, or apply URL
+change alters the fingerprint even when ID and `releasedDate` remain unchanged.
+
+### Canary, PASS/FAIL, activation, and rollback gates
+
+No exact manual incremental canary command is published. The existing
+`scripts/validate_source_integrity_canaries.py` command can run a bounded,
+read-only normal source canary, but it does not implement a full-versus-
+incremental A/B comparison and must not be represented as one. No new live
+wrapper was added because there is no safe optimized branch to execute.
+
+Current PASS is deliberately impossible. SmartRecruiters may return to canary
+design only after repository evidence proves one of these contracts:
+
+1. a trustworthy job-level material version plus complete inventory, allowing
+   version-bound selective detail hydration; or
+2. a change query that is complete for every new and material update after a
+   watermark, with defined inclusivity/overlap and rollback behavior; or
+3. an exact opaque change cursor or explicit change feed bound to the same
+   public provider identity; or
+4. a reviewed conditional representation validator for complete snapshots.
+
+After one prerequisite is proven, an A/B canary must also satisfy the generic
+Stage B gates: identical provider/scope binding; all expected identities and
+material records equal to the full baseline; lower measured request count; no
+hidden continuation, safety limit, unreadable/rejected optimized item, or
+ambiguous evidence; valid checkpoint candidate; no checkpoint advance before
+persistence; and no lifecycle, registry, database, or dashboard mutation.
+
+FAIL is any missing prerequisite or A/B gate, including missing/malformed or
+regressing timestamps, duplicate IDs, a changed record hidden behind an
+unchanged alleged version, incomplete pagination, exhausted request/retry
+budget, config/strategy mismatch, cross-scope state, any absence reconciliation
+from a slice, or no measured request saving.
+
+There is no future activation diff while capability remains `none`. The exact
+production diff is empty. Rollback is likewise a no-op: production already uses
+full authoritative crawls and has no SmartRecruiters checkpoint rows to delete
+or disable. If a later reviewed strategy is implemented, activation must be one
+source-specific `enabled: false -> true` change after a passing canary, and
+rollback must restore `false`, ignore the bound checkpoint, and immediately use
+the unchanged full authoritative path.
 
 ## Sibling-repository provenance
 

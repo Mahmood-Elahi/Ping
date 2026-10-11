@@ -11,6 +11,10 @@ from urllib.parse import urlparse, urlunparse
 
 import requests
 
+from src.scraper.company_careers.incremental import (
+    IncrementalCapability,
+    IncrementalPolicy,
+)
 from src.scraper.company_careers.models import (
     AdapterError,
     AdapterResult,
@@ -63,6 +67,17 @@ HEADERS = {
     "Accept": "application/json",
     "User-Agent": "job-radar/1.0 (read-only public careers scan)",
 }
+
+# Provider-contract review: the anonymous postings endpoint exposes a
+# release-time filter, but no trustworthy job-level material version, ordered
+# update stream, opaque cursor, deletion feed, or conditional representation
+# contract.  Keep the adapter full-crawl-only until a later reviewed strategy
+# can satisfy the Phase 6 exact-equivalence rules.
+INCREMENTAL_POLICY = IncrementalPolicy(
+    capability=IncrementalCapability.NONE,
+    strategy_version="smartrecruiters_v1",
+)
+TRUSTED_LISTING_VERSION_FIELD: None = None
 
 
 @explicit_adapter_result
