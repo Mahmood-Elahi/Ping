@@ -80,19 +80,29 @@ The verification script is read-only and ends with `ROLLBACK`.
 Only after migration verification succeeds:
 
 ```powershell
-.\.venv\Scripts\python.exe .\scripts\validate_company_registry.py `
-  --current-config .\config\target_companies.yaml `
-  --candidate-config .\config\target_companies.phase5_batch2_canaries.yaml `
-  --only-additions `
-  --batch-size 1 `
-  --attempts 1 `
-  --output .\output\phase5_lightspeed_france_canary.json `
-  --validated-config .\output\phase5_lightspeed_france_validated.yaml
+.\.venv\Scripts\python.exe .\scripts\validate_source_integrity_canaries.py --registry .\config\target_companies.phase5_batch2_canaries.yaml --company "Lightspeed Commerce" --source-scope france --request-budget 21 --run | Tee-Object -FilePath .\output\phase5_lightspeed_france_canary.json
 ```
 
 The target has one listing request, at most 20 detail hydration requests, no
 retry allowance, and a hard maximum of 21 requests. This command is deliberately
-not part of scheduled runtime or CI.
+not part of scheduled runtime or CI. It loads only the one-row candidate
+registry, selects the exact `france` scope, and has no Supabase, lifecycle,
+dashboard, production-registry, or validated-config write path. `Tee-Object`
+saves the same JSON shown in the terminal as local review evidence.
+
+Paste back the complete single JSON result. At minimum, retain these fields:
+`company`, `source_scope`, `source_scope_key`, `configured_slug`, `status`,
+`canary_outcome`, `source_identity_status`, `source_identity_diagnostic`,
+`scan_state`, `inventory_complete`, `central_finalizer_authoritative`,
+`terminal_evidence_type`, `terminal_evidence_valid`,
+`hidden_continuation_absent`, `collection_changed_during_scan`,
+`safety_limit_reached`, `jobs_collected`, `inventory_items_collected`,
+`stable_ids_unique`, `canonical_urls_unique`,
+`normalized_jobs_attributable`, `apply_urls_contract_valid`,
+`rejected_record_count`, `unreadable_items`, `rejected_items`,
+`requests_started`, `request_budget`, `request_budget_respected`, `max_pages`,
+`max_jobs`, `max_response_bytes`, `persistence_mode`, `lifecycle_mutations`,
+`production_registry_mutated`, `dashboard_published`, and `error`.
 
 Classify the saved evidence using these exact rules:
 
@@ -103,6 +113,19 @@ Classify the saved evidence using these exact rules:
 | `FAIL_IDENTITY` | Employer or board identity wrong/unproven | `DO_NOT_ACTIVATE` |
 | `FAIL_CONTRACT` | Pagination, terminal, stable-ID, mutation, or budget contract invalid | `DO_NOT_ACTIVATE` |
 | `FAIL_TRANSIENT` | Transient request failure | `DO_NOT_ACTIVATE`; retry manually later under a separately approved budget |
+
+Activation requires one result whose `canary_outcome` is exactly
+`PASS_COMPLETE`, plus all of the following: the company/scope/key are exactly
+`Lightspeed Commerce`, `france`, and `lightspeed commerce::france`; slug is
+`lightspeedhqfr`; identity is `validated`; state and inventory are complete;
+central finalization is authoritative; terminal evidence is valid; no hidden
+continuation or collection mutation exists; both stable IDs and canonical URLs
+are unique; normalized rows remain attributable to this company/scope; every
+apply URL passes the configured host/path contract; there are zero rejected,
+unreadable, or malformed rows; no safety limit fired; no more than 21 requests
+started; and every mutation-safety field remains zero/false/`none` as
+appropriate. Any missing, null, ambiguous, or contradictory gate is
+`DO_NOT_ACTIVATE`.
 
 ## Proposed configuration
 
@@ -128,10 +151,45 @@ The France source uses `greenhouse:lightspeedhqfr` provider identity, stable
 Greenhouse job IDs, exact allow-listed Greenhouse URLs, logical key
 `lightspeed commerce::france`, and an independent cooldown fingerprint.
 
+If and only if the canary and all other gates pass, the only production file
+change is this append immediately after the existing Lightspeed default row in
+`config/target_companies.yaml`:
+
+```diff
++  - name: Lightspeed Commerce
++    source_scope: france
++    platform: greenhouse
++    slug: lightspeedhqfr
++    careers_url: https://job-boards.greenhouse.io/lightspeedhqfr
++    endpoint_variant: boards_api_v1_strict
++    allowed_apply_hosts:
++      - job-boards.greenhouse.io
++    max_pages: 1
++    max_jobs: 10000
++    max_response_bytes: 5000000
++    evidence_source: docs/PHASE1_ATS_MIGRATION_REVIEW.md and jobseek apps/crawler/data/boards.csv
++    evidence_confidence: high
+```
+
+Do not edit the existing default row, retire any source, restructure the
+registry, or change lifecycle/retention SQL. After applying that one-row diff,
+run these deterministic validations before any scheduled scan:
+
+```powershell
+.\.venv\Scripts\python.exe .\scripts\report_phase5_coverage.py
+.\.venv\Scripts\python.exe -m pytest -q .\tests\test_phase5_batch4_rollout.py .\tests\test_phase5_multi_scope_lifecycle.py .\tests\test_retention.py .\tests\test_supabase_job_store.py
+git diff --check
+```
+
 ## Rollback and retirement
 
 Configuration rollback removes only the France row. It must not modify the
 default Lightspeed source and must not reverse the multi-scope migration.
+The exact configuration rollback diff is the inverse of the one-row addition
+above. If the activation is committed as an isolated commit, the safest command
+is `git revert <activation-only-commit>` followed by the same deterministic
+validations. Before the first authoritative France synchronization, that config
+revert is the entire rollback; no database action is needed.
 
 If France was never activated and owns no lifecycle observations, removing the
 candidate has no lifecycle effect. If it was activated, configuration removal
@@ -143,6 +201,21 @@ France ownership rows, and recomputes canonical activity across all owners.
 France-only jobs close; shared jobs remain active through the global/default
 owner. Failure, cooldown, partial scans, and mere registry absence never call or
 imply retirement.
+
+After at least one authoritative France synchronization, the ordered manual
+rollback is:
+
+```powershell
+psql $env:SUPABASE_DB_URL -X -v ON_ERROR_STOP=1 -c "select public.retire_student_job_source_scope('Lightspeed Commerce','france','lightspeed commerce::france','approved Lightspeed France rollback','release-owner',now());"
+git revert <activation-only-commit>
+.\.venv\Scripts\python.exe -m pytest -q .\tests\test_phase5_batch4_rollout.py .\tests\test_phase5_multi_scope_lifecycle.py .\tests\test_retention.py .\tests\test_supabase_job_store.py
+git diff --check
+```
+
+Review the RPC result before the config revert. It must name only the France
+scope; shared jobs stay active through their default owner. The retirement is
+an explicit production mutation and must never be run as a response to a failed
+canary, timeout, cooldown, partial scan, or pre-activation decision.
 
 Application code exposes the same deliberate boundary as
 `SupabaseJobStore.retire_source_scope(...)`; normal scan and dashboard paths do

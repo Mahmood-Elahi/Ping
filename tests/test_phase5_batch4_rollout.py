@@ -7,14 +7,28 @@ import pytest
 import requests
 import yaml
 
-from src.integrations.supabase_job_store import SupabaseJobStore, generate_source_key
+from scripts import validate_source_integrity_canaries as canaries
+from src.integrations.supabase_job_store import (
+    SupabaseJobStore,
+    generate_provider_source_key,
+    generate_source_key,
+)
 from src.scraper.company_careers import scanner as scanner_module
 from src.scraper.company_careers.freshness import (
     empty_freshness_state,
     load_freshness_config,
     reconcile_lifecycle,
 )
-from src.scraper.company_careers.models import AdapterError, CompanyTarget, CoverageStatus
+from src.scraper.company_careers.models import (
+    AdapterError,
+    AdapterResult,
+    CompanyTarget,
+    CoverageStatus,
+    InventoryItem,
+    ItemFailure,
+    JobRecord,
+    SourceScanMetadata,
+)
 from src.scraper.company_careers.phase5_coverage import build_registry_scope_metrics
 from src.scraper.company_careers.phase5_rollout import (
     CANARY_DECISIONS,
@@ -31,12 +45,14 @@ from src.scraper.company_careers.registry import (
 from src.scraper.company_careers.scanner import CompanyCareersScanner
 from src.scraper.company_careers.source_cooldown import source_health_key
 from src.scraper.company_careers.source_retirement import retire_source_scope
+from src.utils.job_retention import RetentionPolicy
 from src.utils.source_scope import source_scope_key
 
 
 ROOT = Path(__file__).resolve().parents[1]
 PRODUCTION = ROOT / "config" / "target_companies.yaml"
 PROPOSED = ROOT / "config" / "target_companies.phase5_batch4_lightspeed_proposed.yaml"
+CANARY = ROOT / "config" / "target_companies.phase5_batch2_canaries.yaml"
 MIGRATION = ROOT / "sql" / "migrations" / "20261010_phase5_multi_scope_lifecycle.sql"
 PREFLIGHT = ROOT / "sql" / "phase5_multi_scope_preflight.sql"
 VERIFY = ROOT / "sql" / "phase5_multi_scope_verify.sql"
@@ -102,6 +118,172 @@ def test_proposed_registry_preserves_exact_production_default_source() -> None:
         "external_id_regex", "max_pages", "max_jobs", "max_response_bytes",
     ):
         assert getattr(current, field) == getattr(future, field)
+
+
+def test_activation_and_config_rollback_touch_only_france_scope() -> None:
+    production_data = yaml.safe_load(PRODUCTION.read_text(encoding="utf-8"))
+    proposed_data = yaml.safe_load(PROPOSED.read_text(encoding="utf-8"))
+    current = list(production_data["target_companies"])
+    france = next(
+        entry
+        for entry in proposed_data["target_companies"]
+        if entry.get("source_scope") == "france"
+    )
+    activated = [*current, france]
+    rolled_back = [
+        entry
+        for entry in activated
+        if not (
+            entry.get("name") == "Lightspeed Commerce"
+            and entry.get("source_scope") == "france"
+        )
+    ]
+    assert activated[:-1] == current
+    assert rolled_back == current
+    assert france["slug"] == "lightspeedhqfr"
+
+
+def test_lightspeed_france_canary_contract_is_exact_and_bounded() -> None:
+    data = yaml.safe_load(CANARY.read_text(encoding="utf-8"))
+    targets = load_target_companies(str(CANARY))
+    assert len(targets) == 1
+    target = targets[0]
+    assert (
+        target.name,
+        target.source_scope,
+        target.platform,
+        target.slug,
+        target.careers_url,
+        target.endpoint_variant,
+        target.allowed_apply_hosts,
+        target.max_pages,
+        target.max_jobs,
+        target.max_response_bytes,
+    ) == (
+        "Lightspeed Commerce",
+        "france",
+        "greenhouse",
+        "lightspeedhqfr",
+        "https://job-boards.greenhouse.io/lightspeedhqfr",
+        "boards_api_v1_strict",
+        ["job-boards.greenhouse.io"],
+        1,
+        10_000,
+        5_000_000,
+    )
+    plan = data["phase5_canary_plans"][0]
+    assert plan["candidate_id"] == "lightspeed_fr_greenhouse"
+    assert plan["source_scope"] == "france"
+    assert plan["listing_pages"] == 1
+    assert plan["detail_hydration_requests"] == 20
+    assert plan["retry_allowance"] == 0
+    assert plan["hard_request_budget"] == 21
+
+
+def test_rollout_runbook_uses_only_the_read_only_scoped_canary() -> None:
+    runbook = (ROOT / "docs" / "PHASE5_MULTI_SCOPE_ROLLOUT.md").read_text(
+        encoding="utf-8"
+    )
+    command_section = runbook.split("## Bounded Lightspeed France canary", 1)[1].split(
+        "## Proposed configuration", 1
+    )[0]
+    assert ".\\scripts\\validate_source_integrity_canaries.py" in command_section
+    assert "--registry .\\config\\target_companies.phase5_batch2_canaries.yaml" in command_section
+    assert '--company "Lightspeed Commerce"' in command_section
+    assert "--source-scope france" in command_section
+    assert "--request-budget 21" in command_section
+    assert "--run" in command_section
+    assert "validate_company_registry.py" not in command_section
+    assert "target_companies.yaml" not in command_section
+
+
+def test_canary_selection_requires_and_returns_exact_france_scope() -> None:
+    selected = canaries.selected_targets(
+        ["Lightspeed Commerce"], registry=PROPOSED, source_scope="france"
+    )
+    assert len(selected) == 1
+    assert selected[0].source_scope_key == "lightspeed commerce::france"
+    with pytest.raises(ValueError, match="Ambiguous canary company"):
+        canaries.selected_targets(["Lightspeed Commerce"], registry=PROPOSED)
+
+
+def test_strict_lightspeed_canary_pass_is_read_only_and_fully_gated(monkeypatch) -> None:
+    target = load_target_companies(str(CANARY))[0]
+    job = JobRecord(
+        job_id="12345",
+        title="Software Engineer",
+        company="Lightspeed Commerce",
+        location="Paris, France",
+        url="https://job-boards.greenhouse.io/lightspeedhqfr/jobs/12345",
+        updated_at="2026-10-10T00:00:00Z",
+        source="greenhouse:lightspeedhqfr",
+    )
+
+    def complete(_session, _target, _timeout):
+        return AdapterResult(
+            jobs=[job],
+            scan=SourceScanMetadata(
+                scan_complete=True,
+                scan_completeness_reason="complete_collection_response",
+                stop_reason="complete_collection_response",
+                source_identity_status="validated",
+                total_available=1,
+            ),
+            inventory_items=(InventoryItem(job.job_id, job.source),),
+        )
+
+    monkeypatch.setitem(canaries.ADAPTERS, "greenhouse", complete)
+    row = canaries.run_canary(target, 21)
+
+    assert row["canary_outcome"] == "PASS_COMPLETE"
+    assert row["source_scope_key"] == "lightspeed commerce::france"
+    assert row["central_finalizer_authoritative"] is True
+    assert row["terminal_evidence_valid"] is True
+    assert row["hidden_continuation_absent"] is True
+    assert row["normalized_jobs_attributable"] is True
+    assert row["apply_urls_contract_valid"] is True
+    assert row["stable_ids_unique"] is True
+    assert row["canonical_urls_unique"] is True
+    assert row["request_budget_respected"] is True
+    assert row["persistence_mode"] == "none"
+    assert row["production_registry_mutated"] is False
+    assert row["lifecycle_mutations"] == 0
+    assert row["dashboard_published"] is False
+
+
+def test_strict_lightspeed_canary_item_failure_cannot_pass(monkeypatch) -> None:
+    target = load_target_companies(str(CANARY))[0]
+    job = JobRecord(
+        job_id="12345",
+        title="Software Engineer",
+        company="Lightspeed Commerce",
+        location="Paris, France",
+        url="https://job-boards.greenhouse.io/lightspeedhqfr/jobs/12345",
+        updated_at="2026-10-10T00:00:00Z",
+        source="greenhouse:lightspeedhqfr",
+    )
+
+    def degraded(_session, _target, _timeout):
+        return AdapterResult(
+            jobs=[job],
+            scan=SourceScanMetadata(
+                scan_complete=True,
+                scan_completeness_reason="complete_collection_response",
+                stop_reason="complete_collection_response",
+                source_identity_status="validated",
+                total_available=1,
+            ),
+            inventory_items=(InventoryItem(job.job_id, job.source),),
+            item_failures=(
+                ItemFailure(job.job_id, "malformed detail response", outcome="rejected"),
+            ),
+        )
+
+    monkeypatch.setitem(canaries.ADAPTERS, "greenhouse", degraded)
+    row = canaries.run_canary(target, 21)
+    assert row["canary_outcome"] == "FAIL_CONTRACT"
+    assert row["rejected_items"] == 1
+    assert row["item_failures"][0]["item_id"] == "12345"
 
 
 def test_scheduler_and_cooldown_are_independent_per_scope(monkeypatch) -> None:
@@ -255,6 +437,61 @@ def test_exact_overlap_uses_independent_owners_and_aggregate_stays_active() -> N
     assert shared["scope_ownership"][source_scope_key("Lightspeed Commerce", "france")]["lifecycle_status"] == "removed"
     assert shared["scope_ownership"][source_scope_key("Lightspeed Commerce", "default")]["lifecycle_status"] == "active"
     assert shared["lifecycle_status"] == "active"
+
+
+def test_stale_france_observation_is_filtered_but_protects_provider_identity(
+    monkeypatch,
+) -> None:
+    calls: list[dict] = []
+    store = SupabaseJobStore(
+        object(),
+        now_factory=lambda: AS_OF,
+        retention_policy=RetentionPolicy(),
+    )
+    monkeypatch.setattr(
+        store,
+        "_execute_source_sync",
+        lambda **kwargs: calls.append(kwargs)
+        or {
+            "inserted": 0,
+            "updated": 0,
+            "unchanged": 0,
+            "missing_incremented": 0,
+            "closed": 0,
+        },
+    )
+    monkeypatch.setattr(
+        store,
+        "maintain_retention",
+        lambda **_kwargs: {"before": {}, "deleted": {}, "after": {}},
+    )
+    monkeypatch.setattr(store, "_record_scan_run", lambda **_kwargs: None)
+    stale = {
+        **_job("FR-STALE", "france"),
+        "source_posted_at": "2026-01-01T00:00:00Z",
+        "first_seen_at": "2026-01-01T00:00:00Z",
+        "freshness_band": "stale",
+        "lifecycle_status": "active",
+        "status": "active",
+    }
+
+    store.sync_student_jobs(
+        [stale],
+        lifecycle_jobs=[stale],
+        successful_companies=(),
+        successful_source_scopes=(("Lightspeed Commerce", "france"),),
+        started_at=AS_OF,
+        companies_checked=1,
+        jobs_fetched=1,
+    )
+
+    assert len(calls) == 1
+    assert calls[0]["source_scope_key_value"] == "lightspeed commerce::france"
+    assert calls[0]["rows"] == []
+    assert calls[0]["reconcile_absence"] is True
+    assert calls[0]["protected_source_keys"] == [
+        generate_provider_source_key(stale)
+    ]
 
 
 def test_explicit_retirement_closes_france_only_but_preserves_shared_global_owner() -> None:

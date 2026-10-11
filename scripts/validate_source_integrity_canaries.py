@@ -21,7 +21,12 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.scraper.company_careers.models import source_scan_metadata
+from src.scraper.company_careers.models import (
+    AdapterResult,
+    SourceScanMetadata,
+    adapter_exception_metadata,
+    source_scan_metadata,
+)
 from src.scraper.company_careers.registry import load_target_companies
 from src.scraper.company_careers.scanner import ADAPTERS
 from src.scraper.company_careers.source_health import finalize_source_scan
@@ -81,26 +86,35 @@ class BoundedSession(requests.Session):
 
 
 def selected_targets(
-    names: list[str], registry: Path | None = None
+    names: list[str],
+    registry: Path | None = None,
+    source_scope: str | None = None,
 ) -> list[Any]:
     registry_path = (registry or PRODUCTION_REGISTRY).resolve()
-    configured = {
-        target.name.casefold(): target
-        for target in load_target_companies(
-            str(registry_path),
-            apply_reliability_repairs=registry_path == PRODUCTION_REGISTRY.resolve(),
-        )
-    }
+    configured = load_target_companies(
+        str(registry_path),
+        apply_reliability_repairs=registry_path == PRODUCTION_REGISTRY.resolve(),
+    )
     selected: list[Any] = []
     missing: list[str] = []
     for name in names:
-        target = configured.get(name.casefold())
-        if target is None:
+        matches = [
+            target
+            for target in configured
+            if target.name.casefold() == name.casefold()
+            and (source_scope is None or target.source_scope == source_scope)
+        ]
+        if not matches:
             missing.append(name)
-        elif target.platform == "browser_rendered_html":
+            continue
+        if len(matches) > 1:
+            raise ValueError(
+                f"Ambiguous canary company {name!r}; specify --source-scope"
+            )
+        target = matches[0]
+        if target.platform == "browser_rendered_html":
             raise ValueError("This bounded HTTP canary does not launch a browser")
-        else:
-            selected.append(target)
+        selected.append(target)
     if missing:
         raise ValueError(f"Unknown canary companies: {missing}")
     if not 1 <= len(selected) <= MAX_CANARIES:
@@ -114,15 +128,48 @@ def run_canary(target: Any, request_budget: int) -> dict[str, Any]:
     status: str
     canary_outcome: str
     error: str | None
+    item_failures: list[dict[str, Any]] = []
     try:
         adapter = ADAPTERS[target.platform]
-        jobs = adapter(session, target, 20)
-        metadata = source_scan_metadata(session)
+        output = adapter(session, target, 20)
+        if isinstance(output, AdapterResult):
+            jobs = output.jobs
+            metadata = SourceScanMetadata.from_value(output.scan)
+            inventory_items_collected = len(output.inventory_items)
+            unreadable_items = sum(
+                failure.outcome == "unreadable" for failure in output.item_failures
+            )
+            rejected_items = sum(
+                failure.outcome == "rejected" for failure in output.item_failures
+            )
+            item_failures = [
+                {
+                    "item_id": failure.item_id,
+                    "stage": failure.stage,
+                    "outcome": failure.outcome,
+                    "retryable": failure.retryable,
+                    "reason": failure.reason[:500],
+                }
+                for failure in output.item_failures[:20]
+            ]
+        else:
+            jobs = list(output)
+            metadata = source_scan_metadata(session)
+            inventory_items_collected = len(jobs)
+            unreadable_items = 0
+            rejected_items = 0
+        for job in jobs:
+            if hasattr(job, "source_scope"):
+                job.source_scope = target.source_scope
         _record_job_integrity(metadata, jobs)
+        _record_target_contract(metadata, jobs, target, request_budget, session)
         _record_session_diagnostics(metadata, session, target)
         finalize_source_scan(
             metadata,
             jobs_collected=len(jobs),
+            inventory_items_collected=inventory_items_collected,
+            unreadable_items=unreadable_items,
+            rejected_items=rejected_items,
             activation_state=target.source_activation,
         )
         if metadata.get("scan_state") == "complete":
@@ -153,7 +200,7 @@ def run_canary(target: Any, request_budget: int) -> dict[str, Any]:
         status = "partial" if canary_outcome == "PASS_PARTIAL" else "failed"
         error = f"{type(exc).__name__}: {exc}"[:1000]
     except Exception as exc:
-        metadata = source_scan_metadata(session)
+        metadata = adapter_exception_metadata(exc) or source_scan_metadata(session)
         _record_session_diagnostics(metadata, session, target)
         failure_code = f"{type(exc).__name__}: {exc}"
         if metadata.get("source_identity_status") == "failed":
@@ -166,12 +213,14 @@ def run_canary(target: Any, request_budget: int) -> dict[str, Any]:
             activation_state=target.source_activation,
         )
         status = "failed"
-        canary_outcome = _failure_outcome(metadata)
+        canary_outcome = _failure_outcome(metadata, exc)
         error = f"{type(exc).__name__}: {exc}"[:1000]
     finally:
         session.close()
     return {
         "company": target.name,
+        "source_scope": target.source_scope,
+        "source_scope_key": target.source_scope_key,
         "platform": target.platform,
         "status": status,
         "canary_outcome": canary_outcome,
@@ -184,6 +233,15 @@ def run_canary(target: Any, request_budget: int) -> dict[str, Any]:
         "collection_changed_during_scan": metadata.get(
             "collection_changed_during_scan"
         ),
+        "inventory_complete": metadata.get("inventory_complete"),
+        "central_finalizer_authoritative": bool(
+            metadata.get("scan_state") == "complete"
+            and metadata.get("inventory_complete") is True
+        ),
+        "inventory_items_collected": metadata.get("inventory_items_collected"),
+        "unreadable_items": metadata.get("unreadable_items"),
+        "rejected_items": metadata.get("rejected_items"),
+        "item_failures": item_failures,
         "jobs_collected": metadata.get("jobs_collected"),
         "valid_job_records_produced": bool(
             int(metadata.get("jobs_collected") or 0) > 0
@@ -225,6 +283,12 @@ def run_canary(target: Any, request_budget: int) -> dict[str, Any]:
         "canonical_urls_unique": _integrity_count_matches(
             metadata, "unique_canonical_urls", "duplicate_canonical_urls"
         ),
+        "normalized_jobs_attributable": metadata.get(
+            "normalized_jobs_attributable"
+        ),
+        "apply_urls_contract_valid": metadata.get(
+            "apply_urls_contract_valid"
+        ),
         "total_available": metadata.get("total_available"),
         "authoritative_total_present": metadata.get(
             "authoritative_total_present"
@@ -232,6 +296,8 @@ def run_canary(target: Any, request_budget: int) -> dict[str, Any]:
         "pages_requested": metadata.get("pages_requested"),
         "terminal_evidence_type": metadata.get("terminal_evidence_type"),
         "terminal_evidence_value": metadata.get("terminal_evidence_value"),
+        "terminal_evidence_valid": _terminal_evidence_valid(metadata),
+        "hidden_continuation_absent": _hidden_continuation_absent(metadata),
         "original_configured_url": metadata.get("original_configured_url"),
         "final_url": metadata.get("final_url"),
         "final_host": metadata.get("final_host"),
@@ -253,10 +319,19 @@ def run_canary(target: Any, request_budget: int) -> dict[str, Any]:
         "pagination_evidence_malformed": metadata.get(
             "pagination_evidence_malformed"
         ),
+        "adapter_pagination": metadata.get("adapter_pagination"),
         "diagnostics": metadata.get("diagnostics", []),
         "warnings": metadata.get("warnings", []),
         "requests_started": session.requests_started,
         "request_budget": request_budget,
+        "request_budget_respected": session.requests_started <= request_budget,
+        "max_pages": target.max_pages,
+        "max_jobs": target.max_jobs,
+        "max_response_bytes": target.max_response_bytes,
+        "persistence_mode": "none",
+        "production_registry_mutated": False,
+        "lifecycle_mutations": 0,
+        "dashboard_published": False,
         "error": error,
     }
 
@@ -282,6 +357,72 @@ def _record_job_integrity(metadata: dict[str, Any], jobs: list[Any]) -> None:
         duplicate_ids=duplicate_ids[:20],
         duplicate_canonical_urls=duplicate_urls[:20],
     )
+
+
+def _record_target_contract(
+    metadata: dict[str, Any],
+    jobs: list[Any],
+    target: Any,
+    request_budget: int,
+    session: BoundedSession,
+) -> None:
+    """Record canary-only attribution and apply-URL contract evidence."""
+    allowed_hosts = {
+        str(host).strip().casefold().rstrip(".")
+        for host in target.allowed_apply_hosts
+        if str(host).strip()
+    }
+    attributable = all(
+        str(getattr(job, "company", "")) == target.name
+        and str(getattr(job, "source_scope", "")) == target.source_scope
+        for job in jobs
+    )
+    apply_urls_valid = True
+    for job in jobs:
+        parsed = urlparse(str(getattr(job, "url", "") or ""))
+        host = (parsed.hostname or "").casefold().rstrip(".")
+        if parsed.scheme != "https" or not host or (
+            allowed_hosts and host not in allowed_hosts
+        ):
+            apply_urls_valid = False
+            break
+        if (
+            target.platform == "greenhouse"
+            and target.endpoint_variant == "boards_api_v1_strict"
+        ):
+            job_id = str(getattr(job, "job_id", ""))
+            template = str(target.apply_url_template or "")
+            if template:
+                exact_url_valid = str(getattr(job, "url", "")) == template.replace(
+                    "{id}", job_id
+                )
+            else:
+                expected_path = f"/{target.slug}/jobs/{job_id}"
+                exact_url_valid = (
+                    parsed.path.casefold() == expected_path.casefold()
+                    and not parsed.query
+                    and not parsed.fragment
+                )
+            if not exact_url_valid:
+                apply_urls_valid = False
+                break
+    metadata.update(
+        normalized_jobs_attributable=attributable,
+        apply_urls_contract_valid=apply_urls_valid,
+        request_budget_respected=session.requests_started <= request_budget,
+    )
+    if target.platform == "greenhouse":
+        pagination = getattr(session, "greenhouse_pagination", None)
+        if isinstance(pagination, dict):
+            metadata.update(
+                response_fully_read=True,
+                maximum_response_bytes=target.max_response_bytes,
+                bytes_inspected=sum(
+                    int(pagination.get(field) or 0)
+                    for field in ("listing_bytes", "department_bytes", "detail_bytes")
+                ),
+                adapter_pagination=dict(pagination),
+            )
 
 
 def _record_session_diagnostics(
@@ -312,12 +453,45 @@ def _record_session_diagnostics(
     metadata["requests_started"] = session.requests_started
 
 
-def _failure_outcome(metadata: dict[str, Any]) -> str:
+def _failure_outcome(metadata: dict[str, Any], exc: BaseException) -> str:
     code = str(metadata.get("source_health_code") or "")
     if code == "source_migration_suspected":
         return "MIGRATION_SUSPECTED"
+    message = f"{type(exc).__name__}: {exc}".casefold()
+    if (
+        isinstance(exc, requests.RequestException)
+        or code
+        in {
+            "source_unreachable",
+            "temporary_unexpected_response",
+            "authentication_or_block",
+        }
+        or any(
+            marker in message
+            for marker in (
+                "http 408",
+                "http 425",
+                "http 429",
+                "http 500",
+                "http 502",
+                "http 503",
+                "http 504",
+                "timeout",
+                "timed out",
+            )
+        )
+    ):
+        return "FAIL_TRANSIENT"
+    if (
+        code == "identity_failure"
+        or metadata.get("source_identity_status") == "failed"
+        or any(
+            marker in message
+            for marker in ("http 404", "http 410", "identity mismatch")
+        )
+    ):
+        return "FAIL_IDENTITY"
     if code in {
-        "identity_failure",
         "malformed_collection",
         "malformed_records",
         "pagination_loop",
@@ -325,7 +499,7 @@ def _failure_outcome(metadata: dict[str, Any]) -> str:
         "collection_changed",
     }:
         return "FAIL_CONTRACT"
-    return "FAIL_SOURCE"
+    return "FAIL_CONTRACT"
 
 
 def _integrity_count_matches(
@@ -346,6 +520,41 @@ def _complete_outcome(metadata: dict[str, Any], target: Any) -> str:
         target.platform == "public_json" and identity_status == "verified"
     )
     if not identity_proven:
+        return "FAIL_IDENTITY"
+    required_contract = all(
+        (
+            metadata.get("scan_state") == "complete",
+            metadata.get("inventory_complete") is True,
+            _terminal_evidence_valid(metadata),
+            _hidden_continuation_absent(metadata),
+            not metadata.get("collection_changed_during_scan"),
+            not metadata.get("safety_limit_reached"),
+            metadata.get("request_budget_respected") is True,
+            int(metadata.get("unreadable_items") or 0) == 0,
+            int(metadata.get("rejected_items") or 0) == 0,
+            int(metadata.get("rejected_record_count") or 0) == 0,
+        )
+    )
+    if not required_contract:
+        return "FAIL_CONTRACT"
+    if (
+        target.platform == "greenhouse"
+        and target.endpoint_variant == "boards_api_v1_strict"
+        and not all(
+            (
+                metadata.get("normalized_jobs_attributable") is True,
+                metadata.get("apply_urls_contract_valid") is True,
+                _integrity_count_matches(
+                    metadata, "unique_stable_ids", "duplicate_ids"
+                ),
+                _integrity_count_matches(
+                    metadata,
+                    "unique_canonical_urls",
+                    "duplicate_canonical_urls",
+                ),
+            )
+        )
+    ):
         return "FAIL_CONTRACT"
     if target.platform == "public_json" and not (
         metadata.get("collection_integrity_contract") is True
@@ -358,6 +567,40 @@ def _complete_outcome(metadata: dict[str, Any], target: Any) -> str:
     ):
         return "FAIL_CONTRACT"
     return "PASS_COMPLETE"
+
+
+def _terminal_evidence_valid(metadata: dict[str, Any]) -> bool:
+    evidence_type = str(metadata.get("terminal_evidence_type") or "")
+    if metadata.get("scan_state") != "complete" or not evidence_type:
+        return False
+    if evidence_type == "authoritative_total":
+        total = metadata.get("total_available")
+        observed = metadata.get("inventory_items_collected")
+        if observed is None:
+            observed = metadata.get("jobs_collected")
+        return (
+            isinstance(total, int)
+            and not isinstance(total, bool)
+            and total == int(observed or 0)
+        )
+    return evidence_type in {
+        "complete_collection_response",
+        "validated_empty_collection",
+        "terminal_page",
+    }
+
+
+def _hidden_continuation_absent(metadata: dict[str, Any]) -> bool:
+    return not any(
+        (
+            metadata.get("has_more") is True,
+            metadata.get("next_url_present") is True,
+            metadata.get("next_cursor_present") is True,
+            metadata.get("next_page") is not None,
+            metadata.get("pagination_evidence_conflicting"),
+            metadata.get("pagination_evidence_malformed"),
+        )
+    )
 
 
 def _incomplete_outcome(metadata: dict[str, Any]) -> str:
@@ -395,6 +638,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "with reliability repairs."
         ),
     )
+    parser.add_argument(
+        "--source-scope",
+        help="Select one exact logical source scope from the explicit registry",
+    )
     parser.add_argument("--request-budget", type=int, default=DEFAULT_REQUEST_BUDGET)
     parser.add_argument("--run", action="store_true")
     return parser.parse_args(argv)
@@ -403,7 +650,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     targets = selected_targets(
-        args.companies or list(DEFAULT_CANARIES), registry=args.registry
+        args.companies or list(DEFAULT_CANARIES),
+        registry=args.registry,
+        source_scope=args.source_scope,
     )
     validate_request_budget(args.request_budget, targets)
     if not args.run:
@@ -412,10 +661,12 @@ def main(argv: list[str] | None = None) -> int:
                 [
                     {
                         "company": target.name,
+                        "source_scope": target.source_scope,
                         "platform": target.platform,
                         "source_activation": target.source_activation,
                         "max_pages": target.max_pages,
                         "max_jobs": target.max_jobs,
+                        "max_response_bytes": target.max_response_bytes,
                         "request_budget": args.request_budget,
                     }
                     for target in targets
@@ -428,8 +679,7 @@ def main(argv: list[str] | None = None) -> int:
     rows = [run_canary(target, args.request_budget) for target in targets]
     print(json.dumps(rows, indent=2, sort_keys=True))
     return 0 if all(
-        row["canary_outcome"] in {"PASS_COMPLETE", "PASS_PARTIAL"}
-        for row in rows
+        row["canary_outcome"] == "PASS_COMPLETE" for row in rows
     ) else 1
 
 

@@ -439,7 +439,7 @@ class WaymoGreenhouseTests(unittest.TestCase):
             row = canaries.run_canary(self.target, 21)
 
         self.assertEqual(row["status"], "failed")
-        self.assertEqual(row["canary_outcome"], "FAIL_CONTRACT")
+        self.assertEqual(row["canary_outcome"], "FAIL_IDENTITY")
         self.assertEqual(row["source_health_code"], "identity_failure")
         self.assertEqual(row["source_identity_status"], "failed")
         self.assertEqual(row["requests_started"], 1)

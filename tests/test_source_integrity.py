@@ -577,7 +577,7 @@ class RegistryIntegrityGateTests(unittest.TestCase):
             validated_complete = run_canary(target, 1)
 
         self.assertEqual(unproven_complete["scan_state"], "complete")
-        self.assertEqual(unproven_complete["canary_outcome"], "FAIL_CONTRACT")
+        self.assertEqual(unproven_complete["canary_outcome"], "FAIL_IDENTITY")
         self.assertEqual(validated_complete["canary_outcome"], "PASS_COMPLETE")
         self.assertEqual(validated_complete["source_identity_status"], "validated")
 
@@ -682,7 +682,7 @@ class RegistryIntegrityGateTests(unittest.TestCase):
             {"fixture": mismatch},
         ):
             row = run_canary(target, 1)
-        self.assertEqual(row["canary_outcome"], "FAIL_CONTRACT")
+        self.assertEqual(row["canary_outcome"], "FAIL_IDENTITY")
         self.assertEqual(row["source_health_code"], "identity_failure")
         self.assertEqual(row["source_identity_status"], "failed")
 
@@ -745,7 +745,7 @@ class RegistryIntegrityGateTests(unittest.TestCase):
         self.assertEqual(row["total_available"], 358)
         self.assertEqual(row["scan_state"], "failed")
         self.assertFalse(row["scan_state"] == "complete")
-        self.assertEqual(row["canary_outcome"], "FAIL_SOURCE")
+        self.assertEqual(row["canary_outcome"], "FAIL_TRANSIENT")
         self.assertEqual(row["source_identity_status"], "unproven")
         self.assertEqual(
             row["source_health_code"], "temporary_unexpected_response"
