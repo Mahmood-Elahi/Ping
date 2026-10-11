@@ -33,6 +33,9 @@ PHASE5_MIGRATION = (
 PGCRYPTO_REPAIR_MIGRATION = (
     ROOT / "sql" / "migrations" / "20261010_phase5_pgcrypto_digest_resolution.sql"
 )
+SCOPE_LOCAL_FINALIZER_MIGRATION = (
+    ROOT / "sql" / "migrations" / "20261010_phase5_scope_local_finalizer.sql"
+)
 AS_OF = datetime(2026, 10, 10, 12, 0, tzinfo=timezone.utc)
 CONFIG = load_freshness_config(str(ROOT / "config" / "freshness.yaml"))
 
@@ -70,6 +73,34 @@ def reconcile(current, state, scopes, *, when=AS_OF, protected=()):
         as_of=when,
         config=CONFIG,
     )
+
+
+def derive_affected_lifecycle(staged_keys, owners, current_scope_key):
+    """Deterministic model of the scope-local SQL aggregation."""
+    affected = set(staged_keys) | {
+        owner["source_key"]
+        for owner in owners
+        if owner["source_scope_key"] == current_scope_key
+    }
+    result = {}
+    for source_key in affected:
+        all_owners = [owner for owner in owners if owner["source_key"] == source_key]
+        if not all_owners:
+            continue
+        has_active = any(owner["lifecycle_status"] == "active" for owner in all_owners)
+        has_possible = any(
+            owner["lifecycle_status"] == "possibly_missing" for owner in all_owners
+        )
+        result[source_key] = {
+            "status": "active" if has_active or has_possible else "closed",
+            "lifecycle_status": (
+                "active" if has_active else "possibly_missing" if has_possible else "removed"
+            ),
+            "missing_successful_runs": min(
+                owner["missing_successful_runs"] for owner in all_owners
+            ),
+        }
+    return result
 
 
 def test_regression_old_company_wide_authority_would_mark_sibling_job_missing() -> None:
@@ -191,6 +222,57 @@ def test_exact_shared_job_stays_active_while_any_owner_reports_it() -> None:
     assert owners[source_scope_key("Canonical Company X", "early_careers")][
         "lifecycle_status"
     ] == "active"
+
+
+def test_scope_local_finalizer_model_aggregates_all_owners_for_affected_keys_only() -> None:
+    professional = "canonical company x::professional"
+    early = "canonical company x::early_careers"
+    owners = [
+        {
+            "source_key": "shared",
+            "source_scope_key": professional,
+            "lifecycle_status": "removed",
+            "missing_successful_runs": 2,
+        },
+        {
+            "source_key": "shared",
+            "source_scope_key": early,
+            "lifecycle_status": "active",
+            "missing_successful_runs": 0,
+        },
+        {
+            "source_key": "absent-from-stage",
+            "source_scope_key": professional,
+            "lifecycle_status": "possibly_missing",
+            "missing_successful_runs": 1,
+        },
+        {
+            "source_key": "unrelated",
+            "source_scope_key": early,
+            "lifecycle_status": "removed",
+            "missing_successful_runs": 2,
+        },
+        {
+            "source_key": "staged-new",
+            "source_scope_key": professional,
+            "lifecycle_status": "active",
+            "missing_successful_runs": 0,
+        },
+    ]
+
+    derived = derive_affected_lifecycle(
+        {"shared", "staged-new"}, owners, professional
+    )
+
+    assert set(derived) == {"shared", "absent-from-stage", "staged-new"}
+    assert derived["shared"] == {
+        "status": "active",
+        "lifecycle_status": "active",
+        "missing_successful_runs": 0,
+    }
+    assert derived["absent-from-stage"]["lifecycle_status"] == "possibly_missing"
+    assert derived["staged-new"]["lifecycle_status"] == "active"
+    assert "unrelated" not in derived
 
 
 def test_exact_shared_job_emits_one_persistence_row_per_owner_scope() -> None:
@@ -344,6 +426,9 @@ def test_forward_migration_and_bootstrap_schema_have_scope_contract_parity() -> 
 
 def test_pgcrypto_repair_keeps_finalizer_signature_and_resolves_digest() -> None:
     repair = PGCRYPTO_REPAIR_MIGRATION.read_text(encoding="utf-8").casefold()
+    finalizer = SCOPE_LOCAL_FINALIZER_MIGRATION.read_text(
+        encoding="utf-8"
+    ).casefold()
     schema = (ROOT / "sql" / "supabase_schema.sql").read_text(
         encoding="utf-8"
     ).casefold()
@@ -354,8 +439,9 @@ def test_pgcrypto_repair_keeps_finalizer_signature_and_resolves_digest() -> None
 
     assert expected_alter in repair
     assert "create extension if not exists pgcrypto with schema extensions;" in schema
-    assert "alter function public.finalize_student_job_source_sync(uuid) " in schema
-    assert "set search_path to public, extensions, pg_temp" in schema
+    assert "create or replace function public.finalize_student_job_source_sync" in schema
+    assert "set search_path = public, extensions, pg_temp" in schema
+    assert "set search_path = public, extensions, pg_temp" in finalizer
     assert "create or replace function public.finalize_student_job_source_sync" not in repair
     assert "set search_path to public, pg_temp" not in repair
 
@@ -398,10 +484,14 @@ def test_latest_finalizer_state_has_no_unresolved_pgcrypto_dependency() -> None:
         "20260924_staged_source_sync.sql",
         "20261009_phase3_source_reliability.sql",
         "20261010_phase5_multi_scope_lifecycle.sql",
+        "20261010_phase5_scope_local_finalizer.sql",
     ]
-    assert PGCRYPTO_REPAIR_MIGRATION.name > definitions[-1]
+    assert PGCRYPTO_REPAIR_MIGRATION.name < definitions[-1]
     assert "set search_path to public, extensions, pg_temp" in (
         PGCRYPTO_REPAIR_MIGRATION.read_text(encoding="utf-8").casefold()
+    )
+    assert "set search_path = public, extensions, pg_temp" in (
+        SCOPE_LOCAL_FINALIZER_MIGRATION.read_text(encoding="utf-8").casefold()
     )
 
 
@@ -435,4 +525,65 @@ def test_phase3_through_phase5_security_definers_have_no_other_pgcrypto_calls() 
         sql,
     )
 
-    assert pgcrypto_calls == ["digest", "digest"]
+    assert pgcrypto_calls == ["digest", "digest", "digest"]
+
+
+def test_scope_local_finalizer_sql_is_bounded_and_preserves_rpc_contract() -> None:
+    sql = SCOPE_LOCAL_FINALIZER_MIGRATION.read_text(encoding="utf-8").casefold()
+
+    assert sql.lstrip().startswith("-- phase 5 forward repair")
+    assert "\nbegin;" in sql
+    assert sql.rstrip().endswith("commit;")
+    assert "finalize_student_job_source_sync(p_sync_id uuid)" in sql
+    assert "security definer" in sql
+    assert "set search_path = public, extensions, pg_temp" in sql
+    assert "with affected as (" in sql
+    assert "from public.job_sync_stage\n        where sync_id=p_sync_id" in sql
+    assert "where source_scope_key=v_session.source_scope_key" in sql
+    assert "from affected\n        join public.tracked_job_source_scopes owner using(source_key)" in sql
+    assert "group by owner.source_key" in sql
+    assert "from public.tracked_job_source_scopes group by source_key" not in sql
+    assert "where tracked.source_key=aggregate.source_key;" in sql
+    assert "grant execute on function public.finalize_student_job_source_sync(uuid)" in sql
+    assert "to service_role" in sql
+    assert "from public,anon,authenticated" in sql
+
+
+def test_scope_local_finalizer_keeps_reconciliation_replay_and_cleanup_contracts() -> None:
+    sql = SCOPE_LOCAL_FINALIZER_MIGRATION.read_text(encoding="utf-8").casefold()
+
+    for contract in (
+        "if v_session.status = 'finalized' then",
+        "return v_session.result || jsonb_build_object('replayed', true)",
+        "owner.source_scope_key=v_session.source_scope_key",
+        "where v_session.reconcile_absence",
+        "not(owner.provider_source_key=any(v_session.protected_source_keys))",
+        "incoming.sync_id=p_sync_id and incoming.source_key=owner.source_key",
+        "on conflict(source_key,source_scope_key) do update set",
+        "delete from public.job_sync_chunks where sync_id=p_sync_id",
+        "delete from public.job_sync_stage where sync_id=p_sync_id",
+    ):
+        assert contract in sql
+    assert "delete from public.tracked_jobs" not in sql
+    assert "delete from public.tracked_job_source_scopes" not in sql
+    assert "truncate " not in sql
+    assert "select public.finalize_student_job_source_sync" not in sql
+    assert "perform public.finalize_student_job_source_sync" not in sql
+
+
+def test_scope_local_finalizer_bootstrap_definition_matches_forward_migration() -> None:
+    migration = SCOPE_LOCAL_FINALIZER_MIGRATION.read_text(encoding="utf-8")
+    schema = (ROOT / "sql" / "supabase_schema.sql").read_text(encoding="utf-8")
+    pattern = re.compile(
+        r"create or replace function public\.finalize_student_job_source_sync"
+        r"\(p_sync_id uuid\).*?\n\$\$;",
+        re.IGNORECASE | re.DOTALL,
+    )
+
+    migration_definition = pattern.search(migration)
+    schema_definition = pattern.search(schema)
+
+    assert migration_definition is not None
+    assert schema_definition is not None
+    assert migration_definition.group(0) == schema_definition.group(0)
+    assert "20261010_phase5_scope_local_finalizer.sql" in schema
