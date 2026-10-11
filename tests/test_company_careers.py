@@ -1295,7 +1295,7 @@ class CompanyCareersTests(unittest.TestCase):
         self.assertEqual(jobs[0].departments, ["Engineering"])
         self.assertIn("Build products.", jobs[0].description)
 
-    def test_atlassian_identical_duplicate_on_both_traversals_is_incomplete(self):
+    def test_atlassian_identical_duplicate_is_terminally_accounted(self):
         item = {
             "id": 24880,
             "title": "Principal Software Engineer",
@@ -1306,7 +1306,6 @@ class CompanyCareersTests(unittest.TestCase):
         }
         session = FakeSession(
             get_responses=[
-                FakeResponse([item, dict(item)]),
                 FakeResponse([item, dict(item)]),
             ]
         )
@@ -1317,15 +1316,23 @@ class CompanyCareersTests(unittest.TestCase):
         metadata = source_scan_metadata(session)
 
         self.assertEqual(len(jobs), 1)
-        self.assertFalse(metadata["scan_complete"])
-        self.assertEqual(metadata["overlapping_jobs_skipped"], 1)
+        self.assertEqual(len(jobs.inventory_items), 1)
+        self.assertEqual(jobs.inventory_items[0].item_id, "24880")
+        self.assertTrue(metadata["scan_complete"])
+        self.assertEqual(metadata["total_available"], 2)
+        self.assertFalse(metadata["authoritative_total_present"])
+        self.assertEqual(metadata["unique_inventory_items"], 1)
+        self.assertEqual(metadata["duplicate_representations"], 1)
+        self.assertEqual(metadata["terminal_accounted_items"], 2)
+        self.assertTrue(metadata["duplicate_representations_accounted"])
+        self.assertFalse(metadata["collection_changed_during_scan"])
         self.assertEqual(
             metadata["scan_completeness_reason"],
-            "collection_changed_during_scan",
+            "complete_collection_response",
         )
-        self.assertTrue(metadata["collection_retry_exhausted"])
+        self.assertEqual(len(session.get_calls), 1)
 
-    def test_atlassian_duplicate_then_stable_replacement_recovers(self):
+    def test_atlassian_conflicting_duplicate_fails_closed(self):
         item = {
             "id": 24880,
             "title": "Principal Software Engineer",
@@ -1334,22 +1341,74 @@ class CompanyCareersTests(unittest.TestCase):
             "applyUrl": "https://careers-americas.icims.com/jobs/24880/job?mode=apply",
             "portalJobPost": {"updatedDate": "2026-04-13 03:26 AM"},
         }
+        conflicting = dict(item)
+        conflicting["applyUrl"] = (
+            "https://careers-americas.icims.com/jobs/24880/job?mode=apply&source=other"
+        )
+        session = FakeSession(get_responses=[FakeResponse([item, conflicting])])
+
+        with self.assertRaisesRegex(AdapterError, "conflicting records"):
+            atlassian.fetch_jobs(
+                session, CompanyTarget(name="Atlassian", platform="atlassian")
+            )
+        metadata = source_scan_metadata(session)
+
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["stop_reason"], "conflicting_repeated_job_id")
+        self.assertEqual(
+            metadata["scan_completeness_reason"], "malformed_atomic_collection"
+        )
+
+    def test_atlassian_requires_exact_target_identity(self):
+        session = FakeSession()
+
+        with self.assertRaisesRegex(AdapterError, "exact Atlassian target"):
+            atlassian.fetch_jobs(
+                session, CompanyTarget(name="Atlassian Subsidiary", platform="atlassian")
+            )
+
+        self.assertEqual(session.get_calls, [])
+
+    def test_atlassian_wrong_apply_host_fails_closed(self):
         session = FakeSession(
             get_responses=[
-                FakeResponse([item, dict(item)]),
-                FakeResponse([item]),
+                FakeResponse(
+                    [
+                        {
+                            "id": 24880,
+                            "title": "Principal Software Engineer",
+                            "applyUrl": "https://example.com/jobs/24880/job",
+                        }
+                    ]
+                )
             ]
         )
 
-        jobs = atlassian.fetch_jobs(
-            session, CompanyTarget(name="Atlassian", platform="atlassian")
-        )
-        metadata = source_scan_metadata(session)
+        with self.assertRaisesRegex(AdapterError, "stable-ID path contract"):
+            atlassian.fetch_jobs(
+                session, CompanyTarget(name="Atlassian", platform="atlassian")
+            )
 
-        self.assertEqual([job.job_id for job in jobs], ["24880"])
-        self.assertTrue(metadata["scan_complete"])
-        self.assertTrue(metadata["stabilized_after_collection_retry"])
-        self.assertEqual(metadata["collection_restart_count"], 1)
+    def test_atlassian_response_byte_ceiling_fails_closed(self):
+        session = FakeSession(get_responses=[FakeResponse([])])
+
+        with self.assertRaisesRegex(AdapterError, "max_response_bytes"):
+            atlassian.fetch_jobs(
+                session,
+                CompanyTarget(
+                    name="Atlassian",
+                    platform="atlassian",
+                    max_response_bytes=1,
+                ),
+            )
+
+    def test_atlassian_arbitrary_empty_collection_fails_closed(self):
+        session = FakeSession(get_responses=[FakeResponse([])])
+
+        with self.assertRaisesRegex(AdapterError, "without validated-zero evidence"):
+            atlassian.fetch_jobs(
+                session, CompanyTarget(name="Atlassian", platform="atlassian")
+            )
 
     def test_uber_normalization(self):
         payload = {
