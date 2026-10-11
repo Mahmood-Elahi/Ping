@@ -11,7 +11,7 @@ import unicodedata
 import uuid
 from dataclasses import asdict, dataclass, is_dataclass
 from datetime import date, datetime, timezone
-from typing import Any, Callable, Iterable, Mapping, MutableMapping, Optional
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, MutableMapping, Optional
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from src.utils.job_retention import RetentionPolicy
@@ -20,6 +20,12 @@ from src.utils.source_scope import (
     normalize_source_scope,
     source_scope_key,
 )
+
+if TYPE_CHECKING:
+    from src.scraper.company_careers.incremental import (
+        IncrementalCheckpoint,
+        ResultAuthority,
+    )
 
 
 DEFAULT_CLOSE_AFTER_MISSING_RUNS = 2
@@ -50,6 +56,12 @@ SOURCE_SCOPE_OWNERSHIP_COLUMNS = (
 SOURCE_HEALTH_COLUMNS = (
     "source_key,company,source_scope,platform,consecutive_transient_failures,cooldown_until,"
     "last_failure_classification,last_successful_authoritative_inventory,updated_at"
+)
+INCREMENTAL_CHECKPOINT_COLUMNS = (
+    "source_scope_key,provider_identity,config_fingerprint,strategy_version,cursor,"
+    "timestamp_watermark,last_successful_full_at,last_successful_incremental_at,"
+    "last_forced_full_reason,representation_token,snapshot_checksum,"
+    "ambiguous_since_last_full,updated_at"
 )
 SYNC_SCAN_NAMESPACE = uuid.UUID("fe27c6e0-e7a3-4d18-8e57-554e117f56c6")
 TRACKING_QUERY_PARAMETERS = frozenset(
@@ -480,6 +492,7 @@ class SupabaseJobStore:
             ("job_sync_stage", "sync_id,source_key,source_scope_key"),
             ("tracked_job_source_scopes", "ownership_key,source_scope_key"),
             ("source_scope_retirements", "source_scope_key,approved_by,retired_at"),
+            ("source_incremental_checkpoints", "source_scope_key,provider_identity"),
             ("job_source_health", "source_key,cooldown_until"),
             ("applications", "job_id"),
         )
@@ -517,6 +530,36 @@ class SupabaseJobStore:
         except Exception as exc:
             raise _supabase_access_error(
                 exc, operation="source health read", secrets=self._redaction_secrets
+            ) from None
+
+    def fetch_incremental_checkpoints(self) -> dict[tuple[str, str], "IncrementalCheckpoint"]:
+        """Load and validate bounded checkpoint rows; corrupt rows fail closed."""
+        from src.scraper.company_careers.incremental import IncrementalCheckpoint
+
+        try:
+            response = (
+                self.client.table("source_incremental_checkpoints")
+                .select(INCREMENTAL_CHECKPOINT_COLUMNS)
+                .execute()
+            )
+            rows = getattr(response, "data", None)
+            if not isinstance(rows, list):
+                raise RuntimeError("incremental checkpoint query returned an invalid response")
+            checkpoints: dict[tuple[str, str], IncrementalCheckpoint] = {}
+            for row in rows:
+                if not isinstance(row, Mapping):
+                    raise ValueError("incremental checkpoint row is not an object")
+                checkpoint = IncrementalCheckpoint.from_mapping(row)
+                key = (checkpoint.source_scope_key, checkpoint.provider_identity)
+                if key in checkpoints:
+                    raise ValueError("duplicate incremental checkpoint identity")
+                checkpoints[key] = checkpoint
+            return checkpoints
+        except Exception as exc:
+            raise _supabase_access_error(
+                exc,
+                operation="incremental checkpoint read",
+                secrets=self._redaction_secrets,
             ) from None
 
     def persist_source_health(self, rows: Iterable[Mapping[str, Any]]) -> None:
@@ -598,8 +641,21 @@ class SupabaseJobStore:
         normalized_jobs: int = 0,
         source_summary: Optional[Mapping[str, Any]] = None,
         scan_runtime_seconds: Optional[float] = None,
+        source_authorities: Optional[Mapping[str, ResultAuthority | str]] = None,
+        checkpoint_advances: Optional[
+            Mapping[str, IncrementalCheckpoint]
+        ] = None,
     ) -> SyncResult:
-        """Synchronize each source atomically, then record the successful scan."""
+        """Synchronize each source atomically, then record the successful scan.
+
+        ``source_authorities`` is the explicit lifecycle permission boundary.
+        Positive-only and incomplete sources may upsert observations but can
+        never reconcile absence. A checkpoint candidate is handed to the
+        staged finalizer so it commits in the same transaction as accepted
+        observations.
+        """
+        from src.scraper.company_careers.incremental import ResultAuthority
+
         seen_at = _ensure_aware(self._now_factory())
         jobs_by_key: MutableMapping[tuple[str, str], dict[str, Any]] = {}
         retention_protected_by_scope: dict[str, set[str]] = {}
@@ -677,6 +733,23 @@ class SupabaseJobStore:
                 source_scope_key(company, DEFAULT_SOURCE_SCOPE),
                 (company, DEFAULT_SOURCE_SCOPE),
             )
+        normalized_authorities = {
+            str(scope_key): ResultAuthority(authority)
+            for scope_key, authority in (source_authorities or {}).items()
+        }
+        for logical_scope in complete_scopes:
+            supplied = normalized_authorities.get(logical_scope)
+            if supplied is not None and supplied is not ResultAuthority.AUTHORITATIVE_INVENTORY:
+                raise ValueError(
+                    "successful_source_scopes cannot conflict with positive-only authority"
+                )
+            normalized_authorities[logical_scope] = ResultAuthority.AUTHORITATIVE_INVENTORY
+        checkpoint_by_scope = dict(checkpoint_advances or {})
+        for logical_scope, checkpoint in checkpoint_by_scope.items():
+            if checkpoint.source_scope_key != logical_scope:
+                raise ValueError("checkpoint source_scope_key does not match persistence scope")
+            if normalized_authorities.get(logical_scope) is ResultAuthority.INCOMPLETE:
+                raise ValueError("incomplete results cannot advance a checkpoint")
         protected_by_scope = {
             str(scope_key).strip(): {
                 str(key).strip() for key in keys if str(key).strip()
@@ -704,7 +777,11 @@ class SupabaseJobStore:
                 (str(payload["company"]), str(payload["source_scope"])),
             )
         logical_scopes = sorted(
-            set(rows_by_scope) | set(complete_scopes) | set(protected_by_scope)
+            set(rows_by_scope)
+            | set(complete_scopes)
+            | set(protected_by_scope)
+            | set(normalized_authorities)
+            | set(checkpoint_by_scope)
         )
         scan_id = str(uuid.uuid5(SYNC_SCAN_NAMESPACE, scan["started_at"]))
         totals = SyncResult(0, 0, 0, 0, 0)
@@ -726,8 +803,12 @@ class SupabaseJobStore:
                 source_scope=scope,
                 source_scope_key_value=logical_scope,
                 rows=source_rows,
-                reconcile_absence=logical_scope in complete_scopes,
+                reconcile_absence=(
+                    normalized_authorities.get(logical_scope)
+                    is ResultAuthority.AUTHORITATIVE_INVENTORY
+                ),
                 protected_source_keys=sorted(protected_by_scope.get(logical_scope, ())),
+                checkpoint_candidate=checkpoint_by_scope.get(logical_scope),
                 seen_at=seen_at,
                 payload_bytes=payload_bytes,
             )
@@ -892,6 +973,7 @@ class SupabaseJobStore:
         rows: list[dict[str, Any]],
         reconcile_absence: bool,
         protected_source_keys: Iterable[str],
+        checkpoint_candidate: Optional[IncrementalCheckpoint],
         seen_at: datetime,
         payload_bytes: int,
     ) -> Mapping[str, Any]:
@@ -918,6 +1000,11 @@ class SupabaseJobStore:
             "p_protected_source_keys": list(protected_source_keys),
             "p_close_after_missing_runs": self.close_after_missing_runs,
             "p_seen_at": _iso_timestamp(seen_at),
+            "p_checkpoint_candidate": (
+                checkpoint_candidate.to_persistence_dict()
+                if checkpoint_candidate is not None
+                else None
+            ),
         }
         try:
             begun = self._execute_sync_rpc(

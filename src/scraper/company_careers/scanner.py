@@ -70,6 +70,7 @@ from src.scraper.company_careers.models import (
     clear_source_scan_metadata,
     source_scan_metadata,
 )
+from src.scraper.company_careers.incremental import CrawlMode, ResultAuthority
 from src.scraper.company_careers.registry import DEFAULT_REGISTRY_PATH, load_target_companies
 from src.scraper.company_careers.relevance import is_relevant_job
 from src.scraper.company_careers.parent_sources import (
@@ -510,6 +511,8 @@ class CompanyCareersScanner:
                 )
                 item_failures = adapter_output.item_failures
                 capabilities_used = adapter_output.capabilities_used
+                crawl_mode = adapter_output.crawl_mode
+                result_authority = adapter_output.result_authority
                 # Explicit results are self-contained and must never inherit
                 # observations left by a previous or nested invocation.
                 clear_source_scan_metadata(adapter_session)
@@ -526,6 +529,8 @@ class CompanyCareersScanner:
                 )
                 item_failures = ()
                 capabilities_used = frozenset()
+                crawl_mode = CrawlMode.FULL_AUTHORITATIVE
+                result_authority = ResultAuthority.INCOMPLETE
             inventory_keys = [
                 (item.source.casefold(), item.item_id) for item in inventory_items
             ]
@@ -597,6 +602,16 @@ class CompanyCareersScanner:
                 inventory_items=inventory_items,
                 item_failures=item_failures,
                 capabilities_used=capabilities_used,
+                crawl_mode=crawl_mode,
+                result_authority=(
+                    result_authority
+                    if result_authority.value != "incomplete"
+                    else (
+                        ResultAuthority.AUTHORITATIVE_INVENTORY
+                        if crawl_mode.value == "full_authoritative" and scan_metadata["scan_complete"]
+                        else result_authority
+                    )
+                ),
                 status=status,
                 fetched_count=len(fetched_jobs),
                 **_completion_result_fields(scan_metadata),

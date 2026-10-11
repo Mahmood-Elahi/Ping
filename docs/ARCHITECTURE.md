@@ -1,5 +1,12 @@
 # Architecture
 
+## Phase 6 incremental optimization
+
+Incremental crawling is an optimization over the authoritative full-crawl
+path, never a separate source of lifecycle truth. Typed run-mode, authority,
+checkpoint, positive-only persistence, and forced-full rules are documented in
+[PHASE6_INCREMENTAL_OPTIMIZATION.md](PHASE6_INCREMENTAL_OPTIMIZATION.md).
+
 Source enumeration, terminal evidence, registry activation, and lifecycle
 absence invariants are documented in [SOURCE_INTEGRITY.md](SOURCE_INTEGRITY.md).
 

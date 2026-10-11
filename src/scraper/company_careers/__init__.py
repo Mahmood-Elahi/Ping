@@ -12,6 +12,16 @@ from src.scraper.company_careers.models import (
     SourceScanMetadata,
 )
 from src.scraper.company_careers.scanner import CompanyCareersScanner
+from src.scraper.company_careers.incremental import (
+    CrawlMode,
+    IncrementalCapability,
+    IncrementalCheckpoint,
+    IncrementalPolicy,
+    IncrementalRequest,
+    IncrementalResult,
+    ResultAuthority,
+    choose_crawl_mode,
+)
 
 __all__ = [
     "AdapterResult",
@@ -24,4 +34,12 @@ __all__ = [
     "ItemFailure",
     "JobRecord",
     "SourceScanMetadata",
+    "CrawlMode",
+    "IncrementalCapability",
+    "IncrementalCheckpoint",
+    "IncrementalPolicy",
+    "IncrementalRequest",
+    "IncrementalResult",
+    "ResultAuthority",
+    "choose_crawl_mode",
 ]

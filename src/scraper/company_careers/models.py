@@ -23,6 +23,7 @@ from src.utils.source_scope import (
     normalize_source_scope,
     source_scope_key,
 )
+from src.scraper.company_careers.incremental import CrawlMode, ResultAuthority
 
 
 class CoverageStatus:
@@ -242,6 +243,8 @@ class AdapterResult(Sequence["JobRecord"]):
     inventory_items: tuple[InventoryItem, ...] = ()
     item_failures: tuple[ItemFailure, ...] = ()
     capabilities_used: frozenset[str] = frozenset()
+    crawl_mode: CrawlMode = CrawlMode.FULL_AUTHORITATIVE
+    result_authority: ResultAuthority = ResultAuthority.INCOMPLETE
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "jobs", list(self.jobs))
@@ -253,6 +256,13 @@ class AdapterResult(Sequence["JobRecord"]):
         object.__setattr__(self, "inventory_items", tuple(self.inventory_items))
         object.__setattr__(self, "item_failures", tuple(self.item_failures))
         object.__setattr__(self, "capabilities_used", frozenset(self.capabilities_used))
+        object.__setattr__(self, "crawl_mode", CrawlMode(self.crawl_mode))
+        object.__setattr__(self, "result_authority", ResultAuthority(self.result_authority))
+        if (
+            self.crawl_mode is CrawlMode.INCREMENTAL_POSITIVE_ONLY
+            and self.result_authority is ResultAuthority.AUTHORITATIVE_INVENTORY
+        ):
+            raise ValueError("incremental_positive_only cannot authorize absence")
 
     def __len__(self) -> int:
         return len(self.jobs)
@@ -277,6 +287,8 @@ class AdapterResult(Sequence["JobRecord"]):
                 and self.inventory_items == other.inventory_items
                 and self.item_failures == other.item_failures
                 and self.capabilities_used == other.capabilities_used
+                and self.crawl_mode == other.crawl_mode
+                and self.result_authority == other.result_authority
             )
         return self.jobs == other
 
@@ -651,6 +663,8 @@ class CompanyScanResult:
     inventory_items: tuple[InventoryItem, ...] = field(default_factory=tuple, repr=False)
     item_failures: tuple[ItemFailure, ...] = field(default_factory=tuple, repr=False)
     capabilities_used: frozenset[str] = field(default_factory=frozenset, repr=False)
+    crawl_mode: CrawlMode = CrawlMode.FULL_AUTHORITATIVE
+    result_authority: ResultAuthority = ResultAuthority.AUTHORITATIVE_INVENTORY
     status: str = CoverageStatus.FETCHED
     error: Optional[str] = None
     error_type: Optional[str] = None
@@ -704,6 +718,11 @@ class CompanyScanResult:
     mapped_child_brand_counts: Dict[str, int] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        self.crawl_mode = CrawlMode(self.crawl_mode)
+        self.result_authority = ResultAuthority(self.result_authority)
+        if self.crawl_mode is CrawlMode.INCREMENTAL_POSITIVE_ONLY:
+            if self.result_authority is ResultAuthority.AUTHORITATIVE_INVENTORY:
+                raise ValueError("incremental_positive_only cannot authorize absence")
         if self.status == CoverageStatus.COOLDOWN_SKIPPED:
             self.scan_state = "incomplete"
             if self.source_health_code == "pagination_unproven":
@@ -740,6 +759,7 @@ class CompanyScanResult:
             and self.scan_state == "complete"
             and self.source_health_code in {"healthy", "hydration_degraded"}
             and self.source_activation_state == "active"
+            and self.result_authority is ResultAuthority.AUTHORITATIVE_INVENTORY
         )
 
     @property
@@ -789,6 +809,8 @@ class CompanyScanResult:
             "complete_collection_response": self.complete_collection_response,
             "scan_state": self.scan_health,
             "authoritative_for_absence": self.authoritative_for_absence,
+            "crawl_mode": self.crawl_mode.value,
+            "result_authority": self.result_authority.value,
             "source_health_code": self.source_health_code,
             "source_activation_state": self.source_activation_state,
             "jobs_collected": self.jobs_collected,
