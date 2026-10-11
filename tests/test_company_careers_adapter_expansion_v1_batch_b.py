@@ -351,7 +351,10 @@ class SmartRecruitersAdapterTests(unittest.TestCase):
                 smartrecruiters_target(),
             )
         with self.assertRaisesRegex(AdapterError, "max_pages"):
-            smartrecruiters.fetch_jobs(Session([]), smartrecruiters_target(max_pages=11))
+            smartrecruiters.fetch_jobs(
+                Session([]),
+                smartrecruiters_target(max_pages=smartrecruiters.MAX_PAGES + 1),
+            )
 
 
 class HawkSearchV2AdapterTests(unittest.TestCase):

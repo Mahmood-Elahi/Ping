@@ -42,7 +42,12 @@ from src.scraper.company_careers.mutable_collection import (
 API_HOST = "api.smartrecruiters.com"
 APPLY_HOST = "jobs.smartrecruiters.com"
 ENDPOINT_VARIANT = "companies_postings_v1"
-MAX_PAGES = 10
+# Batch 3 deterministic evidence includes the BoschGroup board at 4,835
+# advertised postings with stable 100-row pages.  Keep the provider ceiling
+# narrowly above that observed inventory: 50 pages / 5,000 rows.  Individual
+# sources still opt in through their own max_pages/max_jobs configuration, so
+# this does not expand any existing production crawl by itself.
+MAX_PAGES = 50
 MAX_PAGE_SIZE = 100
 MAX_RESULTS = MAX_PAGES * MAX_PAGE_SIZE
 MAX_TIMEOUT_SECONDS = 30

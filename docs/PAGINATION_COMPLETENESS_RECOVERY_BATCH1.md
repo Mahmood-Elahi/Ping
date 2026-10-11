@@ -430,7 +430,7 @@ All rows use `source_scope: default`.
 | Oracle | Oracle Recruiting | `eeho...`; `CX_45001`; `en` | 1 page; 20 jobs; 3 MB | 2,063/2,228; 86 pages; mutation | mutable offset pagination |
 | Stantec | browser-rendered HTML | Calgary query; 32-hex job paths | 1 page; 20 jobs; 3 MB | 50 jobs; active continuation | browser terminal proof missing |
 | Espressif Systems | static HTML | official job-search page; stable path slug | 1 page; 20 jobs; 3 MB | 15 jobs; no pagination contract | missing terminal evidence |
-| Bosch | SmartRecruiters v1 | slug `BoschGroup`; exact identity | configured 1 page/20; effective 100/page | 20/4,814; total not reached | total exceeds reviewed adapter bound |
+| Bosch | SmartRecruiters v1 | slug `BoschGroup`; exact identity | configured 1 page/20; effective 100/page | 20/4,814; total not reached | total exceeded the then-reviewed 1,000-row adapter bound |
 | CPKC | SuccessFactors columnized | `careers.cpr.ca`; `en_US`; 10/page | 2 pages; 20 jobs; 3 MB | 150/150 plus mutation contradiction | mutable pagination |
 | Scotiabank | SuccessFactors table | `jobs.scotiabank.com`; exact identity regex | 1 page; 20 jobs; 3 MB | 926/1,683; mutation | mutable pagination |
 | ecobee | static HTML | Generac brand page; exact ecobee regex | 1 page; 20 jobs; 3 MB | 5 jobs; no pagination contract | brand-scope terminal missing |
@@ -606,3 +606,167 @@ Use four evidence-focused groups:
 
 Keep Atlassian in the separate source-specific straggler backlog with its exact
 live iCIMS URL/stable-ID contract failure.
+
+## Batch 3 deterministic closeout
+
+Batch 3 began at actual HEAD `7aca829` (`Complete pagination completeness
+recovery batch 2`). Its parent is the requested Batch 1 checkpoint `51b443b`.
+No checkout, reset, branch change, live scan, live canary, provider request,
+browser/proxy session, production mutation, migration, GitHub Action, commit,
+push, or merge was performed.
+
+The 18-source outcome is deliberately narrow:
+
+| Status | Companies |
+|---|---|
+| `READY_FOR_CANARY` | Bosch |
+| `NEEDS_SOURCE_SPECIFIC_REPAIR` | Stantec; JPMorgan Chase; Emerson; Honeywell; Oracle; Fortinet; CPKC; Scotiabank; Bombardier |
+| `INSUFFICIENT_EVIDENCE` | Meta; Rivian; Goldman Sachs; Qualcomm; Micron; GlobalFoundries; ecobee; Espressif Systems |
+
+There are no `RECOVERED_BY_SHARED_FIX`, `FAIL_IDENTITY`, `FAIL_CONTRACT`,
+`FAIL_TRANSIENT`, `UNSUPPORTED_PROVIDER`, or `NO_SAFE_REPAIR` outcomes. No Batch 3 source is production-recovered until a manual canary returns
+`PASS_COMPLETE` and its exact tested config is separately activated.
+
+Machine-readable evidence, source-by-source missing proof, provenance,
+budgets, the canary command, rollback, and the final queue are in
+`config/pagination_completeness_recovery_batch3.yaml`. The isolated Bosch
+candidate is in
+`config/target_companies.pagination_completeness_batch3_canaries.yaml`.
+
+### Accepted candidate: Bosch bound-only repair
+
+The stored SmartRecruiters probes establish the exact `BoschGroup` source and
+`Bosch Group` identity. On 2026-10-01, three consecutive 100-row pages carried
+one stable `totalFound=4813`, 300 unique IDs, and no observed mutation. On
+2026-10-05, two independent offset-zero anchors both carried
+`totalFound=4835`. The latter partition probe did not complete its 720-row
+country partition and is not authority; only its repeated global anchor and
+page-size evidence are used for the bound.
+
+At 100 rows per page, 4,835 jobs require 49 requests. The candidate rounds to
+the next full page boundary: `max_pages=50`, `max_jobs=5000`, and an independent
+50-request canary ceiling. This gives 165 jobs (3.41%) of bounded headroom, not
+an arbitrary large limit. SmartRecruiters' adapter validation ceiling now
+permits 50 pages / 5,000 rows, but every production source keeps its own
+existing limits; the production Bosch row remains at one page / 20 jobs.
+
+The future canary is:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\validate_source_integrity_canaries.py --registry config\target_companies.pagination_completeness_batch3_canaries.yaml --company Bosch --request-budget 50 --run
+```
+
+The validator is non-persistent, selects only Bosch, publishes no dashboard,
+and performs no lifecycle mutation. A moving total, overlap, repeated ID,
+request exhaustion, or a total above the candidate bound must fail closed.
+Rollback before activation is deletion of the candidate registry plus
+restoring the prior adapter validation ceiling if the high-volume candidate is
+abandoned. There is no production rollback because production was not changed.
+
+### First-party inventory results
+
+- **Meta:** freehire proves a flat first-party sitemap, numeric
+  `/profile/job_details/{id}` IDs, and JSON-LD hydration mechanics. It also
+  drops unreadable details and accepts an empty sitemap. No stored evidence
+  proves current-active membership, stale URL behavior, or protected hydration
+  accounting. The source remains insufficient for absence authority.
+- **Rivian:** the first-party sitemap is still only a catalog lead. No stored
+  index/shard fixture proves exact job filtering, active membership, stable ID
+  equivalence to the Jibe source, duplicates, or malformed-detail outcomes.
+- **Goldman Sachs:** jobseek records the exact `GetRoles` query, page zero,
+  20-row size, `data.roleSearch.items`, `totalCount`, `roleId`, the official
+  `/roles/{roleId}` path, and the combined `EARLY_CAREER` / `PROFESSIONAL`
+  experiences list. There is no response fixture proving unauthenticated
+  replay, stable totals, required category coverage, or exact overlap in the
+  union. Adding category totals would be unsafe.
+- **Stantec:** stored rendered runs stop at `maximum_results_reached` for the
+  Calgary query. The global sitemap is not scope-equivalent. No existing
+  source-local API, XHR, total, or explicit final-page contract is recorded.
+- **Qualcomm:** the first-party sitemap lead does not prove active-only
+  membership, complete traversal, stable ID equivalence, duplicates, detail
+  behavior, or a terminal contract. PCSx mutation remains authoritative only
+  for positive discovery.
+
+No first-party alternate inventory was accepted for absence reconciliation.
+
+### Oracle partition result
+
+The jobseek `_complete_facet_partition` mechanic accepts a facet only when
+every bucket is well formed and bounded, bucket IDs are unique, and bucket
+counts sum exactly to the root total. Its `discover_stream` keeps offset inside
+the Oracle finder. freehire's `listRequisitions` independently confirms that
+finder-local offset placement.
+
+None of the stored JPMorgan Chase (`jpmc.fa.oraclecloud.com`, `CX_1001`),
+Emerson (`hdjq.fa.us2.oraclecloud.com`, `CX_1`), Honeywell
+(`ibqbjb.fa.ocs.oraclecloud.com`, `CX_1` / `Honeywell`), Oracle
+(`eeho.fa.us2.oraclecloud.com`, `CX_45001`), or Fortinet
+(`edel.fa.us2.oraclecloud.com`, `CX_2001`) evidence contains an exhaustive root
+facet payload or per-bucket totals. Consequently the partition dimension and
+partition count are unknown for every target. No generic partition repair was
+implemented, and jobseek's overlap/count tolerances were not ported.
+
+### SuccessFactors result
+
+CPKC still reaches its advertised 150 only under contradictory collection
+movement. Scotiabank remains at 926/1,683 with mutation. Bombardier repeats a
+page after 110/841. jobseek's RSS implementation is a streaming XML parser but
+does not supply an authoritative total, continuation, or active-inventory
+contract. freehire's generic `job_sitemap.xml` implementation supplies useful
+enumeration/detail mechanics but no checked-in target contract showing that
+the three feeds are current, active-only, and complete. Search mutation and
+repetition therefore remain visible; no alternate feed was adopted.
+
+### Alternate ATS and static-terminal results
+
+The Micron Workday lead is `micron.wd1.myworkdayjobs.com/external`; the
+GlobalFoundries lead is
+`globalfoundries.wd1.myworkdayjobs.com/External`. Both are mechanically
+compatible with the existing Phase 4 Workday pagination and subdivision
+architecture. Neither has stored first-party tenant binding, response identity,
+maximum result count, apply URL evidence, or proof that its inventory and scope
+equal the production Eightfold source. No migration config was created.
+
+Two historical ecobee runs each found the same five positive jobs and two
+Espressif runs each found the same 15. All four runs stopped with
+`no_pagination_configured`. Stability of positives is not a terminal. Neither
+source has a stored explicit page count, disabled-next marker, stable next URL,
+atomic embedded collection, or finite category/section union. No static
+adapter relaxation was made.
+
+### Batch 3 playbook additions
+
+18. Accept a first-party sitemap for absence only when exact employer binding,
+    job-only selection, active-membership semantics, complete index/shard
+    enumeration, duplicate accounting, stable IDs, and protected hydration are
+    all explicit. A flat sitemap is not stronger merely because it is flat.
+19. A GraphQL total authorizes absence only for the exact operation, variables,
+    and complete required filter/category union. Reconcile unique IDs against
+    category totals after exact overlap accounting; never add totals blindly.
+20. Oracle partitioning requires an authoritative finite facet universe. Every
+    bucket must carry an exact total and complete independently; the deduped
+    union must reconcile to the root inventory, and any partition mutation
+    invalidates the whole result.
+21. SuccessFactors RSS or sitemap can replace mutable search pagination only
+    with a target-specific current-active completeness contract. Successful XML
+    parsing, a large feed, or a stable sample is not terminal evidence.
+22. Migration from an unstable ATS to an alternate ATS requires exact
+    first-party tenant/site identity and proof of intended-inventory and
+    source-scope equivalence before a candidate config is created.
+23. Static completion needs a provider-visible final page, disabled next,
+    stable continuation exhausted by contract, atomic collection, or complete
+    finite section union. Short, empty, or unchanged pages never suffice.
+24. A bound-only repair is allowed when a trusted adapter already exposes an
+    authoritative total and stored evidence determines the exact required
+    pages. Headroom must be small and derived; the source remains candidate-only
+    until a bounded canary reaches that total without mutation.
+
+### Remaining queue
+
+The recommended final Batch 4 has a ten-source core: Nordic Semiconductor, CN
+Rail, Athabasca Oil, HP Inc., Seagate, SGS, AstraZeneca, Kinross Gold, Cameco,
+and Nutrien. Add a gated prior-straggler lane for Atlassian, Microsoft, and
+Eaton only if new deterministic evidence is available; do not repeat Batch 2
+discovery. Coupang remains separate contract backlog. Samsung Electronics, GE
+Vernova, General Motors, Caterpillar, Zalando, and Capital One remain a
+separate identity-recovery batch; Batch 3 found no reason to reclassify them.

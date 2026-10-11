@@ -1,0 +1,385 @@
+schema_version: 1
+batch: pagination_completeness_recovery_batch3
+evidence_date: '2026-10-11'
+timezone: America/Edmonton
+repository_head_reviewed: 7aca829
+batch2_checkpoint:
+  expected_parent: 51b443b
+  actual_head: 7aca829
+  actual_subject: Complete pagination completeness recovery batch 2
+  present: true
+  checkout_or_reset_performed: false
+
+scope:
+  target_count: 18
+  targets:
+    - Meta
+    - Rivian
+    - Goldman Sachs
+    - Stantec
+    - Qualcomm
+    - JPMorgan Chase
+    - Emerson
+    - Honeywell
+    - Oracle
+    - Fortinet
+    - Bosch
+    - CPKC
+    - Scotiabank
+    - Bombardier
+    - Micron
+    - GlobalFoundries
+    - ecobee
+    - Espressif Systems
+  excluded_by_instruction:
+    - Atlassian
+    - Microsoft
+    - Eaton
+    - Samsung Electronics
+    - GE Vernova
+    - General Motors
+    - Caterpillar
+    - Zalando
+    - Capital One
+    - Coupang
+
+adapter_groups:
+  first_party_inventory: [Meta, Rivian, Goldman Sachs, Stantec, Qualcomm]
+  oracle_partition: [JPMorgan Chase, Emerson, Honeywell, Oracle, Fortinet]
+  smartrecruiters_bound: [Bosch]
+  successfactors_contract: [CPKC, Scotiabank, Bombardier]
+  alternate_ats_migration: [Micron, GlobalFoundries]
+  static_terminal: [ecobee, Espressif Systems]
+
+playbook_rules_reused:
+  - exact employer and provider identity precedes completeness
+  - only complete authoritative inventory may reconcile absence
+  - partial positives never authorize missing or closure transitions
+  - request and result limits are not terminal evidence
+  - repeated pages, repeated cursors, overlap, and total movement fail closed
+  - stable unreadable provider identities remain protected
+  - inventory enumeration is separate from detail hydration and normalization
+  - alternate ATS migration requires exact source-scope equivalence
+  - third-party aggregators and retention are never absence authority
+
+sibling_findings:
+  jobseek:
+    - classification: ADAPT
+      file: apps/crawler/src/core/monitors/oracle_hcm.py
+      function: _complete_facet_partition
+      mechanic: validates unique finite facet buckets whose counts exactly sum to the unfiltered total
+      decision: rejected_for_current_targets
+      reason: no checked-in target response preserves the facet universe or per-bucket totals
+    - classification: REUSE_CONTRACT
+      file: apps/crawler/src/core/monitors/oracle_hcm.py
+      function: discover_stream
+      mechanic: places offsets inside the Oracle finder and traverses each selected facet independently
+      decision: mechanics_only
+      safeguard: overlap tolerance and count tolerance remain rejected as authority
+    - classification: CONCEPT_ONLY
+      file: apps/crawler/data/boards.csv
+      function: board rows
+      mechanic: exact Meta and Rivian sitemap leads, Qualcomm sitemap lead, Goldman GetRoles request, and Micron/GlobalFoundries Workday leads
+      decision: catalog_rows_do_not_prove_authority
+    - classification: ADAPT
+      file: apps/crawler/src/core/monitors/sitemap.py
+      function: _resolve_sitemap_index and _discover_sitemap
+      mechanic: bounded index and shard traversal
+      decision: not_ported
+      reason: target fixtures do not prove active-only membership and complete target-specific shard selection
+    - classification: CONCEPT_ONLY
+      file: apps/crawler/go/successfactors-rss-monitor/successfactors.go
+      function: ParseStream
+      mechanic: streaming RSS item parsing with a hard item cap
+      decision: rejected_as_inventory_authority
+      reason: feed parsing supplies no total, continuation, or active-inventory completeness contract
+    - classification: REUSE_CONTRACT
+      file: apps/crawler/src/core/monitors/workday.py
+      function: _paginate_query and _paginate_facet_union
+      mechanic: direct pagination and Phase-4-compatible cap subdivision
+      decision: already_present_in_job_radar
+      reason: alternate tenant identity and scope equivalence remain unproved
+  freehire:
+    - classification: REUSE_CONTRACT
+      file: internal/ingest/sources/oracle.go
+      function: listRequisitions
+      mechanic: finder-local Oracle limit and offset
+      decision: already_present_in_job_radar
+      safeguard: empty pages and detail loss cannot become clean completion
+    - classification: ADAPT
+      file: internal/ingest/sources/metacareers.go
+      function: Fetch and detail
+      mechanic: flat first-party sitemap, numeric job_details IDs, and JSON-LD detail hydration
+      decision: not_ported
+      reason: implementation drops unreadable details and does not prove that sitemap membership is current active inventory
+    - classification: ADAPT
+      file: internal/ingest/sources/icims.go
+      function: sitemap enumeration
+      mechanic: fail-whole index and child-sitemap traversal
+      decision: not_ported
+      reason: no Rivian target fixture proves index shape, job filter, or active-only membership
+    - classification: CONCEPT_ONLY
+      file: internal/ingest/sources/successfactors.go
+      function: Fetch and detail
+      mechanic: job_sitemap.xml enumeration and protected unreadable detail identity
+      decision: not_ported
+      reason: no target fixture or provider contract proves current active completeness for the three target hosts
+    - classification: REJECT
+      file: internal/ingest/sources/eightfold.go
+      function: pageList
+      mechanic: mutable offset enumeration with retries
+      decision: rejected_as_authority
+      reason: retries and positive discovery cannot erase overlap or total movement
+  jobspy:
+    - classification: REJECT
+      file: jobspy/__init__.py
+      function: scrape_jobs
+      mechanic: third-party search and aggregator pagination
+      decision: no Batch 3 authority or completeness use
+
+shared_repairs:
+  implemented:
+    - id: smartrecruiters_reviewed_high_volume_ceiling
+      file: src/scraper/company_careers/adapters/smartrecruiters.py
+      change: raise the adapter validation ceiling from 10 pages / 1000 rows to 50 pages / 5000 rows
+      behavior_scope: no production source expands unless its own config opts into larger limits
+      evidence: BoschGroup advertised 4813 on three stored pages and later 4835 on two stored anchors; page size 100; exact identity validated
+      affected_batch_companies: [Bosch]
+  rejected:
+    - family: sitemap
+      targets: [Meta, Rivian, Qualcomm]
+      reason: target-specific active-only inventory and complete-shard authority are not proved
+    - family: graphql_union
+      targets: [Goldman Sachs]
+      reason: no checked-in response fixture proves per-page totals, category overlap, or union completeness
+    - family: oracle_partition
+      targets: [JPMorgan Chase, Emerson, Honeywell, Oracle, Fortinet]
+      reason: no stored response proves a finite exhaustive partition set and exact bucket totals
+    - family: successfactors_alternate_inventory
+      targets: [CPKC, Scotiabank, Bombardier]
+      reason: RSS/sitemap mechanics do not prove complete active inventory for these hosts
+    - family: static_terminal
+      targets: [ecobee, Espressif Systems]
+      reason: stored runs contain stable positives but no page count, disabled next, finite section union, or atomic collection contract
+
+alternate_first_party_inventories:
+  Meta:
+    lead: https://www.metacareers.com/jobsearch/sitemap.xml
+    shape_evidence: freehire models a flat urlset, not an index
+    stable_id_evidence: numeric suffix of /profile/job_details/{id}
+    decision: rejected_for_absence_authority
+    missing: active-only membership semantics, stale URL behavior, duplicate accounting, and protected hydration outcomes
+  Rivian:
+    lead: https://careers.rivian.com/sitemap.xml
+    decision: rejected_for_absence_authority
+    missing: stored index/shard fixture, exact job path/ID contract, active-only semantics, duplicate accounting, and malformed-detail behavior
+  Goldman Sachs:
+    lead: https://api-higher.gs.com/gateway/api/v1/graphql
+    operation: GetRoles
+    request_evidence: exact query and combined experiences list are recorded in jobseek boards.csv
+    page_number_start: 0
+    page_size: 20
+    result_path: data.roleSearch.items
+    total_path: data.roleSearch.totalCount
+    stable_id: roleId
+    canonical_url: https://higher.gs.com/roles/{roleId}
+    required_experiences: [EARLY_CAREER, PROFESSIONAL]
+    decision: rejected_for_absence_authority
+    missing: checked-in response pages, public unauthenticated replay proof, total stability, and exact cross-category duplicate/union accounting
+  Stantec:
+    lead: global first-party sitemap
+    decision: rejected_for_configured_scope
+    missing: exact equivalence to the Calgary query and a Calgary-local terminal or authoritative total
+  Qualcomm:
+    lead: https://careers.qualcomm.com/careers/sitemap.xml
+    decision: rejected_for_absence_authority
+    missing: stored sitemap fixture, active-only semantics, stable ID rule, duplicate accounting, detail behavior, and terminal proof
+
+oracle_partition_review:
+  generic_repair_implemented: false
+  required_contract:
+    - authoritative finite partition universe
+    - exact total for every partition
+    - complete traversal of every partition
+    - exact provider-ID deduplication across partitions
+    - union completeness equal to the root inventory
+    - proof that no record exists outside the partition universe
+    - mutation in any partition fails the entire authoritative result
+  targets:
+    - {company: JPMorgan Chase, host: jpmc.fa.oraclecloud.com, site: CX_1001, facet_evidence: none_stored, candidate_dimension: null, partition_count: unknown, per_partition_total: unproved, union_identity: provider_requisition_id, generic_repair_applies: false}
+    - {company: Emerson, host: hdjq.fa.us2.oraclecloud.com, site: CX_1, facet_evidence: none_stored, candidate_dimension: null, partition_count: unknown, per_partition_total: unproved, union_identity: provider_requisition_id, generic_repair_applies: false}
+    - {company: Honeywell, host: ibqbjb.fa.ocs.oraclecloud.com, site: CX_1, careers_path_site: Honeywell, facet_evidence: none_stored, candidate_dimension: null, partition_count: unknown, per_partition_total: unproved, union_identity: provider_requisition_id, generic_repair_applies: false}
+    - {company: Oracle, host: eeho.fa.us2.oraclecloud.com, site: CX_45001, facet_evidence: none_stored, candidate_dimension: null, partition_count: unknown, per_partition_total: unproved, union_identity: provider_requisition_id, generic_repair_applies: false}
+    - {company: Fortinet, host: edel.fa.us2.oraclecloud.com, site: CX_2001, facet_evidence: none_stored, candidate_dimension: null, partition_count: unknown, per_partition_total: unproved, union_identity: provider_requisition_id, generic_repair_applies: false}
+
+successfactors_review:
+  generic_alternate_inventory_implemented: false
+  targets:
+    CPKC:
+      current_failure: total 150 reached but collection mutation contradicted authority
+      alternate_evidence: no exact target sitemap or RSS fixture
+    Scotiabank:
+      current_failure: 926 of 1683 with collection mutation
+      alternate_evidence: sibling RSS preset and generic job_sitemap.xml mechanics only
+    Bombardier:
+      current_failure: page repeated after 110 of 841
+      alternate_evidence: sibling RSS preset and generic job_sitemap.xml mechanics only
+  decision: current search pagination remains fail-closed; no alternate feed is accepted
+
+alternate_ats_migrations:
+  Micron:
+    current: {platform: eightfold, organization_id: micron.com, total_anchor: 2975}
+    candidate: {platform: workday, tenant: micron, wd_subdomain: wd1, site_id: external, url: https://micron.wd1.myworkdayjobs.com/external}
+    phase4_compatible: mechanically_yes
+    decision: not_proposed
+    missing: first-party tenant binding, employer identity response, maximum result count, apply URL fixture, and inventory/scope equivalence to the current Eightfold board
+  GlobalFoundries:
+    current: {platform: eightfold, organization_id: globalfoundries.com, total_anchor: 558}
+    candidate: {platform: workday, tenant: globalfoundries, wd_subdomain: wd1, site_id: External, url: https://globalfoundries.wd1.myworkdayjobs.com/External}
+    phase4_compatible: mechanically_yes
+    decision: not_proposed
+    missing: first-party tenant binding, employer identity response, maximum result count, apply URL fixture, and inventory/scope equivalence to the current Eightfold board
+
+static_terminal_review:
+  ecobee:
+    stored_runs: 2
+    stable_positive_jobs: 5
+    stored_stop_reason: no_pagination_configured
+    accepted_terminal_patterns: []
+    missing: explicit page count, disabled next, stable next URL, structured atomic inventory, or finite section union
+  Espressif Systems:
+    stored_runs: 2
+    stable_positive_jobs: 15
+    stored_stop_reason: no_pagination_configured
+    accepted_terminal_patterns: []
+    missing: explicit page count, disabled next, stable next URL, structured atomic inventory, or finite section union
+
+bosch_candidate:
+  status: READY_FOR_CANARY
+  production_registry_changed: false
+  candidate_registry: config/target_companies.pagination_completeness_batch3_canaries.yaml
+  source: https://api.smartrecruiters.com/v1/companies/BoschGroup/postings
+  identity: {slug: BoschGroup, company_name_regex: '^Bosch Group$', status: validated_in_stored_evidence}
+  stored_evidence:
+    - {date: '2026-10-01', total: 4813, page_size: 100, pages_sampled: 3, unique_ids: 300, collection_mutation: false}
+    - {date: '2026-10-05', total: 4835, page_size: 100, repeated_anchors: 2, anchor_totals_stable: true}
+  bound_derivation:
+    observed_high_total: 4835
+    exact_pages_at_observed_high: 49
+    candidate_max_pages: 50
+    candidate_max_jobs: 5000
+    bounded_headroom_jobs: 165
+    bounded_headroom_percent: 3.41
+    hard_canary_request_budget: 50
+    retries_or_restart_inside_budget: 0
+  terminal_required: unique stable IDs equal stable totalFound with no overlap, total movement, hidden continuation, safety limit, or rejected identity
+
+inventory_accounting_contract:
+  provider_equation: raw_provider_identities = normalized_jobs + protected_unreadable_identities + explicitly_rejected_items + known_duplicate_representations
+  union_equation: raw_union_representations = unique_provider_identities + exact_duplicate_representations
+  silent_loss_allowed: false
+  required_diagnostics: [raw_items, unique_provider_ids, normalized_jobs, unreadables, rejections, duplicate_ids, duplicate_urls, canonical_urls]
+
+mutation_contract:
+  triggers: [total_change, page_shift, inserted_record_before_offset, removed_record_before_offset, duplicate_boundary_record, cursor_or_page_repetition, partition_overlap, changing_partition_total]
+  outcome: {positive_discoveries_retained: true, scan_complete: false, absence_authorized: false}
+  overlap_tolerance_authoritative: false
+
+pass_complete_gates:
+  - canonical_employer_identity_validated
+  - exact_provider_source_validated
+  - source_scope_correct
+  - complete_provider_inventory
+  - explicit_terminal_evidence_valid
+  - hidden_continuation_absent
+  - collection_mutation_absent
+  - request_budget_respected
+  - safety_limit_absent
+  - stable_provider_ids_accounted
+  - unreadable_identities_protected
+  - duplicate_identities_understood
+  - canonical_url_contract_valid
+  - apply_url_contract_valid
+  - normalized_records_attributable
+  - central_finalizer_authoritative
+  - contradictory_diagnostics_absent
+
+companies:
+  - {company: Meta, status: INSUFFICIENT_EVIDENCE, root_cause: sitemap membership is not proved active-only, next_evidence: first-party sitemap and stale-removal fixture with protected detail failures}
+  - {company: Rivian, status: INSUFFICIENT_EVIDENCE, root_cause: no target sitemap index/shard or active-membership fixture, next_evidence: complete first-party sitemap capture plus canonical ID mapping to Jibe}
+  - {company: Goldman Sachs, status: INSUFFICIENT_EVIDENCE, root_cause: GetRoles request exists but response and category-union authority do not, next_evidence: recorded pages and totals for combined and individual experience sets}
+  - {company: Stantec, status: NEEDS_SOURCE_SPECIFIC_REPAIR, root_cause: Calgary browser query has continuation but no scope-local total or terminal, next_evidence: first-party Calgary API/XHR or explicit rendered final-page contract}
+  - {company: Qualcomm, status: INSUFFICIENT_EVIDENCE, root_cause: sitemap lead lacks active-only and complete traversal proof, next_evidence: first-party sitemap fixture and exact PCSx ID equivalence}
+  - {company: JPMorgan Chase, status: NEEDS_SOURCE_SPECIFIC_REPAIR, root_cause: mutable Oracle offsets and no stored exhaustive facets, next_evidence: full root facet payload with exact bucket counts}
+  - {company: Emerson, status: NEEDS_SOURCE_SPECIFIC_REPAIR, root_cause: mutable Oracle offsets and no stored exhaustive facets, next_evidence: full root facet payload with exact bucket counts}
+  - {company: Honeywell, status: NEEDS_SOURCE_SPECIFIC_REPAIR, root_cause: mutable Oracle offsets and no stored exhaustive facets, next_evidence: full root facet payload with exact bucket counts}
+  - {company: Oracle, status: NEEDS_SOURCE_SPECIFIC_REPAIR, root_cause: mutable Oracle offsets and no stored exhaustive facets, next_evidence: full root facet payload with exact bucket counts}
+  - {company: Fortinet, status: NEEDS_SOURCE_SPECIFIC_REPAIR, root_cause: one-row shortfall still includes observable mutation, next_evidence: full root facet payload with exact bucket counts}
+  - {company: Bosch, status: READY_FOR_CANARY, root_cause: prior source and adapter bounds were below authoritative total, candidate: 50 pages and 5000 jobs with a 50-request hard canary budget}
+  - {company: CPKC, status: NEEDS_SOURCE_SPECIFIC_REPAIR, root_cause: total reached under contradictory mutation evidence, next_evidence: stable search traversal or target-specific complete active feed}
+  - {company: Scotiabank, status: NEEDS_SOURCE_SPECIFIC_REPAIR, root_cause: mutable search traversal and unproved alternate feed completeness, next_evidence: target feed contract with active-only and total/terminal evidence}
+  - {company: Bombardier, status: NEEDS_SOURCE_SPECIFIC_REPAIR, root_cause: repeated search page and unproved alternate feed completeness, next_evidence: target feed contract with active-only and total/terminal evidence}
+  - {company: Micron, status: INSUFFICIENT_EVIDENCE, root_cause: alternate Workday binding and scope equivalence are unproved, next_evidence: first-party redirect or embedded tenant binding plus Workday inventory fixture}
+  - {company: GlobalFoundries, status: INSUFFICIENT_EVIDENCE, root_cause: alternate Workday binding and scope equivalence are unproved, next_evidence: first-party redirect or embedded tenant binding plus Workday inventory fixture}
+  - {company: ecobee, status: INSUFFICIENT_EVIDENCE, root_cause: stable positives do not prove a static terminal, next_evidence: stored explicit final-page, atomic collection, or finite-section contract}
+  - {company: Espressif Systems, status: INSUFFICIENT_EVIDENCE, root_cause: stable positives do not prove a static terminal, next_evidence: stored explicit final-page, atomic collection, or finite-section contract}
+
+status_counts:
+  READY_FOR_CANARY: 1
+  RECOVERED_BY_SHARED_FIX: 0
+  NEEDS_SOURCE_SPECIFIC_REPAIR: 9
+  FAIL_IDENTITY: 0
+  FAIL_CONTRACT: 0
+  FAIL_TRANSIENT: 0
+  UNSUPPORTED_PROVIDER: 0
+  NO_SAFE_REPAIR: 0
+  INSUFFICIENT_EVIDENCE: 8
+
+ready_for_canary: [Bosch]
+recovered_by_shared_fix: []
+needs_source_specific_repair: [Stantec, JPMorgan Chase, Emerson, Honeywell, Oracle, Fortinet, CPKC, Scotiabank, Bombardier]
+insufficient_evidence: [Meta, Rivian, Goldman Sachs, Qualcomm, Micron, GlobalFoundries, ecobee, Espressif Systems]
+fail_identity: []
+fail_contract: []
+
+manual_canaries:
+  - company: Bosch
+    registry: config/target_companies.pagination_completeness_batch3_canaries.yaml
+    request_budget: 50
+    persistence: false
+    dashboard_publish: false
+    lifecycle_mutation: false
+    command: '.\.venv\Scripts\python.exe scripts\validate_source_integrity_canaries.py --registry config\target_companies.pagination_completeness_batch3_canaries.yaml --company Bosch --request-budget 50 --run'
+    required_report: [identity, inventory_count, rejected_count, unreadable_count, duplicates, terminal_evidence, mutation, request_budget, PASS_COMPLETE]
+
+rollback:
+  Bosch:
+    production_action: none_required
+    candidate_action: remove config/target_companies.pagination_completeness_batch3_canaries.yaml
+    adapter_action: restore SmartRecruiters validation ceiling to 10 pages / 1000 rows if the candidate is abandoned
+  source_migrations: none_proposed
+
+batch4_recommendation:
+  core_targets: [Nordic Semiconductor, CN Rail, Athabasca Oil, HP Inc., Seagate, SGS, AstraZeneca, Kinross Gold, Cameco, Nutrien]
+  gated_prior_stragglers: [Atlassian, Microsoft, Eaton]
+  exact_composition_count: 13
+  exclusions:
+    contract_backlog: [Coupang]
+    identity_batch: [Samsung Electronics, GE Vernova, General Motors, Caterpillar, Zalando, Capital One]
+  rule: admit a gated straggler only with new deterministic evidence; do not repeat Batch 2 discovery
+
+production_safety:
+  production_registry_modified: false
+  production_reliability_overlay_modified: false
+  live_scan_run: false
+  live_canary_run: false
+  company_or_provider_network_request: false
+  browser_or_proxy_session: false
+  production_supabase_mutation: false
+  migration_execution: false
+  github_action_run: false
+  commit: false
+  push: false
+  merge: false
+  checkout: false
+  branch_change: false

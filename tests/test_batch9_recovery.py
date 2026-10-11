@@ -110,13 +110,19 @@ class Batch9RecoveryEvidenceTests(unittest.TestCase):
         self.assertEqual(self.rows["ASML"]["source_identity_status"], "unproven")
         self.assertFalse(self.rows["ASML"]["scan_complete"])
 
-    def test_smartrecruiters_boards_exceed_the_reviewed_adapter_ceiling(self) -> None:
+    def test_smartrecruiters_boards_exceeded_the_batch9_reviewed_ceiling(self) -> None:
         for company in {"Bosch", "SGS"}:
             with self.subTest(company=company):
                 target = self.targets[company]
                 row = self.rows[company]
                 smartrecruiters.validate_target(target)
-                self.assertGreater(row["total_available"], smartrecruiters.MAX_RESULTS)
+                # Batch 9 recorded why the then-reviewed 1,000-row ceiling was
+                # insufficient. Batch 3 later raised the adapter validation
+                # ceiling without expanding either production source config.
+                self.assertGreater(row["total_available"], 1_000)
+                self.assertGreaterEqual(
+                    smartrecruiters.MAX_RESULTS, row["total_available"]
+                )
                 self.assertEqual((target.max_pages, target.max_jobs), (1, 20))
                 self.assertEqual(row["source_identity_status"], "validated")
                 self.assertTrue(row["authoritative_total_present"])
