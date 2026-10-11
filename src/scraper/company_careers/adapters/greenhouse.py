@@ -9,6 +9,10 @@ from urllib.parse import parse_qs, parse_qsl, urlparse, urlunparse
 
 import requests
 
+from src.scraper.company_careers.incremental import (
+    IncrementalCapability,
+    IncrementalPolicy,
+)
 from src.scraper.company_careers.models import (
     ADAPTER_SAFETY_BUDGET_DEFAULTS,
     AdapterError,
@@ -36,6 +40,18 @@ HEADERS = {"Accept": "application/json", "User-Agent": "job-radar/1.0"}
 STRICT_BOARD_VARIANT = "boards_api_v1_strict"
 STABLE_ID_TEMPLATE_FIELD = "{id}"
 QUERY_PARAMETER_PATTERN = re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,63}")
+
+# Provider-contract review: the public board endpoint returns one complete
+# active-board collection and exposes a listing ``updated_at`` value, but the
+# repository contains no provider contract proving that value is a material
+# job version.  There is also no reviewed update filter, cursor, removal feed,
+# or conditional representation validator.  A seen ID or matching timestamp
+# therefore cannot skip hydration, and no Greenhouse checkpoint may advance.
+INCREMENTAL_POLICY = IncrementalPolicy(
+    capability=IncrementalCapability.NONE,
+    strategy_version="greenhouse_v1",
+)
+TRUSTED_LISTING_VERSION_FIELD: None = None
 
 
 def _secure_apply_url(value: object) -> str:
@@ -151,12 +167,13 @@ def _fetch_jobs(
             attribution_filtered += 1
             continue
         summaries.append((item, summary))
+    ids = [summary.job_id.casefold() for _item, summary in summaries]
+    urls = [summary.url.casefold() for _item, summary in summaries]
+    if len(set(ids)) != len(ids) or len(set(urls)) != len(urls):
+        metadata["duplicate_ids"] = len(set(ids)) != len(ids)
+        metadata["duplicate_canonical_urls"] = len(set(urls)) != len(urls)
+        raise AdapterError("Greenhouse board repeated a stable ID or canonical URL")
     if target.endpoint_variant == STRICT_BOARD_VARIANT:
-        ids = [summary.job_id.casefold() for _item, summary in summaries]
-        urls = [summary.url.casefold() for _item, summary in summaries]
-        if len(set(ids)) != len(ids) or len(set(urls)) != len(urls):
-            metadata["duplicate_ids"] = True
-            raise AdapterError("Greenhouse board repeated a stable ID or canonical URL")
         source_identity_diagnostic = (
             "Greenhouse API rows matched the configured board slug, stable IDs, "
             "and exact allow-listed board URLs"
@@ -398,6 +415,7 @@ def _get_json(
 ) -> tuple[Any, int, bool]:
     """Read one JSON response without consuming more than its byte budget."""
     response = session.get(url, headers=HEADERS, timeout=timeout, stream=True)
+    _validate_response_identity(response, url)
     if response.status_code != 200:
         close = getattr(response, "close", None)
         if callable(close):
@@ -419,7 +437,9 @@ def _get_json(
             if callable(close):
                 close()
         try:
-            return json.loads(bytes(body)), len(body), True
+            value = json.loads(bytes(body))
+            _reject_hidden_continuation(value)
+            return value, len(body), True
         except (TypeError, ValueError, UnicodeError) as exc:
             raise AdapterError(f"Greenhouse {label} is malformed JSON: {exc}") from exc
 
@@ -429,7 +449,9 @@ def _get_json(
         if len(body) > byte_limit:
             raise AdapterError(f"Greenhouse {label} exceeded the byte limit")
         try:
-            return response.json(), len(body), False
+            value = response.json()
+            _reject_hidden_continuation(value)
+            return value, len(body), False
         except (TypeError, ValueError) as exc:
             raise AdapterError(f"Greenhouse {label} is malformed JSON: {exc}") from exc
 
@@ -438,9 +460,45 @@ def _get_json(
     if encoded_size > byte_limit:
         raise AdapterError(f"Greenhouse {label} exceeded the byte limit")
     try:
-        return response.json(), encoded_size, False
+        value = response.json()
+        _reject_hidden_continuation(value)
+        return value, encoded_size, False
     except (TypeError, ValueError) as exc:
         raise AdapterError(f"Greenhouse {label} is malformed JSON: {exc}") from exc
+
+
+def _validate_response_identity(response: Any, requested_url: str) -> None:
+    """Reject unreviewed redirects before their body can assert board identity."""
+    final_url = str(getattr(response, "url", "") or "")
+    history_available = hasattr(response, "history")
+    history = getattr(response, "history", ()) or ()
+    if history or (
+        history_available and final_url and final_url != requested_url
+    ):
+        close = getattr(response, "close", None)
+        if callable(close):
+            close()
+        raise AdapterError("Greenhouse response violated the exact request identity")
+
+
+def _reject_hidden_continuation(value: Any) -> None:
+    """An atomic board response must not quietly introduce continuation state."""
+    if not isinstance(value, Mapping):
+        return
+    direct = ("next", "next_url", "next_cursor", "next_page")
+    if any(value.get(field) not in (None, "", False) for field in direct):
+        raise AdapterError("Greenhouse response exposed an unsupported continuation")
+    if value.get("has_more") is True:
+        raise AdapterError("Greenhouse response exposed an unsupported continuation")
+    pagination = value.get("pagination")
+    if isinstance(pagination, Mapping) and (
+        pagination.get("has_more") is True
+        or any(
+            pagination.get(field) not in (None, "", False)
+            for field in direct
+        )
+    ):
+        raise AdapterError("Greenhouse response exposed an unsupported continuation")
 
 
 def _summary_identity(item: Any) -> tuple[str, str]:
@@ -677,8 +735,21 @@ def _listing_record(
         if apply_url_contract is not None
         else _secure_apply_url(raw_absolute_url)
     )
-    if target.endpoint_variant == STRICT_BOARD_VARIANT:
+    try:
         parsed = urlparse(absolute_url)
+        hostname = (parsed.hostname or "").casefold()
+        explicit_port = parsed.port
+    except ValueError as exc:
+        raise AdapterError("Greenhouse canonical job URL is malformed") from exc
+    if target.endpoint_variant != STRICT_BOARD_VARIANT and (
+        parsed.scheme != "https"
+        or not hostname
+        or explicit_port is not None
+        or parsed.username is not None
+        or parsed.password is not None
+    ):
+        raise AdapterError("Greenhouse canonical job URL is malformed")
+    if target.endpoint_variant == STRICT_BOARD_VARIANT:
         parts = [part for part in parsed.path.split("/") if part]
         query_parameter: str | None = None
         if apply_url_contract is None:

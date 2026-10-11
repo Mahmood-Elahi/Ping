@@ -365,6 +365,8 @@ def material_content_fingerprint(job: Mapping[str, Any] | Any) -> str:
         "description": values.get("description"),
         "departments": values.get("departments"),
         "offices": values.get("offices"),
+        "source_scope": values.get("source_scope"),
+        "cross_source_equivalence": values.get("cross_source_equivalence"),
         "source_updated_at": values.get("source_updated_at") or values.get("updated_at"),
         "source_posted_at": values.get("source_posted_at"),
         "raw_metadata": stable_raw,

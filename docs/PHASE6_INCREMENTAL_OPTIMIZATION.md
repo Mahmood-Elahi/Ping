@@ -136,7 +136,7 @@ activation approval.
 
 | Adapter/platform | Repository-only classification | Evidence / missing proof |
 |---|---|---|
-| Greenhouse | Promising inventory + selective hydration; promising timestamp | Explicit `InventoryItem`; listing summaries carry `updated_at`; detail hydration is separable. Ordering/version semantics still need a provider-contract review. |
+| Greenhouse | **FULL_CRAWL_ONLY** | Stable IDs and an atomic active-board collection exist, but `updated_at` is not proven to be a material version. There is no reviewed update filter, cursor, removal feed, or conditional representation validator. Compact production reads may hydrate up to 20 details; ID/timestamp equality cannot safely skip them. |
 | SmartRecruiters | **FULL_CRAWL_ONLY** | The anonymous listing endpoint has stable posting IDs, complete `totalFound` plus offset/limit inventory, and a `releasedAfter` filter. The provider documents `releasedDate` as the date the posting was released, not a last-modified/material-version field. No reviewed update ordering, opaque cursor, deletion feed, or conditional-response contract exists for the anonymous production source. All production targets are already listing-only, so there are no detail requests to save. |
 | Ashby | Promising inventory + selective hydration | Explicit inventory and separated summary/detail paths; summary timestamps vary by endpoint and need contract validation. |
 | BambooHR | Promising inventory + selective hydration | Explicit inventory plus detail endpoint and `datePosted`; no proven material version yet. |
@@ -155,14 +155,12 @@ activation approval.
 
 Remaining future canary candidates, in order:
 
-1. **Greenhouse** — stable inventory IDs and listing `updated_at`, subject to
-   proving timestamp semantics against recorded deterministic fixtures.
-2. **Eightfold** — only after a dedicated contract review of pagination and
+1. **Eightfold** — only after a dedicated contract review of pagination and
    enrichment, using Jobseek as reference rather than as lifecycle authority.
 
-SmartRecruiters is removed from the canary queue by the adapter-specific review
-below. It can re-enter only after stronger provider evidence or a different
-reviewed endpoint proves exact new-and-changed discovery.
+SmartRecruiters and Greenhouse are removed from the canary queue by their
+adapter-specific reviews below. Either can re-enter only after stronger
+provider evidence or a different reviewed endpoint proves exact safe savings.
 
 ## SmartRecruiters Stage B contract audit
 
@@ -357,6 +355,246 @@ source-specific `enabled: false -> true` change after a passing canary, and
 rollback must restore `false`, ignore the bound checkpoint, and immediately use
 the unchanged full authoritative path.
 
+## Greenhouse Stage B contract audit
+
+### Verdict
+
+Classification: **A. FULL_CRAWL_ONLY**.
+
+The adapter now records the decision explicitly:
+
+```python
+INCREMENTAL_POLICY = IncrementalPolicy(
+    capability=IncrementalCapability.NONE,
+    strategy_version="greenhouse_v1",
+)
+TRUSTED_LISTING_VERSION_FIELD = None
+```
+
+Greenhouse has a useful Phase 3 inventory/hydration split, but that does not by
+itself create a Phase 6 incremental contract. The public board response exposes
+stable IDs and a listing `updated_at`; no reviewed deterministic evidence proves
+that `updated_at` changes for every material title, location, apply URL,
+department, office, metadata, or description edit. Matching an ID and timestamp
+therefore cannot skip `/jobs/{id}` safely.
+
+No reviewed contract exposes `updated_since`, `created_since`, update ordering,
+an opaque change cursor, webhook history, an archive/deletion feed, ETag reuse,
+or Last-Modified/304 semantics for the complete active-board representation.
+The adapter sends no conditional headers and accepts only HTTP 200.
+
+### Provider and normalized-field contract
+
+- Provider identity is `greenhouse:{slug}`. The stable item identity is the
+  public board API row `id`, normalized to text. A separately fetched detail
+  must return that same `id` or it is rejected.
+- The strict path form requires `/slug/jobs/id` on an allowed Greenhouse host.
+  The strict query-ID form requires an explicitly configured HTTPS template,
+  one safe query parameter whose entire value is `{id}`, and optional one-time
+  repetition of `{id}` in the exact path. Waymo, Ripple, and Miro use this form.
+- The compact listing normalizes `id`, `title`, configured company, the
+  `location.name`, `absolute_url`, `updated_at`, source namespace, and the full
+  listing object as stable raw metadata. Named custom `metadata` values are also
+  exposed as `greenhouse_metadata` for relevance and attribution.
+- Separate detail hydration supplies normalized `content`, `departments`, and
+  `offices`. Detail title and URL do not replace listing identity; the detail ID
+  must correlate exactly. Requisition/internal IDs and other listing fields are
+  retained in raw metadata when present, not promoted to separate JobRecord
+  fields. No Greenhouse closing date or created/source-posted timestamp is
+  normalized today.
+- `absolute_url` is the one normalized canonical/apply URL. Strict variants
+  correlate it to the board and ID; non-strict variants preserve the historical
+  URL behavior and do not acquire stronger identity from this Phase 6 review.
+
+The listing endpoint is modeled as one atomic active-board collection: one
+`jobs` array, no pages, cursor, or authoritative total. Completeness depends on
+receiving and validating the entire array and staying below `max_jobs`; exactly
+reaching the safety bound is incomplete. Empty `jobs` is a valid complete
+collection. Any newly exposed continuation marker now fails closed instead of
+being mistaken for terminal success. Any HTTP redirect of an API request also
+fails exact request identity. Duplicate stable IDs or canonical URLs fail every
+variant, not only strict sources.
+
+Greenhouse exposes no explicit removal event in the reviewed evidence.
+Disappearances therefore remain authorized only after a complete full active-
+board inventory is finalized for the same `source_scope`.
+
+### Production inventory and request model
+
+The effective production registry contains **102** Greenhouse sources. Every
+source is active, uses `source_scope: default`, `max_pages: 1`, and
+`max_jobs: 10000`. Ninety-nine use `max_response_bytes: 3000000`; Zipline,
+CoreWeave, and Grafana Labs use `5000000`.
+
+Endpoint variants are configuration/identity variants over the same
+`https://boards-api.greenhouse.io/v1/boards/{slug}/jobs` listing route:
+
+- 92 have no explicit endpoint variant;
+- 3 use `boards_api_v1`: Hudson River Trading, Phoenix Contact, and Agility
+  Robotics; and
+- 7 use `boards_api_v1_strict`: Waymo, Ripple, DRW, Flexport, SharkNinja, Box,
+  and Miro.
+
+The exact production company/slug inventory is:
+
+Airbnb=`airbnb`; Stripe=`stripe`; Databricks=`databricks`;
+Cloudflare=`cloudflare`; Datadog=`datadog`; MongoDB=`mongodb`;
+Coinbase=`coinbase`; Elastic=`elastic`; GitLab=`gitlab`; Twilio=`twilio`;
+Zscaler=`zscaler`; Anthropic=`anthropic`; xAI=`xai`; Figma=`figma`;
+Robinhood=`robinhood`; Chime=`chime`; Brex=`brex`; Magic Leap=`magicleap`;
+Rocket Lab=`rocketlab`; Vast=`vast`; DoorDash=`doordashusa`; Reddit=`reddit`;
+Discord=`discord`; Pinterest=`pinterest`; Hudson River Trading=`hrttalentcommunity`;
+Phoenix Contact=`phoenixcontact`; Agility Robotics=`agilityrobotics`;
+Waymo=`waymo`; Ripple=`ripple`; DRW=`drweng`; Flexport=`flexport`;
+Jump Trading=`jumptrading`; Relativity Space=`relativity`; Figure AI=`figureai`;
+SpaceX=`spacex`; Adyen=`adyen`; Jane Street=`janestreet`;
+Lucid Motors=`lucidmotors`; Instacart=`instacart`; Faire=`faire`;
+Medium=`medium`; Block=`block`; Geotab=`geotab`; D2L=`d2l`;
+Hootsuite=`hootsuite`; Apptronik=`apptronik`; Nuro=`nuro`;
+Kodiak Robotics=`kodiak`; Gatik=`gatikaiinc`; Scale AI=`scaleai`;
+SharkNinja=`sharkninjaoperatingllc`; PurposeMed=`purposemed`;
+Tenstorrent=`tenstorrent`; Affirm=`affirm`; Motional=`motional`;
+Locus Robotics=`locusrobotics`; indie Semiconductor=`indiesemiconductor`;
+Twitch=`twitch`; Coconut Software=`coconutsoftware`; Astera Labs=`asteralabs`;
+SK hynix=`skhynixamerica`; Roku=`roku`; Ambiq=`ambiqmicroinc`;
+Diligent Robotics=`diligentrobotics`; Zipline=`flyzipline`;
+HubSpot=`hubspotjobs`; Dropbox=`dropbox`; Okta=`okta`; Box=`boxinc`;
+Asana=`asana`; Vercel=`vercel`; Airtable=`airtable`; AppLovin=`applovin`;
+Appian=`appian`; Samsara=`samsara`; PagerDuty=`pagerduty`;
+Miro=`realtimeboardglobal`; Fivetran=`fivetran`; Braze=`braze`;
+DigitalOcean=`digitalocean98`; Fastly=`fastly`; CoreWeave=`coreweave`;
+Cockroach Labs=`cockroachlabs`; Grafana Labs=`grafanalabs`;
+Pulumi=`pulumicorporation`; Tailscale=`tailscale`; Netlify=`netlify`;
+PlanetScale=`planetscale`; Together AI=`togetherai`;
+SambaNova Systems=`sambanovasystems`; Glean=`gleanwork`; Arize AI=`arizeai`;
+Snorkel AI=`snorkelai`; Labelbox=`labelbox`; SingleStore=`singlestore`;
+Ada=`ada18`; StackAdapt=`stackadapt`; League=`leagueinc`;
+Auvik Networks=`auviknetworks`; AbCellera=`abcellera`;
+Aspect Biosystems=`aspectbiosystems`; Later=`later`.
+
+Allowed-apply-host configuration has 24 empty lists, 32 exact
+`job-boards.greenhouse.io` lists, 4 exact `boards.greenhouse.io` lists, 15
+two-host Greenhouse lists in either order, and 27 patterns containing a
+company-owned host. The company-owned-host cases are HRT, Agility Robotics,
+Waymo, Ripple, Jump Trading, Jane Street, Instacart, Block, D2L, Nuro,
+PurposeMed, Motional, indie Semiconductor, Roku, Zipline, HubSpot, Dropbox,
+Okta, Asana, Samsara, Miro, Fivetran, DigitalOcean, Fastly, CoreWeave,
+Cockroach Labs, and SambaNova. These lists are identity-enforcing in strict
+mode; their presence must not be misreported as strict validation for the
+historical non-strict variants.
+
+All 102 use the same compact listing plus bounded-detail code path. With `D`
+selected rows needing content, where `0 <= D <= 20`, the deterministic model is
+`1 listing + D details`, or 1 to 21 requests. CoreWeave alone configures the
+`Technology` department allowlist and exact Acquisition Company attribution;
+its streamed compact path is `1 listing + 1 department index + D details`, or
+2 to 22 requests. There is no pagination request. A detail transport failure
+retains the listing as partial progress and records an unreadable item; the
+adapter itself has no retry loop, so it cannot silently exceed this model.
+
+Historical Phase 1 evidence activated Waymo, SharkNinja, Box, Ripple, Miro, and
+other reviewed replacements without changing this request model. Known
+non-production Greenhouse failures remain excluded: the Lightspeed global and
+France tokens returned 404 in their recorded reviews, Groq and Hebbia have
+stale/moved boards, Niantic has historical 404 evidence, and Coupang remains
+pending exact custom-URL identity. None is a hidden 103rd active production
+Greenhouse source, and no archived board is treated as removal authority.
+
+### Candidate optimizations and savings
+
+**Inventory plus selective hydration is rejected.** The theoretical current
+model is `1 + D` (or CoreWeave `2 + D`). A valid trusted-version strategy could
+be `1 + K`, with `K` changed rows and savings `D - K`; however, no trustworthy
+material version exists, so `K` cannot be selected safely. ID equality,
+`updated_at` equality, content-hash equality from an earlier detail, or a
+missing/malformed timestamp cannot justify a skip.
+
+**Timestamp and cursor incrementals are rejected.** `updated_at` may improve
+change diagnostics, but without a complete server-side update filter it cannot
+reduce the listing request or discover only changed records. No reviewed update
+filter, ordering rule, overlap boundary, monotonic cursor, or explicit change
+feed exists. Any hypothetical timestamp slice would be positive-only and could
+never authorize absence.
+
+**Validated snapshot reuse is rejected.** No reviewed ETag or Last-Modified
+contract binds a validator to the complete active-board representation. An
+observed header or fixture would not be enough. A 304 would require the exact
+board/source-scope/config binding, a prior complete authoritative payload, and
+a verified checksum; the Greenhouse adapter implements none of this.
+
+**Expanded full-board representation is not accepted for activation.** Jobseek
+and freehire independently use `?content=true` to receive content, departments,
+offices, first-published data, and requisition metadata in one full-board
+request. This is useful evidence for future non-incremental request-shape work,
+not proof of a material version. Freehire also records that expanded boards can
+reach tens of MiB, while Job Radar production caps are 3 or 5 MB. No local A/B
+fixture proves exact normalized equivalence, strict URL behavior, and cap
+compliance for one current production source. Consequently its theoretical
+`1 request` model and possible savings of `D` are not claimed as safe savings.
+
+The accepted optimized request model is therefore absent, and expected safe
+request savings are exactly **0**.
+
+### Material fingerprint, authority, and checkpoint audit
+
+The generic material fingerprint covers Greenhouse stable provider ID and
+source, title, company, location, canonical/apply URL, description,
+departments, offices, source update/post dates when present, and stable raw
+metadata including custom metadata and requisition/internal IDs. It now also
+includes `source_scope` and exact `cross_source_equivalence`; observation times,
+scan IDs, and last-seen/first-seen operational fields remain excluded.
+Greenhouse produces no normalized closing date. Deterministic tests prove that
+a changed description changes the fingerprint even when `id` and `updated_at`
+do not, while unchanged material content remains stable.
+
+Only a complete full active-board inventory for the exact logical scope may
+authorize absence. Detail failures do not erase inventory protection. Retention
+age remains independent and is never evidence of provider removal.
+
+Capability `none` creates and advances no Greenhouse checkpoint. If a future
+strategy is proven, its state must bind source-scope key, provider identity,
+board slug, endpoint/config fingerprint, strategy version, and the exact
+timestamp/cursor/representation token it uses. It may advance only through
+accepted atomic persistence, never on incomplete scans, identity ambiguity,
+malformed state, budget exhaustion, hydration failure, or persistence failure.
+
+### Canary, PASS/FAIL, activation, and rollback gates
+
+Future canary company: **NONE**. Waymo is not selected merely because it has
+the strongest strict query-ID tests; no accepted optimized branch exists, so
+its expected safe savings are zero. No exact manual Greenhouse A/B canary
+command is published, and no canary tool or candidate config is fabricated.
+
+Current PASS is not achievable. Re-evaluation requires at least one of:
+
+1. a documented material job version that changes for every normalized edit;
+2. a complete new-and-changed query with inclusive overlap and rollback rules;
+3. a monotonic opaque cursor or explicit change/removal feed;
+4. a reviewed complete-representation validator suitable for safe 304 reuse;
+   or
+5. for the non-incremental expanded representation only, deterministic proof
+   that one bounded source returns exact full-baseline material records within
+   its response cap and with a lower measured request count.
+
+After a prerequisite exists, PASS must require identical employer identity,
+source scope, stable IDs, complete required inventory, terminal evidence, and
+material normalized records; strictly fewer measured requests; no omitted
+changed jobs, continuation, malformed/rejected/unreadable item, safety stop,
+or budget exhaustion; correct authority; valid but unadvanced checkpoint state
+when applicable; and zero production mutation.
+
+FAIL is any ambiguity: wrong slug/board/host/path/query, redirect, duplicate ID
+or URL, missing or false material-version evidence, a changed detail hidden by
+an alleged unchanged version, incomplete collection, hidden continuation,
+oversized response, exhausted request/retry budget, config/strategy mismatch,
+cross-scope state, any absence inference from a positive-only slice, failed
+persistence, or no measured request saving.
+
+There is no future activation diff while capability remains `none`: the exact
+production diff is empty. Rollback is a no-op because production already runs
+the unchanged full crawl and no Greenhouse checkpoint exists to delete or
+disable.
+
 ## Sibling-repository provenance
 
 No sibling file was modified or copied wholesale.
@@ -367,9 +605,15 @@ No sibling file was modified or copied wholesale.
   of complete discovery from incremental enrichment.
 - Jobseek's inventory-runner documentation (`docs/21-ats-inventory-runner.md`)
   informed fail-closed 304 reuse and integrity validation.
+- Jobseek `apps/crawler/go/greenhouse-monitor` demonstrates one bounded
+  `?content=true` rich collection and stable listing fields, but supplies no
+  material-version or removal semantics.
 - freehire `cmd/ingest/store.go` and
   `internal/platform/db/queries/jobs.sql` informed content-hash cheap writes,
   `last_seen_at` touch behavior, and the cache-is-not-truth rule.
+- freehire `internal/ingest/sources/greenhouse.go` independently demonstrates
+  the expanded full-board shape; its HTTP layer records that such bodies can
+  reach tens of MiB, so Job Radar's smaller cap remains a real gate.
 - JobSpy's Indeed/Glassdoor/Google pagination implementations were consulted
   only as cursor-shape references. Their stop/lifecycle semantics were not
   imported.
