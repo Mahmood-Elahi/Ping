@@ -78,7 +78,7 @@ def target(**overrides):
 
 
 class StaticHTMLAdapterTests(unittest.TestCase):
-    def test_repeated_page_sources_drop_only_the_disproven_page_template(self):
+    def test_remaining_static_source_drops_only_the_disproven_page_template(self):
         repaired = {
             item.name: item
             for item in load_target_companies(apply_reliability_repairs=True)
@@ -93,18 +93,10 @@ class StaticHTMLAdapterTests(unittest.TestCase):
                     "</div>"
                 ),
             },
-            "Intuitive Surgical": {
-                "external_id": "744000150742000",
-                "card": (
-                    "<div class='card-job' data-id='744000150742000'>"
-                    "<h2 class='card-title'><a href='/en/jobs/744000150742000/engineer'>"
-                    "Engineer</a></h2><ul class='job-meta'><li>Sunnyvale, CA</li>"
-                    "<li>Engineering</li></ul></div>"
-                ),
-            },
         }
 
         self.assertIsNone(repaired["General Motors"].next_page_selector)
+        self.assertEqual(repaired["Intuitive Surgical"].platform, "smartrecruiters")
 
         for company, fixture in fixtures.items():
             with self.subTest(company=company):

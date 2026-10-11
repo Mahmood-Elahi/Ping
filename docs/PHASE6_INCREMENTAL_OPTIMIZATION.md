@@ -690,10 +690,10 @@ accepted capabilities.  Every adapter's executable policy remains
 | `public_json` (7; seven distinct endpoint variants) | Variant-specific: 1-50 configured pages | No details/browser; date/version semantics differ per endpoint | `INSUFFICIENT_EVIDENCE` / conditional snapshot or positive pagination per endpoint / not generically estimable | 2/4/3/2/4/4 -> **3** |
 | `sap_successfactors` (44; table 31, tile 8, columnized 5) | Variant-specific RMK terminal evidence, all capped at 20 listing pages | Columnized hydrates each item; table/tile listing-only; no browser/material version | `INSUFFICIENT_EVIDENCE` / selective hydration or positive pagination / potentially large, unproven | 4/5/5/3/5/5 -> **7** |
 | `shopify` (1; bespoke default) | Full collection, cap 5 pages | No details/browser/version | `POSSIBLE_BUT_LOW_SAVINGS` / `CONTENT_HASH_DOWNSTREAM_SKIP` / 0 network requests | 1/2/1/2/2/3 -> **1** |
-| `smartrecruiters` (15; companies postings v1) | `ceil(totalFound/100)`, zero production detail requests | No browser; `releasedDate` is release time | `FULL_CRAWL_ONLY` / `NONE` / 0 | 3/3/1/4/3/4 -> **4** |
+| `smartrecruiters` (16; companies postings v1) | `ceil(totalFound/100)`, zero production detail requests | No browser; `releasedDate` is release time | `FULL_CRAWL_ONLY` / `NONE` / 0 | 3/3/1/4/3/4 -> **4** |
 | `source_xml` (0; dispatchable) | Bounded XML feed/index traversal when configured | No details/browser; `lastmod` requires an exact feed contract | `INSUFFICIENT_EVIDENCE` / conditional snapshot or timestamp research / not estimable | 0/0/0/1/3/3 -> **0** |
 | `startdate` (1; default) | One bounded collection | No details/browser/version | `POSSIBLE_BUT_LOW_SAVINGS` / `CONTENT_HASH_DOWNSTREAM_SKIP` / 0 requests | 1/1/1/2/1/2 -> **2** |
-| `static_html` (27; cards 24, links 3) | 24 cap at 1 page; BlackRock, Siemens, and Chevron cap at 2 | No details/browser; display dates are not versions | `POSSIBLE_BUT_LOW_SAVINGS` / `CONTENT_HASH_DOWNSTREAM_SKIP` / 0 network requests | 4/2/1/2/2/4 -> **3** |
+| `static_html` (26; cards 23, links 3) | 23 cap at 1 page; BlackRock, Siemens, and Chevron cap at 2 | No details/browser; display dates are not versions | `POSSIBLE_BUT_LOW_SAVINGS` / `CONTENT_HASH_DOWNSTREAM_SKIP` / 0 network requests | 4/2/1/2/2/4 -> **3** |
 | `talentbrew` (4; search-results data-job-id v1) | Three cap at 1 page; Rakuten caps at 2 | No details/browser/version | `POSSIBLE_BUT_LOW_SAVINGS` / `CONTENT_HASH_DOWNSTREAM_SKIP` / 0 network requests | 1/2/1/3/2/3 -> **2** |
 | `teamtailor` (1; server-rendered jobs v1) | One complete page | No details/browser/version | `POSSIBLE_BUT_LOW_SAVINGS` / `CONTENT_HASH_DOWNSTREAM_SKIP` / 0 requests | 1/1/1/2/1/2 -> **2** |
 | `uber` (1; bespoke default) | Full search, cap 5 pages | No details/browser; posting timestamps only | `FULL_CRAWL_ONLY` / `NONE` / 0 | 1/2/1/2/3/4 -> **0** |
@@ -799,7 +799,7 @@ would require config/provider identity, complete terminal evidence, checksum,
 expiry, and fail-closed fallback.  That is Phase 7 infrastructure, not a Phase
 6 activation.
 
-There are no large-pagination production `static_html` sources: 24 of 27 cap
+There are no large-pagination production `static_html` sources: 23 of 26 cap
 at one page; only BlackRock, Siemens, and Chevron cap at two.  Their terminal
 evidence comes from reviewed static controls/totals/contracts.  No generic
 newest-first ordering or trustworthy timestamp boundary exists.  An interim

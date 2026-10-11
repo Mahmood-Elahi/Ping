@@ -84,6 +84,7 @@ ACTIVATED_PRODUCTION = {
     "Redis": ("ashby", "redis"),
     "Ripple": ("greenhouse", "ripple"),
     "Miro": ("greenhouse", "realtimeboardglobal"),
+    "Intuitive Surgical": ("smartrecruiters", "intuitive"),
     "Wise": ("smartrecruiters", "wise"),
 }
 
@@ -163,7 +164,8 @@ def test_closed_previous_batch_candidates_are_not_runnable() -> None:
     production = {entry["name"]: entry for entry in _entries(PRODUCTION_PATH)}
     assert production["Cameco"]["platform"] == "static_html"
     assert production["Lightspeed Commerce"]["platform"] == "static_html"
-    assert production["Intuitive Surgical"]["platform"] == "static_html"
+    assert production["Intuitive Surgical"]["platform"] == "smartrecruiters"
+    assert production["Intuitive Surgical"]["slug"] == "intuitive"
 
 
 def test_phase1_review_tracks_closure_and_every_new_batch_company() -> None:

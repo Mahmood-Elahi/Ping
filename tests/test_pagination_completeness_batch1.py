@@ -9,6 +9,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 REVIEW_PATH = ROOT / "config" / "pagination_completeness_recovery_batch1.yaml"
 REGISTRY_PATH = ROOT / "config" / "target_companies.yaml"
+REPAIRS_PATH = ROOT / "config" / "company_careers_reliability_repairs_v1.yaml"
 SNAPSHOT_PATH = ROOT / "jobs" / "company_careers_coverage_20261001_142550.json"
 
 EXPECTED_COMPANIES = [
@@ -34,6 +35,7 @@ EXPECTED_COMPANIES = [
     "Goldman Sachs",
 ]
 ALLOWED_STATUSES = {
+    "RECOVERED",
     "RECOVERED_BY_SHARED_FIX",
     "READY_FOR_CANARY",
     "NEEDS_SOURCE_SPECIFIC_REPAIR",
@@ -72,9 +74,9 @@ def test_each_company_has_one_allowed_final_status_and_counts_reconcile() -> Non
     assert set(statuses).issubset(ALLOWED_STATUSES)
     assert counts == review["status_counts"]
     assert counts == {
-        "READY_FOR_CANARY": 3,
+        "RECOVERED": 2,
         "RECOVERED_BY_SHARED_FIX": 0,
-        "NEEDS_SOURCE_SPECIFIC_REPAIR": 10,
+        "NEEDS_SOURCE_SPECIFIC_REPAIR": 11,
         "FAIL_IDENTITY": 6,
         "FAIL_CONTRACT": 1,
     }
@@ -86,18 +88,27 @@ def test_outcome_groups_are_disjoint_and_cover_the_batch() -> None:
 
     assert len(flattened) == len(set(flattened)) == 20
     assert set(flattened) == set(EXPECTED_COMPANIES)
-    assert len(groups["A_READY_FOR_MANUAL_CANARY"]) == 3
-    assert len(groups["B_NEEDS_MORE_DETERMINISTIC_REPAIR"]) == 10
+    assert groups["A_LIVE_VALIDATED_RECOVERED"] == [
+        "Shopify",
+        "Intuitive Surgical",
+    ]
+    assert len(groups["B_NEEDS_MORE_DETERMINISTIC_REPAIR"]) == 11
     assert len(groups["C_BLOCKED_NO_SAFE_REPAIR"]) == 1
     assert len(groups["D_RECLASSIFIED_NOT_PAGINATION"]) == 6
 
 
-def test_review_is_anchored_to_unchanged_registry_and_runtime_evidence() -> None:
+def test_review_is_anchored_to_activated_registry_and_runtime_evidence() -> None:
     evidence = _review()["evidence_boundary"]
 
-    assert evidence["production_registry_changed"] is False
-    assert evidence["live_validation_performed"] is False
-    assert evidence["production_registry"]["sha256"] == _sha256(REGISTRY_PATH)
+    assert evidence["production_registry_changed"] is True
+    assert evidence["live_validation_performed"] is True
+    assert evidence["live_validation_performed_by"] == "operator"
+    assert evidence["production_registry_after_activation"]["sha256"] == _sha256(
+        REGISTRY_PATH
+    )
+    assert evidence["production_reliability_overlay_after_activation"][
+        "sha256"
+    ] == _sha256(REPAIRS_PATH)
     assert evidence["newest_full_runtime_snapshot"]["sha256"] == _sha256(
         SNAPSHOT_PATH
     )
@@ -116,25 +127,34 @@ def test_recorded_platforms_match_the_production_registry() -> None:
     )
 
 
-def test_ready_canaries_are_exactly_the_reviewed_bounded_commands() -> None:
+def test_live_closeout_and_historical_commands_are_recorded_exactly() -> None:
     review = _review()
-    ready = {
-        row["company"]
-        for row in review["companies"]
-        if row["status"] in {"READY_FOR_CANARY", "RECOVERED_BY_SHARED_FIX"}
-    }
+    rows = {row["company"]: row for row in review["companies"]}
     commanded = {
         company
-        for canary in review["manual_canaries"]
+        for canary in review["historical_manual_canaries"]
         for company in canary["companies"]
     }
 
-    assert ready == commanded == {"Atlassian", "Shopify", "Intuitive Surgical"}
-    assert [row["request_budget_per_source"] for row in review["manual_canaries"]] == [
+    assert commanded == {"Atlassian", "Shopify", "Intuitive Surgical"}
+    assert [
+        row["request_budget_per_source"]
+        for row in review["historical_manual_canaries"]
+    ] == [
         1,
         8,
     ]
-    assert all("--run" in row["command"] for row in review["manual_canaries"])
+    assert all(
+        "--run" in row["command"] for row in review["historical_manual_canaries"]
+    )
+    assert rows["Shopify"]["live_validation"]["validation_status"] == "PASS_COMPLETE"
+    assert rows["Intuitive Surgical"]["live_validation"]["validation_status"] == "PASS_COMPLETE"
+    assert rows["Atlassian"]["live_validation"]["validation_status"] == "LIVE_CANARY_FAILED"
+    assert rows["Atlassian"]["live_validation"]["exact_error"] == (
+        "AdapterError: Atlassian Careers job URL did not match the observed "
+        "iCIMS host and stable-ID path contract"
+    )
+    assert rows["Atlassian"]["recovery_state"] == "NOT_RECOVERED"
 
 
 def test_mutation_and_identity_failures_are_not_promoted_by_budget() -> None:

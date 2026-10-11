@@ -78,7 +78,6 @@ class Batch9RecoveryEvidenceTests(unittest.TestCase):
         names = {
             "General Motors",
             "Caterpillar",
-            "Intuitive Surgical",
             "Coupang",
             "Dyson",
             "Athabasca Oil",
@@ -88,9 +87,11 @@ class Batch9RecoveryEvidenceTests(unittest.TestCase):
                 self.assertFalse(self.targets[company].single_page_collection)
                 self.assertEqual(self.rows[company]["source_identity_status"], "unproven")
 
-        for company in {"General Motors", "Caterpillar", "Intuitive Surgical"}:
+        for company in {"General Motors", "Caterpillar"}:
             self.assertIsNone(self.targets[company].pagination_url_template)
             self.assertTrue(self.rows[company]["next_url_present"])
+        self.assertEqual(self.targets["Intuitive Surgical"].platform, "smartrecruiters")
+        self.assertTrue(self.rows["Intuitive Surgical"]["next_url_present"])
         self.assertEqual(self.rows["Coupang"]["stop_reason"], "repeated_page")
         self.assertTrue(self.rows["Coupang"]["has_more"])
 

@@ -456,32 +456,19 @@ company_careers_reliability_repairs:
     next_page_selector: null
     allow_url_id_fallback: false
   - name: Intuitive Surgical
-    platform: static_html
+    platform: smartrecruiters
+    slug: intuitive
+    endpoint_variant: companies_postings_v1
     careers_url: https://careers.intuitive.com/en/jobs/
-    listing_url: https://careers.intuitive.com/en/jobs/
-    endpoint_variant: server_rendered_cards
-    original_workbook_rank: 162
+    endpoint_url: https://api.smartrecruiters.com/v1/companies/intuitive/postings
+    identity_regex: '^Intuitive(?: Surgical)?$'
     allowed_apply_hosts:
-      - careers.intuitive.com
-    max_pages: 1
-    max_jobs: 20
-    max_scripts: 20
+      - jobs.smartrecruiters.com
+    page_size: 100
+    max_pages: 8
+    max_jobs: 800
     max_response_bytes: 3000000
-    max_script_bytes: 1000000
-    evidence_source: config/company_remaining_inventory_v2.csv
-    evidence_confidence: medium
-    evidence_timestamp: '2026-08-05T01:24:24+00:00'
-    listing_selector: div.card-job
-    job_card_selector: div.card-job
-    title_selector: h2.card-title a
-    detail_link_selector: h2.card-title a
-    external_id_regex: null
-    external_id_attribute: data-id
-    location_selector: ul.job-meta li:first-child
-    department_selector: ul.job-meta li:nth-child(2)
-    pagination_url_template: null
-    next_page_selector: null
-    allow_url_id_fallback: false
+    selective_detail_enrichment: false
   - name: Calfrac Well Services
     platform: paycor
     careers_url: https://calfrac.com/careers/

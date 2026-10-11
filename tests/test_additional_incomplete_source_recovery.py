@@ -180,13 +180,12 @@ class AdditionalIncompleteSourceRecoveryTests(unittest.TestCase):
         self.assertFalse(metadata["safety_limit_reached"])
         self.assertEqual(metadata["stop_reason"], "no_next_page")
 
-    def test_repeated_page_sources_remain_unresolved_without_terminal_evidence(self):
+    def test_unresolved_static_source_remains_without_terminal_evidence(self):
         intuitive = self.targets["Intuitive Surgical"]
         coupang = self.targets["Coupang"]
-        self.assertIsNone(intuitive.pagination_url_template)
-        self.assertIsNone(intuitive.next_page_selector)
+        self.assertEqual(intuitive.platform, "smartrecruiters")
+        self.assertEqual((intuitive.slug, intuitive.max_pages, intuitive.max_jobs), ("intuitive", 8, 800))
         self.assertIsNotNone(coupang.pagination_url_template)
-        self.assertFalse(intuitive.single_page_collection)
         self.assertFalse(coupang.single_page_collection)
 
     def test_source_health_reconciles_only_independently_proven_terminal_state(self):

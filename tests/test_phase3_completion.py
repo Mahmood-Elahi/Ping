@@ -54,14 +54,41 @@ def test_remaining_eleven_provider_families_have_explicit_dispositions() -> None
         assert f"| {provider} |" in section
 
 
-def test_phase3_canaries_are_explicit_and_production_mappings_are_unchanged() -> None:
+def test_phase3_canaries_are_explicit_and_intuitive_matches_live_promoted_row() -> None:
     canaries = {target.name: target for target in load_target_companies(str(CANARIES))}
     production = {target.name: target for target in load_target_companies()}
     assert set(canaries) == {"ServiceNow", "Intuitive Surgical"}
     assert all(target.platform == "smartrecruiters" for target in canaries.values())
     assert all(not target.selective_detail_enrichment for target in canaries.values())
     assert production["ServiceNow"].platform != "smartrecruiters"
-    assert production["Intuitive Surgical"].platform != "smartrecruiters"
+    intuitive_fields = (
+        "name",
+        "source_scope",
+        "platform",
+        "slug",
+        "endpoint_variant",
+        "careers_url",
+        "endpoint_url",
+        "identity_regex",
+        "allowed_apply_hosts",
+        "page_size",
+        "max_pages",
+        "max_jobs",
+        "max_response_bytes",
+        "selective_detail_enrichment",
+    )
+    assert {
+        field: getattr(production["Intuitive Surgical"], field)
+        for field in intuitive_fields
+    } == {
+        field: getattr(canaries["Intuitive Surgical"], field)
+        for field in intuitive_fields
+    }
+    assert [
+        target.source_scope
+        for target in load_target_companies()
+        if target.name == "Intuitive Surgical"
+    ] == ["default"]
 
     expected = {
         "Waymo": ("greenhouse", "waymo"),

@@ -1,0 +1,588 @@
+batch: pagination_completeness_recovery_batch2
+as_of: '2026-10-11'
+head_at_start: 51b443b
+source_scope: default
+evidence_boundary:
+  newest_full_runtime_snapshot: jobs/company_careers_coverage_20261001_142550.json
+  live_operations_performed: false
+  sibling_repositories_read_only: true
+  production_registry_execution: false
+  protected_artifacts_untouched:
+    - docs/COMPANY_CAREERS_RECOVERY_BATCH9.md
+    - batch9_extended_results.zip
+    - batch9_probe_results.zip
+    - batch9_xml_results.zip
+    - config/job_radar_run_history.json
+
+status_counts:
+  RECOVERED_BY_SHARED_FIX: 0
+  READY_FOR_CANARY: 0
+  NEEDS_SOURCE_SPECIFIC_REPAIR: 20
+  FAIL_IDENTITY: 0
+  FAIL_CONTRACT: 0
+  FAIL_TRANSIENT: 0
+  UNSUPPORTED_PROVIDER: 0
+  NO_SAFE_REPAIR: 0
+  INSUFFICIENT_EVIDENCE: 0
+
+adapter_groups:
+  meta_search_graphql: [Meta]
+  oracle_recruiting: [JPMorgan Chase, Emerson, Honeywell, Oracle, Fortinet]
+  eightfold_pcsx: [Microsoft, Qualcomm, Micron, Eaton, GlobalFoundries]
+  icims_jibe_api: [Rivian]
+  browser_rendered_html: [Goldman Sachs, Stantec]
+  static_html: [Espressif Systems, ecobee]
+  smartrecruiters: [Bosch]
+  sap_successfactors: [CPKC, Scotiabank, Bombardier]
+  workday: []
+
+root_cause_groups:
+  incomplete_term_inventory: [Meta]
+  mutable_offset_pagination:
+    - JPMorgan Chase
+    - Emerson
+    - Honeywell
+    - Oracle
+    - Fortinet
+  mutable_pcsx_pagination:
+    - Microsoft
+    - Qualcomm
+    - Micron
+    - Eaton
+    - GlobalFoundries
+  mutable_jibe_pagination_and_malformed_rows: [Rivian]
+  browser_terminal_proof_missing: [Goldman Sachs, Stantec]
+  static_terminal_contract_missing: [Espressif Systems, ecobee]
+  authoritative_total_above_reviewed_adapter_bound: [Bosch]
+  successfactors_mutation: [CPKC, Scotiabank]
+  successfactors_repeated_page: [Bombardier]
+
+shared_repairs:
+  implemented: []
+  rationale: >-
+    No provider-supported immutable snapshot, complete exact partition set, or
+    alternate authoritative inventory is present in deterministic Job Radar
+    evidence for these production scopes. Relaxing overlap, repeated-page,
+    short-page, empty-page, total-drift, or browser-exhaustion semantics would
+    authorize false absence.
+  rejected:
+    - family: oracle_recruiting
+      affects: [JPMorgan Chase, Emerson, Honeywell, Oracle, Fortinet]
+      proposal: overlap, shortfall, or total-count tolerance
+      reason: offset movement remains observable mutation; sibling tolerance is not an immutable provider contract
+    - family: eightfold_pcsx
+      affects: [Microsoft, Qualcomm, Micron, Eaton, GlobalFoundries]
+      proposal: watermark, repeated page, overlap, or arbitrary empty page as terminal
+      reason: these are incremental positive-discovery mechanics, not absence authority
+    - family: sap_successfactors
+      affects: [CPKC, Scotiabank, Bombardier]
+      proposal: accept terminal total after overlap or treat repeated page as EOF
+      reason: terminal evidence cannot supersede contradictory traversal evidence
+    - family: static_or_browser
+      affects: [Goldman Sachs, Stantec, Espressif Systems, ecobee]
+      proposal: short page, render exhaustion, or sitemap presence as completeness
+      reason: each source lacks an exact active-inventory terminal contract for its configured scope
+
+provider_tracks:
+  oracle:
+    result: no_safe_family_wide_improvement
+    exact_variants:
+      JPMorgan Chase: {host: jpmc.fa.oraclecloud.com, site_number: CX_1001}
+      Emerson: {host: hdjq.fa.us2.oraclecloud.com, site_number: CX_1}
+      Honeywell: {host: ibqbjb.fa.ocs.oraclecloud.com, site_number: CX_1, careers_path_site: Honeywell}
+      Oracle: {host: eeho.fa.us2.oraclecloud.com, site_number: CX_45001}
+      Fortinet: {host: edel.fa.us2.oraclecloud.com, site_number: CX_2001}
+    finding: >-
+      Job Radar already places offset inside findReqs and fails closed on total
+      movement, overlap, premature empty pages, and short pages. Sibling facet
+      partitioning is safe only when every bucket is well formed, bounded,
+      non-overlapping, and sums exactly to the anchor total; the checked-in
+      evidence contains no such exact partition inventory for these five sites.
+    immutable_snapshot_proven: false
+  eightfold:
+    result: no_safe_shared_fix
+    pcsx_targets: [Microsoft, Qualcomm, Micron, Eaton, GlobalFoundries]
+    finding: >-
+      Stable position IDs and reported counts exist, but the stored runs show
+      cross-page overlap/movement. jobseek's sitemap-first watermark flow and
+      freehire's empty-page backstop do not prove that each exact sitemap or
+      PCSX result is a complete current active inventory in Job Radar.
+    authoritative_exact_sitemap_proven: false
+  workday:
+    result: not_applicable_to_batch2_production_targets
+    targets: []
+    migration_leads:
+      Micron: https://micron.wd1.myworkdayjobs.com/external
+      GlobalFoundries: https://globalfoundries.wd1.myworkdayjobs.com/External
+    finding: >-
+      Both are sibling-only migration leads. Existing Phase 4 Workday 2,000-cap
+      subdivision, partition accounting, identity checks, and request budgets
+      remain unchanged.
+  meta_sitemap:
+    result: insufficient_deterministic_evidence_for_candidate
+    source: https://www.metacareers.com/jobsearch/sitemap.xml
+    authority: first_party_lead
+    stable_id_shape: /job_details/{numeric_id}
+    blockers:
+      - no checked-in Job Radar sitemap body or shard/index fixture
+      - no proof that the sitemap is current active inventory rather than discovery inventory
+      - detail failures must protect enumerated IDs instead of dropping them
+      - hydration request budget cannot be derived without a fixture item count
+  rivian_sitemap:
+    result: insufficient_deterministic_evidence_for_candidate
+    source: https://careers.rivian.com/sitemap.xml
+    authority: first_party_lead
+    blockers:
+      - no checked-in exact sitemap/index body and shard count
+      - no proof of active-only job membership or stale URL handling
+      - no Job Radar stable-ID and hydration-accounting fixture
+  goldman_graphql:
+    result: insufficient_deterministic_evidence_for_candidate
+    source: https://api-higher.gs.com/gateway/api/v1/graphql
+    operation: GetRoles
+    pagination: {style: page, page_number_start: 0, page_size: 20}
+    variables:
+      experiences: [EARLY_CAREER, PROFESSIONAL]
+      search_term: ''
+      filters: []
+      sort: {sortStrategy: RELEVANCE, sortOrder: DESC}
+    result_path: data.roleSearch.items
+    total_path: data.roleSearch.totalCount
+    stable_id: roleId
+    canonical_url_template: https://higher.gs.com/roles/{roleId}
+    public_unauthenticated: not_proven_by_job_radar_fixture
+    blockers:
+      - sibling board catalog is discovery evidence, not a response contract
+      - no checked-in response fixture proving identity and total semantics
+      - experience-union completeness and mutation behavior are untested
+
+sibling_findings:
+  jobseek:
+    - {classification: ADAPT, file: apps/crawler/src/core/monitors/oracle_hcm.py, function: '_complete_facet_partition; discover_stream', mechanic: exact-sum bounded facet partitioning and finder offset, safeguard: reject configured overlap/shortfall/total tolerances as absence authority}
+    - {classification: CONCEPT_ONLY, file: apps/crawler/src/core/monitors/eightfold.py, function: '_sitemap_urls; discover_stream', mechanic: sitemap inventory joined to PCSX IDs and watermark enrichment, safeguard: prove exact sitemap authority and fail the whole inventory on shard failure or truncation}
+    - {classification: ADAPT, file: apps/crawler/src/core/monitors/sitemap.py, function: '_resolve_sitemap_index; discover', mechanic: bounded fail-whole child sitemap traversal, safeguard: MAX_URLS or any failed child must be incomplete}
+    - {classification: REUSE_CONTRACT, file: apps/crawler/src/core/monitors/workday.py, function: '_paginate_query; _paginate_facet_union', mechanic: 2000-cap subdivision, safeguard: Job Radar identity and exact partition equations remain mandatory}
+    - {classification: CONCEPT_ONLY, file: apps/crawler/data/boards.csv, function: board rows, mechanic: Meta/Rivian/Stantec sitemaps, Micron/GlobalFoundries Workday, Qualcomm sitemap, Goldman GraphQL leads, safeguard: catalog entries cannot activate production}
+    - {classification: REJECT, file: apps/crawler/data/boards.csv, function: Oracle board metadata tolerances, mechanic: offset_overlap and count/shortfall tolerance, safeguard: arbitrary tolerance cannot prove a single snapshot}
+  freehire:
+    - {classification: REUSE_CONTRACT, file: internal/ingest/sources/oracle.go, function: listRequisitions, mechanic: offset inside Oracle finder, safeguard: empty page is not terminal below total and mutation must fail closed}
+    - {classification: ADAPT, file: internal/ingest/sources/eightfold.go, function: pageList, mechanic: PCSX/v2 request and response shapes, safeguard: reject empty-page backstop, total drift, overlap, and partial detail drop as completeness}
+    - {classification: CONCEPT_ONLY, file: internal/ingest/sources/workday.go, function: pageAll; splitByFacet, mechanic: 2000-cap facet recursion, safeguard: retain Job Radar identity, budget, duplicate, and partition accounting}
+    - {classification: ADAPT, file: internal/ingest/sources/metacareers.go, function: Fetch; detail, mechanic: first-party sitemap and numeric job IDs, safeguard: protect failed detail identities instead of silently dropping them}
+    - {classification: CONCEPT_ONLY, file: internal/ingest/sources/successfactors.go, function: Fetch; detail, mechanic: first-party job_sitemap.xml inventory, safeguard: prove exact tenant/scope and active-only semantics; account for every URL}
+    - {classification: REJECT, file: internal/ingest/sources/smartrecruiters.go, function: listPostings, mechanic: arbitrary empty page as backstop, safeguard: authoritative total equality remains required}
+  jobspy:
+    - {classification: REJECT, file: jobspy/__init__.py, function: scrape_jobs, mechanic: third-party search pagination and aggregation, safeguard: no exact first-party identity or completeness authority for any Batch 2 target}
+
+alternate_inventories:
+  Meta: {lead: metacareers jobsearch sitemap, verdict: CONCEPT_ONLY}
+  Qualcomm: {lead: Eightfold first-party careers sitemap, verdict: CONCEPT_ONLY}
+  Micron: {lead: Workday external board, verdict: CONCEPT_ONLY}
+  GlobalFoundries: {lead: Workday External board, verdict: CONCEPT_ONLY}
+  Rivian: {lead: first-party sitemap, verdict: CONCEPT_ONLY}
+  Goldman Sachs: {lead: first-party GetRoles GraphQL, verdict: ADAPT_AFTER_FIXTURES}
+  Stantec: {lead: first-party global sitemap, verdict: REJECT_FOR_CURRENT_SCOPE, reason: global discovery is not authoritative for the configured Calgary query scope}
+  Scotiabank: {lead: SuccessFactors RSS/sitemap mechanic, verdict: CONCEPT_ONLY}
+  Bombardier: {lead: SuccessFactors RSS/sitemap mechanic, verdict: CONCEPT_ONLY}
+
+companies:
+  - company: Meta
+    source_scope: default
+    platform: meta
+    adapter_family: meta_search_graphql
+    endpoint_variant: search_terms
+    source: fixed Meta Careers GraphQL search endpoint
+    identifiers: {search_terms: [Principal Software Engineer, Staff Software Engineer, Production Engineer]}
+    limits: {max_pages: 3, max_jobs: 20, max_response_bytes: 3000000}
+    deterministic_failure: {jobs_collected: 20, pages: 1, has_more: true, safety_limit_reached: true, reason: terminal_contradiction}
+    historical_failure: configured terms cannot enumerate the complete employer inventory
+    health: PAGINATION_OR_COMPLETENESS/incomplete_term_inventory
+    sibling: {jobseek: sitemap lead, freehire: metacareers adapter, JobSpy: none_authoritative}
+    request_budget: {current: 9, required: unknown, derivation: '3 terms x 3 configured pages is not a full inventory bound'}
+    terminal_required: sitemap_complete_or_sitemap_index_complete_after_active_inventory_proof
+    status: NEEDS_SOURCE_SPECIFIC_REPAIR
+
+  - company: JPMorgan Chase
+    source_scope: default
+    platform: oracle_recruiting
+    adapter_family: oracle_recruiting
+    endpoint_variant: recruitingCEJobRequisitions
+    source: https://jpmc.fa.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+    identifiers: {site_number: CX_1001, locale: en}
+    limits: {max_pages: 2, max_jobs: 20, max_response_bytes: 3000000}
+    deterministic_failure: {jobs_collected: 2448, total: 7393, pages: 102, collection_changed: true}
+    historical_failure: mutable offset traversal
+    health: PAGINATION_OR_COMPLETENESS/mutable_pagination
+    sibling: {jobseek: Oracle partition implementation, freehire: Oracle finder pagination, JobSpy: none_authoritative}
+    request_budget: {current_normal: 2, current_hard_per_traversal: 1000, required_stable: 309, restart_worst_case: 618, derivation: 'ceil(7393/24), at most one restart'}
+    terminal_required: authoritative_total_reached_without_mutation
+    status: NEEDS_SOURCE_SPECIFIC_REPAIR
+
+  - company: Emerson
+    source_scope: default
+    platform: oracle_recruiting
+    adapter_family: oracle_recruiting
+    endpoint_variant: recruitingCEJobRequisitions
+    source: https://hdjq.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+    identifiers: {site_number: CX_1, locale: en}
+    limits: {max_pages: 2, max_jobs: 20, max_response_bytes: 3000000}
+    deterministic_failure: {jobs_collected: 983, total: 1058, pages: 41, collection_changed: true}
+    historical_failure: mutable offset traversal
+    health: PAGINATION_OR_COMPLETENESS/mutable_pagination
+    sibling: {jobseek: Oracle plus non-equivalent AspenTech board, freehire: Oracle mechanics, JobSpy: none_authoritative}
+    request_budget: {current_normal: 2, current_hard_per_traversal: 1000, required_stable: 45, restart_worst_case: 90, derivation: 'ceil(1058/24), at most one restart'}
+    terminal_required: authoritative_total_reached_without_mutation
+    status: NEEDS_SOURCE_SPECIFIC_REPAIR
+
+  - company: Honeywell
+    source_scope: default
+    platform: oracle_recruiting
+    adapter_family: oracle_recruiting
+    endpoint_variant: recruitingCEJobRequisitions
+    source: https://ibqbjb.fa.ocs.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+    identifiers: {site_number: CX_1, careers_path_site: Honeywell, locale: en}
+    limits: {max_pages: 2, max_jobs: 20, max_response_bytes: 3000000}
+    deterministic_failure: {jobs_collected: 72, total: 1265, pages: 3, collection_changed: true}
+    historical_failure: mutable offset traversal
+    health: PAGINATION_OR_COMPLETENESS/mutable_pagination
+    sibling: {jobseek: same Oracle board plus distinct Aerospace boards, freehire: Oracle mechanics, JobSpy: none_authoritative}
+    request_budget: {current_normal: 2, current_hard_per_traversal: 1000, required_stable: 53, restart_worst_case: 106, derivation: 'ceil(1265/24), at most one restart'}
+    terminal_required: authoritative_total_reached_without_mutation
+    status: NEEDS_SOURCE_SPECIFIC_REPAIR
+
+  - company: Microsoft
+    source_scope: default
+    platform: eightfold
+    adapter_family: eightfold_pcsx
+    endpoint_variant: pcsx
+    source: https://apply.careers.microsoft.com/api/pcsx/search
+    identifiers: {organization_id: microsoft.com}
+    limits: {max_pages: 2, max_jobs: 20, max_response_bytes: 3000000}
+    deterministic_failure: {jobs_collected: 21, total: 2369, pages: 3, collection_changed: true}
+    historical_failure: cross-page overlap/mutation
+    health: PAGINATION_OR_COMPLETENESS/mutable_pagination
+    sibling: {jobseek: sitemap-first watermark, freehire: PCSx adapter, JobSpy: none_authoritative}
+    request_budget: {current_normal: 2, current_hard_per_traversal: 1000, required_stable: 237, restart_worst_case: 474, derivation: 'ceil(2369/10), at most one restart'}
+    terminal_required: authoritative_total_reached_without_mutation
+    status: NEEDS_SOURCE_SPECIFIC_REPAIR
+
+  - company: Qualcomm
+    source_scope: default
+    platform: eightfold
+    adapter_family: eightfold_pcsx
+    endpoint_variant: pcsx
+    source: https://careers.qualcomm.com/api/pcsx/search
+    identifiers: {organization_id: qualcomm.com}
+    limits: {max_pages: 2, max_jobs: 20, max_response_bytes: 3000000}
+    deterministic_failure: {jobs_collected: 20, total: 2029, pages: 2, collection_changed: true}
+    historical_failure: cross-page overlap/mutation
+    health: PAGINATION_OR_COMPLETENESS/mutable_pagination
+    sibling: {jobseek: PCSx plus sitemap lead, freehire: PCSx adapter, JobSpy: none_authoritative}
+    request_budget: {current_normal: 2, current_hard_per_traversal: 1000, required_stable: 203, restart_worst_case: 406, derivation: 'ceil(2029/10), at most one restart'}
+    terminal_required: authoritative_total_reached_without_mutation
+    status: NEEDS_SOURCE_SPECIFIC_REPAIR
+
+  - company: Micron
+    source_scope: default
+    platform: eightfold
+    adapter_family: eightfold_pcsx
+    endpoint_variant: pcsx
+    source: https://careers.micron.com/api/pcsx/search
+    identifiers: {organization_id: micron.com}
+    limits: {max_pages: 2, max_jobs: 20, max_response_bytes: 3000000}
+    deterministic_failure: {jobs_collected: 20, total: 2975, pages: 2, collection_changed: true}
+    historical_failure: cross-page overlap/mutation
+    health: PAGINATION_OR_COMPLETENESS/mutable_pagination
+    sibling: {jobseek: Workday migration lead, freehire: PCSx adapter, JobSpy: none_authoritative}
+    request_budget: {current_normal: 2, current_hard_per_traversal: 1000, required_stable: 298, restart_worst_case: 596, derivation: 'ceil(2975/10), at most one restart'}
+    terminal_required: authoritative_total_reached_without_mutation
+    status: NEEDS_SOURCE_SPECIFIC_REPAIR
+
+  - company: Eaton
+    source_scope: default
+    platform: eightfold
+    adapter_family: eightfold_pcsx
+    endpoint_variant: pcsx
+    source: https://eaton.eightfold.ai/api/pcsx/search
+    identifiers: {organization_id: eaton.com}
+    limits: {max_pages: 2, max_jobs: 20, max_response_bytes: 3000000}
+    deterministic_failure: {jobs_collected: 20, total: 2365, pages: 2, collection_changed: true}
+    historical_failure: cross-page overlap/mutation
+    health: PAGINATION_OR_COMPLETENESS/mutable_pagination
+    sibling: {jobseek: PCSx proxy/watermark, freehire: PCSx adapter, JobSpy: none_authoritative}
+    request_budget: {current_normal: 2, current_hard_per_traversal: 1000, required_stable: 237, restart_worst_case: 474, derivation: 'ceil(2365/10), at most one restart'}
+    terminal_required: authoritative_total_reached_without_mutation
+    status: NEEDS_SOURCE_SPECIFIC_REPAIR
+
+  - company: Rivian
+    source_scope: default
+    platform: icims
+    adapter_family: icims_jibe_api
+    endpoint_variant: icims_jibe_api
+    source: https://careers.rivian.com/api/jobs
+    identifiers: {tenant: rivian, board_id: rivian-public}
+    limits: {page_size: 10, max_pages: 2, max_jobs: 20, max_response_bytes: 3000000}
+    deterministic_failure: {jobs_collected: 138, total: 795, pages: 15, rejected_records: 3, collection_changed: true}
+    historical_failure: collection mutation plus malformed provider rows
+    health: PAGINATION_OR_COMPLETENESS/mutable_pagination_and_malformed_rows
+    sibling: {jobseek: first-party sitemap, freehire: Jibe and fail-whole sitemap mechanics, JobSpy: none_authoritative}
+    request_budget: {current_normal: 2, current_hard_per_traversal: 1000, required_stable: 80, restart_worst_case: 160, derivation: 'ceil(795/10), at most one restart'}
+    terminal_required: authoritative_total_or_sitemap_complete_without_mutation
+    status: NEEDS_SOURCE_SPECIFIC_REPAIR
+
+  - company: Goldman Sachs
+    source_scope: default
+    platform: browser_rendered_html
+    adapter_family: browser_rendered_html
+    endpoint_variant: browser_rendered_html_v1
+    source: https://higher.gs.com/results
+    identifiers: {role_path: '/roles/{roleId}', identity_regex: Goldman Sachs}
+    limits: {max_pages: 1, max_jobs: 20, max_response_bytes: 3000000}
+    deterministic_failure: {jobs_collected: 20, pages: 1, has_more: true, next_url_present: true, reason: browser_exhaustion_not_proven}
+    historical_failure: browser terminal proof missing
+    health: PAGINATION_OR_COMPLETENESS/browser_terminal_proof
+    sibling: {jobseek: GetRoles GraphQL lead, freehire: none_exact, JobSpy: none_authoritative}
+    request_budget: {current_rendered_pages: 1, required: unknown, derivation: no checked-in GraphQL total fixture}
+    terminal_required: GraphQL_total_reached_without_mutation
+    status: NEEDS_SOURCE_SPECIFIC_REPAIR
+
+  - company: GlobalFoundries
+    source_scope: default
+    platform: eightfold
+    adapter_family: eightfold_pcsx
+    endpoint_variant: pcsx
+    source: https://careers.gf.com/api/pcsx/search
+    identifiers: {organization_id: globalfoundries.com}
+    limits: {max_pages: 2, max_jobs: 20, max_response_bytes: 3000000}
+    deterministic_failure: {jobs_collected: 20, total: 558, pages: 3, collection_changed: true}
+    historical_failure: cross-page overlap/mutation
+    health: PAGINATION_OR_COMPLETENESS/mutable_pagination
+    sibling: {jobseek: Workday migration lead, freehire: PCSx mechanics, JobSpy: none_authoritative}
+    request_budget: {current_normal: 2, current_hard_per_traversal: 1000, required_stable: 56, restart_worst_case: 112, derivation: 'ceil(558/10), at most one restart'}
+    terminal_required: authoritative_total_reached_without_mutation
+    status: NEEDS_SOURCE_SPECIFIC_REPAIR
+
+  - company: Oracle
+    source_scope: default
+    platform: oracle_recruiting
+    adapter_family: oracle_recruiting
+    endpoint_variant: recruitingCEJobRequisitions
+    source: https://eeho.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+    identifiers: {site_number: CX_45001, locale: en}
+    limits: {max_pages: 1, max_jobs: 20, max_response_bytes: 3000000}
+    deterministic_failure: {jobs_collected: 2063, total: 2228, pages: 86, collection_changed: true}
+    historical_failure: mutable offset traversal
+    health: PAGINATION_OR_COMPLETENESS/mutable_pagination
+    sibling: {jobseek: Oracle partition mechanics, freehire: Oracle finder mechanics, JobSpy: none_authoritative}
+    request_budget: {current_normal: 1, current_hard_per_traversal: 1000, required_stable: 93, restart_worst_case: 186, derivation: 'ceil(2228/24), at most one restart'}
+    terminal_required: authoritative_total_reached_without_mutation
+    status: NEEDS_SOURCE_SPECIFIC_REPAIR
+
+  - company: Stantec
+    source_scope: default
+    platform: browser_rendered_html
+    adapter_family: browser_rendered_html
+    endpoint_variant: browser_rendered_html_v1
+    source: https://stantec.jobs/jobs/?q=Calgary
+    identifiers: {query_scope: Calgary, job_path_regex: '/[0-9A-F]{32}/job$'}
+    limits: {max_pages: 1, max_jobs: 20, max_response_bytes: 3000000}
+    deterministic_failure: {jobs_collected: 50, pages: 1, has_more: true, next_url_present: true, reason: browser_exhaustion_not_proven}
+    historical_failure: browser terminal proof missing; global sitemap is not scope-equivalent to Calgary query
+    health: PAGINATION_OR_COMPLETENESS/browser_terminal_proof
+    sibling: {jobseek: global sitemap lead, freehire: none_exact, JobSpy: none_authoritative}
+    request_budget: {current_rendered_pages: 1, required: unknown, derivation: no authoritative Calgary result count or complete scope-equivalent inventory}
+    terminal_required: explicit_scope_local_terminal_or_exact_inventory_equivalence
+    status: NEEDS_SOURCE_SPECIFIC_REPAIR
+
+  - company: Espressif Systems
+    source_scope: default
+    platform: static_html
+    adapter_family: static_html
+    endpoint_variant: server_rendered_cards
+    source: https://www.espressif.com/en/join-us/job-search
+    identifiers: {identity_regex: 'Espressif Systems|Job Search', external_id_regex: '/job-detail/([^/?#]+)$'}
+    limits: {max_pages: 1, max_jobs: 20, max_response_bytes: 3000000}
+    deterministic_failure: {jobs_collected: 15, pages: 1, reason: no_pagination_configured, source_identity_status: unproven}
+    historical_failure: no reviewed pagination or single-page terminal contract
+    health: PAGINATION_OR_COMPLETENESS/missing_terminal_evidence
+    sibling: {jobseek: none_exact, freehire: none_exact, JobSpy: none_authoritative}
+    request_budget: {current: 1, required: unknown, derivation: no reviewed continuation or total}
+    terminal_required: explicit_final_page_or_disabled_next_control_by_contract
+    status: NEEDS_SOURCE_SPECIFIC_REPAIR
+
+  - company: Bosch
+    source_scope: default
+    platform: smartrecruiters
+    adapter_family: smartrecruiters
+    endpoint_variant: companies_postings_v1
+    source: https://api.smartrecruiters.com/v1/companies/BoschGroup/postings
+    identifiers: {slug: BoschGroup, identity_regex: '^Bosch Group$'}
+    limits: {page_size: 20, effective_page_size: 100, max_pages: 1, max_jobs: 20}
+    deterministic_failure: {jobs_collected: 20, total: 4814, pages: 1, reason: authoritative_total_not_reached}
+    historical_failure: saved probes reached 300 unique IDs; later anchor 4835; DE partition remained partial at 600/720
+    health: PAGINATION_OR_COMPLETENESS/authoritative_total_above_reviewed_bound
+    sibling: {jobseek: same slug, freehire: SmartRecruiters mechanics, JobSpy: none_authoritative}
+    request_budget: {current_normal: 1, adapter_max_pages: 10, global_required_at_4814: 49, derivation: 'ceil(4814/100); exceeds reviewed 1000-job adapter bound'}
+    terminal_required: exact_complete_partition_union_equals_stable_global_total
+    status: NEEDS_SOURCE_SPECIFIC_REPAIR
+
+  - company: CPKC
+    source_scope: default
+    platform: sap_successfactors
+    adapter_family: sap_successfactors
+    endpoint_variant: rmk_columnized
+    source: https://careers.cpr.ca/services/recruiting/v1/jobs
+    identifiers: {identity_regex: '\bCPKC\b', locale: en_US}
+    limits: {page_size: 10, max_pages: 2, max_jobs: 20, max_response_bytes: 3000000}
+    deterministic_failure: {jobs_collected: 150, total: 150, pages: 18, terminal_total_seen: true, collection_changed: true}
+    historical_failure: contradictory mutation prevents authoritative finalization
+    health: PAGINATION_OR_COMPLETENESS/mutable_pagination
+    sibling: {jobseek: no exact implementation found, freehire: SuccessFactors sitemap concept, JobSpy: none_authoritative}
+    request_budget: {current_normal: 2, current_hard_per_traversal: 1000, required_stable: 15, restart_worst_case: 30, derivation: 'ceil(150/10), at most one restart'}
+    terminal_required: authoritative_total_reached_without_mutation
+    status: NEEDS_SOURCE_SPECIFIC_REPAIR
+
+  - company: Scotiabank
+    source_scope: default
+    platform: sap_successfactors
+    adapter_family: sap_successfactors
+    endpoint_variant: rmk_table
+    source: https://jobs.scotiabank.com/search/
+    identifiers: {identity_regex: 'Scotiabank|Scotia'}
+    limits: {max_pages: 1, max_jobs: 20, max_response_bytes: 3000000}
+    deterministic_failure: {jobs_collected: 926, total: 1683, pages: 38, collection_changed: true}
+    historical_failure: mutable HTML offset traversal
+    health: PAGINATION_OR_COMPLETENESS/mutable_pagination
+    sibling: {jobseek: SuccessFactors RSS lead, freehire: SuccessFactors sitemap concept, JobSpy: none_authoritative}
+    request_budget: {current_normal: 1, current_hard_per_traversal: 1000, required_stable_lower_bound: 68, restart_worst_case_lower_bound: 136, derivation: 'ceil(1683/25) using observed adapter maximum page size'}
+    terminal_required: authoritative_total_reached_without_mutation
+    status: NEEDS_SOURCE_SPECIFIC_REPAIR
+
+  - company: ecobee
+    source_scope: default
+    platform: static_html
+    adapter_family: static_html
+    endpoint_variant: server_rendered_cards
+    source: https://careers.generac.com/en/brands/ecobee/
+    identifiers: {parent_host: careers.generac.com, identity_regex: '\becobee\b'}
+    limits: {max_pages: 1, max_jobs: 20, max_response_bytes: 3000000}
+    deterministic_failure: {jobs_collected: 5, pages: 1, reason: no_pagination_configured, source_identity_status: unproven}
+    historical_failure: brand-scoped page lacks reviewed terminal evidence
+    health: PAGINATION_OR_COMPLETENESS/missing_terminal_evidence
+    sibling: {jobseek: none_exact, freehire: none_exact, JobSpy: none_authoritative}
+    request_budget: {current: 1, required: unknown, derivation: no reviewed continuation or total}
+    terminal_required: explicit_brand_scope_terminal_by_contract
+    status: NEEDS_SOURCE_SPECIFIC_REPAIR
+
+  - company: Bombardier
+    source_scope: default
+    platform: sap_successfactors
+    adapter_family: sap_successfactors
+    endpoint_variant: rmk_columnized
+    source: https://jobs.bombardier.com/services/recruiting/v1/jobs
+    identifiers: {identity_regex: '\bBombardier\b', locale: en_US}
+    limits: {page_size: 10, max_pages: 2, max_jobs: 20, max_response_bytes: 3000000}
+    deterministic_failure: {jobs_collected_before_failure: 110, total: 841, requests: 12, pages_completed: 11, reason: repeated_page}
+    historical_failure: complete page repeated before authoritative total
+    health: PAGINATION_OR_COMPLETENESS/duplicate_traversal
+    sibling: {jobseek: SuccessFactors RSS lead, freehire: SuccessFactors sitemap concept, JobSpy: none_authoritative}
+    request_budget: {current_normal: 2, current_hard_per_traversal: 1000, required_stable: 85, restart_worst_case: 170, derivation: 'ceil(841/10), at most one restart; budget cannot repair repetition'}
+    terminal_required: authoritative_total_reached_without_repetition_or_mutation
+    status: NEEDS_SOURCE_SPECIFIC_REPAIR
+
+  - company: Fortinet
+    source_scope: default
+    platform: oracle_recruiting
+    adapter_family: oracle_recruiting
+    endpoint_variant: recruiting_ce_v1
+    source: https://edel.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+    identifiers: {site_number: CX_2001, locale: en}
+    limits: {max_pages: 1, max_jobs: 20, max_response_bytes: 3000000}
+    deterministic_failure: {jobs_collected: 967, total: 968, pages: 41, collection_changed: true}
+    historical_failure: one-row shortfall with observable collection mutation
+    health: PAGINATION_OR_COMPLETENESS/mutable_pagination
+    sibling: {jobseek: Oracle CX_1 and separate Federal board, freehire: Oracle mechanics, JobSpy: none_authoritative}
+    request_budget: {current_normal: 1, current_hard_per_traversal: 1000, required_stable: 41, restart_worst_case: 82, derivation: 'ceil(968/24), at most one restart'}
+    terminal_required: authoritative_total_reached_without_mutation
+    status: NEEDS_SOURCE_SPECIFIC_REPAIR
+
+inventory_accounting_contract:
+  equation: provider_inventory = normalized_jobs + protected_unreadable_identities + rejected_records + known_duplicate_representations
+  required_fields:
+    - raw_items
+    - unique_provider_ids
+    - canonical_urls
+    - duplicate_ids
+    - duplicate_urls
+    - rejections
+    - unreadables
+    - filtered_or_retention_excluded_observations
+  silent_loss_allowed: false
+
+mutation_contract:
+  outcomes:
+    positive_discoveries_retained: true
+    scan_complete: false
+    absence_authorized: false
+  triggers:
+    - total_change
+    - page_shift
+    - duplicate_boundary_row
+    - repeated_or_rollback_cursor
+    - disappearing_row
+    - insertion_shift
+    - unproven_partition_overlap
+
+pass_complete_gates:
+  - canonical_employer_identity_validated
+  - provider_source_identity_validated
+  - complete_provider_inventory
+  - terminal_evidence_valid
+  - hidden_continuation_absent
+  - collection_mutation_absent
+  - safety_limit_absent
+  - request_budget_respected
+  - inventory_fully_accounted
+  - unreadable_stable_ids_protected
+  - required_stable_ids_unique
+  - required_canonical_urls_unique
+  - apply_url_contract_valid
+  - normalized_rows_attributable_to_company_and_source_scope
+  - central_finalizer_authoritative
+  - contradictory_diagnostics_absent
+
+manual_canaries: []
+ready_for_canary: []
+recovered_by_shared_fix: []
+needs_source_specific_repair:
+  - Meta
+  - JPMorgan Chase
+  - Emerson
+  - Honeywell
+  - Microsoft
+  - Qualcomm
+  - Micron
+  - Eaton
+  - Rivian
+  - Goldman Sachs
+  - GlobalFoundries
+  - Oracle
+  - Stantec
+  - Espressif Systems
+  - Bosch
+  - CPKC
+  - Scotiabank
+  - ecobee
+  - Bombardier
+  - Fortinet
+
+rollback:
+  batch2_adapter_changes: none
+  intuitive_surgical: restore only the prior static rows in config/target_companies.yaml and config/company_careers_reliability_repairs_v1.yaml
+  metadata: remove this Batch 2 file and the Batch 2 extension from the recovery playbook
+
+batch3_recommendation:
+  - first_party_inventory_fixture_batch: [Meta, Rivian, Goldman Sachs, Stantec, Qualcomm]
+  - provider_partition_evidence_batch: [JPMorgan Chase, Emerson, Honeywell, Oracle, Fortinet, Bosch]
+  - successfactors_contract_batch: [CPKC, Scotiabank, Bombardier]
+  - identity_and_scope_migration_batch: [Micron, GlobalFoundries, ecobee, Espressif Systems]

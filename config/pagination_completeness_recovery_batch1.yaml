@@ -3,25 +3,33 @@ as_of: '2026-10-11'
 evidence_boundary:
   head_at_review: 69bf3382a47781ae025c61a078fd6b5cbc0a1b70
   requested_base: ef021b4
-  production_registry:
+  production_registry_before_activation:
     path: config/target_companies.yaml
     sha256: b5e8e42e1047c03131480ea678e2ca42ba3dbf42bd3f6ca1d3e0290decfbff30
+  production_registry_after_activation:
+    path: config/target_companies.yaml
+    sha256: 4ce96583c98f6520d77bf3c0c0c4642a969594ad4b341e41fb0c39b3f55166ef
+  production_reliability_overlay_after_activation:
+    path: config/company_careers_reliability_repairs_v1.yaml
+    sha256: 83b1ca1ae956d85661530d6652d5a0f9b90642638e268367808bcfce1b713ecc
   newest_full_runtime_snapshot:
     path: jobs/company_careers_coverage_20261001_142550.json
     sha256: fb12864e7d1b84931d56c8a831a51572377f06e9eb6d8d8970b65b76fd5e7a7b
-  live_validation_performed: false
-  production_registry_changed: false
+  live_validation_performed: true
+  live_validation_performed_by: operator
+  production_registry_changed: true
 
 status_counts:
-  READY_FOR_CANARY: 3
+  RECOVERED: 2
   RECOVERED_BY_SHARED_FIX: 0
-  NEEDS_SOURCE_SPECIFIC_REPAIR: 10
+  NEEDS_SOURCE_SPECIFIC_REPAIR: 11
   FAIL_IDENTITY: 6
   FAIL_CONTRACT: 1
 
 outcome_groups:
-  A_READY_FOR_MANUAL_CANARY: [Atlassian, Shopify, Intuitive Surgical]
+  A_LIVE_VALIDATED_RECOVERED: [Shopify, Intuitive Surgical]
   B_NEEDS_MORE_DETERMINISTIC_REPAIR:
+    - Atlassian
     - Meta
     - JPMorgan Chase
     - Emerson
@@ -49,7 +57,8 @@ adapter_groups:
   eightfold_pcsx: [Microsoft, Qualcomm, Micron, Eaton]
   workday_wday_cxs_v1: [Samsung Electronics, GE Vernova, Capital One]
   icims_jibe_api: [Rivian]
-  static_html: [General Motors, Caterpillar, Intuitive Surgical, Coupang, Zalando]
+  static_html: [General Motors, Caterpillar, Coupang, Zalando]
+  smartrecruiters: [Intuitive Surgical]
   browser_rendered_html: [Goldman Sachs]
 
 shared_repairs:
@@ -68,7 +77,7 @@ shared_repairs:
       proposal: Activate Phase 4 partitioning without exact workday_identity evidence.
       reason: Pagination mechanics cannot establish employer/site identity.
     - family: static_html
-      affects: [General Motors, Caterpillar, Intuitive Surgical, Coupang, Zalando]
+      affects: [General Motors, Caterpillar, Coupang, Zalando]
       proposal: Auto-follow generic next links or infer EOF from a short page.
       reason: Static HTML requires a reviewed continuation and terminal contract per source.
 
@@ -92,8 +101,21 @@ companies:
       config_only_fix: false
     accounting: raw_array = normalized_unique + known_duplicate_representation
     terminal_evidence: complete_collection_response/atomic_json_collection
-    status: READY_FOR_CANARY
-    outcome_group: A
+    live_validation:
+      validation_status: LIVE_CANARY_FAILED
+      source_identity_status: validated
+      requests_started: 1
+      max_response_bytes: 3000000
+      response_bytes_within_limit: true
+      reported_total: 352
+      exact_error: 'AdapterError: Atlassian Careers job URL did not match the observed iCIMS host and stable-ID path contract'
+      inventory_complete: false
+      central_finalizer_authoritative: false
+      terminal_evidence_present: false
+      lifecycle_mutations: 0
+    recovery_state: NOT_RECOVERED
+    status: NEEDS_SOURCE_SPECIFIC_REPAIR
+    outcome_group: B
 
   - company: Shopify
     source_scope: default
@@ -104,7 +126,19 @@ companies:
     identifiers: {route: ($locale)/careers, collection: jobPostingsWithJobs}
     limits: {max_pages: 5, max_jobs: 20, max_response_bytes: 3000000}
     deterministic_evidence: {fetched: 115, total: 115, pages: 1, snapshot_terminal_unproven: true}
-    primary_failure: snapshot predates the exact atomic embedded-collection repair
+    live_validation:
+      validation_status: PASS_COMPLETE
+      evidence_state: LIVE_VALIDATED
+      inventory_complete: true
+      central_finalizer_authoritative: true
+      terminal_evidence_type: complete_collection_response
+      terminal_evidence_value: jobPostingsWithJobs
+      jobs_collected: 115
+      total_available: 115
+      requests_started: 1
+      request_budget: 1
+      lifecycle_mutations: 0
+    primary_failure: resolved; live atomic collection matched all 115 provider items
     sibling_related: true
     sibling_note: jobseek uses a sitemap plus rendered details; the current atomic feed is stronger
     request_budget:
@@ -114,7 +148,9 @@ companies:
       config_only_fix: false
     accounting: embedded_postings = normalized_unique; duplicate IDs or URLs fail closed
     terminal_evidence: complete_collection_response/jobPostingsWithJobs
-    status: READY_FOR_CANARY
+    recovery_state: RECOVERED
+    activation_state: existing_production_source_unchanged
+    status: RECOVERED
     outcome_group: A
 
   - company: Meta
@@ -403,14 +439,32 @@ companies:
 
   - company: Intuitive Surgical
     source_scope: default
-    platform: static_html
-    adapter_family: smartrecruiters_candidate
+    platform: smartrecruiters
+    adapter_family: smartrecruiters
     endpoint_variant: companies_postings_v1
-    configured_source: config/target_companies.phase3_smartrecruiters_canaries.yaml
+    configured_source: https://api.smartrecruiters.com/v1/companies/intuitive/postings
     identifiers: {slug: intuitive, identity_regex: '^Intuitive(?: Surgical)?$'}
     limits: {page_size: 100, max_pages: 8, max_jobs: 800, max_response_bytes: 3000000}
-    deterministic_evidence: {production_static_fetched: 20, production_next_url_present: true, reviewed_candidate_total: 700}
-    primary_failure: production static source lacks pagination; reviewed listing-only SmartRecruiters candidate already exists
+    deterministic_evidence: {old_production_static_fetched: 20, old_production_next_url_present: true, reviewed_candidate_total: 700}
+    live_validation:
+      validation_status: PASS_COMPLETE
+      evidence_state: LIVE_VALIDATED
+      inventory_complete: true
+      central_finalizer_authoritative: true
+      terminal_evidence_type: authoritative_total
+      terminal_evidence_value: 747
+      jobs_collected: 747
+      inventory_items_collected: 747
+      pages_requested: 8
+      requests_started: 8
+      request_budget: 8
+      lifecycle_mutations: 0
+    activation:
+      state: activated_production_configuration
+      base_registry: config/target_companies.yaml
+      effective_overlay: config/company_careers_reliability_repairs_v1.yaml
+      exact_live_tested_candidate: config/target_companies.phase3_smartrecruiters_canaries.yaml
+    primary_failure: resolved by activating the exact live-tested SmartRecruiters source contract
     sibling_related: true
     sibling_note: jobseek independently identifies the same SmartRecruiters company slug
     request_budget:
@@ -419,7 +473,8 @@ companies:
       derivation: ceil(700/100)=7 listing requests plus one bounded margin
       config_only_fix: false
     terminal_evidence: SmartRecruiters authoritative totalFound accounting
-    status: READY_FOR_CANARY
+    recovery_state: RECOVERED
+    status: RECOVERED
     outcome_group: A
 
   - company: Coupang
@@ -504,7 +559,7 @@ companies:
     status: NEEDS_SOURCE_SPECIFIC_REPAIR
     outcome_group: B
 
-manual_canaries:
+historical_manual_canaries:
   - companies: [Atlassian, Shopify]
     request_budget_per_source: 1
     command: >-
@@ -538,7 +593,7 @@ pass_complete_gates:
 rollback:
   atlassian: revert only the Atlassian atomic duplicate-accounting change
   shopify: no Batch 1 code change to roll back
-  intuitive_surgical: remove/restore only the non-production Phase 3 candidate stanza; production is unchanged
+  intuitive_surgical: restore only the prior Intuitive Surgical static rows in the base registry and reliability overlay
 
 batch2_recommendation:
   composition: one mutation-heavy family plus one identity-proof family

@@ -151,7 +151,7 @@ def test_all_production_smartrecruiters_sources_remain_listing_only():
         if configured.platform == "smartrecruiters"
     ]
 
-    assert len(targets) == 15
+    assert len(targets) == 16
     assert all(not configured.selective_detail_enrichment for configured in targets)
     assert all(configured.endpoint_variant == "companies_postings_v1" for configured in targets)
 

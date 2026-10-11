@@ -6,7 +6,7 @@ as_of: '2026-10-10'
 evidence:
   production_registry:
     path: config/target_companies.yaml
-    sha256: b5e8e42e1047c03131480ea678e2ca42ba3dbf42bd3f6ca1d3e0290decfbff30
+    sha256: 4ce96583c98f6520d77bf3c0c0c4642a969594ad4b341e41fb0c39b3f55166ef
     canonical_companies: 533
     configured_sources: 533
     source_scopes: 533
@@ -34,6 +34,7 @@ evidence:
     - docs/PHASE5_MULTI_SCOPE_ROLLOUT.md
     - docs/PHASE6_INCREMENTAL_OPTIMIZATION.md
     - docs/COMPANY_CAREERS_RECOVERY_BATCH10.md
+    - docs/PAGINATION_COMPLETENESS_RECOVERY_BATCH1.md
 
 taxonomy:
   A: ADAPTER_BUG

@@ -2,19 +2,21 @@
 
 Date: 2026-10-11 (America/Edmonton)
 
-## Outcome
+## Outcome and live closeout
 
-Batch 1 is ready for **bounded manual canary validation of three sources only**:
-Atlassian, Shopify, and the existing non-production Intuitive Surgical
-SmartRecruiters candidate. No company is claimed production-recovered because
-no live canary was run.
+The operator manually canaried the three Batch 1 candidates after the original
+deterministic review. Shopify and Intuitive Surgical returned `PASS_COMPLETE`
+and are recorded as `LIVE_VALIDATED` / `RECOVERED`. Intuitive Surgical's exact
+tested SmartRecruiters contract is now the production row. Atlassian returned
+`LIVE_CANARY_FAILED` and is `NEEDS_SOURCE_SPECIFIC_REPAIR` / `NOT_RECOVERED`;
+no further Atlassian diagnosis or canary is part of Batch 2.
 
 The 20 dispositions are:
 
 | Outcome | Count | Companies |
 |---|---:|---|
-| A. Ready for manual canary | 3 | Atlassian; Shopify; Intuitive Surgical |
-| B. Needs more deterministic repair | 10 | Meta; JPMorgan Chase; Emerson; Honeywell; Microsoft; Qualcomm; Micron; Eaton; Rivian; Goldman Sachs |
+| A. Live validated and recovered | 2 | Shopify; Intuitive Surgical |
+| B. Needs more deterministic repair | 11 | Atlassian; Meta; JPMorgan Chase; Emerson; Honeywell; Microsoft; Qualcomm; Micron; Eaton; Rivian; Goldman Sachs |
 | C. Blocked / no safe repair | 1 | Coupang |
 | D. Not actually pagination - reclassified | 6 | Samsung Electronics; GE Vernova; General Motors; Caterpillar; Zalando; Capital One |
 
@@ -27,16 +29,31 @@ and rollback data are in
 The review began from actual repository HEAD
 `69bf3382a47781ae025c61a078fd6b5cbc0a1b70` (`Complete Phase 7
 infrastructure audit`). The prompt's `ef021b4` is an ancestor; no checkout or
-branch change was made. The production registry SHA-256 remains
-`b5e8e42e1047c03131480ea678e2ca42ba3dbf42bd3f6ca1d3e0290decfbff30`.
+branch change was made. The production registry before Intuitive activation had
+SHA-256 `b5e8e42e1047c03131480ea678e2ca42ba3dbf42bd3f6ca1d3e0290decfbff30`.
 The newest full runtime evidence remains the checked-in 2026-10-01 snapshot,
 SHA-256
 `fb12864e7d1b84931d56c8a831a51572377f06e9eb6d8d8970b65b76fd5e7a7b`.
 It is historical evidence, not a claim about live health on 2026-10-11.
 
-No live Job Radar scan, canary, company/provider request, browser session,
-proxy request, production mutation, migration, GitHub Action, commit, push,
-merge, checkout, or branch change occurred.
+The live validation evidence in this closeout was supplied by the operator;
+this Batch 2 implementation did not run a scan, canary, company/provider
+request, browser/proxy session, production mutation, migration, GitHub Action,
+commit, push, merge, checkout, or branch change.
+
+Live closeout evidence:
+
+- Shopify: 115/115 jobs, one request, atomic `jobPostingsWithJobs` terminal,
+  unique IDs and URLs, no mutation, budget 1/1, no lifecycle mutations. The
+  existing production source was unchanged.
+- Intuitive Surgical: 747/747 jobs, eight pages, authoritative `totalFound`,
+  budget 8/8, unique IDs and URLs, no mutation, no lifecycle mutations. The
+  exact Phase 3 candidate was activated in both the base production registry
+  and its effective reliability overlay.
+- Atlassian: identity validated and 352 reported rows arrived in one bounded
+  response, but the canary failed with `AdapterError: Atlassian Careers job URL
+  did not match the observed iCIMS host and stable-ID path contract`. Inventory
+  was incomplete and central finalization was not authoritative.
 
 ## Source map and narrow diagnosis
 
@@ -61,7 +78,7 @@ the model defaults: `max_pages=5`, `max_jobs=20`, and
 | Rivian | iCIMS Jibe API | `careers.rivian.com/api/jobs`; tenant `rivian`, board `rivian-public` | 10/page, 2 pages, 20 jobs, 3 MB | 138/795 over 15 pages; mutation and 3 rejected rows | jobseek first-party sitemap; freehire fail-whole sitemap index |
 | General Motors | static HTML cards | `search-careers.gm.com/en/jobs/` | 1 page, 20 jobs, 3 MB; no reviewed next contract | 20 jobs; active next link; identity unproven | jobseek Workday `generalmotors/careers_gm`; subsidiary scope unresolved |
 | Caterpillar | static HTML cards | `careers.caterpillar.com/en/jobs/` | 1 page, 20 jobs, 3 MB; no reviewed next contract | 20 jobs; active next link; identity unproven | jobseek Workday `cat/CaterpillarCareers`; Progress Rail is distinct |
-| Intuitive Surgical | production static; candidate SmartRecruiters | candidate slug `intuitive`; identity `^Intuitive(?: Surgical)?$` | candidate 100/page, 8 pages, 800 jobs, 3 MB | Production static: 20 plus continuation; Phase 3 candidate is listing-only and total-accounted | jobseek independently records the same SmartRecruiters slug |
+| Intuitive Surgical | SmartRecruiters | slug `intuitive`; identity `^Intuitive(?: Surgical)?$` | 100/page, 8 pages, 800 jobs, 3 MB | Live `PASS_COMPLETE`: 747/747 over 8 pages; exact candidate activated | jobseek independently records the same SmartRecruiters slug |
 | Coupang | static HTML cards | `www.coupang.jobs/en/jobs/`; `?page={page}` | 1 page, 20 jobs, 3 MB | 20 jobs; second request repeated page 1; pagination loop | jobseek global Greenhouse plus four non-equivalent Korean sources |
 | Zalando | static HTML links | `jobs.zalando.com/en/jobs` | 1 page, 20 jobs, 3 MB; no reviewed next contract | 15 jobs; no authoritative terminal proof; identity unproven | jobseek Workday `zalando/ZalandoSiteWD`; identity still unproven |
 | Capital One | Workday | `capitalone.wd12.../Capital_One` | 2 pages, 20 jobs; Workday budget 500 | 1,419/1,883 over 71 pages; exact `workday_identity` absent | sibling Workday mechanics add no employer-binding evidence |
@@ -78,12 +95,12 @@ the model defaults: `max_pages=5`, `max_jobs=20`, and
 - Workday identity before traversal: Samsung Electronics, GE Vernova, and
   Capital One. Phase 4 already supplied safe cap partitioning, but deliberately
   refuses absence authority without exact employer/tenant/site evidence.
-- Static source contract: General Motors, Caterpillar, Intuitive Surgical,
-  Coupang, and Zalando. A generic next link or short page is not an EOF.
+- Static source contract: General Motors, Caterpillar, Coupang, and Zalando. A
+  generic next link or short page is not an EOF.
 - Source-specific inventory: Meta's search-term GraphQL and Goldman Sachs's
   browser results cannot represent complete employer inventory as configured.
 
-The narrow causes are therefore: one atomic duplicate-accounting defect
+The original deterministic causes were: one atomic duplicate-accounting defect
 (Atlassian); one post-snapshot repair awaiting validation (Shopify); one ready
 alternate candidate (Intuitive Surgical); eight observable mutation cases;
 six identity failures; one ignored page parameter (Coupang); one incomplete
@@ -207,7 +224,7 @@ cannot prove employer identity or first-party completeness.
 | Rivian | `careers.rivian.com/sitemap.xml` | Promising first-party inventory; needs exact sitemap completeness and item accounting |
 | GM | Workday `generalmotors/careers_gm` | Identity/scope unproven; subsidiaries are separate |
 | Caterpillar | Workday `cat/CaterpillarCareers` | Identity/scope unproven; Progress Rail is separate |
-| Intuitive Surgical | SmartRecruiters `intuitive` | Existing reviewed non-production candidate; ready for one bounded canary |
+| Intuitive Surgical | SmartRecruiters `intuitive` | Live `PASS_COMPLETE`; exact tested contract activated in production |
 | Coupang | Greenhouse `coupang` | Global/apply URL and operational-board equivalence unproven; current static page contract fails |
 | Zalando | Workday `zalando/ZalandoSiteWD` | Exact Workday identity evidence absent |
 | Goldman Sachs | first-party GraphQL `GetRoles` | Best repair path; still needs a reviewed adapter and fixtures |
@@ -242,15 +259,17 @@ for a stable traversal, not permission to call a moving collection complete.
 | Coupang | 1 | None | More repeated first pages never prove EOF |
 | Goldman Sachs | 1 rendered page | Unknown | GraphQL contract not reviewed |
 
-Config adjustment alone fixes none of the 20. The existing Intuitive candidate
-already carries its justified bound; Atlassian and Shopify are atomic.
+The original budget review did not repair a source by itself. Intuitive's
+tested bound was subsequently live-validated and activated; Shopify's atomic
+production source live-validated without a configuration change. Atlassian's
+atomic canary failed its source-specific URL/stable-ID contract.
 
 ## Final company statuses
 
 | Company | Final status | Reason |
 |---|---|---|
-| Atlassian | `READY_FOR_CANARY` | Atomic duplicate accounting is deterministic; live current payload still must pass |
-| Shopify | `READY_FOR_CANARY` | Existing post-snapshot atomic repair is deterministic |
+| Atlassian | `NEEDS_SOURCE_SPECIFIC_REPAIR` | Live canary failed the observed iCIMS URL/stable-ID path contract; backlog, not recovered |
+| Shopify | `RECOVERED` | Live `PASS_COMPLETE`; existing atomic production source unchanged |
 | Meta | `NEEDS_SOURCE_SPECIFIC_REPAIR` | Search terms cannot exhaust employer inventory; sitemap path needs safe hydration/accounting |
 | JPMorgan Chase | `NEEDS_SOURCE_SPECIFIC_REPAIR` | Oracle offset collection mutated |
 | Emerson | `NEEDS_SOURCE_SPECIFIC_REPAIR` | Oracle offset collection mutated |
@@ -264,16 +283,16 @@ already carries its justified bound; Atlassian and Shopify are atomic.
 | Rivian | `NEEDS_SOURCE_SPECIFIC_REPAIR` | Mutation and three malformed records are distinct blockers |
 | General Motors | `FAIL_IDENTITY` | Current static and alternate Workday source lack exact scope proof |
 | Caterpillar | `FAIL_IDENTITY` | Current static and alternate Workday source lack exact scope proof |
-| Intuitive Surgical | `READY_FOR_CANARY` | Existing Phase 3 SmartRecruiters candidate has total-based listing contract |
+| Intuitive Surgical | `RECOVERED` | Live `PASS_COMPLETE`; exact Phase 3 SmartRecruiters contract activated in production |
 | Coupang | `FAIL_CONTRACT` | Page parameter repeats page one; alternate scope/apply contract unproven |
 | Zalando | `FAIL_IDENTITY` | Current static and alternate Workday identity are unproven |
 | Capital One | `FAIL_IDENTITY` | Exact Workday employer/tenant/site evidence missing |
 | Goldman Sachs | `NEEDS_SOURCE_SPECIFIC_REPAIR` | Browser discovery cannot prove exhaustion; GraphQL needs an adapter |
 
-`RECOVERED_BY_SHARED_FIX`: none. No repair is production recovery until a
-manual canary returns `PASS_COMPLETE`.
+`RECOVERED_BY_SHARED_FIX`: none. Shopify and Intuitive Surgical are production
+recoveries because their manual canaries returned `PASS_COMPLETE`.
 
-## Manual canaries - prepared, not run
+## Historical manual canaries - completed by operator
 
 Run Atlassian and Shopify together, with one independent request permitted per
 source:
@@ -288,8 +307,9 @@ Run Intuitive Surgical against the explicit non-production candidate registry:
 .\.venv\Scripts\python.exe scripts\validate_source_integrity_canaries.py --registry config\target_companies.phase3_smartrecruiters_canaries.yaml --company "Intuitive Surgical" --request-budget 8 --run
 ```
 
-Both commands use the existing read-only canary harness: persistence is
-`none`, lifecycle mutations are zero, and no dashboard is published.
+Both commands used the existing read-only canary harness: persistence was
+`none`, lifecycle mutations were zero, and no dashboard was published. Do not
+rerun Atlassian as part of Batch 2.
 
 ### `PASS_COMPLETE` gates
 
@@ -308,8 +328,10 @@ rows, or ambiguous terminal evidence does not activate recovery.
   This restores the earlier fail-closed behavior; it does not delete lifecycle
   rows.
 - Shopify: Batch 1 made no code/config change.
-- Intuitive Surgical: production remains unchanged. If the candidate is later
-  changed, restore only its stanza in the Phase 3 candidate registry.
+- Intuitive Surgical: restore only its prior static rows in
+  `config/target_companies.yaml` and
+  `config/company_careers_reliability_repairs_v1.yaml`. The Phase 3 candidate
+  remains historical evidence and is not the production dispatch path.
 - No production source migration or lifecycle deletion is part of rollback.
 
 ## Deterministic verification
@@ -318,10 +340,10 @@ All verification was local/offline.
 
 | Matrix | Result |
 |---|---|
-| Focused Atlassian + Batch 1 review | 16 passed (7 adapter, 9 review-contract) |
-| Source integrity, terminal evidence, inventory/hydration, AdapterResult, Phase 3-7, multi-scope lifecycle, incremental authority, retention | 356 passed, 60 subtests passed |
-| Full pytest suite | 2,522 passed, 911 subtests passed in 196.23 seconds |
-| `git diff --check` | Passed; only a Git CRLF-to-LF informational warning for the edited Atlassian file |
+| Focused Batch 1 + Batch 2 + production-contract regressions | 63 passed, 35 subtests passed |
+| Source integrity, terminal evidence, inventory/hydration, AdapterResult, Phase 3-7, multi-scope lifecycle, incremental authority, retention | 375 passed, 60 subtests passed |
+| Full pytest suite | 2,532 passed, 909 subtests passed in 188.83 seconds |
+| `git diff --check` | Passed |
 
 Pytest emitted one pre-existing LangChain deprecation warning from
 `src/agents/search_agents_adk.py`; there were no test failures.
@@ -369,3 +391,218 @@ Do not mix identity research with pagination code. Use two tracks:
 Meta, Rivian, and Goldman Sachs form a later first-party-inventory batch
 (sitemap/sitemap/GraphQL) because they share inventory-vs-hydration work but
 not a transport or terminal contract.
+
+---
+
+# Batch 2 extension
+
+Batch 2 was performed from HEAD `51b443b` using repository state, checked-in
+fixtures/history, and read-only inspection of jobseek, freehire, and JobSpy.
+No live scan, canary, provider/company request, browser/proxy request,
+production registry execution, Supabase mutation, migration, GitHub Action,
+commit, push, merge, checkout, or branch change was performed.
+
+The machine-readable evidence is
+`config/pagination_completeness_recovery_batch2.yaml`. All 20 active targets
+remain `NEEDS_SOURCE_SPECIFIC_REPAIR`. This is a conservative outcome: no
+deterministic evidence supplied a provider-supported immutable snapshot,
+complete exact partition set, or scope-equivalent alternate inventory. Batch 2
+therefore has no safe manual canary command and is not ready for manual canary
+validation.
+
+## Batch 2 source and root-cause map
+
+All rows use `source_scope: default`.
+
+| Company | Provider / variant | Exact source identifiers | Current bounds | Latest deterministic failure | Narrow cause |
+|---|---|---|---|---|---|
+| Meta | Meta GraphQL term search | fixed endpoint; three configured terms | 3 pages/term; 20 jobs; 3 MB | 20 jobs; `has_more`; cap reached | incomplete term inventory |
+| JPMorgan Chase | Oracle Recruiting | `jpmc...`; `CX_1001`; `en` | 2 pages; 20 jobs; 3 MB | 2,448/7,393; 102 pages; mutation | mutable offset pagination |
+| Emerson | Oracle Recruiting | `hdjq...`; `CX_1`; `en` | 2 pages; 20 jobs; 3 MB | 983/1,058; 41 pages; mutation | mutable offset pagination |
+| Honeywell | Oracle Recruiting | `ibqbjb...`; finder `CX_1`; careers path `Honeywell` | 2 pages; 20 jobs; 3 MB | 72/1,265; 3 pages; mutation | mutable offset pagination |
+| Microsoft | Eightfold PCSx | `apply.careers.microsoft.com`; org `microsoft.com` | 2 pages; 20 jobs; 3 MB | 21/2,369; 3 pages; overlap | mutable PCSx pagination |
+| Qualcomm | Eightfold PCSx | `careers.qualcomm.com`; org `qualcomm.com` | 2 pages; 20 jobs; 3 MB | 20/2,029; 2 pages; overlap | mutable PCSx pagination |
+| Micron | Eightfold PCSx | `careers.micron.com`; org `micron.com` | 2 pages; 20 jobs; 3 MB | 20/2,975; 2 pages; overlap | mutable PCSx pagination |
+| Eaton | Eightfold PCSx | `eaton.eightfold.ai`; org `eaton.com` | 2 pages; 20 jobs; 3 MB | 20/2,365; 2 pages; overlap | mutable PCSx pagination |
+| Rivian | iCIMS Jibe API | tenant `rivian`; board `rivian-public` | 10/page; 2 pages; 20 jobs; 3 MB | 138/795; mutation; 3 rejected rows | mutation plus malformed provider rows |
+| Goldman Sachs | browser-rendered HTML | `higher.gs.com/results`; `/roles/{roleId}` | 1 page; 20 jobs; 3 MB | 20 jobs; active continuation | browser terminal proof missing |
+| GlobalFoundries | Eightfold PCSx | `careers.gf.com`; org `globalfoundries.com` | 2 pages; 20 jobs; 3 MB | 20/558; 3 pages; overlap | mutable PCSx pagination |
+| Oracle | Oracle Recruiting | `eeho...`; `CX_45001`; `en` | 1 page; 20 jobs; 3 MB | 2,063/2,228; 86 pages; mutation | mutable offset pagination |
+| Stantec | browser-rendered HTML | Calgary query; 32-hex job paths | 1 page; 20 jobs; 3 MB | 50 jobs; active continuation | browser terminal proof missing |
+| Espressif Systems | static HTML | official job-search page; stable path slug | 1 page; 20 jobs; 3 MB | 15 jobs; no pagination contract | missing terminal evidence |
+| Bosch | SmartRecruiters v1 | slug `BoschGroup`; exact identity | configured 1 page/20; effective 100/page | 20/4,814; total not reached | total exceeds reviewed adapter bound |
+| CPKC | SuccessFactors columnized | `careers.cpr.ca`; `en_US`; 10/page | 2 pages; 20 jobs; 3 MB | 150/150 plus mutation contradiction | mutable pagination |
+| Scotiabank | SuccessFactors table | `jobs.scotiabank.com`; exact identity regex | 1 page; 20 jobs; 3 MB | 926/1,683; mutation | mutable pagination |
+| ecobee | static HTML | Generac brand page; exact ecobee regex | 1 page; 20 jobs; 3 MB | 5 jobs; no pagination contract | brand-scope terminal missing |
+| Bombardier | SuccessFactors columnized | `jobs.bombardier.com`; `en_US`; 10/page | 2 pages; 20 jobs; 3 MB | 110/841 then repeated page | duplicate traversal |
+| Fortinet | Oracle Recruiting | `edel...`; `CX_2001`; `en` | 1 page; 20 jobs; 3 MB | 967/968; 41 pages; mutation | mutable offset pagination |
+
+Adapter grouping is therefore Oracle (5), Eightfold (5), SuccessFactors (3),
+browser/static (4), and one each for Meta, iCIMS, and SmartRecruiters. There is
+no Batch 2 production Workday target: Micron and GlobalFoundries remain
+Eightfold; their Workday entries are unproven sibling migration leads.
+
+## Shared-fix decisions
+
+No shared adapter code was changed.
+
+- Oracle already puts `offset` inside `findReqs`, reconciles the reported total,
+  rejects short/empty pages below total, detects overlap/total drift, and makes
+  one clean restart. jobseek's exact-sum facet partition is useful prior art,
+  but no saved response proves a complete, bounded, non-overlapping facet set
+  for these five exact sites. Its configured overlap/shortfall/count tolerances
+  are rejected.
+- Eightfold already treats total drift and cross-page repeated stable IDs as
+  mutation. jobseek's sitemap-first watermark and freehire's PCSX/v2 response
+  mechanics help protocol discovery, but watermark state and an arbitrary
+  empty-page backstop cannot authorize absence.
+- SuccessFactors cannot let a final total override mutation (CPKC/Scotiabank)
+  or treat a repeated complete page as EOF (Bombardier). A generic
+  `job_sitemap.xml` convention is not exact current-inventory evidence for
+  these configured scopes.
+- Static/browser sources need source-specific terminal contracts. Render
+  exhaustion, short pages, generic next controls, and mere sitemap presence
+  are not terminal proof.
+
+## Sibling-repository decisions
+
+jobseek:
+
+- `ADAPT`: `core/monitors/oracle_hcm.py::_complete_facet_partition` and
+  `discover_stream` for finder mechanics and exact-sum bounded facets.
+- `CONCEPT_ONLY`: `core/monitors/eightfold.py::_sitemap_urls` and
+  `discover_stream` for sitemap/PCSx joins and positive-only watermarking.
+- `ADAPT`: `core/monitors/sitemap.py::_resolve_sitemap_index` and `discover`
+  for fail-whole bounded child traversal.
+- `REUSE_CONTRACT`: `core/monitors/workday.py` partition mechanics, already
+  independently implemented with stricter Job Radar identity/accounting.
+- `CONCEPT_ONLY`: `data/boards.csv` alternate leads for Meta, Qualcomm,
+  Micron, GlobalFoundries, Rivian, Stantec, and Goldman Sachs.
+- `REJECT`: Oracle `offset_overlap`, page-shortfall, duplicate-row, and
+  total-count tolerances as absence authority.
+
+freehire:
+
+- `REUSE_CONTRACT`: `sources/oracle.go::listRequisitions` confirms finder-local
+  offset.
+- `ADAPT`: `sources/eightfold.go::pageList` confirms PCSX/v2 shapes, while its
+  empty-page terminal and partial-detail behavior are rejected.
+- `CONCEPT_ONLY`: `sources/workday.go::pageAll` / `splitByFacet`; Job Radar's
+  Phase 4 protocol remains stricter.
+- `ADAPT`: `sources/metacareers.go::Fetch` / `detail` confirms the sitemap and
+  numeric stable ID, but failed details must become protected unreadables.
+- `CONCEPT_ONLY`: `sources/successfactors.go::Fetch` / `detail` for a possible
+  job-sitemap inventory after exact tenant/scope/active-state proof.
+- `REJECT`: SmartRecruiters arbitrary empty-page completion below total.
+
+JobSpy has no exact first-party provider contract for these targets.
+`jobspy/__init__.py::scrape_jobs` is useful only as third-party search mechanics;
+aggregator exhaustion, proxy behavior, and title/location matching are rejected
+as employer identity or absence authority.
+
+## Alternate inventory tracks
+
+- Meta sitemap: exact first-party URL and numeric stable-ID shape are known,
+  but Job Radar lacks a checked-in sitemap body/shard fixture, active-only proof,
+  protected hydration accounting, and an item-derived request budget.
+- Rivian sitemap: first-party lead, but no exact body/index/shard fixture,
+  stale/active membership proof, or stable-ID hydration accounting.
+- Goldman GraphQL: `https://api-higher.gs.com/gateway/api/v1/graphql`, operation
+  `GetRoles`, page number starting at 0, page size 20, result
+  `data.roleSearch.items`, total `data.roleSearch.totalCount`, stable `roleId`,
+  and `/roles/{roleId}` URLs. The query unions `EARLY_CAREER` and
+  `PROFESSIONAL`. No Job Radar fixture proves unauthenticated access, employer
+  identity, union completeness, total stability, or terminal semantics.
+- Stantec's global sitemap is discovery evidence and not authoritative for the
+  configured Calgary query scope.
+- Qualcomm sitemap, Micron/GlobalFoundries Workday boards, and
+  Scotiabank/Bombardier RSS/sitemap paths remain migration/concept leads only.
+
+No alternate was promoted and no candidate registry was created.
+
+## Request budgets and terminal evidence
+
+Stable lower bounds, before any provider mutation, are: Oracle—JPMorgan 309,
+Emerson 45, Honeywell 53, Oracle 93, Fortinet 41 pages; Eightfold—Microsoft
+237, Qualcomm 203, Micron 298, Eaton 237, GlobalFoundries 56 pages; Rivian 80;
+SuccessFactors—CPKC 15, Scotiabank at least 68 at 25/page, Bombardier 85; Bosch
+49 at 100/page, which exceeds the adapter's reviewed 1,000-job bound. One full
+restart doubles each mutable-family traversal lower bound. None of these
+calculations justifies a configuration increase: a larger budget does not make
+a moving collection immutable.
+
+Meta, Stantec, Espressif, ecobee, and Goldman remain `required: unknown`
+because no authoritative page/partition/shard/total fixture bounds a complete
+inventory.
+
+Acceptable future terminal evidence is provider-specific:
+`authoritative_total_reached`, `partition_set_complete`,
+`sitemap_index_complete`, `sitemap_complete`, `GraphQL_total_reached`, or an
+explicit provider final-page marker. Collection movement always produces
+positive partial discovery plus `scan_complete=false` and
+`absence_authorized=false` unless an immutable snapshot contract is proven.
+
+## Inventory accounting and canary disposition
+
+Every future candidate must satisfy:
+
+```
+provider inventory
+= normalized jobs
++ protected unreadable identities
++ rejected records
++ known duplicate representations
+```
+
+Raw items, unique IDs, canonical URLs, duplicate IDs/URLs, rejections,
+unreadables, and filter/retention exclusions must be explicit. No silent loss
+is allowed.
+
+`READY_FOR_CANARY`: none. `RECOVERED_BY_SHARED_FIX`: none.
+`NEEDS_SOURCE_SPECIFIC_REPAIR`: all 20 Batch 2 targets. No target is assigned
+`FAIL_IDENTITY`, `FAIL_CONTRACT`, `FAIL_TRANSIENT`, `UNSUPPORTED_PROVIDER`,
+`NO_SAFE_REPAIR`, or `INSUFFICIENT_EVIDENCE`; the evidence points to specific
+repair work rather than a terminal unsupported verdict.
+
+There are therefore no future Batch 2 manual canary commands. A command will
+be added only after a deterministic candidate exposes exact identity,
+inventory accounting, a concrete terminal type, mutation tests, and an
+item/page/partition/shard-derived request budget.
+
+## Batch 2 playbook additions
+
+11. Oracle facet partitioning is acceptable only when every provider-emitted
+    bucket is valid and bounded, bucket counts sum exactly to one stable anchor
+    total, IDs do not overlap, and all partitions terminate independently.
+12. Eightfold sitemap/PCSx joining separates authoritative inventory from
+    enrichment only after the exact sitemap is proven active, complete, and
+    fail-whole. Watermarks remain positive-only.
+13. Workday sibling boards are migrations, not repairs, until exact
+    employer/site/scope identity is proven. The existing 2,000-cap protocol is
+    retained unchanged.
+14. Sitemap authority requires exact first-party binding, bounded index/shard
+    traversal, no truncation or failed child, stable IDs before hydration, and
+    an active-inventory contract. Sitemap presence alone proves nothing.
+15. GraphQL authority requires a fixture for the exact operation and variables,
+    identity-bearing fields, stable IDs, stable total/cursor semantics, complete
+    filter/experience union, response bounds, and terminal reconciliation.
+16. A terminal total cannot override contradictory overlap, repetition, total
+    drift, malformed inventory, or unreadable stable identities.
+17. Derive request budgets from exact totals, page size, partition count,
+    sitemap shard count, and required hydration count. Unknown inventory means
+    unknown budget, not a larger guess.
+
+## Batch 3 recommendation
+
+Use four evidence-focused groups:
+
+1. First-party inventory fixtures: Meta, Rivian, Goldman Sachs, Stantec, and
+   Qualcomm.
+2. Provider partition evidence: JPMorgan Chase, Emerson, Honeywell, Oracle,
+   Fortinet, and Bosch.
+3. SuccessFactors contract work: CPKC, Scotiabank, and Bombardier.
+4. Identity/scope migrations and static terminals: Micron, GlobalFoundries,
+   ecobee, and Espressif Systems.
+
+Keep Atlassian in the separate source-specific straggler backlog with its exact
+live iCIMS URL/stable-ID contract failure.
