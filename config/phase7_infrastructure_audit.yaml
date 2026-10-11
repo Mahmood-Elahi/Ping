@@ -1,0 +1,277 @@
+audit_version: phase7_v1
+decision: PHASE7_CLOSE_EARLY
+primary_recommendation: CLOSE_PHASE7_EARLY
+as_of: '2026-10-10'
+
+evidence:
+  production_registry:
+    path: config/target_companies.yaml
+    sha256: b5e8e42e1047c03131480ea678e2ca42ba3dbf42bd3f6ca1d3e0290decfbff30
+    canonical_companies: 533
+    configured_sources: 533
+    source_scopes: 533
+  newest_full_runtime_snapshot:
+    path: jobs/company_careers_coverage_20261001_142550.json
+    sha256: fb12864e7d1b84931d56c8a831a51572377f06e9eb6d8d8970b65b76fd5e7a7b
+    captured_at: '2026-10-01T14:25:50'
+    canonical_sources_checked: 533
+    complete: 472
+    incomplete: 47
+    failed: 14
+    limitation: >-
+      This is the newest checked-in full runtime snapshot, not a claim about
+      live health on the audit date. Later deterministic reviews supersede
+      individual source conclusions but cannot be arithmetically promoted into
+      a new full-scan health total.
+  later_deterministic_reviews:
+    - docs/PHASE1_ATS_MIGRATION_REVIEW.md
+    - docs/PHASE3_INVENTORY_HYDRATION_REVIEW.md
+    - docs/PHASE4_ADP_BROWSER_REVIEW.md
+    - docs/PHASE4_DAYFORCE_SUCCESSFACTORS_REVIEW.md
+    - docs/PHASE4_PROTOCOL_HARDENING_SUMMARY.md
+    - docs/PHASE4_WORKDAY_PROTOCOL_REVIEW.md
+    - docs/PHASE5_COVERAGE_EXPANSION_REVIEW.md
+    - docs/PHASE5_MULTI_SCOPE_ROLLOUT.md
+    - docs/PHASE6_INCREMENTAL_OPTIMIZATION.md
+    - docs/COMPANY_CAREERS_RECOVERY_BATCH10.md
+
+taxonomy:
+  A: ADAPTER_BUG
+  B: PROVIDER_CONTRACT_CHANGE
+  C: IDENTITY_UNPROVEN
+  D: PAGINATION_OR_COMPLETENESS
+  E: PARSING_OR_NORMALIZATION
+  F: RATE_LIMIT_OR_TRANSIENT
+  G: BROWSER_RENDER_REQUIRED
+  H: INTERACTIVE_BROWSER_REQUIRED
+  I: ANTI_BOT_OR_NETWORK_BLOCK
+  J: AUTHENTICATED_PROVIDER_ACCESS
+  K: EXTERNAL_AUTHORITATIVE_INVENTORY
+  L: UNSUPPORTED_PROVIDER
+  M: LOW_VALUE_OR_NOT_RECOVERABLE
+  N: UNKNOWN
+
+# Each source in the newest full snapshot whose scan_health was incomplete or
+# failed appears exactly once below. Categories G-K are the only Phase 7
+# infrastructure categories; A-F and L remain normal coverage/adapter backlog.
+runtime_problem_classifications:
+  A: []
+  B:
+    - Google
+    - ARM
+    - Schneider Electric
+  C:
+    - Magic Leap
+    - Plaid
+    - Kraken
+    - YYC Calgary Airport Authority
+  D:
+    - Atlassian
+    - Shopify
+    - Meta
+    - JPMorgan Chase
+    - Emerson
+    - Honeywell
+    - Microsoft
+    - Qualcomm
+    - Micron
+    - Eaton
+    - Samsung Electronics
+    - GE Vernova
+    - Rivian
+    - General Motors
+    - Caterpillar
+    - Intuitive Surgical
+    - Coupang
+    - Zalando
+    - Wise
+    - Capital One
+    - ASML
+    - Goldman Sachs
+    - GlobalFoundries
+    - Oracle
+    - Stantec
+    - Espressif Systems
+    - Dyson
+    - Bosch
+    - CPKC
+    - Scotiabank
+    - ecobee
+    - Bombardier
+    - Fortinet
+    - ServiceNow
+    - Nordic Semiconductor
+    - CN Rail
+    - Athabasca Oil
+    - HP Inc.
+    - Seagate
+    - Box
+    - SGS
+    - AstraZeneca
+    - Kinross Gold
+    - Cameco
+  E:
+    - Novarc Technologies
+    - Chemelex
+  F:
+    - Waymo
+    - Etsy
+    - SAP
+  G: []
+  H: []
+  I:
+    - GitHub
+    - Parkland
+  J: []
+  K: []
+  L:
+    - Siemens
+    - Unitree Robotics
+    - u-blox
+  M: []
+  N: []
+
+classification_rationale:
+  B: >-
+    Google returned a malformed careers contract, while ARM and Schneider
+    Electric returned contradictory iCIMS count fields. Their existing adapter
+    families remain conceptually valid; this is provider-contract work.
+  C: >-
+    The configured employer/board binding is stale or not exact. Browser,
+    proxy, or authentication cannot safely manufacture employer identity.
+  D: >-
+    These sources returned inventory but did not prove an authoritative total,
+    stable traversal, or terminal state. Existing adapters or source-specific
+    contracts must supply the missing proof.
+  E: >-
+    The inventory was available but one or more rows could not be normalized.
+    This is fail-closed parsing work, not an infrastructure dependency.
+  F: >-
+    The checked-in evidence is a one-snapshot HTTP or provider-side failure.
+    It does not establish persistent network discrimination or a proxy need.
+  I: >-
+    GitHub returned an explicit blocked iCIMS response after partial progress;
+    Parkland returned a Cloudflare-associated HTTP 403. These are the only
+    credible network-block candidates, but one snapshot per source does not
+    establish that alternate egress is effective or correct.
+  L: >-
+    A concrete source family or API exists, but Job Radar lacks the reviewed
+    adapter variant/contract. This is new adapter coverage, not shared external
+    infrastructure.
+
+resolved_after_runtime_snapshot:
+  - company: Waymo
+    category: F
+    current_platform: greenhouse
+    evidence: docs/PHASE1_ATS_MIGRATION_REVIEW.md
+  - company: Wise
+    category: D
+    current_platform: smartrecruiters
+    evidence: docs/PHASE1_ATS_MIGRATION_REVIEW.md
+  - company: ASML
+    category: D
+    current_platform: smartrecruiters
+    evidence: docs/PHASE1_ATS_MIGRATION_REVIEW.md
+  - company: Dyson
+    category: D
+    current_platform: public_json
+    evidence: docs/COMPANY_CAREERS_RECOVERY_BATCH10.md
+  - company: Box
+    category: D
+    current_platform: greenhouse
+    evidence: docs/PHASE1_ATS_MIGRATION_REVIEW.md
+
+post_snapshot_problem_findings:
+  - company: Nutrien
+    category: D
+    source_scope: default
+    evidence: docs/PHASE4_ADP_BROWSER_REVIEW.md
+    note: >-
+      The later browser audit classifies terminal evidence as unproven, so its
+      older complete zero-job runtime row is not treated as current authority.
+
+browser_sources:
+  - company: Goldman Sachs
+    source_scope: default
+    implementation: browser_rendered_html_v1
+    current_verdict: PAGINATION_OR_COMPLETENESS
+    terminal_evidence: unproven
+    renderer_sufficient_for_positive_discovery: true
+  - company: MediaTek
+    source_scope: default
+    implementation: browser_rendered_html_v1
+    current_verdict: COMPLETE_HEALTHY
+    terminal_evidence: configured_single_page_collection
+    renderer_sufficient_for_positive_discovery: true
+  - company: Nutrien
+    source_scope: default
+    implementation: browser_rendered_html_v1
+    current_verdict: PAGINATION_OR_COMPLETENESS
+    terminal_evidence: unproven_by_later_review
+    renderer_sufficient_for_positive_discovery: true
+  - company: Stantec
+    source_scope: default
+    implementation: browser_rendered_html_v1
+    current_verdict: PAGINATION_OR_COMPLETENESS
+    terminal_evidence: unproven
+    renderer_sufficient_for_positive_discovery: true
+
+infrastructure_candidates:
+  - company: GitHub
+    category: I
+    source_scope: default
+    evidence:
+      snapshot_error: iCIMS returned a blocked response
+      jobs_observed_before_failure: 30
+      existing_retries: bounded_iCIMS_transient_retries
+    alternate_egress_plausibility: unknown
+    residential_or_mobile_required: unknown
+    first_party_alternative: not_proven
+    decision: REMAIN_INCOMPLETE
+  - company: Parkland
+    category: I
+    source_scope: default
+    evidence:
+      snapshot_error: 'Static source access_blocked: HTTP 403'
+      provider_marker: Cloudflare
+      jobs_observed_before_failure: 0
+    alternate_egress_plausibility: unknown
+    residential_or_mobile_required: unknown
+    first_party_alternative: not_proven
+    decision: REMAIN_INCOMPLETE
+
+external_inventory_policy:
+  requires_first_party: true
+  requires_identity_verifiable: true
+  requires_complete_and_bounded: true
+  third_party_authoritative_for_absence: false
+  eligible_current_candidates: []
+
+authentication:
+  authenticated_provider_sources: []
+  organization_credentials_available: false
+  decision: NO_AUTHENTICATED_INTEGRATION
+
+candidate_and_retirement_counts:
+  production_retired_or_rejected: 0
+  phase5_rejected_candidate_rows: 5
+  phase5_unique_rejected_proposals: 4
+  note: >-
+    Lightspeed France appears in both Phase 5 candidate registries. Candidate
+    rejections are not production sources and do not change the 533-source
+    production denominator.
+
+infrastructure_enabled:
+  browser_worker: false
+  interactive_browser: false
+  proxy_egress: false
+  external_inventory_layer: false
+  authenticated_provider_access: false
+  production_platform_changes: false
+  lifecycle_changes: false
+
+revisit_only_if:
+  - At least three production sources show repeatable infrastructure-only failure.
+  - A bounded canary can preserve identity, terminal evidence, and absence authority.
+  - The same result cannot be obtained through an existing adapter or first-party feed.
+  - Runtime, maintenance, security, compliance, and vendor costs are accepted explicitly.
