@@ -128,11 +128,13 @@ empty inventory. No HTTP adapter currently enables conditional snapshot reuse.
 - checkpoint advanced; and
 - absence authorized.
 
-## Adapter capability inventory
+## Initial Stage A/B working inventory (superseded)
 
 All entries below remain **full-crawl only in production**. “Promising” means a
 future adapter-specific review has repository evidence worth testing; it is not
-activation approval.
+activation approval. This was the working queue before the exhaustive Stage B3
+triage. The complete matrix and final ranking below supersede these preliminary
+groupings.
 
 | Adapter/platform | Repository-only classification | Evidence / missing proof |
 |---|---|---|
@@ -146,17 +148,16 @@ activation approval.
 | ADP, Deel, Paycor, PeopleSoft, Cornerstone CSOD | Promising inventory + selective hydration | Explicit identities exist, but trustworthy item versions are absent or variant-specific. |
 | Lever | Promising timestamp incremental | `createdAt` is captured and pagination is bounded. Newest-first ordering and edits-after-create are not proven, so no activation. |
 | Eightfold | Promising cursor/incremental enrichment | Bounded pagination and posting timestamps exist; Jobseek demonstrates complete streaming inventory plus enrichment, but Job Radar has no reviewed incremental contract yet. |
-| Shopify, Apple, Amazon, Atlassian, Workable, UKG Pro, Uber | Promising timestamp incremental | Listing timestamps exist, but semantics/order/rollback behavior are not proven from Job Radar code. |
+| Shopify, Apple, Amazon, Atlassian, UKG Pro, Uber | Promising timestamp incremental | Listing timestamps exist, but semantics/order/rollback behavior are not proven from Job Radar code. The separate Workable module is dormant and is not scanner-dispatchable. |
 | Public JSON, first-party JSON, embedded data, source XML | Insufficient deterministic evidence | These are configuration-driven families; capability must be reviewed per exact endpoint, not granted to the generic adapter. |
 | Browser-rendered HTML, static HTML | Insufficient deterministic evidence | Page rendering and selectors supply no generic stable version or validator contract. |
 | Avature, iCIMS, Oracle Recruiting, Phenom, HawkSearch v2, mCloud CWS, Beesite, ClearCompany, Exalead, HiBob, Jobvite, TalentBrew, Teamtailor, Startdate | Insufficient deterministic evidence | Full pagination contracts exist; repository code does not prove a safe incremental boundary. |
 | Meta, Google, IBM Search, Amazon custom, Atlassian custom, Uber custom | Insufficient deterministic evidence | Bespoke feeds expose some dates/cursors, but no reviewed deletion, ordering, or checkpoint contract. |
 | Source-specific manual/browser aliases | Full-crawl only | No deterministic incremental evidence. |
 
-Remaining future canary candidates, in order:
-
-1. **Eightfold** — only after a dedicated contract review of pagination and
-   enrichment, using Jobseek as reference rather than as lifecycle authority.
+The working queue initially named Eightfold for the next review. Stage B3
+completed that repository-level comparison and supersedes the queue with
+`NEXT_DEEP_REVIEW = NONE`.
 
 SmartRecruiters and Greenhouse are removed from the canary queue by their
 adapter-specific reviews below. Either can re-enter only after stronger
@@ -627,6 +628,225 @@ Explicitly rejected:
 - seen ID alone skips hydration;
 - cache/304 means empty inventory; and
 - retention age means provider absence.
+
+## Stage B3: cross-adapter capability triage
+
+### Scope, inventory, and scoring
+
+This repository-only triage covers **41 production adapter families** and
+**533 production sources**.  It also covers the dispatchable `source_xml` and
+`hawksearch_v2` families, which currently have zero production sources.
+`workable.py` was inspected but is not in `scanner.ADAPTERS` and has no registry
+row, so it is a dormant module rather than a supported production family.
+Scanner aliases such as `custom:amazon` and `custom:google` collapse into their
+canonical adapter families; `javascript_embedded_data` is the production name
+for the `embedded_data.py` implementation.
+
+The score is `V/C/S/E/X/R -> P`: production volume, request cost, theoretical
+savings, deterministic contract strength, implementation complexity, and
+lifecycle risk, each 0-5.  Priority `P = max(0, V+C+S+E-X-R)`.  These are
+repository-evidence scores, not runtime measurements.  Configured page/job
+ceilings are treated as bounds, never as observed traffic.
+
+Pattern names in an `INSUFFICIENT_EVIDENCE` row are research hypotheses, not
+accepted capabilities.  Every adapter's executable policy remains
+`IncrementalCapability.NONE`; no checkpoint can be initialized or advanced.
+
+### Complete adapter capability matrix
+
+| Adapter (production sources; endpoint variants) | Inventory and request model | Detail, browser, and change evidence | Classification / candidate pattern / theoretical saving | Score |
+|---|---|---|---|---:|
+| `adp` (8; Workforce Now 7, MyJobs 1) | Bootstrap + total/offset pages (1-3 configured) | Workforce Now hydrates every listed item; no browser; posting dates are not material versions | `INSUFFICIENT_EVIDENCE` / `COMPLETE_INVENTORY_PLUS_SELECTIVE_HYDRATION` / up to N details in theory, no safe K selector | 2/4/4/3/3/4 -> **6** |
+| `amazon` (1; search-terms offset v1) | Authoritative only after every 100-row search-term total and union reconcile; 4-page config | Listing-only; no browser; dates do not prove edits | `FULL_CRAWL_ONLY` / `NONE` / 0 safe requests | 1/2/1/2/3/4 -> **0** |
+| `apple` (1; `apple_search_api_v1`) | `ceil(totalRecords/page size)`, configured to 3 pages | Listing-only; no browser; posting date only | `FULL_CRAWL_ONLY` / `NONE` / 0 | 1/2/1/3/3/3 -> **1** |
+| `ashby` (72; default 70, `posting_api_v1` 2) | One complete compact board collection | Up to 20 optional detail documents; no browser; `publishedDate` is not a material version | `INSUFFICIENT_EVIDENCE` / `COMPLETE_INVENTORY_PLUS_SELECTIVE_HYDRATION` / `D-K` details in theory, K unproven | 5/4/5/3/3/4 -> **10** |
+| `atlassian` (1; bespoke default) | One complete JSON collection | No details/browser; `updatedDate` has no reviewed update query | `POSSIBLE_BUT_LOW_SAVINGS` / `CONTENT_HASH_DOWNSTREAM_SKIP` / 0 requests | 1/1/1/3/1/1 -> **4** |
+| `avature` (7; portal 4, Radancy 2, AEM 1) | Variant HTML terminal evidence, all capped at 2 pages | No detail/browser; no trusted version | `FULL_CRAWL_ONLY` / `NONE` / 0 | 2/2/1/2/3/4 -> **0** |
+| `bamboohr` (7; complete public collection) | One total-checked inventory | Up to 20 details; no browser; `datePosted` is not a material version | `INSUFFICIENT_EVIDENCE` / `COMPLETE_INVENTORY_PLUS_SELECTIVE_HYDRATION` / `D-K` in theory, K unproven | 2/4/4/3/2/4 -> **7** |
+| `beesite` (2; `gjb_search_v1`) | `ceil(total/20)`, both capped at 2 pages | No details/browser/version | `FULL_CRAWL_ONLY` / `NONE` / 0 | 1/2/1/2/2/3 -> **1** |
+| `browser_rendered_html` (4; v1) | One isolated render plus delegated static extraction; only MediaTek has a reviewed single-page terminal contract | Browser cost is intrinsic; no source/config-bound validator or reusable snapshot | `INSUFFICIENT_EVIDENCE` / `BROWSER_RENDER_RESULT_REUSE`, `VALIDATED_CONDITIONAL_SNAPSHOT` / one render in theory, unproven | 2/5/4/1/5/5 -> **2** |
+| `clearcompany` (1; default) | One complete collection | No details/browser/version | `POSSIBLE_BUT_LOW_SAVINGS` / `CONTENT_HASH_DOWNSTREAM_SKIP` / 0 requests | 1/1/1/3/1/1 -> **4** |
+| `cornerstone_csod` (1; mobile external search v1) | Offset inventory, production cap 1 page at 25 | No details/browser; stable IDs but no update/order contract | `INSUFFICIENT_EVIDENCE` / `PAGINATION_SHORT_CIRCUIT_POSITIVE_ONLY` / currently 0 pages | 1/1/1/2/3/4 -> **0** |
+| `dayforce` (5; Next.js jobposting search) | Shell + CSRF + maxCount/offset, four sources cap 2 pages and one caps 4 | Detail only for missing locations; no browser; posting time is not a version; all five also lack reviewed employer identity | `INSUFFICIENT_EVIDENCE` / `COMPLETE_INVENTORY_PLUS_SELECTIVE_HYDRATION` / conditional details only, unproven | 2/4/3/2/4/5 -> **2** |
+| `deel` (1; schema.org ItemList v1) | One complete structured response | No details/browser/version | `POSSIBLE_BUT_LOW_SAVINGS` / `CONTENT_HASH_DOWNSTREAM_SKIP` / 0 requests | 1/1/1/3/1/1 -> **4** |
+| `eightfold` (12; `pcsx`) | `ceil(count/10)`, nine sources cap 2 pages and three cap 1 | PCSX already carries Job Radar's normalized material; no separate hydration/browser; `postedTs` is posting time | `INSUFFICIENT_EVIDENCE` / timestamp/enrichment research only / at most 1 page per source under current caps | 3/2/2/2/4/4 -> **1** |
+| `exalead` (1; career cards v1) | HTML total/terminal evidence, cap 2 pages | No details/browser/version | `FULL_CRAWL_ONLY` / `NONE` / 0 | 1/2/1/2/3/3 -> **0** |
+| `first_party_json` (1; Bytedance supplier search v1) | Up to 20 pages / 2,000 rows | No details/browser; provider dates lack edit-complete semantics | `INSUFFICIENT_EVIDENCE` / `PAGINATION_SHORT_CIRCUIT_POSITIVE_ONLY` / earlier discovery only | 1/4/3/2/3/4 -> **3** |
+| `google` (1; bespoke default) | Up to 3 full-search requests | No details/browser; display timestamps only | `POSSIBLE_BUT_LOW_SAVINGS` / `CONTENT_HASH_DOWNSTREAM_SKIP` / 0 network requests | 1/2/1/2/2/3 -> **1** |
+| `greenhouse` (102; default 92, boards v1 3, strict v1 7) | One atomic board inventory | Up to 20 details; CoreWeave adds one department request; no browser; `updated_at` explicitly untrusted | `FULL_CRAWL_ONLY` / `NONE` / 0 | 5/4/4/4/3/5 -> **9** |
+| `hawksearch_v2` (0; dispatchable) | 100-row total/offset pages when configured | No production detail/browser/version contract | `INSUFFICIENT_EVIDENCE` / pagination research / not estimable | 0/0/0/1/3/3 -> **0** |
+| `hibob` (3; career-site job ads v1) | One complete collection | No details/browser/version | `POSSIBLE_BUT_LOW_SAVINGS` / `CONTENT_HASH_DOWNSTREAM_SKIP` / 0 requests | 1/1/1/3/1/1 -> **4** |
+| `ibm_search` (2; bespoke default) | One source caps 1 page, one caps 2 | No details/browser/trusted version | `FULL_CRAWL_ONLY` / `NONE` / 0 | 1/2/1/2/3/4 -> **0** |
+| `icims` (12; Jibe 6, legacy HTML 5, Radancy 1) | Variant-specific inventory, all capped at 1-2 pages | No details/browser; no cross-variant update/order contract | `INSUFFICIENT_EVIDENCE` / `PAGINATION_SHORT_CIRCUIT_POSITIVE_ONLY` / at most 1 page/source | 3/2/2/2/4/4 -> **1** |
+| `javascript_embedded_data` (10; next-flight 3, next-data 2, public JSON 2, HTML-attribute JSON 2, Snap cache 1) | Nine sources use 1 request; one permits 2 | No details/browser; dates are variant-specific and untrusted | `POSSIBLE_BUT_LOW_SAVINGS` / `CONTENT_HASH_DOWNSTREAM_SKIP` / 0 network requests | 2/1/1/2/2/3 -> **1** |
+| `jobvite` (2; server search total v1) | One total-checked response, up to 500 rows | No details/browser/version | `POSSIBLE_BUT_LOW_SAVINGS` / `CONTENT_HASH_DOWNSTREAM_SKIP` / 0 requests | 1/1/1/3/1/2 -> **3** |
+| `lever` (25; default 12, postings v0 12, official-link v0 1) | Complete offset pagination, bounded at 25 pages / 500 jobs | Rich listing rows; no browser; `createdAt` is not an edit version | `FULL_CRAWL_ONLY` / `NONE` / 0 | 4/4/3/3/3/4 -> **7** |
+| `mcloud_cws` (1; Google jobs v1) | Total pagination, cap 2 requests | No details/browser/version | `POSSIBLE_BUT_LOW_SAVINGS` / `CONTENT_HASH_DOWNSTREAM_SKIP` / 0 network requests | 1/2/1/2/2/3 -> **1** |
+| `meta` (1; bespoke default) | Full search traversal, cap 3 pages | No details/browser; posting timestamps only | `FULL_CRAWL_ONLY` / `NONE` / 0 | 1/2/1/2/3/4 -> **0** |
+| `oracle_recruiting` (16; default 8, CE v1 6, HCM REST 2) | `hasMore`/count/offset inventory, caps 1-5 pages | Listing-normalized; no browser; stable requisitions but no edit-complete filter/order | `INSUFFICIENT_EVIDENCE` / `PAGINATION_SHORT_CIRCUIT_POSITIVE_ONLY` / positive pages only | 3/3/3/3/4/4 -> **4** |
+| `paycor` (2; default) | One bounded board collection | No details/browser/version | `FULL_CRAWL_ONLY` / `NONE` / 0 | 1/1/1/3/1/2 -> **3** |
+| `peoplesoft` (1; default) | Session-bound collection, cap 1 configured page | No separate current detail; no browser/version | `FULL_CRAWL_ONLY` / `NONE` / 0 | 1/2/1/2/3/4 -> **0** |
+| `phenom` (16; embedded refine search) | Fifteen sources allow 50 pages/500 jobs; ATCO 10/100 | No details/browser; posting dates lack edit-complete ordering | `INSUFFICIENT_EVIDENCE` / `PAGINATION_SHORT_CIRCUIT_POSITIVE_ONLY` / potentially many pages, unproven | 3/5/4/2/4/5 -> **5** |
+| `public_json` (7; seven distinct endpoint variants) | Variant-specific: 1-50 configured pages | No details/browser; date/version semantics differ per endpoint | `INSUFFICIENT_EVIDENCE` / conditional snapshot or positive pagination per endpoint / not generically estimable | 2/4/3/2/4/4 -> **3** |
+| `sap_successfactors` (44; table 31, tile 8, columnized 5) | Variant-specific RMK terminal evidence, all capped at 20 listing pages | Columnized hydrates each item; table/tile listing-only; no browser/material version | `INSUFFICIENT_EVIDENCE` / selective hydration or positive pagination / potentially large, unproven | 4/5/5/3/5/5 -> **7** |
+| `shopify` (1; bespoke default) | Full collection, cap 5 pages | No details/browser/version | `POSSIBLE_BUT_LOW_SAVINGS` / `CONTENT_HASH_DOWNSTREAM_SKIP` / 0 network requests | 1/2/1/2/2/3 -> **1** |
+| `smartrecruiters` (15; companies postings v1) | `ceil(totalFound/100)`, zero production detail requests | No browser; `releasedDate` is release time | `FULL_CRAWL_ONLY` / `NONE` / 0 | 3/3/1/4/3/4 -> **4** |
+| `source_xml` (0; dispatchable) | Bounded XML feed/index traversal when configured | No details/browser; `lastmod` requires an exact feed contract | `INSUFFICIENT_EVIDENCE` / conditional snapshot or timestamp research / not estimable | 0/0/0/1/3/3 -> **0** |
+| `startdate` (1; default) | One bounded collection | No details/browser/version | `POSSIBLE_BUT_LOW_SAVINGS` / `CONTENT_HASH_DOWNSTREAM_SKIP` / 0 requests | 1/1/1/2/1/2 -> **2** |
+| `static_html` (27; cards 24, links 3) | 24 cap at 1 page; BlackRock, Siemens, and Chevron cap at 2 | No details/browser; display dates are not versions | `POSSIBLE_BUT_LOW_SAVINGS` / `CONTENT_HASH_DOWNSTREAM_SKIP` / 0 network requests | 4/2/1/2/2/4 -> **3** |
+| `talentbrew` (4; search-results data-job-id v1) | Three cap at 1 page; Rakuten caps at 2 | No details/browser/version | `POSSIBLE_BUT_LOW_SAVINGS` / `CONTENT_HASH_DOWNSTREAM_SKIP` / 0 network requests | 1/2/1/3/2/3 -> **2** |
+| `teamtailor` (1; server-rendered jobs v1) | One complete page | No details/browser/version | `POSSIBLE_BUT_LOW_SAVINGS` / `CONTENT_HASH_DOWNSTREAM_SKIP` / 0 requests | 1/1/1/2/1/2 -> **2** |
+| `uber` (1; bespoke default) | Full search, cap 5 pages | No details/browser; posting timestamps only | `FULL_CRAWL_ONLY` / `NONE` / 0 | 1/2/1/2/3/4 -> **0** |
+| `ukg_pro` (5; default) | `ceil(totalCount/page size)`, capped at 1-3 pages | No fetched detail content/browser; `PostedDate` is posting time | `FULL_CRAWL_ONLY` / `NONE` / 0 | 2/2/2/3/3/4 -> **2** |
+| `workday` (108; default 91, `wday_cxs_v1` 17) | 20-row pages; 25-page normal bound; exact facet subdivision above the 2,000-result safe capacity, within source request/partition/job budgets | Listing-normalized, no detail/browser; `postedOn` is display/posting age | `FULL_CRAWL_ONLY` / `NONE` / 0 | 5/5/4/4/5/5 -> **8** |
+
+### Pattern authority and fallback rules
+
+No pattern was accepted for activation.  If stronger evidence reopens a row:
+
+- complete inventory plus selective hydration keeps the full inventory as
+  absence authority, skips only detail calls whose exact provider material
+  version is unchanged, binds version state to source/config/strategy, and
+  falls back to hydrating every item on missing/regressing/ambiguous versions;
+- timestamp, cursor, and pagination short-circuit slices are positive-only,
+  skip later listing pages, never reconcile absence, require an overlap and a
+  monotonic bounded checkpoint, and fall back to a full crawl on any ordering,
+  cursor, timestamp, pagination, or persistence ambiguity;
+- validated conditional snapshots keep the prior checksum-verified complete
+  snapshot as authority, skip payload transfer only on a reviewed validator,
+  bind cache state to exact source/provider/config, and make an invalid 304 a
+  failure/full-refetch rather than an empty inventory;
+- browser result reuse would require the same snapshot guarantees plus the
+  rendered identity/terminal evidence.  Building the cache/worker/proxy layer
+  is Phase 7 work; and
+- content-hash downstream skip occurs only after the full source response has
+  already been fetched and validated.  It cannot discover changes or removals
+  and is not material Phase 6 value for the low-request rows above.
+
+### Explicit high-cost family audit
+
+| Family | Present cost driver | Safe Phase 6 reduction? |
+|---|---|---|
+| Workday | 108 sources, 20-row pages, and exact facet subdivision for boards at/above the 2,000-result provider boundary; retries/identity discovery share a 500-request ceiling | No. `postedOn` is not an update version; search bodies expose no reviewed update filter/cursor; complete partition union remains absence authority. |
+| SAP SuccessFactors | 44 sources, up to 20 listing pages; five columnized sources can add one detail per listed row | Not yet. No listing material version selects unchanged details, and three pagination/detail variants prevent a generic watermark. |
+| Phenom | 15 sources allow 50 pages/500 rows and one allows 10/100 | Not yet. Newest-first plus edit-complete semantics are not deterministically established. |
+| Lever | 25 sources, up to 25 pages/500 rich rows | No. `createdAt` cannot discover later edits, so a creation boundary would violate exact equivalence. |
+| Ashby | 72 one-request inventories plus up to 20 details each | Not yet. The split inventory is useful, but posting time is not a material detail version. |
+| ADP | Seven Workforce Now sources add one detail request per listed item; MyJobs is listing-only | Not yet. Inventory is independently complete, but no trustworthy detail version exists. |
+| browser-rendered HTML | Four isolated browser renders; three remain terminal-unproven | No Phase 6 reuse without a source-bound validated snapshot; browser/cache infrastructure belongs to Phase 7. |
+| iCIMS | 12 sources across Jibe, legacy HTML, and Radancy; 1-2 pages | No material current saving and no common ordering/version contract. |
+| Dayforce | Shell, CSRF, 2-4 listing pages, and conditional missing-location details | No. All five sources first lack reviewed employer identity and expose no material version. |
+| Cornerstone/CSOD | One source and one configured page | Baseline is already minimal. |
+| TalentBrew | Four sources, only Rakuten permits a second page | Baseline is already minimal. |
+| Jobvite | Two complete single-response inventories | Baseline is already minimal. |
+
+Retries and provider throttling can amplify attempts only within existing
+budgets; they do not supply a safe optimization boundary.  No deterministic
+runtime or payload-size measurements were invented.
+
+### Workday verdict
+
+Workday remains `FULL_CRAWL_ONLY`.  The current adapter requests 20-row CXS
+offset pages, accepts an authoritative provider total, and uses the Phase 4
+subdivision algorithm when a root query reaches the known 2,000-result safe
+capacity.  It chooses exact facet partitions, validates child totals/filter
+application, unions stable identities, rechecks the root, and fails closed on
+an unsplittable partition, contradiction, mutation, depth/count/job/request
+limit, or transient exhaustion.  That Phase 4 work makes previously capped
+full inventory possible; it does not create an incremental partition.
+
+The only normalized time is `postedOn`.  Repository code treats it as source
+posting/display metadata and exposes no trustworthy update field, server-side
+changed-since filter, opaque cursor, deterministic newest-first contract, or
+separate detail hydration.  A first-page/postedOn slice could be positive-only
+but cannot prove it contains edits to old requisitions and therefore has zero
+defensible exact-equivalence savings.  Periodic full crawl would remain
+necessary even if such a slice were later proven.  Workday's high cost merits
+provider-contract monitoring, but it does **not** deserve the next deep review
+without new deterministic endpoint evidence.
+
+### Eightfold verdict and sibling precedent
+
+Eightfold is `INSUFFICIENT_EVIDENCE`, not a high-value candidate.  Job Radar's
+12 PCSX sources use complete `count` + 10-row offset inventory; nine cap at two
+pages and three at one.  PCSX rows already carry title, locations, department,
+description, stable URL/ID, and `postedTs`, so Job Radar has no secondary rich
+detail request to avoid.  `postedTs` is normalized as a posting timestamp and
+is not proven to change for every material edit.
+
+The useful sibling concept is explicitly **adapt**, not reuse:
+`jobseek/apps/crawler/src/core/monitors/eightfold.py` always fetches an
+independently complete `/careers/sitemap.xml` URL set for lifecycle authority,
+then uses `_pcsx.fetch_incremental(...)` only for enrichment; failures return
+sitemap-only results without advancing the watermark.
+`jobseek/apps/crawler/src/core/monitors/_pcsx.py` implements the bounded PCSX
+watermark traversal, while
+`jobseek/apps/crawler/src/core/scrapers/eightfold.py` performs separate JSON-LD
+or apply-API detail enrichment.  Job Radar has no configured Eightfold sitemap
+authority and no equivalent expensive secondary enrichment.  Adding one
+sitemap request to save at most one PCSX listing request may increase traffic.
+Sibling semantics therefore do not justify Stage C/D.
+
+### Browser and static HTML verdicts
+
+The four browser sources are Goldman Sachs, MediaTek, Nutrien, and Stantec.
+MediaTek alone has a deterministic single-page terminal contract; the other
+three retain positive discoveries but cannot grant absence authority.  The
+collector already uses isolated browser contexts and delegates parsing to the
+static adapter.  No deterministic plain-HTTP/API alternative or reviewed
+ETag/Last-Modified/snapshot token is represented.  Source-bound render caching
+would require config/provider identity, complete terminal evidence, checksum,
+expiry, and fail-closed fallback.  That is Phase 7 infrastructure, not a Phase
+6 activation.
+
+There are no large-pagination production `static_html` sources: 24 of 27 cap
+at one page; only BlackRock, Siemens, and Chevron cap at two.  Their terminal
+evidence comes from reviewed static controls/totals/contracts.  No generic
+newest-first ordering or trustworthy timestamp boundary exists.  An interim
+positive-only first-page slice could save at most one request for three
+sources, while absence still requires the full crawl; this is not material.
+
+### Ranked shortlist and continuation decision
+
+The shortlist ranks future evidence-gathering value, not activation readiness:
+
+| Rank | Family | Sources | Cost model | Hypothesis | Theoretical saving | Risk / complexity / confidence | Recommended action |
+|---:|---|---:|---|---|---|---|---|
+| 1 | Ashby | 72 | 1 inventory + up to 20 details | complete inventory + selective hydration | up to `D-K` details | high correctness risk; medium complexity; low confidence | Reconsider only if Ashby documents a material posting version. |
+| 2 | SAP SuccessFactors | 44 | up to 20 listing pages; columnized adds N details | variant-specific selective hydration or positive slice | potentially large | very high risk/complexity; low confidence | Require per-variant change/version evidence and Phase 4 identity first. |
+| 3 | Workday | 108 | 20-row pages plus possible subdivision | positive-only filtered/ordered slice | potentially many pages | very high risk/complexity; low confidence | Do not deep-review again without a new provider endpoint/contract artifact. |
+| 4 | ADP | 8 | bootstrap + pages + N Workforce Now details | selective detail hydration | up to N details | high risk; medium complexity; low confidence | Require a detail material version. |
+| 5 | Phenom | 16 | up to 50 pages/500 jobs | positive-only pagination short circuit | potentially many pages | very high lifecycle risk; medium-high complexity; low confidence | Require deterministic order and edit-complete semantics. |
+
+Eightfold is intentionally outside the top five after the architecture audit:
+its current 1-2 request baseline and lack of separate enrichment make its
+theoretical saving immaterial.
+
+`NEXT_DEEP_REVIEW = NONE`
+
+`PHASE6_CLOSE_EARLY`
+
+The repository contains high configured costs, but no remaining adapter clears
+both gates: a deterministic safe change boundary and materially non-zero
+production savings.  Proceeding to Stage C/D would add checkpoint, fallback,
+and lifecycle risk without a defensible optimized request model.  Phase 6
+should close with its generic architecture and explicit disabled policies.
+Rejected families may be reconsidered only after repository/provider evidence
+proves a material version, edit-complete server filter/cursor/change feed,
+reviewed complete-representation validator, or an independently complete
+inventory that safely selects expensive hydration.
+
+### Policy metadata and regression boundary
+
+`src/scraper/company_careers/phase6_triage.py` is the canonical machine-readable
+matrix.  It normalizes aliases, assigns one classification, records candidate
+patterns and deterministic 0-5 scores, summarizes configured request ceilings,
+and returns capability `none` for every family.  It is not imported by scanner
+dispatch and activates nothing.  Tests lock the 533-source/41-family registry,
+endpoint aliases, request-bound calculations, SmartRecruiters and Greenhouse
+verdicts, disabled policies, and the production registry SHA-256.  No source
+scope, retention, freshness, inventory/hydration, finalization, or persistence
+code changed.
 
 ## Rollout plan
 
