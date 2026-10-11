@@ -1,7 +1,7 @@
 -- RoleRadar student-job persistence for Supabase/PostgreSQL.
 -- Apply from a trusted admin context; never expose the service-role key.
 
-create extension if not exists pgcrypto;
+create extension if not exists pgcrypto with schema extensions;
 
 create table if not exists public.job_source_health (
     source_key text primary key,
@@ -583,10 +583,27 @@ comment on function public.sync_student_job_source(uuid, text, jsonb, boolean, i
 -- schema can upgrade older installations in place. It is removed immediately;
 -- apply sql/migrations/20260924_staged_source_sync.sql next to install the
 -- bounded durable-staging RPCs used by the application, then apply the later
--- chronological migrations through 20261010_phase5_multi_scope_lifecycle.sql.
+-- chronological migrations through
+-- 20261010_phase5_pgcrypto_digest_resolution.sql. The final migration keeps
+-- the SECURITY DEFINER finalizer's fixed search path able to resolve pgcrypto
+-- from Supabase's trusted extensions schema.
 drop function if exists public.sync_student_job_source(
     uuid, text, jsonb, boolean, integer, timestamptz
 );
+
+-- Bootstrap parity for an existing database where the chronological staged
+-- sync migrations have already installed the finalizer. On a clean bootstrap
+-- the function is installed and repaired by the forward migrations above.
+do $bootstrap$
+begin
+    if to_regprocedure(
+        'public.finalize_student_job_source_sync(uuid)'
+    ) is not null then
+        execute 'alter function public.finalize_student_job_source_sync(uuid) '
+            'set search_path to public, extensions, pg_temp';
+    end if;
+end
+$bootstrap$;
 
 -- Administrative-only source retirement is deliberately separate from scan
 -- reconciliation. Installations upgraded from Phase 3 receive the identical
