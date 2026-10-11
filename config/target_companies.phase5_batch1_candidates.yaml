@@ -299,10 +299,15 @@ phase5_candidates:
     existing_production_overlap: Overlap with production Lightspeed Commerce and the global Greenhouse token is unmeasured.
     overlap_classification: UNKNOWN
     duplicate_key_plan: Compare Greenhouse job ID and canonical apply URL with production UUIDs and the global Greenhouse board.
-    status: READY_FOR_CANARY
-    main_blocker: Manual bounded overlap and completeness validation remains required before activation.
-    manual_validation_required: true
-    rollback: Add only as a scoped source; removal is deletion of the lightspeedhqfr source with production untouched.
+    pre_canary_status: READY_FOR_CANARY
+    status: REJECTED
+    canary_outcome: FAIL_IDENTITY
+    canary_evidence: The bounded live canary returned Greenhouse HTTP 404 for boards-api.greenhouse.io/v1/boards/lightspeedhqfr/jobs twice; identity stayed unproven, zero inventory was collected, and no terminal or completeness authority was established.
+    main_blocker: The strict Greenhouse boards API does not resolve lightspeedhqfr; new first-party identity evidence would be required before any new proposal.
+    manual_validation_required: false
+    activation_allowed: false
+    canary_rerun_allowed: false
+    rollback: No rollback or retirement is required because the France source was never activated or persisted.
 
   - candidate_id: healthineers_china_campus
     rank: 15
@@ -441,7 +446,7 @@ pinpoint_decision:
   identity_evidence: Employer identity can be bound to the exact subdomain plus the native careers-page title, but no Job Radar target currently needs it.
   rationale: The deterministic contract is strong, but a new adapter would add no identified Batch 1 target coverage.
 
-remaining_phase5_backlog:
+post_phase5_source_coverage_backlog:
   - General Motors PPU exact board discovery
   - Coupang Flex Assistant evergreen/non-inventory disposition
   - Lightspeed Commerce Ashby/global overlap

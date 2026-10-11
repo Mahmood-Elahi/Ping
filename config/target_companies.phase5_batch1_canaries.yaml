@@ -1,6 +1,7 @@
 # Explicit opt-in Phase 5 Batch 1 canary registry. Normal Job Radar runtime
 # loads config/target_companies.yaml and never loads this file implicitly.
-# Do not execute without a separately approved bounded manual validation.
+# Historical rejected canary definition. Do not execute: the final Phase 5
+# bounded live canary returned FAIL_IDENTITY and this candidate is closed.
 target_companies:
   - name: Lightspeed Commerce
     source_scope: france
@@ -44,4 +45,8 @@ phase5_canary_plans:
         - greenhouse_job_id
         - canonical_apply_url
     activation_allowed: false
-    removal_path: Delete only the future lightspeedhqfr scoped source; production remains unchanged.
+    status: REJECTED
+    canary_outcome: FAIL_IDENTITY
+    canary_rerun_allowed: false
+    rejection_evidence: Strict Greenhouse boards API returned HTTP 404 for lightspeedhqfr twice; identity remained unproven, zero inventory was collected, and completeness/terminal authority was absent.
+    removal_path: None; the France source was never activated or persisted and production remains unchanged.

@@ -143,6 +143,18 @@ def test_activation_and_config_rollback_touch_only_france_scope() -> None:
     assert france["slug"] == "lightspeedhqfr"
 
 
+def test_historical_proposal_is_durably_rejected() -> None:
+    data = yaml.safe_load(PROPOSED.read_text(encoding="utf-8"))
+    decision = data["phase5_activation"]
+    assert decision["production_active"] is False
+    assert decision["activation_allowed"] is False
+    assert decision["candidate_status"] == "REJECTED"
+    assert decision["canary_outcome"] == "FAIL_IDENTITY"
+    assert decision["canary_rerun_allowed"] is False
+    assert decision["migration_deployed_and_verified"] is True
+    assert "HTTP 404" in decision["rejection_reason"]
+
+
 def test_lightspeed_france_canary_contract_is_exact_and_bounded() -> None:
     data = yaml.safe_load(CANARY.read_text(encoding="utf-8"))
     targets = load_target_companies(str(CANARY))
@@ -178,23 +190,25 @@ def test_lightspeed_france_canary_contract_is_exact_and_bounded() -> None:
     assert plan["detail_hydration_requests"] == 20
     assert plan["retry_allowance"] == 0
     assert plan["hard_request_budget"] == 21
+    assert plan["status"] == "REJECTED"
+    assert plan["canary_outcome"] == "FAIL_IDENTITY"
+    assert plan["canary_rerun_allowed"] is False
+    assert plan["activation_allowed"] is False
 
 
-def test_rollout_runbook_uses_only_the_read_only_scoped_canary() -> None:
+def test_rollout_runbook_records_final_rejection_and_phase6_handoff() -> None:
     runbook = (ROOT / "docs" / "PHASE5_MULTI_SCOPE_ROLLOUT.md").read_text(
         encoding="utf-8"
     )
-    command_section = runbook.split("## Bounded Lightspeed France canary", 1)[1].split(
-        "## Proposed configuration", 1
-    )[0]
-    assert ".\\scripts\\validate_source_integrity_canaries.py" in command_section
-    assert "--registry .\\config\\target_companies.phase5_batch2_canaries.yaml" in command_section
-    assert '--company "Lightspeed Commerce"' in command_section
-    assert "--source-scope france" in command_section
-    assert "--request-budget 21" in command_section
-    assert "--run" in command_section
-    assert "validate_company_registry.py" not in command_section
-    assert "target_companies.yaml" not in command_section
+    assert "Status: `PHASE5_COMPLETE`" in runbook
+    assert "Final status: `REJECTED`" in runbook
+    assert "Canary outcome: `FAIL_IDENTITY`" in runbook
+    assert "Greenhouse HTTP 404 for lightspeedhqfr" in runbook
+    assert "Production activation: false" in runbook
+    assert "Canary rerun in Phase 5: forbidden" in runbook
+    assert "Phase 6 handoff: incremental optimization" in runbook
+    assert "never infer absence from an incremental slice alone" in runbook
+    assert "--run" not in runbook
 
 
 def test_canary_selection_requires_and_returns_exact_france_scope() -> None:
@@ -635,6 +649,13 @@ def test_batch4_backlog_classification_is_complete_and_disjoint() -> None:
     )
     values = [candidate for category in categories for candidate in data[category]]
     assert len(values) == len(set(values)) == 21
-    assert data["VALIDATION_ONLY"] == ["lightspeed_fr_greenhouse"]
+    assert data["VALIDATION_ONLY"] == []
+    assert "lightspeed_fr_greenhouse" in data["REJECTED"]
+    evidence = data["rejection_evidence"]["lightspeed_fr_greenhouse"]
+    assert evidence["outcome"] == "FAIL_IDENTITY"
+    assert evidence["production_activated"] is False
+    assert evidence["retirement_required"] is False
+    assert data["phase5_complete"] is True
+    assert data["phase6_starting_point"] == "INCREMENTAL_OPTIMIZATION"
     assert data["phase6_started"] is False
     assert data["coding_batch_required_for_lightspeed_rollout"] is False

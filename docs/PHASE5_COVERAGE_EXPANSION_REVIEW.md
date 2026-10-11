@@ -2,6 +2,22 @@
 
 Date: 2026-10-10
 
+## Final Phase 5 closeout
+
+Phase 5 is complete. The multi-scope architecture, production persistence,
+bounded retention, pgcrypto resolution, and affected-key-only lifecycle
+finalizer are deployed, and the normal hourly workflow is operator-verified
+green. Lightspeed France was the final rollout candidate. Its bounded live
+canary returned `FAIL_IDENTITY` twice because the strict Greenhouse boards API
+returned HTTP 404 for `lightspeedhqfr`. Identity remained unproven, zero
+inventory was collected, and no completeness or terminal authority existed.
+
+Lightspeed France is therefore `REJECTED` and `NOT_ACTIVATED`. The production
+registry remains unchanged at 533 companies/sources/scopes with zero active
+multi-scope companies. The historical batch sections below preserve the earlier
+investigation sequence; their former readiness is superseded by the final
+canary evidence.
+
 ## Batch 2 outcome
 
 Phase 5 Batch 2 is complete. It re-investigated 21 existing or directly
@@ -11,7 +27,8 @@ Phase 6. The production registry remains 533 companies/sources and its SHA-256
 remains
 `b5e8e42e1047c03131480ea678e2ca42ba3dbf42bd3f6ca1d3e0290decfbff30`.
 
-Batch 1 had one `READY_FOR_CANARY`. Batch 2 still has one: Lightspeed France.
+Batch 1 and Batch 2 historically carried one `READY_FOR_CANARY`: Lightspeed
+France. The final canary later rejected it with `FAIL_IDENTITY`.
 There were no new promotions because the strongest blockers require first-party
 identity or terminal fixtures that do not exist locally. Eight unsupported
 provider questions advanced to explicit `DEFER` decisions, Coupang Flex
@@ -23,11 +40,11 @@ contains `JR-202620983`, "Health & Safety Supervisor - Ultium Cells LLC", while
 three facility-specific Ultium ADP boards also exist. Historical production
 artifacts also contain BlackRock internship-program roles and Chevron
 internships while specialized boards remain separately identified. Multiple
-sources can therefore overlap one canonical employer and job population. The
-current company-wide absence reconciliation and provider-namespaced job keys
-cannot safely activate such boards together. `MULTI_SCOPE_ARCHITECTURE_REQUIRED`
-is a Phase 5 activation prerequisite; its minimal design is documented in
-`ARCHITECTURE.md`, but it is not implemented in this batch.
+sources can therefore overlap one canonical employer and job population. At
+the Batch 2 checkpoint, company-wide absence reconciliation and
+provider-namespaced job keys could not safely activate such boards together.
+`MULTI_SCOPE_ARCHITECTURE_REQUIRED` was the Phase 5 activation prerequisite;
+Batch 3 subsequently implemented it.
 
 ### Candidate progression
 
@@ -51,15 +68,15 @@ is a Phase 5 activation prerequisite; its minimal design is documented in
 | Siemens Healthineers | China professional | Tupu360/DOM | not in Batch 1 | DEFER | Provider scope value exists, but exact Healthineers listing URL is absent. |
 | Coupang Fulfillment Services | frontline | first-party JSON | UNSUPPORTED_PROTOCOL | DEFER | `postingId` is stable; no total/terminal/zero and no existing JSON variant fits. |
 | Coupang Logistics Services | Flex Assistant evergreen | static HTML | not in Batch 1 | REJECTED | One evergreen funnel has no vacancy collection or stable per-job IDs. |
-| Lightspeed Commerce | France | Greenhouse | READY_FOR_CANARY | READY_FOR_CANARY | Exact board remains valid; global/France overlap remains unknown. Preserve 21-request canary. |
+| Lightspeed Commerce | France | Greenhouse | READY_FOR_CANARY | REJECTED / FAIL_IDENTITY | Final bounded canary received strict boards API HTTP 404; identity remained unproven and no inventory/terminal authority existed. |
 | Stantec | global | sitemap discovery | UNSUPPORTED_PROTOCOL | DEFER | Job URL filtering is discovery, not authoritative inventory/removal evidence. |
 | Applied Materials | global/region unknown | Eightfold | not in Batch 1 | NEEDS_IDENTITY_EVIDENCE | Exact host exists, but organization identity/scope advantage do not. `KEEP_CURRENT`. |
 
-Batch 2 totals are: 1 `READY_FOR_CANARY`, 8
+Final Batch 2 totals are: 0 `READY_FOR_CANARY`, 8
 `NEEDS_IDENTITY_EVIDENCE`, 3 `NEEDS_SCOPE_EVIDENCE`, 0
 `DUPLICATE_SCOPE`, 0 `UNSUPPORTED_PROTOCOL`, 0 `PROVIDER_IMPLEMENTED`, 8
-`DEFER`, and 1 `REJECTED`. There were 0 promotions and 0 provider
-implementations. Twenty candidates remain blocked/deferred; one is rejected.
+`DEFER`, and 2 `REJECTED`. There were 0 promotions and 0 provider
+implementations. Nineteen candidates remain blocked/deferred; two are rejected.
 
 ### Provider decisions
 
@@ -96,49 +113,51 @@ one-company scraper was added.
 - **Siemens Healthineers:** SHSJB versus global HTML is `UNKNOWN`; no ID
   crosswalk proves any stronger classification. China campus and professional
   are distinct provider scopes but remain unknown relative to SHSJB/global.
-- **Lightspeed:** `lightspeedhqfr` remains ready. Its relationship to the
-  production global collection is `UNKNOWN`; the global Greenhouse 404 and
-  Ashby hypothesis do not establish France overlap.
+- **Lightspeed:** `lightspeedhqfr` is `REJECTED / FAIL_IDENTITY`. Its strict
+  Greenhouse boards API returned HTTP 404 twice; identity and inventory
+  authority were not established. Its relationship to the production global
+  collection remains unknown and irrelevant to the rejection decision.
 - **Stantec:** production Calgary is a semantic `SUBSET` of global. The sitemap
   can seed positive detail discovery but is not authoritative for absence.
 
 ### Multi-scope and lifecycle decision
 
-`MULTI_SCOPE_ARCHITECTURE_REQUIRED` before overlapping boards are activated.
-Persistence reconciles absence by company while source keys use provider
-namespaces. One complete board can therefore authorize missing transitions for
-another board, and the same logical job can be duplicated and independently
-closed. The smallest future model separates canonical company, source scope,
-and source identity; reconciles absence per scope; preserves observations; and
-links jobs only through exact requisition IDs or canonical apply URLs. All
-authorities covering a job must agree before closure. This design is documented
-in `ARCHITECTURE.md`; it is not implemented here.
+Batch 2 concluded `MULTI_SCOPE_ARCHITECTURE_REQUIRED` before overlapping boards
+could be activated. The former company-wide reconciliation could authorize
+missing transitions across sibling boards. Batch 3 implemented the required
+model: canonical company, source scope, and source identity are separate;
+absence is scope-local; observations remain inspectable; and only exact
+requisition IDs or canonical URLs link jobs. All active owners now participate
+in aggregate lifecycle authority.
 
 ### Canary readiness and budget
 
-Only `lightspeed_fr_greenhouse` remains in the opt-in Batch 2 registry:
+The historical `lightspeed_fr_greenhouse` definition remains in the isolated
+Batch 2 evidence registry, but it is final `REJECTED`, cannot be rerun in Phase
+5, and is not activation-eligible:
 
 | Candidate | Identity | Listings | Details | Partitions | Retry | Hard budget |
 |---|---:|---:|---:|---:|---:|---:|
 | Lightspeed Commerce - France | 0 | 1 | 20 | 0 | 0 | 21 |
 
-No canary was run. The architecture blocker prevents activation, not use of a
-future approved canary for identity, completeness, and overlap evidence.
+The final bounded canary was later run manually twice. Both attempts returned
+`FAIL_IDENTITY` after one request with Greenhouse HTTP 404. No retry,
+activation, persistence, dashboard publication, or lifecycle mutation followed.
 
 ### Deterministic coverage report
 
 `scripts/report_phase5_coverage.py` reports both batches: production remains
 533/533 with 0 active multi-scope companies; Batch 1 has 20 candidates and 1
-canary; Batch 2 has 21 investigations, 1 canary, 0 promotions, 8 provider
-deferrals, 0 implementations, and `MULTI_SCOPE_ARCHITECTURE_REQUIRED`. Phase 6
-started is false.
+historical canary plan; Batch 2 has 21 investigations, 1 historical canary plan,
+0 promotions, 8 provider deferrals, 0 provider implementations, and
+`MULTI_SCOPE_ARCHITECTURE_IMPLEMENTED`. Phase 6 started is false.
 
 ## Batch 1 outcome
 
 Phase 5 Batch 1 prepares an offline, non-production backlog of 20 independently
-reviewed company/scope pairs. One candidate is `READY_FOR_CANARY`; no canary was
-run and no source was activated, replaced, or merged. Phase 6 incremental scan
-logic was not started.
+reviewed company/scope pairs. It originally produced one `READY_FOR_CANARY`,
+which the final canary later rejected. No source was activated, replaced, or
+merged. Phase 6 incremental scan logic was not started.
 
 The production registry SHA-256 remains
 `b5e8e42e1047c03131480ea678e2ca42ba3dbf42bd3f6ca1d3e0290decfbff30`.
@@ -213,7 +232,7 @@ authoritative distribution if this prose becomes stale.
 | 11 | CATL | global | source XML | medium | medium | NEEDS_IDENTITY_EVIDENCE | Exact official feed exists; employer/count/terminal fields are not preserved in fixtures. |
 | 12 | CATL | United States | unsupported rendered site | high | high | UNSUPPORTED_PROTOCOL | Unique regional surface; no authoritative total/terminal evidence. |
 | 13 | Mitsubishi Electric | non-US regions | unresolved regional directory | high | low | NEEDS_SCOPE_EVIDENCE | Production is US-only; no exact non-US entity/board/provider may be guessed. |
-| 14 | Lightspeed Commerce | France | Greenhouse | high | high | READY_FOR_CANARY | Exact `lightspeedhqfr` board; overlap with global/production remains a canary gate. |
+| 14 | Lightspeed Commerce | France | Greenhouse | high | high | REJECTED / FAIL_IDENTITY | Strict boards API returned HTTP 404; identity, inventory, and terminal authority were not established. |
 | 15 | Siemens Healthineers | China campus | unsupported HTML variant | high | high | UNSUPPORTED_PROTOCOL | Campus scope is explicit; provider-native terminal evidence is absent. |
 | 16 | Siemens Healthineers | global HTML | browser-rendered HTML | high | medium | NEEDS_SCOPE_EVIDENCE | May duplicate or front production Workday `SHSJB`. |
 | 17 | Coupang Fulfillment Services | frontline | unsupported first-party API | high | high | UNSUPPORTED_PROTOCOL | Distinct CFS operational inventory; envelope completeness is unmodeled. |
@@ -221,17 +240,18 @@ authoritative distribution if this prose becomes stale.
 | 19 | Coupang Logistics Services | driver evergreen | static HTML | high | high | REJECTED | Application funnel, not an inventory; no stable per-job identity. |
 | 20 | Stantec | global | unsupported sitemap inventory | high | high | UNSUPPORTED_PROTOCOL | Global contains Calgary; no reviewed sitemap inventory contract. |
 
-Status totals are: 1 `READY_FOR_CANARY`, 7 `NEEDS_IDENTITY_EVIDENCE`,
+Final status totals are: 0 `READY_FOR_CANARY`, 7 `NEEDS_IDENTITY_EVIDENCE`,
 2 `NEEDS_SCOPE_EVIDENCE`, 0 `DUPLICATE_SCOPE`, 8 `UNSUPPORTED_PROTOCOL`,
-and 2 `REJECTED`.
+and 3 `REJECTED`.
 
 ## Provider mappings and adapter decision
 
 Existing Job Radar contracts were mapped without changes for Oracle Recruiting,
 ADP, Workday, source XML, Greenhouse, browser-rendered HTML, and static HTML.
-Only Lightspeed France has enough evidence to instantiate an exact runnable
-configuration now. The other supported-provider mappings remain blocked by
-identity or scope evidence; their contracts were not loosened.
+Lightspeed France had enough archived evidence to instantiate a bounded canary
+configuration, but the live identity gate failed and the candidate is rejected.
+The other supported-provider mappings remain blocked by identity or scope
+evidence; their contracts were not loosened.
 
 No Job Radar adapter was modified. No new Job Radar adapter was added.
 
@@ -270,8 +290,9 @@ company or a scoped source before changing naming semantics.
   unresolved.
 - Siemens Healthineers China campus is separate in intent. The global HTML to
   Workday relationship remains `UNKNOWN`.
-- Lightspeed France is an exact separate board; overlap with global Lightspeed
-  is `UNKNOWN` until a canary compares Greenhouse IDs and URLs.
+- Lightspeed France was proposed as a separate board, but the strict API 404
+  left identity unproven. It is rejected; overlap remains `UNKNOWN` and was not
+  used to infer any production relationship.
 - Stantec Calgary is a `SUBSET` of the proposed global scope by query intent.
   This does not prove that every Calgary job is present in the sitemap.
 
@@ -298,7 +319,7 @@ Chevron still lacks fail-closed Workday employer identity.
 | Chevron professional ↔ University | UNKNOWN | Workday requisition ID/externalPath |
 | Chevron corporate ↔ Chevron Stations | DISJOINT | Workday requisition ID plus source identity |
 | CATL China ↔ global ↔ US | UNKNOWN | source-owned job ID and canonical URL |
-| Lightspeed production/global ↔ France | UNKNOWN | Greenhouse job ID and canonical URL |
+| Lightspeed production/global ↔ France | UNKNOWN; candidate rejected | No IDs or URLs were collected because the strict board endpoint returned 404 |
 | Healthineers Workday ↔ global HTML | UNKNOWN | requisition/JobDetail ID and canonical URL |
 | Coupang professional ↔ CFS/CLS | DISJOINT | postingId where an inventory exists |
 | Stantec Calgary ↔ global | SUBSET | 32-hex URL job ID |
@@ -310,21 +331,20 @@ lifecycle authority is created.
 
 ## Canary readiness and budget
 
-Only `lightspeed_fr_greenhouse` is present in the opt-in canary registry.
-Normal runtime does not load that file. Its provider-specific budget is:
+Only the historical `lightspeed_fr_greenhouse` definition is present in the
+opt-in canary registry. Normal runtime does not load that file. The plan is now
+marked `REJECTED`, `FAIL_IDENTITY`, and no-rerun. Its original budget was:
 
 | Candidate | Identity/bootstrap | Listing | Details | Partitions | Retry | Hard budget |
 |---|---:|---:|---:|---:|---:|---:|
 | Lightspeed Commerce — France | 0 | 1 | 20 | 0 | 0 | 21 |
 
-Success requires exact `lightspeedhqfr` identity, France scope, unique stable
-Greenhouse IDs and canonical URLs, complete-collection terminal evidence, no
-structural contradiction, and central finalization granting absence authority.
-A fetched job count alone is not success. Activation remains explicitly false.
+The result failed before any success gate: HTTP 404, unproven identity, zero
+inventory, and no terminal/completeness authority. Activation remains false.
 
-Rollback is deletion of only the future `lightspeedhqfr` scoped source. The
-production Lightspeed first-party source remains untouched throughout canary and
-any later activation review.
+No rollback or retirement is required because `lightspeedhqfr` was never
+activated or persisted. The production Lightspeed first-party source remains
+untouched.
 
 ## Pinpoint decision: NOT_WORTH_IT
 
@@ -419,13 +439,13 @@ Deterministic production metrics remain:
 
 The Batch 2 candidate registry now carries explicit `canonical_company` and
 `source_scope` fields. The opt-in Lightspeed France target shares canonical
-company `Lightspeed Commerce` and uses logical scope `france`; it remains
-`READY_FOR_CANARY`, activation remains false, and its hard request budget
-remains 21. No production registry row was converted or activated.
+company `Lightspeed Commerce` and uses logical scope `france`. Its final status
+is `REJECTED` with `FAIL_IDENTITY`; activation remains false. No production
+registry row was converted or activated.
 
 The detailed identity, schema, reconciliation, and fixture contracts are in
-`docs/PHASE5_MULTI_SCOPE_LIFECYCLE.md`. Remaining work is evidence collection
-and separately approved manual canaries, not Phase 6 incremental scanning.
+`docs/PHASE5_MULTI_SCOPE_LIFECYCLE.md`. The final candidate evidence is closed;
+remaining source-specific work is backlog, not a Phase 5 architecture blocker.
 
 ## Batch 4 completion: first multi-scope rollout readiness
 
@@ -444,29 +464,26 @@ two independently dispatched sources/scopes, distinct cooldown identities, and
 unchanged default-source configuration. Company-facing metrics remain grouped;
 per-source coverage diagnostics expose scope.
 
-Lightspeed France remains `READY_FOR_CANARY` with Greenhouse slug
-`lightspeedhqfr`, logical scope `france`, strict board contract, and hard request
-budget 21. Activation requires all four gates: `PASS_COMPLETE`, migration
-deployed and verified, production diff reviewed, and rollback prepared. No
-other canary result is activation-eligible.
+Lightspeed France's final bounded canary returned `FAIL_IDENTITY` for Greenhouse
+slug `lightspeedhqfr`: the strict boards API returned HTTP 404. It is rejected,
+not production-active, and no retirement applies. `PASS_COMPLETE` remains the
+sole general activation-eligible canary result.
 
 The post-architecture backlog is machine-readable in
 `config/phase5_batch4_backlog.yaml`:
 
-- `VALIDATION_ONLY`: Lightspeed France.
+- `VALIDATION_ONLY`: none.
 - `IDENTITY_RESEARCH`: GM Financial; three Ultium facilities; Chevron
   University and Chevron Stations; CATL global feed.
 - `PROTOCOL_DEFERRED`: Progress Rail Salesforce and BrassRing; BlackRock
   tal.net; CATL US; two Healthineers China scopes; Coupang CFS; Stantec sitemap.
 - `SCOPE_UNRESOLVED`: GM PPU; Mitsubishi Electric regions; Healthineers global
   HTML; Applied Materials Eightfold.
-- `REJECTED`: Coupang Flex Assistant evergreen funnel.
+- `REJECTED`: Coupang Flex Assistant evergreen funnel; Lightspeed France
+  (`FAIL_IDENTITY`).
 
-No further coding batch is required for the Lightspeed multi-scope rollout.
-The remaining required action is manual deployment verification and bounded
-identity/canary evidence. Deferred provider work would need a separately
-approved future Phase 5 scope; it was not started here. Phase 6 remains
-untouched.
+No further Phase 5 action is pending for Lightspeed France. The fail-closed
+rejection completes the rollout decision without activation. Deferred provider
+work is source-coverage backlog, not an architecture blocker.
 
-The exact future operational sequence and commands are in
-`docs/PHASE5_MULTI_SCOPE_ROLLOUT.md`.
+`docs/PHASE5_MULTI_SCOPE_ROLLOUT.md` is the final closeout and Phase 6 handoff.

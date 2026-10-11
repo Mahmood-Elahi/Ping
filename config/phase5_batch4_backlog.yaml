@@ -1,9 +1,10 @@
 phase5_batch: 4
 phase6_started: false
+phase5_complete: true
+phase6_starting_point: INCREMENTAL_OPTIMIZATION
 coding_batch_required_for_lightspeed_rollout: false
 
-VALIDATION_ONLY:
-  - lightspeed_fr_greenhouse
+VALIDATION_ONLY: []
 
 IDENTITY_RESEARCH:
   - gm_financial_oracle
@@ -32,3 +33,12 @@ SCOPE_UNRESOLVED:
 
 REJECTED:
   - coupang_flex_assistant
+  - lightspeed_fr_greenhouse
+
+rejection_evidence:
+  lightspeed_fr_greenhouse:
+    outcome: FAIL_IDENTITY
+    reason: Strict Greenhouse boards API returned HTTP 404 for lightspeedhqfr twice; source identity remained unproven, zero inventory was collected, and no completeness or terminal authority was established.
+    production_activated: false
+    retirement_required: false
+    reconsideration_gate: New first-party identity evidence and a separately reviewed proposal.

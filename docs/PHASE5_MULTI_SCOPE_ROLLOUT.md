@@ -1,222 +1,167 @@
-# Phase 5 multi-scope rollout guide
+# Phase 5 multi-scope closeout
 
-This is a future manual runbook. Phase 5 Batch 4 did not run a live canary,
-change `config/target_companies.yaml`, connect to production Supabase, or apply a
-migration.
+Date: 2026-10-10
 
-## Required order
+Status: `PHASE5_COMPLETE`
 
-1. Review `sql/migrations/20261010_phase5_multi_scope_lifecycle.sql` and record
-   pre-change canonical-job, staged-session, and source-health counts.
-2. Run the read-only migration preflight.
-3. Apply the migration manually from a trusted administrative workstation.
-4. Run the read-only post-migration verification and compare counts.
-5. Run the bounded Lightspeed France canary manually with no retries.
-6. Require the central result to be exactly `PASS_COMPLETE`.
-7. Review the proposed production diff against
-   `config/target_companies.phase5_batch4_lightspeed_proposed.yaml`.
-8. Activate only the France row; do not change the existing default row.
-9. Run targeted registry, scan, persistence, dashboard, and lifecycle checks.
-10. Retain the source-level rollback path and its administrative evidence.
+Phase 5 multi-scope architecture and production lifecycle/storage support are
+complete. Production migrations, bounded retention, pgcrypto resolution, and
+the scope-local finalizer repair are deployed. The normal hourly production
+workflow is operator-verified green.
 
-Steps must not be reordered. `PASS_PARTIAL`, any failure outcome, a missing
-migration verification, an unreviewed config diff, or an unprepared rollback
-means `DO_NOT_ACTIVATE`.
+Lightspeed France was the final rollout candidate. Its bounded live canary was
+run manually twice and returned the same final result: `FAIL_IDENTITY`.
+The strict Greenhouse boards API returned HTTP 404 for `lightspeedhqfr`, so
+employer/source identity remained unproven, zero inventory was collected, and
+no completeness or terminal authority was established. This is a successful
+fail-closed outcome. It does not indicate an unfinished architecture defect.
 
-## Migration preflight and application
+## Final activation decision
 
-From the repository root in PowerShell, with a trusted direct PostgreSQL URL in
-`SUPABASE_DB_URL`:
+- Candidate: `Lightspeed Commerce / france`
+- Candidate ID: `lightspeed_fr_greenhouse`
+- Proposed provider identity: `greenhouse:lightspeedhqfr`
+- Logical source key: `lightspeed commerce::france`
+- Final status: `REJECTED`
+- Canary outcome: `FAIL_IDENTITY`
+- Error: `AdapterError: Greenhouse HTTP 404 for lightspeedhqfr`
+- Final endpoint: `https://boards-api.greenhouse.io/v1/boards/lightspeedhqfr/jobs`
+- Requests: 1 of 21; budget respected
+- Inventory: 0 jobs and 0 inventory items
+- Authority: inventory incomplete, terminal evidence invalid, central finalizer
+  not authoritative
+- Safety: no persistence, lifecycle mutation, production-registry mutation, or
+  dashboard publication
+- Production activation: false
+- Canary rerun in Phase 5: forbidden
+- Retirement: not applicable because the source was never activated
 
-```powershell
-psql $env:SUPABASE_DB_URL -X -v ON_ERROR_STOP=1 `
-  -f .\sql\phase5_multi_scope_preflight.sql
-```
+The ignored local artifact
+`output/phase5_lightspeed_france_canary.json` is operator evidence, not a
+tracked runtime artifact. Its concise durable disposition is recorded here and
+in the existing candidate, canary, proposal, and backlog metadata. Reconsider
+the source only after new first-party identity evidence and a separately
+reviewed proposal; archived discovery references alone are insufficient.
 
-Expected result: `PHASE3_READY_FOR_PHASE5`. The preflight uses a read-only
-transaction and rolls it back. It rejects missing Phase 3 tables/RPCs,
-`protected_source_keys` absence, missing `pgcrypto`, and every partial Phase 5
-state. If it reports 7/7 Phase 5 artifacts, do not reclassify that as ready;
-run post-migration verification to determine whether the migration was already
-applied completely.
+## Production registry
 
-After a human reviews the SQL and preflight output, apply the migration:
+`config/target_companies.yaml` remains unchanged at 533 canonical companies,
+533 configured sources, and 533 logical scopes. It has zero multi-scope
+production companies and no `Lightspeed Commerce / france` row.
 
-```powershell
-psql $env:SUPABASE_DB_URL -X -v ON_ERROR_STOP=1 `
-  -f .\sql\migrations\20261010_phase5_multi_scope_lifecycle.sql
-```
-
-The migration is forward-only and transaction-wrapped. Do not reverse it when
-one future source fails; the schema remains backward-compatible infrastructure.
-
-## Post-migration verification
-
-```powershell
-psql $env:SUPABASE_DB_URL -X -v ON_ERROR_STOP=1 `
-  -f .\sql\phase5_multi_scope_verify.sql
-
-.\.venv\Scripts\python.exe .\scripts\report_phase5_coverage.py
-```
-
-Every `ok`/RPC/RLS/permission value must be true. Confirm the following against
-the recorded pre-change values:
-
-- canonical `tracked_jobs` count is unchanged;
-- all legacy `tracked_jobs` and `job_source_health` rows have `default` scope;
-- ownership-row count equals tracked-job count;
-- no ownership is missing, duplicated, or orphaned;
-- lifecycle status, missing count, and removal time match each legacy row;
-- staged sessions/rows have default scope keys and provider identities;
-- scope-aware begin/stage/finalize RPCs and the explicit retirement RPC exist;
-- RLS is enabled and service-role DML/execute access remains intact;
-- the local production registry still reports 533 canonical companies, 533
-  configured sources, 533 scopes, and zero multi-scope companies.
-
-The verification script is read-only and ends with `ROLLBACK`.
-
-## Bounded Lightspeed France canary
-
-Only after migration verification succeeds:
-
-```powershell
-.\.venv\Scripts\python.exe .\scripts\validate_source_integrity_canaries.py --registry .\config\target_companies.phase5_batch2_canaries.yaml --company "Lightspeed Commerce" --source-scope france --request-budget 21 --run | Tee-Object -FilePath .\output\phase5_lightspeed_france_canary.json
-```
-
-The target has one listing request, at most 20 detail hydration requests, no
-retry allowance, and a hard maximum of 21 requests. This command is deliberately
-not part of scheduled runtime or CI. It loads only the one-row candidate
-registry, selects the exact `france` scope, and has no Supabase, lifecycle,
-dashboard, production-registry, or validated-config write path. `Tee-Object`
-saves the same JSON shown in the terminal as local review evidence.
-
-Paste back the complete single JSON result. At minimum, retain these fields:
-`company`, `source_scope`, `source_scope_key`, `configured_slug`, `status`,
-`canary_outcome`, `source_identity_status`, `source_identity_diagnostic`,
-`scan_state`, `inventory_complete`, `central_finalizer_authoritative`,
-`terminal_evidence_type`, `terminal_evidence_valid`,
-`hidden_continuation_absent`, `collection_changed_during_scan`,
-`safety_limit_reached`, `jobs_collected`, `inventory_items_collected`,
-`stable_ids_unique`, `canonical_urls_unique`,
-`normalized_jobs_attributable`, `apply_urls_contract_valid`,
-`rejected_record_count`, `unreadable_items`, `rejected_items`,
-`requests_started`, `request_budget`, `request_budget_respected`, `max_pages`,
-`max_jobs`, `max_response_bytes`, `persistence_mode`, `lifecycle_mutations`,
-`production_registry_mutated`, `dashboard_published`, and `error`.
-
-Classify the saved evidence using these exact rules:
-
-| Result | Meaning | Activation decision |
-|---|---|---|
-| `PASS_COMPLETE` | Employer and France board identity valid; scope correct; inventory and terminal evidence complete; no identity/pagination/stable-ID/mutation/budget contradiction; central finalizer authoritative | Eligible only if every other gate passes |
-| `PASS_PARTIAL` | Jobs observed, inventory incomplete | `DO_NOT_ACTIVATE` |
-| `FAIL_IDENTITY` | Employer or board identity wrong/unproven | `DO_NOT_ACTIVATE` |
-| `FAIL_CONTRACT` | Pagination, terminal, stable-ID, mutation, or budget contract invalid | `DO_NOT_ACTIVATE` |
-| `FAIL_TRANSIENT` | Transient request failure | `DO_NOT_ACTIVATE`; retry manually later under a separately approved budget |
-
-Activation requires one result whose `canary_outcome` is exactly
-`PASS_COMPLETE`, plus all of the following: the company/scope/key are exactly
-`Lightspeed Commerce`, `france`, and `lightspeed commerce::france`; slug is
-`lightspeedhqfr`; identity is `validated`; state and inventory are complete;
-central finalization is authoritative; terminal evidence is valid; no hidden
-continuation or collection mutation exists; both stable IDs and canonical URLs
-are unique; normalized rows remain attributable to this company/scope; every
-apply URL passes the configured host/path contract; there are zero rejected,
-unreadable, or malformed rows; no safety limit fired; no more than 21 requests
-started; and every mutation-safety field remains zero/false/`none` as
-appropriate. Any missing, null, ambiguous, or contradictory gate is
-`DO_NOT_ACTIVATE`.
-
-## Proposed configuration
-
-The offline proposal contains two flat rows with the same canonical name:
+The existing Lightspeed source remains:
 
 ```yaml
-- name: Lightspeed Commerce
-  source_scope: default
-  platform: static_html
-  listing_url: https://www.lightspeedhq.com/careers/openings/
-
-- name: Lightspeed Commerce
-  source_scope: france
-  platform: greenhouse
-  slug: lightspeedhqfr
-  careers_url: https://job-boards.greenhouse.io/lightspeedhqfr
-  endpoint_variant: boards_api_v1_strict
+name: Lightspeed Commerce
+source_scope: default
+platform: static_html
+listing_url: https://www.lightspeedhq.com/careers/openings/
 ```
 
-The complete reviewed fields are in the proposal fixture. The existing default
-source retains its production source identity and stable UUID job identity.
-The France source uses `greenhouse:lightspeedhqfr` provider identity, stable
-Greenhouse job IDs, exact allow-listed Greenhouse URLs, logical key
-`lightspeed commerce::france`, and an independent cooldown fingerprint.
+No substitute candidate was activated merely to create a production
+multi-scope example. Architecture completion does not depend on unsafe source
+activation.
 
-If and only if the canary and all other gates pass, the only production file
-change is this append immediately after the existing Lightspeed default row in
-`config/target_companies.yaml`:
+## Final Phase 5 invariants
 
-```diff
-+  - name: Lightspeed Commerce
-+    source_scope: france
-+    platform: greenhouse
-+    slug: lightspeedhqfr
-+    careers_url: https://job-boards.greenhouse.io/lightspeedhqfr
-+    endpoint_variant: boards_api_v1_strict
-+    allowed_apply_hosts:
-+      - job-boards.greenhouse.io
-+    max_pages: 1
-+    max_jobs: 10000
-+    max_response_bytes: 5000000
-+    evidence_source: docs/PHASE1_ATS_MIGRATION_REVIEW.md and jobseek apps/crawler/data/boards.csv
-+    evidence_confidence: high
+1. Source scopes
+   - An omitted `source_scope` normalizes to `default`.
+   - Explicit sibling scopes have independent configuration, health, cooldown,
+     staging, ownership, and reconciliation identity.
+2. Absence reconciliation
+   - A complete authoritative scan reconciles only its owning logical scope.
+   - Failed, incomplete, partial, or cooldown-skipped sources authorize no
+     disappearance transitions.
+3. Exact overlap
+   - Cross-source equivalence requires an exact provider/global requisition ID,
+     exact canonical apply URL, exact first-party job URL, or reviewed explicit
+     mapping.
+   - Title/location similarity never merges jobs; multiple owners are allowed.
+4. Aggregate lifecycle
+   - A canonical job remains active while any source-scope owner remains active.
+5. Retirement
+   - Retirement is an explicit approved operation, separate from failure and
+     cooldown.
+   - Candidate rejection never calls or implies retirement.
+6. Retention
+   - Stale and over-60-day jobs are not persisted or displayed under the
+     deployed policy.
+   - Provider identity required to prevent false absence and application-linked
+     rows remain protected.
+   - Removed rows and operational sync history are bounded.
+7. Persistence
+   - Source synchronization is staged and finalization is scope-aware.
+   - Canonical lifecycle aggregation considers every owner only for canonical
+     keys affected by the finalized scope; it does not aggregate the whole
+     ownership table for each source.
+8. Canary safety
+   - Candidate registries are isolated from normal runtime, requests are
+     bounded, and canaries cannot persist, publish dashboards, or mutate
+     lifecycle/production configuration.
+   - `PASS_COMPLETE` is the sole activation-eligible canary outcome. Missing,
+     ambiguous, partial, contradictory, or failed evidence means
+     `DO_NOT_ACTIVATE`.
+
+## Persistence, migration, and storage state
+
+The ordered repository migration chain is:
+
+1. `20260924_staged_source_sync.sql`
+2. `20260925_drop_legacy_source_sync.sql`
+3. `20261009_phase3_source_reliability.sql`
+4. `20261010_phase5_multi_scope_lifecycle.sql`
+5. `20261010_phase5_bounded_retention.sql`
+6. `20261010_phase5_pgcrypto_digest_resolution.sql`
+7. `20261010_phase5_scope_local_finalizer.sql`
+
+`sql/supabase_schema.sql` represents the same final state for clean bootstrap:
+pgcrypto is installed in `extensions`; the finalizer search path resolves
+`digest`; finalization uses an `affected` key set before aggregating owners;
+the explicit `retire_student_job_source_scope` RPC is present; and bounded job,
+ownership, source-health, staging, ledger, and sync-history maintenance is
+present.
+
+The deployed retention policy is:
+
+```yaml
+max_job_age_days: 60
+drop_stale: true
+removed_job_retention_days: 0
+sync_history_retention_days: 7
 ```
 
-Do not edit the existing default row, retire any source, restructure the
-registry, or change lifecycle/retention SQL. After applying that one-row diff,
-run these deterministic validations before any scheduled scan:
+Production Supabase is operator-reported healthy and comfortably below the
+former 500 MB quota pressure. The finalizer repair bounds lifecycle aggregation
+to affected canonical keys while still considering all owners of each affected
+key.
 
-```powershell
-.\.venv\Scripts\python.exe .\scripts\report_phase5_coverage.py
-.\.venv\Scripts\python.exe -m pytest -q .\tests\test_phase5_batch4_rollout.py .\tests\test_phase5_multi_scope_lifecycle.py .\tests\test_retention.py .\tests\test_supabase_job_store.py
-git diff --check
-```
+## Source-level backlog boundary
 
-## Rollback and retirement
+Known provider/source failures such as SAP SuccessFactors contract drift,
+blocked providers, Google contract issues, and Apple collection mutation remain
+source-coverage backlog. They are not Phase 5 architecture blockers, and Phase
+5 completion does not claim that every individual company source is healthy.
 
-Configuration rollback removes only the France row. It must not modify the
-default Lightspeed source and must not reverse the multi-scope migration.
-The exact configuration rollback diff is the inverse of the one-row addition
-above. If the activation is committed as an isolated commit, the safest command
-is `git revert <activation-only-commit>` followed by the same deterministic
-validations. Before the first authoritative France synchronization, that config
-revert is the entire rollback; no database action is needed.
+## Phase 6 handoff: incremental optimization
 
-If France was never activated and owns no lifecycle observations, removing the
-candidate has no lifecycle effect. If it was activated, configuration removal
-alone is insufficient because an unscanned owner would otherwise remain active.
-A trusted administrator must call `retire_student_job_source_scope` with exact
-company/scope/key, a reason of at least eight characters, an approver, and an
-aware timestamp. The RPC records immutable source-level evidence, retires only
-France ownership rows, and recomputes canonical activity across all owners.
-France-only jobs close; shared jobs remain active through the global/default
-owner. Failure, cooldown, partial scans, and mere registry absence never call or
-imply retirement.
+Phase 6 is `INCREMENTAL OPTIMIZATION`. Do not begin by assuming every adapter
+can crawl incrementally. Full crawls remain the correctness baseline.
 
-After at least one authoritative France synchronization, the ordered manual
-rollback is:
+Incremental crawling is eligible only when a source exposes a trustworthy,
+stable `source_updated_at`, posting timestamp, monotonic cursor, or equivalent
+provider-native contract. Phase 6 should:
 
-```powershell
-psql $env:SUPABASE_DB_URL -X -v ON_ERROR_STOP=1 -c "select public.retire_student_job_source_scope('Lightspeed Commerce','france','lightspeed commerce::france','approved Lightspeed France rollback','release-owner',now());"
-git revert <activation-only-commit>
-.\.venv\Scripts\python.exe -m pytest -q .\tests\test_phase5_batch4_rollout.py .\tests\test_phase5_multi_scope_lifecycle.py .\tests\test_retention.py .\tests\test_supabase_job_store.py
-git diff --check
-```
+- inventory adapters with trustworthy timestamps or cursors;
+- classify which sources can safely support incremental inventory;
+- keep periodic full reconciliation crawls;
+- store bounded cursor/state history and detect invalid, stale, or regressed
+  cursors;
+- fall back to a full crawl whenever identity, ordering, cursor, completeness,
+  or terminal evidence is ambiguous;
+- benchmark request and runtime savings against full-crawl baselines;
+- never infer absence from an incremental slice alone; and
+- keep retention policy independent from incremental cursor logic.
 
-Review the RPC result before the config revert. It must name only the France
-scope; shared jobs stay active through their default owner. The retirement is
-an explicit production mutation and must never be run as a response to a failed
-canary, timeout, cooldown, partial scan, or pre-activation decision.
-
-Application code exposes the same deliberate boundary as
-`SupabaseJobStore.retire_source_scope(...)`; normal scan and dashboard paths do
-not invoke it.
+Incremental optimization must not weaken complete-inventory authority,
+disappearance detection, terminal evidence, source identity, exact ownership,
+or fail-closed semantics.

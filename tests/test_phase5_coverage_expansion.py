@@ -67,20 +67,22 @@ def test_proposed_providers_exist_or_are_explicitly_unsupported() -> None:
             assert provider in ADAPTERS
 
 
-def test_ready_candidates_have_separate_identity_and_scope_evidence() -> None:
+def test_final_candidate_disposition_is_fail_closed() -> None:
     ready = [
         item for item in load_phase5_candidates(CANDIDATES)
         if item["status"] == "READY_FOR_CANARY"
     ]
-    assert [item["candidate_id"] for item in ready] == ["lightspeed_fr_greenhouse"]
-    for candidate in ready:
-        assert candidate["canonical_company"] == "Lightspeed Commerce"
-        assert candidate["source_scope"] == "france"
-        assert candidate["identity_confidence"] == "high"
-        assert candidate["scope_confidence"] == "high"
-        assert candidate["identity_evidence"]
-        assert candidate["scope_evidence"]
-        assert candidate["manual_validation_required"] is True
+    assert ready == []
+    candidate = next(
+        item for item in load_phase5_candidates(CANDIDATES)
+        if item["candidate_id"] == "lightspeed_fr_greenhouse"
+    )
+    assert candidate["pre_canary_status"] == "READY_FOR_CANARY"
+    assert candidate["status"] == "REJECTED"
+    assert candidate["canary_outcome"] == "FAIL_IDENTITY"
+    assert candidate["activation_allowed"] is False
+    assert candidate["canary_rerun_allowed"] is False
+    assert "HTTP 404" in candidate["canary_evidence"]
 
 
 def test_no_candidate_silently_overwrites_production() -> None:
@@ -120,6 +122,9 @@ def test_canary_budgets_are_individual_and_bounded() -> None:
         assert calculated == plan["hard_request_budget"]
         assert 1 <= calculated <= 52
         assert plan["activation_allowed"] is False
+        assert plan["status"] == "REJECTED"
+        assert plan["canary_outcome"] == "FAIL_IDENTITY"
+        assert plan["canary_rerun_allowed"] is False
 
 
 def test_parent_and_subsidiary_candidates_remain_distinguishable() -> None:
@@ -148,14 +153,17 @@ def test_professional_and_early_career_scopes_remain_distinct() -> None:
     assert candidates["healthineers_china_campus"]["scope"] == "china_campus"
 
 
-def test_duplicate_rejected_and_unsupported_candidates_are_never_canaries() -> None:
+def test_rejected_historical_canary_is_never_activation_eligible() -> None:
     candidates = load_phase5_candidates(CANDIDATES)
     canary_ids = {item["candidate_id"] for item in load_phase5_canary_plans(CANARIES)}
     blocked_ids = {
         item["candidate_id"] for item in candidates
         if item["status"] in {"DUPLICATE_SCOPE", "REJECTED", "UNSUPPORTED_PROTOCOL"}
     }
-    assert canary_ids.isdisjoint(blocked_ids)
+    assert canary_ids & blocked_ids == {"lightspeed_fr_greenhouse"}
+    plans = load_phase5_canary_plans(CANARIES)
+    assert all(plan["activation_allowed"] is False for plan in plans)
+    assert all(plan["canary_rerun_allowed"] is False for plan in plans)
     assert all(
         item["status"] != "READY_FOR_CANARY"
         for item in candidates
@@ -176,12 +184,12 @@ def test_phase5_configuration_only_report_is_complete() -> None:
     assert report["candidate_source_scopes"] == 20
     assert report["phase5_canary_count"] == 1
     assert report["candidate_status_counts"] == {
-        "READY_FOR_CANARY": 1,
+        "READY_FOR_CANARY": 0,
         "NEEDS_IDENTITY_EVIDENCE": 7,
         "NEEDS_SCOPE_EVIDENCE": 2,
         "DUPLICATE_SCOPE": 0,
         "UNSUPPORTED_PROTOCOL": 8,
-        "REJECTED": 2,
+        "REJECTED": 3,
     }
 
 

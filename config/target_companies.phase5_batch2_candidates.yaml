@@ -3,7 +3,7 @@
 # config/target_companies.yaml.
 phase5_batch: 2
 production_registry_sha256: b5e8e42e1047c03131480ea678e2ca42ba3dbf42bd3f6ca1d3e0290decfbff30
-architecture_conclusion: MULTI_SCOPE_ARCHITECTURE_REQUIRED
+architecture_conclusion: MULTI_SCOPE_ARCHITECTURE_IMPLEMENTED
 phase6_started: false
 
 phase5_candidates:
@@ -431,16 +431,19 @@ phase5_candidates:
     proposed_tenant_or_slug: lightspeedhqfr
     proposed_source_url: https://job-boards.greenhouse.io/lightspeedhqfr
     previous_status: READY_FOR_CANARY
-    status: READY_FOR_CANARY
+    status: REJECTED
+    canary_outcome: FAIL_IDENTITY
     identity_confidence: high
     scope_confidence: high
     identity_evidence: Phase 1 and jobseek independently preserve the exact lightspeedhqfr token and board URL.
     scope_evidence: The board is explicitly France-scoped and distinct from the failed lightspeedhq global Greenhouse token.
     overlap_classification: UNKNOWN
-    what_changed_since_batch1: Batch 2 found no evidence invalidating readiness; the global token's preserved 404 and the separate Ashby token do not prove disjointness, subset, or duplication.
-    main_blocker: A bounded canary and multi-source overlap-safe lifecycle design are required before activation.
-    next_action: Keep the existing 21-request opt-in canary; do not execute it in Batch 2.
-    manual_validation_required: true
+    what_changed_since_batch1: The final bounded live canary returned Greenhouse HTTP 404 for boards-api.greenhouse.io/v1/boards/lightspeedhqfr/jobs on both operator attempts. Identity remained unproven, zero inventory was collected, and no terminal or completeness authority was established.
+    main_blocker: The strict Greenhouse boards API does not resolve lightspeedhqfr; archived discovery evidence is insufficient for activation.
+    next_action: Do not activate or rerun in Phase 5. Reconsider only with new first-party identity evidence and a separately reviewed proposal.
+    manual_validation_required: false
+    activation_allowed: false
+    canary_rerun_allowed: false
 
   - candidate_id: stantec_global_sitemap
     rank: 20
@@ -517,8 +520,8 @@ provider_decisions:
 
 multi_scope_model:
   required: true
-  implemented: false
-  activation_blocker: true
+  implemented: true
+  activation_blocker: false
   evidence:
     - GM core deterministic fixture includes an Ultium Cells posting while facility boards also exist.
     - BlackRock and Chevron production artifacts contain early-career or internship roles while specialized boards also exist.
@@ -530,9 +533,9 @@ multi_scope_model:
     - Keep every source identity and observation inspectable.
     - Require all authorities covering one canonical job to agree before closing it.
 
-remaining_phase5_backlog:
+post_phase5_source_coverage_backlog:
   - Capture first-party identity fixtures for GM Financial, Ultium, Chevron University, and Chevron Stations.
   - Capture CATL global feed publisher/total and CATL US terminal fixtures.
-  - Establish exact ID overlap for BlackRock, Chevron, Lightspeed, Siemens Healthineers, and Ultium.
-  - Design and implement the documented multi-scope lifecycle prerequisite before activating overlapping sources.
+  - Establish exact ID overlap for BlackRock, Chevron, Siemens Healthineers, and Ultium before any future activation proposal.
+  - Reconsider Lightspeed France only with new first-party identity evidence; the archived lightspeedhqfr proposal is rejected.
   - Reconsider BrassRing only after employer binding is available; other evaluated providers remain deferred.

@@ -30,7 +30,7 @@ def _data(path: Path) -> dict:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
-def test_batch1_registry_remains_unchanged_and_valid() -> None:
+def test_batch1_registry_preserves_final_rejection_and_remains_valid() -> None:
     candidates = load_phase5_candidates(BATCH1)
     assert len(candidates) == 20
     assert [item["rank"] for item in candidates] == list(range(1, 21))
@@ -38,7 +38,13 @@ def test_batch1_registry_remains_unchanged_and_valid() -> None:
         item["candidate_id"]
         for item in candidates
         if item["status"] == "READY_FOR_CANARY"
-    ] == ["lightspeed_fr_greenhouse"]
+    ] == []
+    lightspeed = next(
+        item for item in candidates
+        if item["candidate_id"] == "lightspeed_fr_greenhouse"
+    )
+    assert lightspeed["status"] == "REJECTED"
+    assert lightspeed["canary_outcome"] == "FAIL_IDENTITY"
 
 
 def test_batch2_has_approximately_twenty_ranked_progressions() -> None:
@@ -54,24 +60,25 @@ def test_batch2_has_approximately_twenty_ranked_progressions() -> None:
     assert all(item["next_action"] for item in candidates)
 
 
-def test_ready_candidates_have_identity_scope_and_registered_adapter() -> None:
+def test_final_lightspeed_disposition_has_identity_failure_evidence() -> None:
     ready = [
         item
         for item in load_phase5_candidates(BATCH2)
         if item["status"] == "READY_FOR_CANARY"
     ]
-    assert [item["candidate_id"] for item in ready] == ["lightspeed_fr_greenhouse"]
-    for item in ready:
-        assert item["canonical_company"]
-        assert item["source_scope"] == "france"
-        assert item["identity_confidence"] == "high"
-        assert item["scope_confidence"] == "high"
-        assert item["identity_evidence"]
-        assert item["scope_evidence"]
-        assert item["proposed_platform"] in ADAPTERS
+    assert ready == []
+    item = next(
+        candidate for candidate in load_phase5_candidates(BATCH2)
+        if candidate["candidate_id"] == "lightspeed_fr_greenhouse"
+    )
+    assert item["status"] == "REJECTED"
+    assert item["canary_outcome"] == "FAIL_IDENTITY"
+    assert item["activation_allowed"] is False
+    assert item["canary_rerun_allowed"] is False
+    assert item["proposed_platform"] in ADAPTERS
 
 
-def test_provider_and_blocked_candidates_cannot_enter_canary_registry() -> None:
+def test_only_rejected_historical_candidate_remains_in_canary_registry() -> None:
     candidates = load_phase5_candidates(BATCH2)
     canary_ids = {
         item["candidate_id"] for item in load_phase5_canary_plans(BATCH2_CANARIES)
@@ -81,8 +88,11 @@ def test_provider_and_blocked_candidates_cannot_enter_canary_registry() -> None:
         for item in candidates
         if item["status"] != "READY_FOR_CANARY"
     }
-    assert canary_ids.isdisjoint(blocked)
     assert canary_ids == {"lightspeed_fr_greenhouse"}
+    assert canary_ids & blocked == {"lightspeed_fr_greenhouse"}
+    plans = load_phase5_canary_plans(BATCH2_CANARIES)
+    assert all(plan["activation_allowed"] is False for plan in plans)
+    assert all(plan["canary_rerun_allowed"] is False for plan in plans)
     assert all(
         item["proposed_platform"] in ADAPTERS
         for item in candidates
@@ -110,7 +120,10 @@ def test_canary_budget_is_exact_and_never_activates_production() -> None:
     plan = plans[0]
     assert plan["carried_forward_from_batch1"] is True
     assert plan["activation_allowed"] is False
-    assert plan["architecture_activation_blocked"] is True
+    assert plan["architecture_activation_blocked"] is False
+    assert plan["status"] == "REJECTED"
+    assert plan["canary_outcome"] == "FAIL_IDENTITY"
+    assert plan["canary_rerun_allowed"] is False
     assert plan["canonical_company"] == "Lightspeed Commerce"
     assert plan["source_scope"] == "france"
     assert plan["hard_request_budget"] == sum(
@@ -139,19 +152,18 @@ def test_overlap_relationships_are_explicit_and_no_duplicate_can_activate() -> N
     assert by_id["stantec_global_sitemap"]["overlap_classification"] == "SUBSET"
 
 
-def test_multi_scope_model_is_an_activation_prerequisite_not_an_implementation() -> None:
+def test_multi_scope_model_is_implemented_and_no_longer_an_activation_blocker() -> None:
     data = _data(BATCH2)
     model = data["multi_scope_model"]
-    assert data["architecture_conclusion"] == "MULTI_SCOPE_ARCHITECTURE_REQUIRED"
+    assert data["architecture_conclusion"] == "MULTI_SCOPE_ARCHITECTURE_IMPLEMENTED"
     assert model["required"] is True
-    assert model["implemented"] is False
-    assert model["activation_blocker"] is True
+    assert model["implemented"] is True
+    assert model["activation_blocker"] is False
     assert data["phase6_started"] is False
     assert "source scope" in " ".join(model["minimum_future_model"]).casefold()
 
-    # Provider namespaces deliberately produce two source rows today. This is
-    # why exact cross-source equivalence and scope-aware reconciliation are a
-    # prerequisite rather than something candidate files can paper over.
+    # Provider namespaces deliberately produce distinct source rows. Exact
+    # cross-source equivalence and scope-aware reconciliation preserve them.
     assert source_key_for_external_id("workday:one", "R-1") != source_key_for_external_id(
         "talnet:one", "R-1"
     )
@@ -196,18 +208,18 @@ def test_batched_coverage_report_preserves_baseline_and_tracks_progression() -> 
     assert report["batch2"]["providers_deferred"] == 6
     assert report["batch2"]["provider_implementations"] == 0
     assert report["batch2"]["still_blocked"] == 19
-    assert report["batch2"]["rejected"] == 1
-    assert report["batch2"]["multi_scope_architecture_blockers"] == 1
+    assert report["batch2"]["rejected"] == 2
+    assert report["batch2"]["multi_scope_architecture_blockers"] == 0
     assert report["batch2"]["status_counts"] == {
-        "READY_FOR_CANARY": 1,
+        "READY_FOR_CANARY": 0,
         "NEEDS_IDENTITY_EVIDENCE": 8,
         "NEEDS_SCOPE_EVIDENCE": 3,
         "DUPLICATE_SCOPE": 0,
         "UNSUPPORTED_PROTOCOL": 0,
         "DEFER": 8,
-        "REJECTED": 1,
+        "REJECTED": 2,
     }
     assert report["batch2"]["architecture_conclusion"] == (
-        "MULTI_SCOPE_ARCHITECTURE_REQUIRED"
+        "MULTI_SCOPE_ARCHITECTURE_IMPLEMENTED"
     )
     assert report["batch2"]["phase6_started"] is False

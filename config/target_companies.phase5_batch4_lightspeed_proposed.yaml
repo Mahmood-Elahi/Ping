@@ -1,5 +1,5 @@
-# OFFLINE PROPOSAL ONLY. Normal runtime never loads this file implicitly.
-# Activation remains forbidden until every Phase 5 Batch 4 gate passes.
+# HISTORICAL REJECTED PROPOSAL ONLY. Normal runtime never loads this file.
+# Do not activate or rerun: the final bounded canary returned FAIL_IDENTITY.
 target_companies:
   - name: Lightspeed Commerce
     source_scope: default
@@ -43,8 +43,13 @@ target_companies:
 
 phase5_activation:
   production_active: false
+  activation_allowed: false
+  candidate_status: REJECTED
+  canary_outcome: FAIL_IDENTITY
+  canary_rerun_allowed: false
+  rejection_reason: Strict Greenhouse boards API returned HTTP 404 for lightspeedhqfr twice; employer/source identity remained unproven, zero inventory was collected, and no completeness or terminal authority was established.
   required_canary: PASS_COMPLETE
-  migration_deployed_and_verified: false
+  migration_deployed_and_verified: true
   production_config_diff_reviewed: false
   rollback_prepared: true
   hard_request_budget: 21

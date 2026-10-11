@@ -91,9 +91,17 @@ transaction.
 
 No fixture activates a source or makes a live request.
 
-## Activation boundary
+## Final activation boundary
 
-The architecture is ready to contain a future multi-scope canary. Activation
-still requires the candidate's own identity, completeness, and exact-overlap
-evidence. Lightspeed France remains `READY_FOR_CANARY` with a 21-request manual
-budget and is not production-active. Phase 6 incremental scanning is untouched.
+The architecture is complete and can safely contain future multi-scope sources,
+but each candidate still requires its own identity, completeness, terminal, and
+exact-overlap evidence. Lightspeed France's final bounded canary returned
+`FAIL_IDENTITY`: the strict Greenhouse boards API returned HTTP 404 for
+`lightspeedhqfr`, identity remained unproven, zero inventory was collected, and
+no completeness or terminal authority was established. Its final status is
+`REJECTED`; it was not activated, persisted, or retired. This fail-closed
+decision completes Phase 5 without creating a production multi-scope example.
+
+Phase 6 starts with incremental optimization only for sources with trustworthy
+stable timestamps or cursors. Full crawls remain the correctness baseline, and
+incremental slices never authorize absence on their own.
