@@ -37,8 +37,12 @@ adapter_groups:
   browser_scope_terminal: [Nutrien]
 
 sgs_candidate:
-  status: READY_FOR_CANARY
-  production_registry_changed: false
+  status: RECOVERED
+  evidence_state: LIVE_VALIDATED
+  validation_status: PASS_COMPLETE
+  production_registry_changed: true
+  production_exactly_matches_tested_candidate: true
+  canary_rerun: false
   candidate_registry: config/target_companies.pagination_completeness_batch4_canaries.yaml
   source_scope: default
   source: https://api.smartrecruiters.com/v1/companies/SGS/postings
@@ -75,6 +79,50 @@ sgs_candidate:
     bounded_headroom_percent: 8.25
     hard_canary_request_budget: 50
     retries_or_restart_inside_budget: 0
+  live_validation:
+    performed_by: operator
+    repository_closeout_rerun: false
+    canary_outcome: PASS_COMPLETE
+    inventory_complete: true
+    scan_complete: true
+    scan_state: complete
+    source_health_code: healthy
+    jobs_collected: 4646
+    inventory_items_collected: 4646
+    total_available: 4646
+    unique_stable_ids: 4646
+    unique_canonical_urls: 4646
+    stable_ids_unique: true
+    canonical_urls_unique: true
+    apply_urls_contract_valid: true
+    normalized_jobs_attributable: true
+    source_identity_status: validated
+    terminal_evidence_type: authoritative_total
+    terminal_evidence_value: 4646
+    terminal_evidence_valid: true
+    stop_reason: reported_total_reached
+    scan_completeness_reason: reported_total_reached
+    collection_changed_during_scan: false
+    hidden_continuation_absent: true
+    pagination_evidence_conflicting: false
+    pagination_evidence_malformed: false
+    pages_requested: 47
+    requests_started: 47
+    request_budget: 50
+    request_budget_respected: true
+    unreadable_items: 0
+    rejected_items: 0
+    rejected_record_count: 0
+    duplicate_ids: []
+    duplicate_canonical_urls: []
+    central_finalizer_authoritative: true
+    lifecycle_mutations: 0
+    persistence_mode: none
+    production_registry_mutated: false
+    dashboard_published: false
+    error: null
+    warnings: []
+    remaining_configured_capacity_jobs: 354
   required_live_result:
     validation_status: PASS_COMPLETE
     inventory_complete: true
@@ -117,9 +165,12 @@ companies:
     finding: SuccessFactors repeated a complete page after 97 of 284 records
     next_evidence: stable search traversal or target-specific complete active feed
   - company: SGS
-    status: READY_FOR_CANARY
-    finding: the exact SmartRecruiters source is identity-validated and its 4619-row stored high-water total fits the reviewed 5000-row adapter ceiling
-    candidate: 100 rows per page, 50 pages, 5000 jobs, 50-request canary budget
+    status: RECOVERED
+    evidence_state: LIVE_VALIDATED
+    validation_status: PASS_COMPLETE
+    finding: the operator canary collected and accounted for all 4646 authoritative SmartRecruiters rows in 47 of 50 allowed requests without mutation, rejection, unreadable identity, or lifecycle mutation
+    activation: exact tested candidate promoted to production without rerunning the canary
+    remaining_configured_capacity_jobs: 354
   - company: AstraZeneca
     status: NEEDS_SOURCE_SPECIFIC_REPAIR
     finding: Workday reported 1050 while traversal changed; the retained runtime also lacks validated employer identity
@@ -138,7 +189,8 @@ companies:
     next_evidence: exact RMK endpoint variant, employer identity, North America scope equivalence, and terminal evidence
 
 status_counts:
-  READY_FOR_CANARY: 1
+  RECOVERED: 1
+  READY_FOR_CANARY: 0
   RECOVERED_BY_SHARED_FIX: 0
   NEEDS_SOURCE_SPECIFIC_REPAIR: 5
   FAIL_IDENTITY: 1
@@ -148,13 +200,15 @@ status_counts:
   NO_SAFE_REPAIR: 0
   INSUFFICIENT_EVIDENCE: 3
 
-ready_for_canary: [SGS]
+recovered: [SGS]
+live_validated: [SGS]
+ready_for_canary: []
 recovered_by_shared_fix: []
 needs_source_specific_repair: [CN Rail, HP Inc., Seagate, AstraZeneca, Kinross Gold]
 fail_identity: [Cameco]
 insufficient_evidence: [Nordic Semiconductor, Athabasca Oil, Nutrien]
 
-manual_canaries:
+operator_canary_record:
   - company: SGS
     registry: config/target_companies.pagination_completeness_batch4_canaries.yaml
     request_budget: 50
@@ -166,7 +220,7 @@ manual_canaries:
 activation_rule: only an operator-provided PASS_COMPLETE result may promote the exact tested SGS row; deterministic readiness is not production recovery
 overflow_rule: an authoritative total above 5000 must fail incomplete rather than truncate
 production_safety:
-  production_registry_modified_for_batch4: false
+  production_registry_modified_for_batch4: true
   production_reliability_overlay_modified_for_batch4: false
   live_scan_run_for_batch4: false
   live_canary_run_for_batch4: false

@@ -4089,27 +4089,18 @@ target_companies:
     search_url: https://jobs.sap.com/search/
     endpoint_variant: rmk_table
   - name: ServiceNow
-    platform: static_html
+    platform: smartrecruiters
+    slug: ServiceNow
+    endpoint_variant: companies_postings_v1
     careers_url: https://careers.servicenow.com/
-    source_identity_regex: ServiceNow
-    identity_regex: ServiceNow
-    allowed_apply_hosts:
-    - careers.servicenow.com
-    original_workbook_rank: null
-    max_pages: 1
-    max_jobs: 20
+    endpoint_url: https://api.smartrecruiters.com/v1/companies/ServiceNow/postings
+    identity_regex: ^ServiceNow$
+    allowed_apply_hosts: [jobs.smartrecruiters.com]
+    page_size: 100
+    max_pages: 8
+    max_jobs: 800
     max_response_bytes: 3000000
-    identity_url: https://careers.servicenow.com/locations/ams/ontario-canada/
-    listing_url: https://careers.servicenow.com/locations/ams/ontario-canada/
-    endpoint_variant: server_rendered_cards
-    listing_selector: div.job-listing
-    job_card_selector: div.card-job
-    title_selector: h2.card-title a
-    location_selector: ul.job-meta li:first-child
-    department_selector: null
-    detail_link_selector: h2.card-title a
-    external_id_regex: /jobs/([0-9]+)/
-    external_id_attribute: null
+    selective_detail_enrichment: false
   - name: Affirm
     platform: greenhouse
     careers_url: https://www.affirm.com/careers
@@ -6215,11 +6206,13 @@ target_companies:
     slug: SGS
     endpoint_url: https://api.smartrecruiters.com/v1/companies/SGS/postings
     endpoint_variant: companies_postings_v1
-    identity_regex: SGS
+    identity_regex: ^SGS$
     allowed_apply_hosts: [jobs.smartrecruiters.com]
-    page_size: 20
-    max_pages: 1
-    max_jobs: 20
+    page_size: 100
+    max_pages: 50
+    max_jobs: 5000
+    max_response_bytes: 3000000
+    selective_detail_enrichment: false
   - name: Avery Dennison
     platform: smartrecruiters
     careers_url: https://www.averydennison.com/en/home/about-us/careers.html

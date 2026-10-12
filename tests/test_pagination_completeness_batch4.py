@@ -105,7 +105,8 @@ def test_batch4_scope_statuses_and_gated_lane_are_exact() -> None:
     assert set(grouped) == set(EXPECTED)
     assert review["scope"]["gated_prior_stragglers_admitted"] == []
     assert review["status_counts"] == {
-        "READY_FOR_CANARY": 1,
+        "RECOVERED": 1,
+        "READY_FOR_CANARY": 0,
         "RECOVERED_BY_SHARED_FIX": 0,
         "NEEDS_SOURCE_SPECIFIC_REPAIR": 5,
         "FAIL_IDENTITY": 1,
@@ -115,7 +116,9 @@ def test_batch4_scope_statuses_and_gated_lane_are_exact() -> None:
         "NO_SAFE_REPAIR": 0,
         "INSUFFICIENT_EVIDENCE": 3,
     }
-    assert review["ready_for_canary"] == ["SGS"]
+    assert review["recovered"] == ["SGS"]
+    assert review["live_validated"] == ["SGS"]
+    assert review["ready_for_canary"] == []
 
 
 def test_batch4_evidence_hashes_are_immutable_and_offline() -> None:
@@ -125,33 +128,36 @@ def test_batch4_evidence_hashes_are_immutable_and_offline() -> None:
         if isinstance(evidence, dict) and "path" in evidence:
             assert evidence["sha256"] == _sha256(ROOT / evidence["path"])
     assert review["evidence"]["live_requests_during_batch4_review"] is False
-    assert not any(review["production_safety"].values())
+    assert review["production_safety"] == {
+        "production_registry_modified_for_batch4": True,
+        "production_reliability_overlay_modified_for_batch4": False,
+        "live_scan_run_for_batch4": False,
+        "live_canary_run_for_batch4": False,
+        "company_or_provider_network_request_for_batch4": False,
+        "production_supabase_mutation": False,
+        "dashboard_publish": False,
+        "lifecycle_mutation": False,
+    }
 
 
-def test_sgs_candidate_is_isolated_and_production_is_unchanged() -> None:
+def test_sgs_candidate_is_isolated_and_production_exactly_matches_live_candidate() -> None:
     candidate = _rows(CANDIDATES)["SGS"]
     production = _rows(PRODUCTION)["SGS"]
 
     assert set(_rows(CANDIDATES)) == {"SGS"}
-    assert candidate["platform"] == production["platform"] == "smartrecruiters"
-    assert candidate["slug"] == production["slug"] == "SGS"
-    assert candidate["endpoint_url"] == production["endpoint_url"]
-    assert candidate["endpoint_variant"] == production["endpoint_variant"]
-    assert candidate["allowed_apply_hosts"] == production["allowed_apply_hosts"]
+    assert production == candidate
     assert candidate["page_size"] == 100
     assert candidate["max_pages"] == 50
     assert candidate["max_jobs"] == 5_000
     assert candidate["max_response_bytes"] == 3_000_000
     assert candidate["selective_detail_enrichment"] is False
-    assert production["page_size"] == 20
-    assert production["max_pages"] == 1
-    assert production["max_jobs"] == 20
+    assert production["identity_regex"] == "^SGS$"
 
 
 def test_sgs_bound_and_manual_canary_are_derived() -> None:
     review = _yaml(REVIEW)
     bound = review["sgs_candidate"]["bound_derivation"]
-    canary = review["manual_canaries"][0]
+    canary = review["operator_canary_record"][0]
 
     assert bound["observed_high_total"] == 4_619
     assert bound["exact_pages_at_observed_high"] == ceil(4_619 / 100) == 47
@@ -162,6 +168,11 @@ def test_sgs_bound_and_manual_canary_are_derived() -> None:
     assert canary["persistence"] is False
     assert canary["dashboard_publish"] is False
     assert canary["lifecycle_mutation"] is False
+    live = review["sgs_candidate"]["live_validation"]
+    assert live["canary_outcome"] == "PASS_COMPLETE"
+    assert live["jobs_collected"] == live["total_available"] == 4_646
+    assert live["requests_started"] == 47
+    assert live["remaining_configured_capacity_jobs"] == 354
 
 
 def test_sgs_stable_total_completes_and_overflow_fails_closed(monkeypatch) -> None:

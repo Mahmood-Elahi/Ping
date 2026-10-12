@@ -1,6 +1,7 @@
 # Explicit opt-in Batch 4 canary. Normal Job Radar execution loads
 # config/target_companies.yaml and cannot load this file implicitly.
-# This candidate does not change SGS's production source limits.
+# Historical exact candidate retained as immutable live-validation evidence.
+# Production now matches this row after operator PASS_COMPLETE closeout.
 target_companies:
   - name: SGS
     platform: smartrecruiters

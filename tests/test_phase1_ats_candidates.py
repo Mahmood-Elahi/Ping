@@ -86,6 +86,7 @@ ACTIVATED_PRODUCTION = {
     "Miro": ("greenhouse", "realtimeboardglobal"),
     "Intuitive Surgical": ("smartrecruiters", "intuitive"),
     "Wise": ("smartrecruiters", "wise"),
+    "ServiceNow": ("smartrecruiters", "ServiceNow"),
 }
 
 CUSTOM_GREENHOUSE_PRODUCTION = {
@@ -238,6 +239,12 @@ def test_activated_class_a_sources_use_exact_production_adapters() -> None:
             "https://api.smartrecruiters.com/v1/companies/wise/postings"
         )
         assert targets["Wise"].allowed_apply_hosts == ["jobs.smartrecruiters.com"]
+        assert targets["ServiceNow"].endpoint_url == (
+            "https://api.smartrecruiters.com/v1/companies/ServiceNow/postings"
+        )
+        assert targets["ServiceNow"].allowed_apply_hosts == [
+            "jobs.smartrecruiters.com"
+        ]
 
 
 def test_custom_greenhouse_production_requires_exact_path_and_query_ids() -> None:
@@ -268,7 +275,7 @@ def test_reviewed_high_volume_smartrecruiters_budgets_are_exact_and_scoped() -> 
         canaries.validate_request_budget(53, [service_now])
 
 
-def test_phase1_rejected_replacements_remain_on_first_party_sources() -> None:
+def test_phase1_rejections_remain_and_servicenow_records_later_live_activation() -> None:
     production = {entry["name"]: entry for entry in _entries(PRODUCTION_PATH)}
     assert production["Aurora Innovation"]["platform"] == "public_json"
     assert production["Optiver"]["platform"] == "public_json"
@@ -277,4 +284,18 @@ def test_phase1_rejected_replacements_remain_on_first_party_sources() -> None:
     assert production["Deliveroo"]["platform"] == "public_json"
     assert production["Etsy"]["platform"] == "static_html"
     assert production["Sanctuary AI"]["platform"] == "javascript_embedded_data"
-    assert production["ServiceNow"]["platform"] == "static_html"
+    assert production["ServiceNow"] == {
+        "name": "ServiceNow",
+        "platform": "smartrecruiters",
+        "slug": "ServiceNow",
+        "endpoint_variant": "companies_postings_v1",
+        "careers_url": "https://careers.servicenow.com/",
+        "endpoint_url": "https://api.smartrecruiters.com/v1/companies/ServiceNow/postings",
+        "identity_regex": "^ServiceNow$",
+        "allowed_apply_hosts": ["jobs.smartrecruiters.com"],
+        "page_size": 100,
+        "max_pages": 8,
+        "max_jobs": 800,
+        "max_response_bytes": 3_000_000,
+        "selective_detail_enrichment": False,
+    }

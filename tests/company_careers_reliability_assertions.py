@@ -21,6 +21,38 @@ REPAIRS = ROOT / "config" / "company_careers_reliability_repairs_v1.yaml"
 # named companies to their reviewed production contracts while continuing to
 # compare every other entry byte-for-byte after reliability repairs.
 APPROVED_SOURCE_MIGRATIONS: dict[str, dict[str, Any]] = {
+    "servicenow": {
+        "name": "ServiceNow",
+        "platform": "smartrecruiters",
+        "slug": "ServiceNow",
+        "endpoint_variant": "companies_postings_v1",
+        "careers_url": "https://careers.servicenow.com/",
+        "endpoint_url": (
+            "https://api.smartrecruiters.com/v1/companies/ServiceNow/postings"
+        ),
+        "identity_regex": "^ServiceNow$",
+        "allowed_apply_hosts": ["jobs.smartrecruiters.com"],
+        "page_size": 100,
+        "max_pages": 8,
+        "max_jobs": 800,
+        "max_response_bytes": 3_000_000,
+        "selective_detail_enrichment": False,
+    },
+    "sgs": {
+        "name": "SGS",
+        "platform": "smartrecruiters",
+        "careers_url": "https://www.sgs.com/en/careers-at-sgs",
+        "slug": "SGS",
+        "endpoint_url": "https://api.smartrecruiters.com/v1/companies/SGS/postings",
+        "endpoint_variant": "companies_postings_v1",
+        "identity_regex": "^SGS$",
+        "allowed_apply_hosts": ["jobs.smartrecruiters.com"],
+        "page_size": 100,
+        "max_pages": 50,
+        "max_jobs": 5_000,
+        "max_response_bytes": 3_000_000,
+        "selective_detail_enrichment": False,
+    },
     "bosch": {
         "name": "Bosch",
         "platform": "smartrecruiters",

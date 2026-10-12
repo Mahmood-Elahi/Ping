@@ -31,7 +31,7 @@ from src.scraper.company_careers.scanner import ADAPTERS
 ROOT = Path(__file__).resolve().parents[1]
 NOW = datetime(2026, 10, 10, tzinfo=timezone.utc)
 EXPECTED_REGISTRY_SHA256 = (
-    "020e0b6f4df9dfe65f391551f516beeaafa18c45fe561ae6a01744a234352408"
+    "794e477d04da7a2825b3d14157fd35f97c03fc35a8ded3878c9d0b3d598bfc4f"
 )
 EXPECTED_PRODUCTION_COUNTS = {
     "adp": 8,
@@ -67,9 +67,9 @@ EXPECTED_PRODUCTION_COUNTS = {
     "public_json": 7,
     "sap_successfactors": 44,
     "shopify": 1,
-    "smartrecruiters": 16,
+    "smartrecruiters": 17,
     "startdate": 1,
-    "static_html": 26,
+    "static_html": 25,
     "talentbrew": 4,
     "teamtailor": 1,
     "uber": 1,
@@ -218,10 +218,10 @@ def test_request_cost_calculations_are_bounded_and_deterministic(production_targ
     assert workday.endpoint_variants == (("<default>", 91), ("wday_cxs_v1", 17))
 
     static = by_family["static_html"]
-    assert static.listing_page_ceiling_total == 29
+    assert static.listing_page_ceiling_total == 28
     assert static.listing_page_ceiling_max == 2
     assert static.endpoint_variants == (
-        ("server_rendered_cards", 23),
+        ("server_rendered_cards", 22),
         ("server_rendered_links", 3),
     )
 

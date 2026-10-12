@@ -30,6 +30,7 @@ RECOVERED_SOURCE_BOUNDS = {
         "Arista Networks": (3, 300),
         "Avery Dennison": (5, 500),
         "Gameloft": (1, 75),
+        "SGS": (50, 5_000),
         "Ubisoft": (4, 350),
     },
     "oracle_recruiting": {

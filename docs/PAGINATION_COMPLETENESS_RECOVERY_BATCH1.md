@@ -791,7 +791,8 @@ separate identity-recovery batch; Batch 3 found no reason to reclassify them.
 Batch 4 started immediately after the Bosch activation closeout at repository
 HEAD `4de6b6d`. It reused the immutable October 1 runtime snapshot and the two
 retained SGS SmartRecruiters diagnostics. No Batch 4 source request or live
-canary was run, and the production registry was not changed for Batch 4.
+canary was run during the deterministic review. A later operator-run canary
+provided `PASS_COMPLETE`; repository closeout did not rerun it.
 
 The ten-source core was reviewed in the recorded order. The gated Atlassian,
 Microsoft, and Eaton lane was not admitted because no new deterministic
@@ -799,7 +800,7 @@ evidence supersedes the Batch 2/3 findings.
 
 | Status | Companies |
 |---|---|
-| `READY_FOR_CANARY` | SGS |
+| `RECOVERED`, `LIVE_VALIDATED`, `PASS_COMPLETE` | SGS |
 | `NEEDS_SOURCE_SPECIFIC_REPAIR` | CN Rail; HP Inc.; Seagate; AstraZeneca; Kinross Gold |
 | `FAIL_IDENTITY` | Cameco |
 | `INSUFFICIENT_EVIDENCE` | Nordic Semiconductor; Athabasca Oil; Nutrien |
@@ -823,8 +824,8 @@ At 100 rows per page, the stored high-water total requires 47 requests. The
 candidate therefore uses the already reviewed SmartRecruiters ceiling of
 `page_size=100`, `max_pages=50`, `max_jobs=5000`, and
 `max_response_bytes=3000000`, with inventory-only normalization and a strict
-50-request canary budget. Production SGS remains unchanged at one page and 20
-jobs pending live `PASS_COMPLETE` evidence.
+50-request canary budget. Before closeout, production SGS still used one page
+and 20 jobs.
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\validate_source_integrity_canaries.py --registry config\target_companies.pagination_completeness_batch4_canaries.yaml --company SGS --request-budget 50 --run
@@ -835,6 +836,23 @@ exhaustion, identity/apply-URL failure, unreadable or rejected item, hidden
 continuation, or safety-limit stop must fail incomplete. Deterministic
 `READY_FOR_CANARY` is not production recovery; only the exact candidate that
 returns operator-confirmed `PASS_COMPLETE` may be separately activated.
+
+### SGS operator closeout
+
+The operator later ran the exact command above. It collected all 4,646 of the
+authoritative 4,646 rows in 47 requests within the 50-request budget. All 4,646
+stable IDs and canonical URLs were unique; identity, apply URLs, attribution,
+terminal evidence, and central finalization were valid. There was no mutation,
+hidden continuation, rejected or unreadable identity, warning, persistence,
+dashboard publication, or lifecycle mutation.
+
+Production did not yet match the tested row, so closeout promoted only that
+exact row: 100 rows per page, 50 pages, 5,000 jobs, 3,000,000 response bytes,
+`selective_detail_enrichment=false`, `identity_regex=^SGS$`, and the exact
+SmartRecruiters endpoint/apply-host contract. SGS is now `RECOVERED`,
+`LIVE_VALIDATED`, and `PASS_COMPLETE`. It has 354 jobs of configured capacity
+above the validated total. A later authoritative total above 5,000 must fail
+incomplete. The live canary was not rerun during repository closeout.
 
 ### Remaining Batch 4 findings
 

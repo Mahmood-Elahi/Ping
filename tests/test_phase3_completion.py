@@ -54,14 +54,13 @@ def test_remaining_eleven_provider_families_have_explicit_dispositions() -> None
         assert f"| {provider} |" in section
 
 
-def test_phase3_canaries_are_explicit_and_intuitive_matches_live_promoted_row() -> None:
+def test_phase3_canaries_are_explicit_and_both_match_later_live_promoted_rows() -> None:
     canaries = {target.name: target for target in load_target_companies(str(CANARIES))}
     production = {target.name: target for target in load_target_companies()}
     assert set(canaries) == {"ServiceNow", "Intuitive Surgical"}
     assert all(target.platform == "smartrecruiters" for target in canaries.values())
     assert all(not target.selective_detail_enrichment for target in canaries.values())
-    assert production["ServiceNow"].platform != "smartrecruiters"
-    intuitive_fields = (
+    promoted_fields = (
         "name",
         "source_scope",
         "platform",
@@ -78,11 +77,17 @@ def test_phase3_canaries_are_explicit_and_intuitive_matches_live_promoted_row() 
         "selective_detail_enrichment",
     )
     assert {
-        field: getattr(production["Intuitive Surgical"], field)
-        for field in intuitive_fields
+        company: {
+            field: getattr(production[company], field)
+            for field in promoted_fields
+        }
+        for company in ("ServiceNow", "Intuitive Surgical")
     } == {
-        field: getattr(canaries["Intuitive Surgical"], field)
-        for field in intuitive_fields
+        company: {
+            field: getattr(canaries[company], field)
+            for field in promoted_fields
+        }
+        for company in ("ServiceNow", "Intuitive Surgical")
     }
     assert [
         target.source_scope

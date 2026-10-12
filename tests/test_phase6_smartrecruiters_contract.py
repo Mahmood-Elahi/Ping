@@ -151,9 +151,15 @@ def test_all_production_smartrecruiters_sources_remain_listing_only():
         if configured.platform == "smartrecruiters"
     ]
 
-    assert len(targets) == 16
+    assert len(targets) == 17
     assert all(not configured.selective_detail_enrichment for configured in targets)
     assert all(configured.endpoint_variant == "companies_postings_v1" for configured in targets)
+    service_now = next(configured for configured in targets if configured.name == "ServiceNow")
+    assert (service_now.page_size, service_now.max_pages, service_now.max_jobs) == (
+        100,
+        8,
+        800,
+    )
 
 
 def test_listing_uses_only_complete_offset_pagination_not_cursor_or_update_filter():

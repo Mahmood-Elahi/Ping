@@ -1,0 +1,202 @@
+goal:
+  name: post_audit_remaining_source_recovery
+  evidence_date: '2026-10-12'
+  repository_head_reviewed: b2303253aa5a57731c16cb4b45d2dd49b5225b4d
+  live_network_work_performed: false
+  objective: close out SGS and ServiceNow from operator evidence while preserving the other 36 unresolved sources unchanged
+  operator_live_evidence_supplied: true
+
+information:
+  starting_unresolved_count_after_sgs_closeout: 37
+  starting_classification:
+    NEEDS_SOURCE_SPECIFIC_REPAIR: [Atlassian, JPMorgan Chase, Emerson, Honeywell, Microsoft, Eaton, Oracle, Stantec, CPKC, Scotiabank, Bombardier, Fortinet, ServiceNow, CN Rail, HP Inc., Seagate, AstraZeneca, Kinross Gold]
+    INSUFFICIENT_EVIDENCE: [Meta, Qualcomm, Micron, Rivian, Goldman Sachs, GlobalFoundries, Espressif Systems, ecobee, Nordic Semiconductor, Athabasca Oil, Nutrien]
+    FAIL_IDENTITY: [Samsung Electronics, GE Vernova, General Motors, Caterpillar, Zalando, Capital One, Cameco]
+    FAIL_CONTRACT: [Coupang]
+  deeply_investigated_37: [ServiceNow, Samsung Electronics, GE Vernova, General Motors, Caterpillar, Zalando, Capital One, Cameco, Meta, Qualcomm, Micron, Rivian, Goldman Sachs, GlobalFoundries]
+  stopped_early_no_new_evidence: [Atlassian, JPMorgan Chase, Emerson, Honeywell, Microsoft, Eaton, Oracle, Stantec, CPKC, Scotiabank, Bombardier, Fortinet, CN Rail, HP Inc., Seagate, AstraZeneca, Kinross Gold, Espressif Systems, ecobee, Nordic Semiconductor, Athabasca Oil, Nutrien, Coupang]
+  sibling_reuse:
+    jobseek_code_adapted_this_pass: []
+    freehire_code_adapted_this_pass: []
+    jobspy_mechanics_used_this_pass: []
+    note: prior sibling mechanics were treated as mechanics-only evidence; no sibling inventory was used as employer, scope, active-only, or absence authority
+
+implementation:
+  sgs_closeout:
+    status: RECOVERED
+    evidence_state: LIVE_VALIDATED
+    validation_status: PASS_COMPLETE
+    production_before_exact_match: false
+    production_changed: true
+    production_now_exactly_matches_tested_candidate: true
+    canary_rerun: false
+    exact_contract:
+      platform: smartrecruiters
+      slug: SGS
+      endpoint_variant: companies_postings_v1
+      identity_regex: '^SGS$'
+      allowed_apply_hosts: [jobs.smartrecruiters.com]
+      page_size: 100
+      max_pages: 50
+      max_jobs: 5000
+      max_response_bytes: 3000000
+      selective_detail_enrichment: false
+    live_accounting: {raw_identities: 4646, normalized_jobs: 4646, protected_unreadables: 0, explicit_rejections: 0, duplicate_representations: 0}
+    requests: {started: 47, budget: 50, remaining_configured_capacity_jobs: 354}
+    overflow_rule: authoritative total above 5000 fails incomplete
+  shared_repairs_implemented_this_pass: []
+  shared_repairs_reused:
+    - repair: SmartRecruiters inventory-only authoritative-total traversal
+      companies: [ServiceNow]
+      code_change_required: false
+      reason: the generic adapter already separates inventory from hydration, validates exact company identity and apply URLs, fails on mutation/duplicates, and normalizes listing rows without detail requests
+  candidates:
+    - company: ServiceNow
+      registry: config/target_companies.remaining_source_recovery_canaries.yaml
+      status: RECOVERED
+      evidence_state: LIVE_VALIDATED
+      validation_status: PASS_COMPLETE
+      production_activated: true
+      production_now_exactly_matches_tested_candidate: true
+      candidate_registry_preserved_as_historical_live_validation_evidence: true
+      canary_rerun_during_closeout: false
+      historical_blocker: detail-heavy SmartRecruiters canary had an authoritative total and no observed mutation but exhausted its 52-request budget during detail hydration without completing inventory
+      design: exact ServiceNow SmartRecruiters slug, inventory-only listing normalization, authoritative total terminal, exact IDs and jobs.smartrecruiters.com canonical/apply URLs
+      old_attempt:
+        authoritative_total_present: true
+        collection_changed_during_scan: false
+        request_budget: 52
+        stop_reason: request_budget_exhausted_during_detail_hydration
+        inventory_complete: false
+      new_attempt:
+        mode: inventory-only SmartRecruiters
+        selective_detail_enrichment: false
+        jobs_collected: 697
+        total_available: 697
+        listing_requests: 7
+        outcome: PASS_COMPLETE
+      live_validation:
+        source_scope: default
+        source_scope_key: servicenow::default
+        inventory_complete: true
+        scan_complete: true
+        scan_state: complete
+        source_health_code: healthy
+        jobs_collected: 697
+        inventory_items_collected: 697
+        total_available: 697
+        unique_stable_ids: 697
+        unique_canonical_urls: 697
+        stable_ids_unique: true
+        canonical_urls_unique: true
+        apply_urls_contract_valid: true
+        normalized_jobs_attributable: true
+        source_identity_status: validated
+        terminal_evidence_type: authoritative_total
+        terminal_evidence_value: 697
+        terminal_evidence_valid: true
+        stop_reason: reported_total_reached
+        scan_completeness_reason: reported_total_reached
+        collection_changed_during_scan: false
+        hidden_continuation_absent: true
+        pagination_evidence_conflicting: false
+        pagination_evidence_malformed: false
+        pages_requested: 7
+        requests_started: 7
+        request_budget: 8
+        request_budget_respected: true
+        unreadable_items: 0
+        rejected_items: 0
+        rejected_record_count: 0
+        duplicate_ids: []
+        duplicate_canonical_urls: []
+        central_finalizer_authoritative: true
+        lifecycle_mutations: 0
+        persistence_mode: none
+        production_registry_mutated_during_canary: false
+        dashboard_published: false
+        error: null
+        warnings: []
+      live_authoritative_total: 697
+      page_size: 100
+      derived_pages: 7
+      requests_started: 7
+      request_budget: 8
+      max_pages: 8
+      max_jobs: 800
+      remaining_configured_capacity_jobs: 103
+      overflow_rule: a future authoritative total above 800 fails incomplete rather than truncating or authorizing absence
+      rollback: restore only the prior ServiceNow static_html production row; retain the isolated candidate registry as historical evidence
+  accounting_contract:
+    single_inventory: raw identities = normalized jobs + protected unreadable identities + explicitly rejected identities + known duplicate representations
+    partition_or_union: sum raw partition identities = unique provider identities + exact duplicate representations
+    final_union: unique provider identities = normalized jobs + protected unreadables + explicit rejections
+    unexplained_difference_blocks_pass_complete: true
+  terminal_evidence_change: no adapter change; ServiceNow and SGS both record operator-validated SmartRecruiters authoritative-total terminals
+  mutation_safety_change: none; existing fail-closed total movement and cross-page overlap behavior is retained
+  identity_validation_change: production SGS identity regex narrowed from SGS to '^SGS$'; production ServiceNow retains the exact tested slug/name/endpoint/apply-host checks
+
+report:
+  status_counts:
+    RECOVERED: 1
+    READY_FOR_CANARY: 0
+    RECOVERED_BY_SHARED_FIX: 0
+    NEEDS_SOURCE_SPECIFIC_REPAIR: 17
+    INSUFFICIENT_EVIDENCE: 11
+    FAIL_IDENTITY: 7
+    FAIL_CONTRACT: 1
+    NO_SAFE_REPAIR_OR_OTHER: 0
+  ready_for_canary: []
+  newly_recovered: [ServiceNow]
+  recovered_by_shared_fix: []
+  original_unresolved_production_sources_before_servicenow_live_validation: 37
+  unresolved_production_sources_after_pass: 36
+  parked_until_new_provider_evidence: [Atlassian, JPMorgan Chase, Emerson, Honeywell, Microsoft, Eaton, Oracle, Stantec, CPKC, Scotiabank, Bombardier, Fortinet, CN Rail, HP Inc., Seagate, AstraZeneca, Kinross Gold, Meta, Qualcomm, Micron, Rivian, Goldman Sachs, GlobalFoundries, Espressif Systems, ecobee, Nordic Semiconductor, Athabasca Oil, Nutrien, Samsung Electronics, GE Vernova, General Motors, Caterpillar, Zalando, Capital One, Cameco, Coupang]
+  broad_recovery_prompt_justified: false
+  next_maintenance_mode: individual source or provider-family work only when genuinely new first-party evidence appears
+  pass_complete_requirements:
+    smartrecruiters: exact employer/slug/endpoint and scope; stable authoritative total; every ID accounted; unique IDs and canonical URLs; valid apply URLs; no mutation, rejection, unreadable item, hidden continuation, or safety stop; exact request budget; authoritative central finalizer; no persistence
+    sitemap: exact employer and active-only scope; complete index and every shard; exact URL/ID accounting; protected hydration failures; no missing/malformed shard or stale unresolved URL
+    graphql_union: exact public operation and scope; stable per-category totals; every derived page; exact provider-ID union and overlap accounting; no moving total or missing page
+    workday: exact tenant/site/employer/scope binding; complete direct or Phase 4 subdivision union; exact totals and overlap accounting; no cap, mutation, or uncovered partition
+    oracle_partition: authoritative finite facet universe and membership; complete exact-total traversal for every partition; exact ID deduplication; proof nothing exists outside the universe; no mutation
+    successfactors: exact employer/host/scope; stable total and terminal or proven complete active-only feed; no repeated page or mutation
+    static_or_browser: exact identity/scope plus reviewed disabled-next, exact final page/count, atomic inventory, or finite complete section union; stability alone is insufficient
+  sources:
+    - {company: Atlassian, current_platform: atlassian, primary_blocker: canonical URL violates reviewed iCIMS host/stable-ID path, best_known_alternate_source: none, new_evidence: none, final_status: NEEDS_SOURCE_SPECIFIC_REPAIR, future_canary_required: false}
+    - {company: JPMorgan Chase, current_platform: oracle_recruiting, primary_blocker: mutable offset traversal and no authoritative facet universe, best_known_alternate_source: Oracle facet partition mechanics, new_evidence: none, final_status: NEEDS_SOURCE_SPECIFIC_REPAIR, future_canary_required: false}
+    - {company: Emerson, current_platform: oracle_recruiting, primary_blocker: mutable offset traversal and no authoritative facet universe, best_known_alternate_source: Oracle facet partition mechanics, new_evidence: none, final_status: NEEDS_SOURCE_SPECIFIC_REPAIR, future_canary_required: false}
+    - {company: Honeywell, current_platform: oracle_recruiting, primary_blocker: mutable offset traversal and no authoritative facet universe, best_known_alternate_source: Oracle facet partition mechanics, new_evidence: none, final_status: NEEDS_SOURCE_SPECIFIC_REPAIR, future_canary_required: false}
+    - {company: Microsoft, current_platform: eightfold, primary_blocker: mutable PCSx overlap, best_known_alternate_source: none proven scope-equivalent, new_evidence: none, final_status: NEEDS_SOURCE_SPECIFIC_REPAIR, future_canary_required: false}
+    - {company: Eaton, current_platform: eightfold, primary_blocker: mutable PCSx overlap, best_known_alternate_source: none proven scope-equivalent, new_evidence: none, final_status: NEEDS_SOURCE_SPECIFIC_REPAIR, future_canary_required: false}
+    - {company: Oracle, current_platform: oracle_recruiting, primary_blocker: mutable offset traversal and no authoritative facet universe, best_known_alternate_source: Oracle facet partition mechanics, new_evidence: none, final_status: NEEDS_SOURCE_SPECIFIC_REPAIR, future_canary_required: false}
+    - {company: Stantec, current_platform: browser_rendered_html, primary_blocker: scope-local terminal authority absent, best_known_alternate_source: rejected non-equivalent global sitemap, new_evidence: none, final_status: NEEDS_SOURCE_SPECIFIC_REPAIR, future_canary_required: false}
+    - {company: CPKC, current_platform: sap_successfactors, primary_blocker: collection mutation, best_known_alternate_source: unproved SuccessFactors sitemap/RSS, new_evidence: none, final_status: NEEDS_SOURCE_SPECIFIC_REPAIR, future_canary_required: false}
+    - {company: Scotiabank, current_platform: sap_successfactors, primary_blocker: collection mutation, best_known_alternate_source: unproved SuccessFactors sitemap/RSS, new_evidence: none, final_status: NEEDS_SOURCE_SPECIFIC_REPAIR, future_canary_required: false}
+    - {company: Bombardier, current_platform: sap_successfactors, primary_blocker: repeated page, best_known_alternate_source: unproved SuccessFactors sitemap/RSS, new_evidence: none, final_status: NEEDS_SOURCE_SPECIFIC_REPAIR, future_canary_required: false}
+    - {company: Fortinet, current_platform: oracle_recruiting, primary_blocker: mutable offset traversal and no authoritative facet universe, best_known_alternate_source: Oracle facet partition mechanics, new_evidence: none, final_status: NEEDS_SOURCE_SPECIFIC_REPAIR, future_canary_required: false}
+    - {company: ServiceNow, current_platform: smartrecruiters, primary_blocker: resolved detail-heavy request budgeting, best_known_alternate_source: activated SmartRecruiters ServiceNow, new_evidence: operator PASS_COMPLETE with authoritative total 697, 697 normalized jobs, seven listing requests, no detail enrichment, no mutation, and 103 jobs headroom, final_status: RECOVERED, future_canary_required: false}
+    - {company: CN Rail, current_platform: sap_successfactors, primary_blocker: reported total reached while collection changed, best_known_alternate_source: unproved SuccessFactors sitemap/RSS, new_evidence: none, final_status: NEEDS_SOURCE_SPECIFIC_REPAIR, future_canary_required: false}
+    - {company: HP Inc., current_platform: eightfold, primary_blocker: mutable PCSx retained only 16 of 911 advertised records, best_known_alternate_source: none proven scope-equivalent, new_evidence: none, final_status: NEEDS_SOURCE_SPECIFIC_REPAIR, future_canary_required: false}
+    - {company: Seagate, current_platform: sap_successfactors, primary_blocker: repeated full page after 97 of 284, best_known_alternate_source: unproved SuccessFactors sitemap/RSS, new_evidence: none, final_status: NEEDS_SOURCE_SPECIFIC_REPAIR, future_canary_required: false}
+    - {company: AstraZeneca, current_platform: workday, primary_blocker: collection mutation plus unvalidated runtime identity, best_known_alternate_source: Phase 4 Workday subdivision after identity proof, new_evidence: none, final_status: NEEDS_SOURCE_SPECIFIC_REPAIR, future_canary_required: false}
+    - {company: Kinross Gold, current_platform: sap_successfactors, primary_blocker: reported total reached while collection changed, best_known_alternate_source: unproved SuccessFactors sitemap/RSS, new_evidence: none, final_status: NEEDS_SOURCE_SPECIFIC_REPAIR, future_canary_required: false}
+    - {company: Meta, current_platform: meta, primary_blocker: sitemap active-only and complete-shard semantics unproved, best_known_alternate_source: metacareers.com jobsearch sitemap, new_evidence: no new checked-in authority, final_status: INSUFFICIENT_EVIDENCE, future_canary_required: false}
+    - {company: Qualcomm, current_platform: eightfold, primary_blocker: alternate sitemap active-only/job-only semantics unproved, best_known_alternate_source: first-party Qualcomm sitemap, new_evidence: no new checked-in authority, final_status: INSUFFICIENT_EVIDENCE, future_canary_required: false}
+    - {company: Micron, current_platform: eightfold, primary_blocker: alternate tenant identity and scope equivalence unproved, best_known_alternate_source: micron.wd1.myworkdayjobs.com/external, new_evidence: no first-party binding added, final_status: INSUFFICIENT_EVIDENCE, future_canary_required: false}
+    - {company: Rivian, current_platform: icims, primary_blocker: sitemap active-only/scope/ID equivalence unproved, best_known_alternate_source: careers.rivian.com/sitemap.xml, new_evidence: no checked-in target fixture or authority, final_status: INSUFFICIENT_EVIDENCE, future_canary_required: false}
+    - {company: Goldman Sachs, current_platform: browser_rendered_html, primary_blocker: GraphQL replay/public stability and exact category-union completeness unproved, best_known_alternate_source: api-higher.gs.com GetRoles GraphQL, new_evidence: no exact replay fixture, final_status: INSUFFICIENT_EVIDENCE, future_canary_required: false}
+    - {company: GlobalFoundries, current_platform: eightfold, primary_blocker: alternate tenant identity and scope equivalence unproved, best_known_alternate_source: globalfoundries.wd1.myworkdayjobs.com/External, new_evidence: no first-party binding added, final_status: INSUFFICIENT_EVIDENCE, future_canary_required: false}
+    - {company: Espressif Systems, current_platform: static_html, primary_blocker: no explicit terminal, best_known_alternate_source: none, new_evidence: none, final_status: INSUFFICIENT_EVIDENCE, future_canary_required: false}
+    - {company: ecobee, current_platform: static_html, primary_blocker: no explicit terminal, best_known_alternate_source: none, new_evidence: none, final_status: INSUFFICIENT_EVIDENCE, future_canary_required: false}
+    - {company: Nordic Semiconductor, current_platform: teamtailor, primary_blocker: no retained exact target response proves identity plus absent-next terminal, best_known_alternate_source: existing Teamtailor endpoint, new_evidence: generic mechanic only, final_status: INSUFFICIENT_EVIDENCE, future_canary_required: false}
+    - {company: Athabasca Oil, current_platform: static_html, primary_blocker: two positive cards without terminal proof, best_known_alternate_source: none, new_evidence: none, final_status: INSUFFICIENT_EVIDENCE, future_canary_required: false}
+    - {company: Nutrien, current_platform: browser_rendered_html, primary_blocker: exact SuccessFactors endpoint North America scope identity and terminal unproved, best_known_alternate_source: SuccessFactors RMK lead, new_evidence: none, final_status: INSUFFICIENT_EVIDENCE, future_canary_required: false}
+    - {company: Samsung Electronics, current_platform: workday, primary_blocker: exact Workday employer/site identity absent, best_known_alternate_source: existing sec/Samsung_Careers board, new_evidence: sibling mechanics do not prove binding, final_status: FAIL_IDENTITY, future_canary_required: false}
+    - {company: GE Vernova, current_platform: workday, primary_blocker: exact identity absent and total exceeds direct cap, best_known_alternate_source: existing gevernova/Vernova_ExternalSite plus Phase 4 subdivision, new_evidence: no binding evidence, final_status: FAIL_IDENTITY, future_canary_required: false}
+    - {company: General Motors, current_platform: static_html, primary_blocker: parent/subsidiary scope equivalence unresolved, best_known_alternate_source: generalmotors/careers_gm Workday, new_evidence: no exact first-party binding or parity proof, final_status: FAIL_IDENTITY, future_canary_required: false}
+    - {company: Caterpillar, current_platform: static_html, primary_blocker: parent scope and Progress Rail separation unresolved, best_known_alternate_source: cat/CaterpillarCareers Workday, new_evidence: no exact parity proof, final_status: FAIL_IDENTITY, future_canary_required: false}
+    - {company: Zalando, current_platform: static_html, primary_blocker: alternate board identity and scope equivalence unproved, best_known_alternate_source: zalando/ZalandoSiteWD Workday, new_evidence: no first-party binding added, final_status: FAIL_IDENTITY, future_canary_required: false}
+    - {company: Capital One, current_platform: workday, primary_blocker: exact Workday employer/site identity absent, best_known_alternate_source: existing Workday board with Phase 4 mechanics, new_evidence: no binding evidence, final_status: FAIL_IDENTITY, future_canary_required: false}
+    - {company: Cameco, current_platform: static_html, primary_blocker: retained source terminal unproved and Jobvite alternate failed official binding, best_known_alternate_source: rejected Jobvite tenant, new_evidence: none, final_status: FAIL_IDENTITY, future_canary_required: false}
+    - {company: Coupang, current_platform: static_html, primary_blocker: page parameter repeats page one, best_known_alternate_source: unproved Greenhouse/global/Korean sources, new_evidence: none, final_status: FAIL_CONTRACT, future_canary_required: false}

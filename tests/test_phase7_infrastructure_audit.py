@@ -134,13 +134,13 @@ def test_runtime_and_known_remaining_counts_are_separate_and_reproducible():
     assert summary["known_remaining_category_counts"] == {
         "B": 3,
         "C": 4,
-        "D": 41,
+        "D": 39,
         "E": 2,
         "F": 2,
         "I": 2,
         "L": 3,
     }
-    assert summary["known_remaining_problem_sources"] == 57
+    assert summary["known_remaining_problem_sources"] == 55
 
 
 def test_rejected_candidates_are_not_counted_as_retired_production_sources():

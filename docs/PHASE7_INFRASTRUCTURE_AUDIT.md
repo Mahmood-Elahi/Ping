@@ -17,12 +17,12 @@ missing shared infrastructure layer.
   `jobs/company_careers_coverage_20261001_142550.json`: 472 complete, 47
   incomplete, and 14 failed sources. It is a 2026-10-01 snapshot, not a claim
   of live health on 2026-10-10.
-- Later deterministic evidence resolves five rows from that problem set
-  (Waymo, Wise, ASML, Dyson, and Box) and separately downgrades Nutrien's older
+- Later deterministic evidence resolves seven rows from that problem set
+  (Waymo, Wise, ASML, Dyson, Box, SGS, and ServiceNow) and separately downgrades Nutrien's older
   zero-job browser result because terminal evidence is unproven. This yields a
-  57-source **known maintenance queue**, not a replacement current-scan health
+  55-source **known maintenance queue**, not a replacement current-scan health
   total.
-- Fifty-five of those 57 sources are ordinary adapter, provider-contract,
+- Fifty-three of those 55 sources are ordinary adapter, provider-contract,
   identity, completeness, parsing, transient, or unsupported-provider work.
   Only GitHub and Parkland carry credible anti-bot/network-block evidence.
   Each affects one source; neither has deterministic evidence that alternate
@@ -49,9 +49,9 @@ tests, and the three sibling repositories in read-only mode.
 | Newest full-snapshot incomplete | 47 | Exact only for the 2026-10-01 snapshot |
 | Newest full-snapshot failed | 14 | Exact only for the 2026-10-01 snapshot |
 | Runtime problem rows classified | 61 | Every incomplete/failed row in that snapshot |
-| Later resolved runtime problem rows | 5 | Source-specific later evidence; not a new full scan |
+| Later resolved runtime problem rows | 7 | Source-specific later evidence; not a new full scan |
 | Later explicit problem finding | 1 | Nutrien browser terminal proof |
-| Known maintenance queue | 57 | 61 - 5 + 1; do not treat as a current health denominator |
+| Known maintenance queue | 55 | 61 - 7 + 1; do not treat as a current health denominator |
 | Genuine infrastructure-block candidates | 2 | GitHub and Parkland, both network-block only |
 | Retired/rejected production sources | 0 | All 533 production sources remain active |
 | Rejected Phase 5 candidate rows | 5 | Four unique proposals; Lightspeed France occurs in both candidate registries |
@@ -62,6 +62,9 @@ SmartRecruiters activation is
 The subsequent exact live-tested Bosch activation preserves all 533 sources
 and is separately pinned as
 `020e0b6f4df9dfe65f391551f516beeaafa18c45fe561ae6a01744a234352408`.
+The later exact live-tested SGS and ServiceNow activations also preserve all
+533 sources; the current production registry is pinned as
+`794e477d04da7a2825b3d14157fd35f97c03fc35a8ded3878c9d0b3d598bfc4f`.
 The runtime evidence SHA-256 is
 `fb12864e7d1b84931d56c8a831a51572377f06e9eb6d8d8970b65b76fd5e7a7b`.
 Focused tests fail if either audited input changes without a fresh review.
@@ -97,8 +100,8 @@ standard of proof.
 
 ## Exactly-one blocker classification
 
-Counts below use the 57-source known maintenance queue. The parenthetical
-number is the count in the 61-row runtime problem snapshot before the five
+Counts below use the 55-source known maintenance queue. The parenthetical
+number is the count in the 61-row runtime problem snapshot before the seven
 later source-specific recoveries and Nutrien's later browser finding.
 
 | Code | Primary blocker | Remaining (runtime) | Sources in the known maintenance queue |
@@ -106,7 +109,7 @@ later source-specific recoveries and Nutrien's later browser finding.
 | A | `ADAPTER_BUG` | 0 (0) | None; observed defects fit narrower contract, pagination, or parsing categories |
 | B | `PROVIDER_CONTRACT_CHANGE` | 3 (3) | Google; ARM; Schneider Electric |
 | C | `IDENTITY_UNPROVEN` | 4 (4) | Magic Leap; Plaid; Kraken; YYC Calgary Airport Authority |
-| D | `PAGINATION_OR_COMPLETENESS` | 41 (44) | Atlassian; Shopify; Meta; JPMorgan Chase; Emerson; Honeywell; Microsoft; Qualcomm; Micron; Eaton; Samsung Electronics; GE Vernova; Rivian; General Motors; Caterpillar; Intuitive Surgical; Coupang; Zalando; Capital One; Goldman Sachs; GlobalFoundries; Oracle; Stantec; Espressif Systems; Bosch; CPKC; Scotiabank; ecobee; Bombardier; Fortinet; ServiceNow; Nordic Semiconductor; CN Rail; Athabasca Oil; HP Inc.; Seagate; SGS; AstraZeneca; Kinross Gold; Cameco; Nutrien |
+| D | `PAGINATION_OR_COMPLETENESS` | 39 (44) | Atlassian; Shopify; Meta; JPMorgan Chase; Emerson; Honeywell; Microsoft; Qualcomm; Micron; Eaton; Samsung Electronics; GE Vernova; Rivian; General Motors; Caterpillar; Intuitive Surgical; Coupang; Zalando; Capital One; Goldman Sachs; GlobalFoundries; Oracle; Stantec; Espressif Systems; Bosch; CPKC; Scotiabank; ecobee; Bombardier; Fortinet; Nordic Semiconductor; CN Rail; Athabasca Oil; HP Inc.; Seagate; AstraZeneca; Kinross Gold; Cameco; Nutrien |
 | E | `PARSING_OR_NORMALIZATION` | 2 (2) | Novarc Technologies; Chemelex |
 | F | `RATE_LIMIT_OR_TRANSIENT` | 2 (3) | Etsy; SAP |
 | G | `BROWSER_RENDER_REQUIRED` | 0 (0) | None |
@@ -118,8 +121,9 @@ later source-specific recoveries and Nutrien's later browser finding.
 | M | `LOW_VALUE_OR_NOT_RECOVERABLE` | 0 (0) | None |
 | N | `UNKNOWN` | 0 (0) | None |
 
-The five later recovered rows retain their historical primary classifications
-for auditability: Waymo (F), Wise (D), ASML (D), Dyson (D), and Box (D).
+The seven later recovered rows retain their historical primary classifications
+for auditability: Waymo (F), Wise (D), ASML (D), Dyson (D), Box (D), SGS (D),
+and ServiceNow (D).
 
 Categories A-F and L are normal coverage/adapter backlog, **not Phase 7
 infrastructure**. Specifically:
@@ -329,6 +333,6 @@ checkout, or branch change is part of this audit.
 
 **Recommended next step:** stage only the Phase 7 audit metadata, offline
 reporting module/script, focused tests, and this document after review; then
-mark the seven-phase architecture roadmap complete and handle the 57-source
+mark the seven-phase architecture roadmap complete and handle the 55-source
 queue through ordinary source-specific coverage maintenance. Keep the named
 Batch 9 artifacts and run history unstaged.

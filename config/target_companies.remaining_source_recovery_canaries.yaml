@@ -1,0 +1,17 @@
+# Historical post-audit live-validation candidate. An operator-run canary
+# returned PASS_COMPLETE for this exact row, which is now production-active.
+# Keep this isolated registry as the immutable comparison artifact.
+target_companies:
+  - name: ServiceNow
+    platform: smartrecruiters
+    slug: ServiceNow
+    endpoint_variant: companies_postings_v1
+    careers_url: https://careers.servicenow.com/
+    endpoint_url: https://api.smartrecruiters.com/v1/companies/ServiceNow/postings
+    identity_regex: ^ServiceNow$
+    allowed_apply_hosts: [jobs.smartrecruiters.com]
+    page_size: 100
+    max_pages: 8
+    max_jobs: 800
+    max_response_bytes: 3000000
+    selective_detail_enrichment: false

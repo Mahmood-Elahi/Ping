@@ -12,8 +12,8 @@ evidence:
     source_scopes: 533
   subsequent_production_registry:
     path: config/target_companies.yaml
-    sha256: 020e0b6f4df9dfe65f391551f516beeaafa18c45fe561ae6a01744a234352408
-    reason: exact live-tested Bosch SmartRecruiters candidate activated after the Phase 7 audit
+    sha256: 794e477d04da7a2825b3d14157fd35f97c03fc35a8ded3878c9d0b3d598bfc4f
+    reason: exact live-tested Bosch, SGS, and ServiceNow SmartRecruiters candidates activated after the Phase 7 audit
     canonical_companies: 533
     configured_sources: 533
     source_scopes: 533
@@ -188,6 +188,14 @@ resolved_after_runtime_snapshot:
     category: D
     current_platform: greenhouse
     evidence: docs/PHASE1_ATS_MIGRATION_REVIEW.md
+  - company: SGS
+    category: D
+    current_platform: smartrecruiters
+    evidence: config/pagination_completeness_recovery_batch4.yaml
+  - company: ServiceNow
+    category: D
+    current_platform: smartrecruiters
+    evidence: config/remaining_source_recovery_pass.yaml
 
 post_snapshot_problem_findings:
   - company: Nutrien
