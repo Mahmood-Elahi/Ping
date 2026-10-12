@@ -50,7 +50,9 @@ def validate_audit(path: Path = DEFAULT_AUDIT_PATH) -> dict[str, Any]:
 
     audit = _load_yaml(path)
     evidence = audit["evidence"]
-    registry_meta = evidence["production_registry"]
+    registry_meta = evidence.get("subsequent_production_registry") or evidence[
+        "production_registry"
+    ]
     snapshot_meta = evidence["newest_full_runtime_snapshot"]
     registry_path = ROOT / registry_meta["path"]
     snapshot_path = ROOT / snapshot_meta["path"]

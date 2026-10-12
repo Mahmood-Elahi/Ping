@@ -103,9 +103,12 @@ def test_review_is_anchored_to_activated_registry_and_runtime_evidence() -> None
     assert evidence["production_registry_changed"] is True
     assert evidence["live_validation_performed"] is True
     assert evidence["live_validation_performed_by"] == "operator"
-    assert evidence["production_registry_after_activation"]["sha256"] == _sha256(
-        REGISTRY_PATH
+    assert evidence["production_registry_after_activation"]["sha256"] == (
+        "4ce96583c98f6520d77bf3c0c0c4642a969594ad4b341e41fb0c39b3f55166ef"
     )
+    assert evidence["production_registry_current_after_later_activations"][
+        "sha256"
+    ] == _sha256(REGISTRY_PATH)
     assert evidence["production_reliability_overlay_after_activation"][
         "sha256"
     ] == _sha256(REPAIRS_PATH)

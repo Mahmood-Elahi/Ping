@@ -533,7 +533,8 @@ class BatchBRecoveryValidationTests(unittest.TestCase):
             "smartrecruiters": (
                 "name", "platform", "slug", "careers_url", "endpoint_url",
                 "endpoint_variant", "identity_regex", "allowed_apply_hosts",
-                "page_size", "max_pages", "max_jobs",
+                "page_size", "max_pages", "max_jobs", "max_response_bytes",
+                "selective_detail_enrichment",
             ),
             "hawksearch_v2": (
                 "name", "platform", "careers_url", "endpoint_url",

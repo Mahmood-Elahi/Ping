@@ -21,6 +21,21 @@ REPAIRS = ROOT / "config" / "company_careers_reliability_repairs_v1.yaml"
 # named companies to their reviewed production contracts while continuing to
 # compare every other entry byte-for-byte after reliability repairs.
 APPROVED_SOURCE_MIGRATIONS: dict[str, dict[str, Any]] = {
+    "bosch": {
+        "name": "Bosch",
+        "platform": "smartrecruiters",
+        "slug": "BoschGroup",
+        "endpoint_variant": "companies_postings_v1",
+        "careers_url": "https://jobs.bosch.com/en/",
+        "endpoint_url": "https://api.smartrecruiters.com/v1/companies/BoschGroup/postings",
+        "identity_regex": "^Bosch Group$",
+        "allowed_apply_hosts": ["jobs.smartrecruiters.com"],
+        "page_size": 100,
+        "max_pages": 50,
+        "max_jobs": 5_000,
+        "max_response_bytes": 3_000_000,
+        "selective_detail_enrichment": False,
+    },
     "waymo": {
         "name": "Waymo",
         "platform": "greenhouse",

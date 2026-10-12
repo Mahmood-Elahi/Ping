@@ -9,6 +9,10 @@ evidence_boundary:
   production_registry_after_activation:
     path: config/target_companies.yaml
     sha256: 4ce96583c98f6520d77bf3c0c0c4642a969594ad4b341e41fb0c39b3f55166ef
+  production_registry_current_after_later_activations:
+    path: config/target_companies.yaml
+    sha256: 020e0b6f4df9dfe65f391551f516beeaafa18c45fe561ae6a01744a234352408
+    superseding_activation: pagination_completeness_recovery_batch3 Bosch
   production_reliability_overlay_after_activation:
     path: config/company_careers_reliability_repairs_v1.yaml
     sha256: 83b1ca1ae956d85661530d6652d5a0f9b90642638e268367808bcfce1b713ecc

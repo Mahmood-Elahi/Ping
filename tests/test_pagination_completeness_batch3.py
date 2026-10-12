@@ -136,7 +136,8 @@ def test_batch3_scope_groups_and_statuses_are_exact() -> None:
     assert len(grouped) == len(set(grouped)) == 18
     assert set(grouped) == set(EXPECTED)
     assert review["status_counts"] == {
-        "READY_FOR_CANARY": 1,
+        "RECOVERED": 1,
+        "READY_FOR_CANARY": 0,
         "RECOVERED_BY_SHARED_FIX": 0,
         "NEEDS_SOURCE_SPECIFIC_REPAIR": 9,
         "FAIL_IDENTITY": 0,
@@ -146,11 +147,13 @@ def test_batch3_scope_groups_and_statuses_are_exact() -> None:
         "NO_SAFE_REPAIR": 0,
         "INSUFFICIENT_EVIDENCE": 8,
     }
-    assert review["ready_for_canary"] == ["Bosch"]
+    assert review["recovered"] == ["Bosch"]
+    assert review["live_validated"] == ["Bosch"]
+    assert review["ready_for_canary"] == []
     assert review["recovered_by_shared_fix"] == []
 
 
-def test_only_bosch_has_an_isolated_candidate_and_production_is_unchanged() -> None:
+def test_production_bosch_exactly_matches_live_tested_candidate() -> None:
     candidate_rows = _rows(CANDIDATES)
     production_rows = _rows(PRODUCTION)
 
@@ -159,16 +162,19 @@ def test_only_bosch_has_an_isolated_candidate_and_production_is_unchanged() -> N
     assert candidate_rows["Bosch"]["max_pages"] == 50
     assert candidate_rows["Bosch"]["max_jobs"] == 5_000
     assert candidate_rows["Bosch"]["selective_detail_enrichment"] is False
-    assert production_rows["Bosch"]["page_size"] == 20
-    assert production_rows["Bosch"]["max_pages"] == 1
-    assert production_rows["Bosch"]["max_jobs"] == 20
-    assert _yaml(REVIEW)["production_safety"]["production_registry_modified"] is False
+    assert production_rows["Bosch"] == candidate_rows["Bosch"]
+    assert production_rows["Bosch"]["max_response_bytes"] == 3_000_000
+    assert production_rows["Bosch"]["identity_regex"] == "^Bosch Group$"
+    assert production_rows["Bosch"]["allowed_apply_hosts"] == [
+        "jobs.smartrecruiters.com"
+    ]
+    assert _yaml(REVIEW)["production_safety"]["production_registry_modified"] is True
 
 
 def test_bosch_bound_is_derived_from_stored_total_and_canary_is_exact() -> None:
     review = _yaml(REVIEW)
     bound = review["bosch_candidate"]["bound_derivation"]
-    canary = review["manual_canaries"][0]
+    canary = review["historical_manual_canaries"][0]
 
     assert bound["observed_high_total"] == 4_835
     assert bound["exact_pages_at_observed_high"] == ceil(4_835 / 100) == 49
@@ -182,6 +188,45 @@ def test_bosch_bound_is_derived_from_stored_total_and_canary_is_exact() -> None:
     assert canary["command"].endswith("--request-budget 50 --run")
     assert canary["persistence"] is False
     assert canary["lifecycle_mutation"] is False
+
+
+def test_operator_canary_closes_live_validation_and_activation_without_rerun() -> None:
+    review = _yaml(REVIEW)
+    bosch = review["bosch_candidate"]
+    live = bosch["live_validation"]
+
+    assert bosch["status"] == "RECOVERED"
+    assert bosch["evidence_state"] == "LIVE_VALIDATED"
+    assert bosch["validation_status"] == "PASS_COMPLETE"
+    assert live["performed_by"] == "operator"
+    assert live["rerun_by_repository_closeout"] is False
+    assert live["jobs_collected"] == live["inventory_items_collected"] == 4_950
+    assert live["total_available"] == live["terminal_evidence_value"] == 4_950
+    assert live["unique_stable_ids"] == live["unique_canonical_urls"] == 4_950
+    assert live["pages_requested"] == live["requests_started"] == live["request_budget"] == 50
+    assert live["request_budget_respected"] is True
+    assert live["collection_changed_during_scan"] is False
+    assert live["hidden_continuation_absent"] is True
+    assert live["safety_limit_reached"] is False
+    assert live["unreadable_items"] == live["rejected_items"] == 0
+    assert live["duplicate_ids"] == live["duplicate_canonical_urls"] == []
+    assert live["lifecycle_mutations"] == 0
+    assert live["persistence_mode"] == "none"
+    assert live["dashboard_published"] is False
+    assert live["error"] is None
+    assert bosch["activation"]["identity_and_pagination_semantics_changed_from_candidate"] is False
+
+
+def test_bosch_capacity_note_and_overflow_policy_are_locked() -> None:
+    maintenance = _yaml(REVIEW)["bosch_candidate"]["maintenance"]
+
+    assert maintenance == {
+        "validation_ceiling_jobs": 5_000,
+        "live_authoritative_total": 4_950,
+        "remaining_capacity_jobs": 50,
+        "current_failure": False,
+        "overflow_policy": "fail_incomplete_without_truncation",
+    }
 
 
 def test_bosch_stable_authoritative_total_completes_at_49_pages(monkeypatch) -> None:
@@ -293,7 +338,9 @@ def test_pass_gates_accounting_rollback_and_batch4_are_durable() -> None:
     }.issubset(gates)
     assert review["inventory_accounting_contract"]["silent_loss_allowed"] is False
     assert review["mutation_contract"]["outcome"]["absence_authorized"] is False
-    assert review["rollback"]["Bosch"]["production_action"] == "none_required"
+    assert review["rollback"]["Bosch"]["production_action"].startswith(
+        "restore only the prior Bosch production limits"
+    )
     assert review["rollback"]["source_migrations"] == "none_proposed"
     assert review["batch4_recommendation"]["exact_composition_count"] == 13
     assert len(review["batch4_recommendation"]["core_targets"]) == 10
@@ -318,4 +365,7 @@ def test_playbook_contains_batch3_acceptance_rules_and_no_false_recovery() -> No
     assert "SuccessFactors RSS or sitemap" in text
     assert "Migration from an unstable ATS" in text
     assert "Static completion needs a provider-visible final page" in text
-    assert "No Batch 3 source is production-recovered" in text
+    assert "deterministic `READY_FOR_CANARY`" in text
+    assert "live `PASS_COMPLETE`" in text
+    assert "production activation" in text
+    assert "50 jobs of remaining capacity" in text

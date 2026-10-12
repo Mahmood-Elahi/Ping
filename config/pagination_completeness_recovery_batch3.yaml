@@ -1,6 +1,6 @@
 schema_version: 1
 batch: pagination_completeness_recovery_batch3
-evidence_date: '2026-10-11'
+evidence_date: '2026-10-12'
 timezone: America/Edmonton
 repository_head_reviewed: 7aca829
 batch2_checkpoint:
@@ -255,9 +255,12 @@ static_terminal_review:
     missing: explicit page count, disabled next, stable next URL, structured atomic inventory, or finite section union
 
 bosch_candidate:
-  status: READY_FOR_CANARY
-  production_registry_changed: false
+  status: RECOVERED
+  evidence_state: LIVE_VALIDATED
+  validation_status: PASS_COMPLETE
+  production_registry_changed: true
   candidate_registry: config/target_companies.pagination_completeness_batch3_canaries.yaml
+  production_registry: config/target_companies.yaml
   source: https://api.smartrecruiters.com/v1/companies/BoschGroup/postings
   identity: {slug: BoschGroup, company_name_regex: '^Bosch Group$', status: validated_in_stored_evidence}
   stored_evidence:
@@ -272,6 +275,57 @@ bosch_candidate:
     bounded_headroom_percent: 3.41
     hard_canary_request_budget: 50
     retries_or_restart_inside_budget: 0
+  live_validation:
+    performed_by: operator
+    rerun_by_repository_closeout: false
+    canary_outcome: PASS_COMPLETE
+    company: Bosch
+    platform: smartrecruiters
+    configured_slug: BoschGroup
+    source_scope: default
+    inventory_complete: true
+    central_finalizer_authoritative: true
+    jobs_collected: 4950
+    inventory_items_collected: 4950
+    total_available: 4950
+    unique_stable_ids: 4950
+    unique_canonical_urls: 4950
+    stable_ids_unique: true
+    canonical_urls_unique: true
+    apply_urls_contract_valid: true
+    normalized_jobs_attributable: true
+    source_identity_status: validated
+    terminal_evidence_type: authoritative_total
+    terminal_evidence_value: 4950
+    terminal_evidence_valid: true
+    collection_changed_during_scan: false
+    hidden_continuation_absent: true
+    safety_limit_reached: false
+    pages_requested: 50
+    requests_started: 50
+    request_budget: 50
+    request_budget_respected: true
+    unreadable_items: 0
+    rejected_items: 0
+    duplicate_ids: []
+    duplicate_canonical_urls: []
+    lifecycle_mutations: 0
+    persistence_mode: none
+    production_registry_mutated_during_canary: false
+    dashboard_published: false
+    error: null
+  activation:
+    state: activated_production_configuration
+    exact_live_tested_candidate: config/target_companies.pagination_completeness_batch3_canaries.yaml
+    production_registry: config/target_companies.yaml
+    production_registry_sha256: 020e0b6f4df9dfe65f391551f516beeaafa18c45fe561ae6a01744a234352408
+    identity_and_pagination_semantics_changed_from_candidate: false
+  maintenance:
+    validation_ceiling_jobs: 5000
+    live_authoritative_total: 4950
+    remaining_capacity_jobs: 50
+    current_failure: false
+    overflow_policy: fail_incomplete_without_truncation
   terminal_required: unique stable IDs equal stable totalFound with no overlap, total movement, hidden continuation, safety limit, or rejected identity
 
 inventory_accounting_contract:
@@ -315,7 +369,7 @@ companies:
   - {company: Honeywell, status: NEEDS_SOURCE_SPECIFIC_REPAIR, root_cause: mutable Oracle offsets and no stored exhaustive facets, next_evidence: full root facet payload with exact bucket counts}
   - {company: Oracle, status: NEEDS_SOURCE_SPECIFIC_REPAIR, root_cause: mutable Oracle offsets and no stored exhaustive facets, next_evidence: full root facet payload with exact bucket counts}
   - {company: Fortinet, status: NEEDS_SOURCE_SPECIFIC_REPAIR, root_cause: one-row shortfall still includes observable mutation, next_evidence: full root facet payload with exact bucket counts}
-  - {company: Bosch, status: READY_FOR_CANARY, root_cause: prior source and adapter bounds were below authoritative total, candidate: 50 pages and 5000 jobs with a 50-request hard canary budget}
+  - {company: Bosch, status: RECOVERED, evidence_state: LIVE_VALIDATED, validation_status: PASS_COMPLETE, root_cause: prior source and adapter bounds were below authoritative total, activation: exact tested 50-page / 5000-job candidate promoted to production}
   - {company: CPKC, status: NEEDS_SOURCE_SPECIFIC_REPAIR, root_cause: total reached under contradictory mutation evidence, next_evidence: stable search traversal or target-specific complete active feed}
   - {company: Scotiabank, status: NEEDS_SOURCE_SPECIFIC_REPAIR, root_cause: mutable search traversal and unproved alternate feed completeness, next_evidence: target feed contract with active-only and total/terminal evidence}
   - {company: Bombardier, status: NEEDS_SOURCE_SPECIFIC_REPAIR, root_cause: repeated search page and unproved alternate feed completeness, next_evidence: target feed contract with active-only and total/terminal evidence}
@@ -325,7 +379,8 @@ companies:
   - {company: Espressif Systems, status: INSUFFICIENT_EVIDENCE, root_cause: stable positives do not prove a static terminal, next_evidence: stored explicit final-page, atomic collection, or finite-section contract}
 
 status_counts:
-  READY_FOR_CANARY: 1
+  RECOVERED: 1
+  READY_FOR_CANARY: 0
   RECOVERED_BY_SHARED_FIX: 0
   NEEDS_SOURCE_SPECIFIC_REPAIR: 9
   FAIL_IDENTITY: 0
@@ -335,14 +390,16 @@ status_counts:
   NO_SAFE_REPAIR: 0
   INSUFFICIENT_EVIDENCE: 8
 
-ready_for_canary: [Bosch]
+recovered: [Bosch]
+live_validated: [Bosch]
+ready_for_canary: []
 recovered_by_shared_fix: []
 needs_source_specific_repair: [Stantec, JPMorgan Chase, Emerson, Honeywell, Oracle, Fortinet, CPKC, Scotiabank, Bombardier]
 insufficient_evidence: [Meta, Rivian, Goldman Sachs, Qualcomm, Micron, GlobalFoundries, ecobee, Espressif Systems]
 fail_identity: []
 fail_contract: []
 
-manual_canaries:
+historical_manual_canaries:
   - company: Bosch
     registry: config/target_companies.pagination_completeness_batch3_canaries.yaml
     request_budget: 50
@@ -354,9 +411,9 @@ manual_canaries:
 
 rollback:
   Bosch:
-    production_action: none_required
-    candidate_action: remove config/target_companies.pagination_completeness_batch3_canaries.yaml
-    adapter_action: restore SmartRecruiters validation ceiling to 10 pages / 1000 rows if the candidate is abandoned
+    production_action: restore only the prior Bosch production limits of page_size 20, max_pages 1, and max_jobs 20; remove max_response_bytes and selective_detail_enrichment fields added by activation
+    candidate_action: retain as exact live-validation evidence
+    adapter_action: keep the reviewed SmartRecruiters validation ceiling unless the high-volume capability is separately retired
   source_migrations: none_proposed
 
 batch4_recommendation:
@@ -369,11 +426,13 @@ batch4_recommendation:
   rule: admit a gated straggler only with new deterministic evidence; do not repeat Batch 2 discovery
 
 production_safety:
-  production_registry_modified: false
+  production_registry_modified: true
   production_reliability_overlay_modified: false
   live_scan_run: false
-  live_canary_run: false
-  company_or_provider_network_request: false
+  live_canary_run: true
+  live_canary_run_by: operator
+  live_canary_rerun_during_closeout: false
+  company_or_provider_network_request: operator_canary_only
   browser_or_proxy_session: false
   production_supabase_mutation: false
   migration_execution: false

@@ -607,25 +607,29 @@ Use four evidence-focused groups:
 Keep Atlassian in the separate source-specific straggler backlog with its exact
 live iCIMS URL/stable-ID contract failure.
 
-## Batch 3 deterministic closeout
+## Batch 3 deterministic closeout and live activation
 
 Batch 3 began at actual HEAD `7aca829` (`Complete pagination completeness
 recovery batch 2`). Its parent is the requested Batch 1 checkpoint `51b443b`.
-No checkout, reset, branch change, live scan, live canary, provider request,
-browser/proxy session, production mutation, migration, GitHub Action, commit,
-push, or merge was performed.
+The deterministic review itself performed no checkout, reset, branch change,
+live scan, live canary, provider request, browser/proxy session, production
+mutation, migration, GitHub Action, commit, push, or merge. On 2026-10-12 the
+operator supplied the later live canary evidence used for this closeout; the
+repository work did not rerun Bosch.
 
 The 18-source outcome is deliberately narrow:
 
 | Status | Companies |
 |---|---|
-| `READY_FOR_CANARY` | Bosch |
+| `RECOVERED` / `LIVE_VALIDATED` / `PASS_COMPLETE` | Bosch |
 | `NEEDS_SOURCE_SPECIFIC_REPAIR` | Stantec; JPMorgan Chase; Emerson; Honeywell; Oracle; Fortinet; CPKC; Scotiabank; Bombardier |
 | `INSUFFICIENT_EVIDENCE` | Meta; Rivian; Goldman Sachs; Qualcomm; Micron; GlobalFoundries; ecobee; Espressif Systems |
 
 There are no `RECOVERED_BY_SHARED_FIX`, `FAIL_IDENTITY`, `FAIL_CONTRACT`,
-`FAIL_TRANSIENT`, `UNSUPPORTED_PROVIDER`, or `NO_SAFE_REPAIR` outcomes. No Batch 3 source is production-recovered until a manual canary returns
-`PASS_COMPLETE` and its exact tested config is separately activated.
+`FAIL_TRANSIENT`, `UNSUPPORTED_PROVIDER`, or `NO_SAFE_REPAIR` outcomes. Bosch
+followed the required three-stage path: deterministic `READY_FOR_CANARY`, then
+operator-provided live `PASS_COMPLETE` / `LIVE_VALIDATED` evidence, then
+production activation of the exact tested candidate.
 
 Machine-readable evidence, source-by-source missing proof, provenance,
 budgets, the canary command, rollback, and the final queue are in
@@ -645,23 +649,34 @@ page-size evidence are used for the bound.
 
 At 100 rows per page, 4,835 jobs require 49 requests. The candidate rounds to
 the next full page boundary: `max_pages=50`, `max_jobs=5000`, and an independent
-50-request canary ceiling. This gives 165 jobs (3.41%) of bounded headroom, not
-an arbitrary large limit. SmartRecruiters' adapter validation ceiling now
-permits 50 pages / 5,000 rows, but every production source keeps its own
-existing limits; the production Bosch row remains at one page / 20 jobs.
+50-request canary ceiling. This gave 165 jobs (3.41%) of bounded headroom at
+candidate preparation time, not an arbitrary large limit. SmartRecruiters'
+adapter validation ceiling permits 50 pages / 5,000 rows.
 
-The future canary is:
+The operator canary collected all 4,950 advertised jobs in 50 requests, with
+4,950 unique stable IDs and canonical URLs, no rejected or unreadable items,
+no mutation, no hidden continuation, and valid authoritative-total terminal
+evidence. The production Bosch row is now the exact tested candidate:
+`page_size=100`, `max_pages=50`, `max_jobs=5000`,
+`max_response_bytes=3000000`, and inventory-only normalization. Its
+SmartRecruiters identity, endpoint, pagination semantics, and apply-URL host
+contract are unchanged from the tested candidate.
+
+The canary command that the operator ran was:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\validate_source_integrity_canaries.py --registry config\target_companies.pagination_completeness_batch3_canaries.yaml --company Bosch --request-budget 50 --run
 ```
 
-The validator is non-persistent, selects only Bosch, publishes no dashboard,
-and performs no lifecycle mutation. A moving total, overlap, repeated ID,
-request exhaustion, or a total above the candidate bound must fail closed.
-Rollback before activation is deletion of the candidate registry plus
-restoring the prior adapter validation ceiling if the high-volume candidate is
-abandoned. There is no production rollback because production was not changed.
+The repository closeout did not rerun it. The validator was non-persistent,
+selected only Bosch, published no dashboard, and performed no lifecycle or
+production-registry mutation. A moving total, overlap, repeated ID, request
+exhaustion, or a total above the candidate bound must still fail closed.
+
+Maintenance note: Bosch currently has only **50 jobs of remaining capacity**
+beneath the 5,000-job validation ceiling. This is not a current failure. If a
+later authoritative total exceeds 5,000, the source must report incomplete
+rather than truncate or treat the configured ceiling as terminal evidence.
 
 ### First-party inventory results
 
@@ -770,3 +785,73 @@ Eaton only if new deterministic evidence is available; do not repeat Batch 2
 discovery. Coupang remains separate contract backlog. Samsung Electronics, GE
 Vernova, General Motors, Caterpillar, Zalando, and Capital One remain a
 separate identity-recovery batch; Batch 3 found no reason to reclassify them.
+
+## Batch 4 deterministic recovery
+
+Batch 4 started immediately after the Bosch activation closeout at repository
+HEAD `4de6b6d`. It reused the immutable October 1 runtime snapshot and the two
+retained SGS SmartRecruiters diagnostics. No Batch 4 source request or live
+canary was run, and the production registry was not changed for Batch 4.
+
+The ten-source core was reviewed in the recorded order. The gated Atlassian,
+Microsoft, and Eaton lane was not admitted because no new deterministic
+evidence supersedes the Batch 2/3 findings.
+
+| Status | Companies |
+|---|---|
+| `READY_FOR_CANARY` | SGS |
+| `NEEDS_SOURCE_SPECIFIC_REPAIR` | CN Rail; HP Inc.; Seagate; AstraZeneca; Kinross Gold |
+| `FAIL_IDENTITY` | Cameco |
+| `INSUFFICIENT_EVIDENCE` | Nordic Semiconductor; Athabasca Oil; Nutrien |
+
+The exact evidence and source-specific missing proof are in
+`config/pagination_completeness_recovery_batch4.yaml`. The only isolated
+candidate is
+`config/target_companies.pagination_completeness_batch4_canaries.yaml`.
+
+### SGS bound-only candidate
+
+The existing source identity remains exact: SmartRecruiters company slug
+`SGS`, the company-scoped public v1 postings endpoint, full-match identity
+`^SGS$`, and `jobs.smartrecruiters.com` apply URLs. The October 1 probe
+recorded three 100-row pages, 300 unique IDs, no duplicate or mutation, and a
+validated detail/apply-URL sample. The October 5 probe recorded two stable
+global anchors at `totalFound=4619`; its completed 346-job U.S. partition is
+corroboration, not global authority.
+
+At 100 rows per page, the stored high-water total requires 47 requests. The
+candidate therefore uses the already reviewed SmartRecruiters ceiling of
+`page_size=100`, `max_pages=50`, `max_jobs=5000`, and
+`max_response_bytes=3000000`, with inventory-only normalization and a strict
+50-request canary budget. Production SGS remains unchanged at one page and 20
+jobs pending live `PASS_COMPLETE` evidence.
+
+```powershell
+.\.venv\Scripts\python.exe scripts\validate_source_integrity_canaries.py --registry config\target_companies.pagination_completeness_batch4_canaries.yaml --company SGS --request-budget 50 --run
+```
+
+An authoritative total above 5,000, any mutation or overlap, request-budget
+exhaustion, identity/apply-URL failure, unreadable or rejected item, hidden
+continuation, or safety-limit stop must fail incomplete. Deterministic
+`READY_FOR_CANARY` is not production recovery; only the exact candidate that
+returns operator-confirmed `PASS_COMPLETE` may be separately activated.
+
+### Remaining Batch 4 findings
+
+- Nordic Semiconductor may benefit from the shared Teamtailor absent-next
+  terminal rule, but no retained current target response proves the exact live
+  page and identity. It needs a bounded target canary before reclassification.
+- CN Rail and Kinross Gold reached their reported totals only while the
+  collection changed. Seagate repeated a complete page after 97 of 284 jobs.
+  None is absence-authoritative without a stable SuccessFactors traversal or a
+  target-specific complete active feed.
+- HP Inc. retained only 16 of 911 advertised Eightfold records alongside
+  mutation. AstraZeneca retained 600 of 1,050 Workday records alongside
+  mutation and lacks validated runtime identity. Larger bounds cannot repair
+  either condition.
+- Athabasca Oil's two static cards remain positive discovery only. Cameco's
+  alternate Jobvite tenant failed official binding, while the retained static
+  source remains terminal-unproven. Nutrien's old zero-job browser result had
+  unproven identity and is superseded by the later finding that the exact
+  SuccessFactors endpoint, North America scope, and terminal contract are not
+  yet established.

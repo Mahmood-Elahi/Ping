@@ -128,7 +128,7 @@ class CanadaPrioritySourceRecoveryBatch1Tests(unittest.TestCase):
         bosch = self.effective_targets["Bosch"]
         self.assertEqual(
             (source_key(self.raw_entries["Bosch"]), bosch.max_pages, bosch.max_jobs),
-            ("smartrecruiters:boschgroup", 1, 20),
+            ("smartrecruiters:boschgroup", 50, 5_000),
         )
         ballard = self.effective_targets["Ballard Power Systems"]
         self.assertEqual(

@@ -118,12 +118,14 @@ class Batch9RecoveryEvidenceTests(unittest.TestCase):
                 smartrecruiters.validate_target(target)
                 # Batch 9 recorded why the then-reviewed 1,000-row ceiling was
                 # insufficient. Batch 3 later raised the adapter validation
-                # ceiling without expanding either production source config.
+                # ceiling and the exact live-tested Bosch row was activated;
+                # SGS remains candidate-only in Batch 4.
                 self.assertGreater(row["total_available"], 1_000)
                 self.assertGreaterEqual(
                     smartrecruiters.MAX_RESULTS, row["total_available"]
                 )
-                self.assertEqual((target.max_pages, target.max_jobs), (1, 20))
+                expected_limits = (50, 5_000) if company == "Bosch" else (1, 20)
+                self.assertEqual((target.max_pages, target.max_jobs), expected_limits)
                 self.assertEqual(row["source_identity_status"], "validated")
                 self.assertTrue(row["authoritative_total_present"])
                 self.assertFalse(row["scan_complete"])

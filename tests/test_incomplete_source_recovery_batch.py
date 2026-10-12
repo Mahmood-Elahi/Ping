@@ -145,7 +145,7 @@ class IncompleteSourceRecoveryBatchTests(unittest.TestCase):
         self.assertFalse(finish_authoritative_total(metadata, 501, 500))
         self.assertFalse(metadata["scan_complete"])
         self.assertTrue(metadata["safety_limit_reached"])
-        for company, expected in {"Bosch": (1, 20), "SGS": (1, 20)}.items():
+        for company, expected in {"Bosch": (50, 5_000), "SGS": (1, 20)}.items():
             target = self.targets[company]
             self.assertEqual((target.max_pages, target.max_jobs), expected)
 

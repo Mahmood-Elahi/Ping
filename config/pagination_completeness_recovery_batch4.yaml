@@ -1,0 +1,176 @@
+schema_version: 1
+batch: pagination_completeness_recovery_batch4
+evidence_date: '2026-10-12'
+timezone: America/Edmonton
+repository_head_reviewed: 4de6b6de78754b7da77ff44b06b95dc9e10ee00b
+batch3_closeout:
+  bosch: {status: RECOVERED, evidence_state: LIVE_VALIDATED, validation_status: PASS_COMPLETE}
+  exact_candidate_activated: true
+  canary_rerun: false
+
+scope:
+  core_target_count: 10
+  core_targets: [Nordic Semiconductor, CN Rail, Athabasca Oil, HP Inc., Seagate, SGS, AstraZeneca, Kinross Gold, Cameco, Nutrien]
+  gated_prior_stragglers_considered: [Atlassian, Microsoft, Eaton]
+  gated_prior_stragglers_admitted: []
+  gate_reason: no new deterministic evidence beyond the Batch 2 and Batch 3 findings
+
+evidence:
+  runtime_snapshot:
+    path: jobs/company_careers_coverage_20261001_142550.json
+    sha256: fb12864e7d1b84931d56c8a831a51572377f06e9eb6d8d8970b65b76fd5e7a7b
+  sgs_listing_probe:
+    path: output/batch9_recovery/20261001T222328Z_e56afc/sgs.diagnostic.json
+    sha256: 2316b897922643679c7ca46561d76874cac6b1b402a9e2b215ed0e7945f57894
+  sgs_partition_probe:
+    path: output/batch9_recovery/20261005T000610Z_7959c4/sgs.diagnostic.json
+    sha256: 939c5f4ed7eff7ab2625c76dbe4da1dc22827bcfe61a9a53b033bd21d5ee2f65
+  live_requests_during_batch4_review: false
+
+adapter_groups:
+  teamtailor_terminal: [Nordic Semiconductor]
+  successfactors_mutation: [CN Rail, Seagate, Kinross Gold]
+  static_terminal: [Athabasca Oil, Cameco]
+  eightfold_mutation: [HP Inc.]
+  smartrecruiters_bound: [SGS]
+  workday_mutation_identity: [AstraZeneca]
+  browser_scope_terminal: [Nutrien]
+
+sgs_candidate:
+  status: READY_FOR_CANARY
+  production_registry_changed: false
+  candidate_registry: config/target_companies.pagination_completeness_batch4_canaries.yaml
+  source_scope: default
+  source: https://api.smartrecruiters.com/v1/companies/SGS/postings
+  identity:
+    slug: SGS
+    company_name_regex: '^SGS$'
+    endpoint_variant: companies_postings_v1
+    allowed_apply_hosts: [jobs.smartrecruiters.com]
+    status: validated_in_stored_evidence
+  stored_evidence:
+    - date: '2026-10-01'
+      total: 4608
+      page_size: 100
+      pages_sampled: 3
+      unique_ids: 300
+      duplicate_ids: []
+      collection_mutation: false
+      detail_sample_id: '744000153037915'
+      detail_identity_and_apply_url_valid: true
+    - date: '2026-10-05'
+      total: 4619
+      repeated_global_anchors: 2
+      anchor_totals_stable: true
+      anchor_identity_stable: true
+      completed_us_partition: 346
+      global_partition_union_complete: false
+  bound_derivation:
+    observed_high_total: 4619
+    exact_pages_at_observed_high: 47
+    candidate_page_size: 100
+    candidate_max_pages: 50
+    candidate_max_jobs: 5000
+    bounded_headroom_jobs: 381
+    bounded_headroom_percent: 8.25
+    hard_canary_request_budget: 50
+    retries_or_restart_inside_budget: 0
+  required_live_result:
+    validation_status: PASS_COMPLETE
+    inventory_complete: true
+    central_finalizer_authoritative: true
+    source_identity_status: validated
+    terminal_evidence_type: authoritative_total
+    collection_changed_during_scan: false
+    hidden_continuation_absent: true
+    safety_limit_reached: false
+    request_budget_respected: true
+    stable_ids_unique: true
+    canonical_urls_unique: true
+    apply_urls_contract_valid: true
+    normalized_jobs_attributable: true
+    unreadable_items: 0
+    rejected_items: 0
+    lifecycle_mutations: 0
+    persistence_mode: none
+    dashboard_published: false
+
+companies:
+  - company: Nordic Semiconductor
+    status: INSUFFICIENT_EVIDENCE
+    finding: the shared Teamtailor adapter now treats an identity-validated page with no rel=next link as terminal, but no retained target response supports a current source-specific reclassification
+    next_evidence: one bounded non-persistent canary preserving the exact production config and explicit absent-next contract
+  - company: CN Rail
+    status: NEEDS_SOURCE_SPECIFIC_REPAIR
+    finding: 33 of 33 records were observed only alongside collection movement
+    next_evidence: a stable SuccessFactors traversal or target-specific complete active feed
+  - company: Athabasca Oil
+    status: INSUFFICIENT_EVIDENCE
+    finding: two company-owned static cards do not prove a terminal collection
+    next_evidence: explicit final-page, disabled-next, atomic collection, or complete finite-section evidence
+  - company: HP Inc.
+    status: NEEDS_SOURCE_SPECIFIC_REPAIR
+    finding: Eightfold reported 911 while the bounded traversal changed and retained only 16 records
+    next_evidence: stable snapshot enumeration or exact scope-equivalent first-party inventory
+  - company: Seagate
+    status: NEEDS_SOURCE_SPECIFIC_REPAIR
+    finding: SuccessFactors repeated a complete page after 97 of 284 records
+    next_evidence: stable search traversal or target-specific complete active feed
+  - company: SGS
+    status: READY_FOR_CANARY
+    finding: the exact SmartRecruiters source is identity-validated and its 4619-row stored high-water total fits the reviewed 5000-row adapter ceiling
+    candidate: 100 rows per page, 50 pages, 5000 jobs, 50-request canary budget
+  - company: AstraZeneca
+    status: NEEDS_SOURCE_SPECIFIC_REPAIR
+    finding: Workday reported 1050 while traversal changed; the retained runtime also lacks validated employer identity
+    next_evidence: exact Workday identity plus a stable complete partition union
+  - company: Kinross Gold
+    status: NEEDS_SOURCE_SPECIFIC_REPAIR
+    finding: 77 of 77 records were observed only alongside collection movement
+    next_evidence: a stable SuccessFactors traversal or target-specific complete active feed
+  - company: Cameco
+    status: FAIL_IDENTITY
+    finding: the alternate Jobvite tenant failed official employer binding and the retained static source has no terminal contract
+    next_evidence: first-party tenant binding or a terminal contract for the exact retained source
+  - company: Nutrien
+    status: INSUFFICIENT_EVIDENCE
+    finding: the old zero-job browser terminal has unproven identity and was superseded by the later Phase 4 finding; the SuccessFactors family lead lacks an exact supported endpoint and North America scope contract
+    next_evidence: exact RMK endpoint variant, employer identity, North America scope equivalence, and terminal evidence
+
+status_counts:
+  READY_FOR_CANARY: 1
+  RECOVERED_BY_SHARED_FIX: 0
+  NEEDS_SOURCE_SPECIFIC_REPAIR: 5
+  FAIL_IDENTITY: 1
+  FAIL_CONTRACT: 0
+  FAIL_TRANSIENT: 0
+  UNSUPPORTED_PROVIDER: 0
+  NO_SAFE_REPAIR: 0
+  INSUFFICIENT_EVIDENCE: 3
+
+ready_for_canary: [SGS]
+recovered_by_shared_fix: []
+needs_source_specific_repair: [CN Rail, HP Inc., Seagate, AstraZeneca, Kinross Gold]
+fail_identity: [Cameco]
+insufficient_evidence: [Nordic Semiconductor, Athabasca Oil, Nutrien]
+
+manual_canaries:
+  - company: SGS
+    registry: config/target_companies.pagination_completeness_batch4_canaries.yaml
+    request_budget: 50
+    persistence: false
+    dashboard_publish: false
+    lifecycle_mutation: false
+    command: '.\.venv\Scripts\python.exe scripts\validate_source_integrity_canaries.py --registry config\target_companies.pagination_completeness_batch4_canaries.yaml --company SGS --request-budget 50 --run'
+
+activation_rule: only an operator-provided PASS_COMPLETE result may promote the exact tested SGS row; deterministic readiness is not production recovery
+overflow_rule: an authoritative total above 5000 must fail incomplete rather than truncate
+production_safety:
+  production_registry_modified_for_batch4: false
+  production_reliability_overlay_modified_for_batch4: false
+  live_scan_run_for_batch4: false
+  live_canary_run_for_batch4: false
+  company_or_provider_network_request_for_batch4: false
+  production_supabase_mutation: false
+  dashboard_publish: false
+  lifecycle_mutation: false

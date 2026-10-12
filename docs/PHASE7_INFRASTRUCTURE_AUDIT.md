@@ -56,9 +56,12 @@ tests, and the three sibling repositories in read-only mode.
 | Retired/rejected production sources | 0 | All 533 production sources remain active |
 | Rejected Phase 5 candidate rows | 5 | Four unique proposals; Lightspeed France occurs in both candidate registries |
 
-The registry SHA-256 after the later live-validated Intuitive Surgical
+The audited registry SHA-256 after the later live-validated Intuitive Surgical
 SmartRecruiters activation is
 `4ce96583c98f6520d77bf3c0c0c4642a969594ad4b341e41fb0c39b3f55166ef`.
+The subsequent exact live-tested Bosch activation preserves all 533 sources
+and is separately pinned as
+`020e0b6f4df9dfe65f391551f516beeaafa18c45fe561ae6a01744a234352408`.
 The runtime evidence SHA-256 is
 `fb12864e7d1b84931d56c8a831a51572377f06e9eb6d8d8970b65b76fd5e7a7b`.
 Focused tests fail if either audited input changes without a fresh review.
