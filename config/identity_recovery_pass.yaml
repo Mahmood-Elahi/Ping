@@ -1,0 +1,221 @@
+goal:
+  name: focused_seven_company_identity_recovery
+  evidence_date: '2026-10-12'
+  timezone: America/Edmonton
+  repository_head_reviewed: a6fd8ad4c6ed345e82d6f8c9184aaa665ed36ba5
+  live_network_work_performed: false
+  starting_unresolved_production_sources: 36
+  production_registry_modified: false
+
+information:
+  companies_reviewed:
+    - Samsung Electronics
+    - GE Vernova
+    - General Motors
+    - Caterpillar
+    - Zalando
+    - Capital One
+    - Cameco
+  evidence_hierarchy:
+    accepted_first_party:
+      - company: Samsung Electronics
+        evidence: config/company_unknown_investigation_v3.csv records the Samsung-controlled US careers page exposing sec.wd3.myworkdayjobs.com/Samsung_Careers.
+        limitation: The retained record does not prove whether the board is Samsung Electronics, Samsung Electronics America, global corporate, or a multi-affiliate union.
+      - company: GE Vernova
+        evidence: config/company_unknown_investigation_v3.csv records the GE Vernova-controlled careers page exposing gevernova.wd5.myworkdayjobs.com/Vernova_ExternalSite through server-authored job links.
+        limitation: The retained record does not prove the board's relationship to separately recruiting FieldCore, Menk, Prolec, or confidential-executive inventories.
+    rejected_as_identity_authority:
+      - sibling repository board catalogs
+      - ATS tenant or site naming
+      - endpoint reachability and HTTP success
+      - job titles and locations
+      - company-name substrings
+      - historical candidate safe-to-activate flags predating the Phase 4 identity gate
+      - separate official careers URL and ATS URL fields without a retained direct binding artifact
+      - third-party inventory knowledge
+  sibling_evidence:
+    jobseek:
+      used_for: tenant/site corroboration and distinct-board separation only
+      mappings:
+        Samsung Electronics: sec/wd3/Samsung_Careers; separate Samsung Research America internship and Samsung Semiconductor Greenhouse boards
+        GE Vernova: gevernova/wd5/Vernova_ExternalSite; separate FieldCore, Menk USA, Prolec, and confidential executive surfaces
+        General Motors: generalmotors/wd5/careers_gm; separate GM Financial, Cadillac F1, GM PPU, and Ultium surfaces
+        Caterpillar: cat/wd5/CaterpillarCareers; separate Progress Rail global Salesforce and US BrassRing surfaces
+        Zalando: zalando/wd3/ZalandoSiteWD
+        Capital One: capitalone/wd12/Capital_One
+      authority: corroborating_only
+    freehire:
+      used_for: generic Workday URL and external-ID mechanics only
+      authority: none_for_employer_or_scope
+    JobSpy:
+      used_for: none
+      authority: none
+
+implementation:
+  shared_workday_identity_change:
+    required_fields:
+      - evidence_source
+      - official_source_url
+      - official_binding_type
+      - official_binding_target_url
+      - expected_employer_name
+      - expected_source_scope
+      - expected_workday_tenant
+      - expected_workday_site
+      - expected_workday_hostname
+      - expected_apply_hostname
+    allowed_binding_types:
+      - direct_link
+      - redirect
+      - embedded_config
+      - retained_first_party_artifact
+    behavior: malformed, mismatched, name-similar, wrong-scope, wrong-host, or incomplete evidence fails before CXS traversal
+  adapter_changes:
+    workday: strengthened declarative identity validation only; traversal and Phase 4 subdivision are unchanged
+    static_html: none
+    jobvite: none
+  candidate_registry_created: false
+  candidate_rows: []
+  request_budgets:
+    Samsung Electronics:
+      historical_lower_bound: 34
+      derivation: ceil(664 / 20)
+      canary_budget: null
+      reason: exact canonical scope is unproved
+    GE Vernova:
+      historical_direct_lower_bound: 109
+      derivation: ceil(2166 / 20), but direct traversal cannot authorize completeness above the 2000-result cap
+      canary_budget: null
+      reason: exact scope and a retained deterministic partition design are absent
+    Capital One:
+      historical_lower_bound: 95
+      derivation: ceil(1883 / 20)
+      canary_budget: null
+      reason: first-party Workday binding is unproved and retained official-page evidence points to an Eightfold surface
+    General Motors: {canary_budget: null, reason: no authoritative retained Workday total and scope equivalence is unproved}
+    Caterpillar: {canary_budget: null, reason: no authoritative retained Workday total and scope equivalence is unproved}
+    Zalando: {canary_budget: null, reason: no authoritative retained Workday total and language/region scope is unproved}
+    Cameco: {canary_budget: null, reason: neither exact Jobvite binding nor a retained static terminal contract exists}
+  production_activation_rule: only a later operator PASS_COMPLETE for an exact isolated candidate may be followed by a separate production closeout
+  candidate_requirements:
+    inventory_accounting:
+      - stable provider-owned requisition ID for every row
+      - unique union count equals the authoritative root total
+      - every direct page or partition leaf accounted
+      - cross-partition overlap is identical and explicitly counted
+      - no missing, malformed, rejected, or conflicting identity-bearing row
+    terminal_evidence:
+      workday: stable authoritative total below the cap or a complete validated Phase 4 partition union
+      static_html: reviewed disabled-next, explicit final page/count, atomic inventory, or finite authoritative section union
+      rejected_static_signals:
+        - arbitrary short page
+        - arbitrary empty page
+        - repeated page
+        - zero new jobs
+        - stable repeated observation
+        - request-limit exhaustion
+        - hidden or active continuation
+    mutation_handling: one bounded Workday restart is permitted; a second total, partition, overlap, or stable-identity contradiction fails closed and never unions traversals
+    pass_complete:
+      - exact employer, provider, tenant, site, host, apply host, and source scope validated
+      - authoritative total or reviewed terminal reached
+      - every stable ID and canonical URL accounted exactly
+      - no mutation, missing partition, unexplained overlap, rejection, hidden continuation, or safety stop
+      - scan_complete and inventory_complete are true with zero absence-authority blockers
+
+companies:
+  - company: Samsung Electronics
+    current_source: {platform: workday, tenant: sec, wd_subdomain: wd3, site_id: Samsung_Careers, search_url: https://sec.wd3.myworkdayjobs.com/Samsung_Careers}
+    historical_evidence: {fetched: 663, reported_total: 664, pages: 34, workday_identity_present: false}
+    official_binding: retained first-party host/board exposure exists
+    exact_scope: unproved among Samsung Electronics, Samsung Electronics America, global corporate, and multiple affiliates
+    separation: Samsung Research America internship and Samsung Semiconductor remain distinct and are not merged
+    primary_remaining_blocker: exact canonical source-scope equivalence
+    final_status: FAIL_IDENTITY
+    manual_canary_required: false
+    reopen_evidence: retained first-party artifact naming the exact board scope and proving its equivalence to the canonical Samsung Electronics source
+  - company: GE Vernova
+    current_source: {platform: workday, tenant: gevernova, wd_subdomain: wd5, site_id: Vernova_ExternalSite, search_url: https://gevernova.wd5.myworkdayjobs.com/Vernova_ExternalSite}
+    historical_evidence: {fetched: 780, reported_total: 2166, pages: 39, workday_identity_present: false}
+    official_binding: retained first-party host/board exposure exists
+    exact_scope: unproved relative to separately recruiting businesses
+    separation: FieldCore, Menk USA, Prolec, and confidential executive sources are not merged or assumed covered
+    phase4_subdivision: applicable only after identity and scope are proven; current direct total is cap-bound
+    primary_remaining_blocker: exact business-unit/source-scope treatment
+    final_status: FAIL_IDENTITY
+    manual_canary_required: false
+    reopen_evidence: first-party scope artifact plus deterministic facet tree and exact partition budget for the 2166-result inventory
+  - company: General Motors
+    current_source: {platform: static_html, listing_url: https://search-careers.gm.com/en/jobs/}
+    candidate_lead: {platform: workday, tenant: generalmotors, wd_subdomain: wd5, site_id: careers_gm, search_url: https://generalmotors.wd5.myworkdayjobs.com/careers_gm}
+    historical_evidence: {fetched: 20, pages: 1, next_url_present: true, source_identity_status: unproven}
+    official_binding: not found
+    exact_scope: core GM versus global/region/subsidiary coverage is unproved
+    separation: GM Financial, Cadillac F1, GM PPU, and Ultium remain distinct
+    primary_remaining_blocker: first-party board binding and structural source-scope equivalence
+    final_status: FAIL_IDENTITY
+    manual_canary_required: false
+    reopen_evidence: GM-controlled direct link/redirect/config to the exact Workday board plus an explicit scope statement
+  - company: Caterpillar
+    current_source: {platform: static_html, listing_url: https://careers.caterpillar.com/en/jobs/}
+    candidate_lead: {platform: workday, tenant: cat, wd_subdomain: wd5, site_id: CaterpillarCareers, search_url: https://cat.wd5.myworkdayjobs.com/CaterpillarCareers}
+    historical_evidence: {fetched: 20, pages: 1, next_url_present: true, source_identity_status: unproven}
+    official_binding: not found
+    exact_scope: corporate Caterpillar board equivalence is unproved
+    separation: Progress Rail global Salesforce and US BrassRing inventories remain distinct
+    primary_remaining_blocker: first-party board binding and exact Progress Rail boundary
+    final_status: FAIL_IDENTITY
+    manual_canary_required: false
+    reopen_evidence: Caterpillar-controlled direct link/redirect/config to the exact Workday board and explicit subsidiary coverage
+  - company: Zalando
+    current_source: {platform: static_html, listing_url: https://jobs.zalando.com/en/jobs}
+    candidate_lead: {platform: workday, tenant: zalando, wd_subdomain: wd3, site_id: ZalandoSiteWD, search_url: https://zalando.wd3.myworkdayjobs.com/ZalandoSiteWD}
+    historical_evidence: {fetched: 15, pages: 1, terminal_evidence: unproven, source_identity_status: unproven}
+    official_binding: not found
+    exact_scope: employer, region, language, business-unit, and complete-inventory scope are unproved
+    primary_remaining_blocker: first-party board binding and source-scope equivalence
+    final_status: FAIL_IDENTITY
+    manual_canary_required: false
+    reopen_evidence: Zalando-controlled direct link/redirect/config to the exact Workday board plus explicit region/language/business-unit scope
+  - company: Capital One
+    current_source: {platform: workday, tenant: capitalone, wd_subdomain: wd12, site_id: Capital_One, search_url: https://capitalone.wd12.myworkdayjobs.com/Capital_One}
+    historical_evidence: {fetched: 1419, reported_total: 1883, pages: 71, workday_identity_present: false}
+    official_binding: not found; retained official careers page fingerprint identifies an Eightfold surface while the Workday URL is recorded separately
+    exact_scope: canonical Capital One equivalence is unproved
+    primary_remaining_blocker: direct first-party Workday host/site binding
+    final_status: FAIL_IDENTITY
+    manual_canary_required: false
+    reopen_evidence: Capital One-controlled direct link/redirect/config to capitalone.wd12.myworkdayjobs.com/Capital_One and exact scope statement
+  - company: Cameco
+    current_source: {platform: static_html, careers_url: https://www.cameco.com/careers, listing_url: https://jobs.jobvite.com/cameco/jobs}
+    previous_jobvite_candidate: {tenant: cameco, status: rejected}
+    static_terminal_evidence: none; no reviewed disabled-next, final-page, exact count, atomic inventory, or finite authoritative section union
+    jobvite_binding_failure: the operator canary found that the official Cameco careers page did not bind the configured Jobvite tenant
+    new_first_party_binding: none
+    primary_remaining_blocker: first-party tenant binding or an exact terminal contract for the retained source
+    final_status: FAIL_IDENTITY
+    manual_canary_required: false
+    reopen_evidence: Cameco-controlled exact Jobvite link/config or retained exact-source terminal proof
+
+report:
+  status_counts:
+    READY_FOR_CANARY: 0
+    RECOVERED_BY_SHARED_FIX: 0
+    NEEDS_SOURCE_SPECIFIC_REPAIR: 0
+    INSUFFICIENT_EVIDENCE: 0
+    FAIL_IDENTITY: 7
+    FAIL_CONTRACT: 0
+    NO_SAFE_REPAIR: 0
+  ready_for_canary: []
+  manual_canary_commands: []
+  unresolved_production_sources_after_deterministic_pass: 36
+  potential_unresolved_after_all_prepared_canaries_pass: 36
+  best_next_manual_action: []
+  parked:
+    - Samsung Electronics
+    - GE Vernova
+    - General Motors
+    - Caterpillar
+    - Zalando
+    - Capital One
+    - Cameco

@@ -36,10 +36,16 @@ def item(index: int) -> dict:
 
 def identity() -> dict[str, str]:
     return {
+        "evidence_source": "tests/fixtures/example_official_binding.html",
         "official_source_url": "https://careers.example.com/work-with-us",
+        "official_binding_type": "direct_link",
+        "official_binding_target_url": "https://example.wd1.myworkdayjobs.com/External",
+        "expected_employer_name": "Example",
+        "expected_source_scope": "default",
         "expected_workday_tenant": "example",
         "expected_workday_site": "External",
         "expected_workday_hostname": "example.wd1.myworkdayjobs.com",
+        "expected_apply_hostname": "example.wd1.myworkdayjobs.com",
     }
 
 
@@ -52,6 +58,7 @@ def target(**overrides) -> CompanyTarget:
         "site_id": "External",
         "max_pages": 25,
         "max_jobs": 500,
+        "allowed_apply_hosts": ["example.wd1.myworkdayjobs.com"],
         "workday_identity": identity(),
     }
     values.update(overrides)

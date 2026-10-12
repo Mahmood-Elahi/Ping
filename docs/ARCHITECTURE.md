@@ -226,10 +226,14 @@ freshness observation.
 Workday CXS reachability and Workday employer identity are separate evidence.
 An authoritative Workday scan requires a `workday_identity` registry block
 whose official first-party HTTPS recruiting URL is bound to the exact expected
-tenant, site, and (when present) hostname. CXS job titles, descriptions, tenant
-name similarity, and Workday bootstrap metadata are not employer proof. The
-identity decision is made once for the resolved site in a scan and the complete
-block participates in the source/config cooldown fingerprint.
+employer name, source scope, tenant, site, hostname, and allowed apply host. The
+block also records the retained evidence source, the binding type (direct link,
+redirect, embedded configuration, or retained first-party artifact), and the
+exact Workday board URL exposed by that evidence. CXS job titles, descriptions,
+tenant-name similarity, sibling catalogs, and Workday bootstrap metadata are not
+employer proof. The identity decision is made once for the resolved site in a
+scan and the complete block participates in the source/config cooldown
+fingerprint.
 
 An unfiltered Workday total below 2,000 follows the ordinary bounded listing
 path. A total at or above 2,000 is never accepted directly: the adapter chooses

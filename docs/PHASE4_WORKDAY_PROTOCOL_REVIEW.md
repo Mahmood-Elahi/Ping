@@ -35,21 +35,29 @@ configuration proof:
 
 ```yaml
 workday_identity:
+  evidence_source: evidence/official-careers-link.html
   official_source_url: https://careers.example.com/jobs
+  official_binding_type: direct_link
+  official_binding_target_url: https://example.wd1.myworkdayjobs.com/External
+  expected_employer_name: Example
+  expected_source_scope: default
   expected_workday_tenant: example
   expected_workday_site: External
-  expected_workday_hostname: example.wd1.myworkdayjobs.com  # optional
+  expected_workday_hostname: example.wd1.myworkdayjobs.com
+  expected_apply_hostname: example.wd1.myworkdayjobs.com
 ```
 
 The official URL must be first-party HTTPS and must not itself be a
-`myworkdayjobs.com` URL. Tenant and site must exactly match the resolved source;
-hostname must also match when configured. The entire block is included in the
-source/config health fingerprint. Explicit malformed or mismatched evidence
-fails before CXS traversal. Missing evidence permits positive discovery but
-forces `workday_identity_unproven`, incomplete inventory, and zero absence
-authority. CXS titles/descriptions, tenant-name similarity, and Workday shell
-metadata are never employer proof. The decision is evaluated once for the
-resolved site; no identity request is repeated inside partitions.
+`myworkdayjobs.com` URL. The retained evidence must use an approved binding
+type and name the exact Workday board. Employer, source scope, tenant, site,
+hostname, and allowed apply host must all match the resolved source. The entire
+block is included in the source/config health fingerprint. Explicit malformed
+or mismatched evidence fails before CXS traversal. Missing evidence permits
+positive discovery but forces `workday_identity_unproven`, incomplete
+inventory, and zero absence authority. CXS titles/descriptions, tenant-name
+similarity, sibling catalogs, and Workday shell metadata are never employer
+proof. The decision is evaluated once for the resolved site; no identity
+request is repeated inside partitions.
 
 ## Cap and partition semantics
 

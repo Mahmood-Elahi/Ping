@@ -649,7 +649,14 @@ def _configured_identity_evidence(
     """
     evidence = dict(target.workday_identity or {})
     required = {
+        "evidence_source",
+        "expected_apply_hostname",
+        "expected_employer_name",
+        "expected_source_scope",
+        "expected_workday_hostname",
         "official_source_url",
+        "official_binding_target_url",
+        "official_binding_type",
         "expected_workday_tenant",
         "expected_workday_site",
     }
@@ -671,12 +678,38 @@ def _configured_identity_evidence(
     missing = sorted(required - evidence.keys())
     official = urlparse(evidence.get("official_source_url", ""))
     expected_host = evidence.get("expected_workday_hostname", hostname).casefold()
+    binding_target = urlparse(evidence.get("official_binding_target_url", ""))
+    expected_binding_url = f"https://{hostname}/{site_id}"
+    binding_type = evidence.get("official_binding_type", "").casefold()
+    allowed_binding_types = {
+        "direct_link",
+        "redirect",
+        "embedded_config",
+        "retained_first_party_artifact",
+    }
+    expected_apply_host = evidence.get("expected_apply_hostname", "").casefold()
+    allowed_apply_hosts = {
+        str(value).casefold() for value in target.allowed_apply_hosts
+    }
     exact = (
         evidence.get("expected_workday_tenant", "").casefold()
         == str(target.tenant).casefold()
         and evidence.get("expected_workday_site", "").casefold()
         == site_id.casefold()
         and expected_host == hostname.casefold()
+        and evidence.get("expected_employer_name", "").casefold()
+        == target.name.casefold()
+        and evidence.get("expected_source_scope", "").casefold()
+        == target.source_scope.casefold()
+        and expected_apply_host == hostname.casefold()
+        and expected_apply_host in allowed_apply_hosts
+        and binding_type in allowed_binding_types
+        and binding_target.scheme == "https"
+        and (binding_target.hostname or "").casefold() == hostname.casefold()
+        and binding_target.path.rstrip("/").casefold()
+        == f"/{site_id}".casefold()
+        and not binding_target.query
+        and not binding_target.fragment
     )
     official_host = (official.hostname or "").casefold()
     official_is_first_party = bool(
@@ -688,6 +721,10 @@ def _configured_identity_evidence(
         return "failed", {
             **base,
             "official_source_url": evidence.get("official_source_url"),
+            "official_binding_target_url": evidence.get(
+                "official_binding_target_url"
+            ),
+            "expected_binding_target_url": expected_binding_url,
             "missing_fields": missing,
             "exact_binding": exact,
             "official_source_is_first_party_https": official_is_first_party,
@@ -696,8 +733,17 @@ def _configured_identity_evidence(
     return "validated", {
         **base,
         "official_source_url": evidence["official_source_url"],
+        "official_binding_target_url": evidence["official_binding_target_url"],
+        "official_binding_type": binding_type,
+        "evidence_source": evidence["evidence_source"],
+        "expected_employer_name": evidence["expected_employer_name"],
+        "expected_source_scope": evidence["expected_source_scope"],
         "expected_workday_hostname": expected_host,
-        "reason": "reviewed official recruiting evidence exactly binds tenant and site",
+        "expected_apply_hostname": expected_apply_host,
+        "reason": (
+            "reviewed official recruiting evidence exactly binds employer, scope, "
+            "tenant, site, and apply host"
+        ),
     }
 
 
