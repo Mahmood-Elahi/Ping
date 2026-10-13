@@ -8,7 +8,10 @@ from pathlib import Path
 import requests
 import yaml
 
-from tests.company_careers_reliability_assertions import assert_historical_prefix
+from tests.company_careers_reliability_assertions import (
+    assert_historical_prefix,
+    with_reliability_repairs,
+)
 
 from scripts import company_watchlist_common, investigate_remaining_companies, investigate_unknown_companies
 from scripts.refingerprint_uncovered_companies import load_master_workbook, reconcile_master
@@ -789,7 +792,7 @@ class BatchCValidationTests(unittest.TestCase):
         assert_historical_prefix(self, production, baseline)
         promoted = ["Astrobotic", "Intuitive Machines", "FANUC", "Helcim", "CPKC"]
         self.assertGreaterEqual(len(production), len(validated))
-        self.assertEqual(production[269:274], validated)
+        self.assertEqual(production[269:274], with_reliability_repairs(validated))
         self.assertEqual([row["name"] for row in production[269:274]], promoted)
         names = [row["name"] for row in production]
         for name in promoted:

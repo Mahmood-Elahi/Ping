@@ -18,6 +18,7 @@ from src.scraper.company_careers.parent_sources import (
     matching_child_brands,
 )
 from src.scraper.company_careers.registry import load_target_companies
+from tests.company_careers_reliability_assertions import assert_historical_prefix
 from tests.text_bytes import (
     canonical_sha256_for_legacy_text_sha256,
     canonical_text_bytes,
@@ -284,19 +285,9 @@ class QuickWinsIsolationTests(unittest.TestCase):
                 report["production_registry_sha256"]
             ),
         )
-        self.assertTrue(
-            canonical_text_bytes(production).startswith(
-                canonical_text_bytes(historical)
-            )
-        )
-
         _, historical_entries = validator.load_registry(VALIDATED)
         _, production_entries = validator.load_registry(PRODUCTION)
-        self.assertGreaterEqual(len(production_entries), len(historical_entries))
-        self.assertEqual(
-            production_entries[: len(historical_entries)],
-            historical_entries,
-        )
+        assert_historical_prefix(self, production_entries, historical_entries)
 
 
 if __name__ == "__main__":

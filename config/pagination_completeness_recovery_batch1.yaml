@@ -11,8 +11,8 @@ evidence_boundary:
     sha256: 4ce96583c98f6520d77bf3c0c0c4642a969594ad4b341e41fb0c39b3f55166ef
   production_registry_current_after_later_activations:
     path: config/target_companies.yaml
-    sha256: 794e477d04da7a2825b3d14157fd35f97c03fc35a8ded3878c9d0b3d598bfc4f
-    superseding_activation: remaining-source ServiceNow after the earlier Bosch and SGS activations
+    sha256: 8fecb534be41b22325531fbea93a7825673f1f4533bd5c159ac1cca1f299e7f2
+    superseding_activation: discovery-only authority promotion after the remaining-source ServiceNow, Bosch, and SGS activations
   production_reliability_overlay_after_activation:
     path: config/company_careers_reliability_repairs_v1.yaml
     sha256: 83b1ca1ae956d85661530d6652d5a0f9b90642638e268367808bcfce1b713ecc

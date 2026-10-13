@@ -92,6 +92,7 @@ target_companies:
       - Staff Software Engineer
       - Senior Staff
   - name: Meta
+    inventory_authority: discovery_only
     platform: meta
     max_pages: 3
     search_terms:
@@ -251,6 +252,7 @@ target_companies:
     locale: en
     max_pages: 2
   - name: Emerson
+    inventory_authority: discovery_only
     platform: oracle_recruiting
     careers_url: https://hdjq.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/jobs
     endpoint_url: https://hdjq.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
@@ -258,6 +260,7 @@ target_companies:
     locale: en
     max_pages: 2
   - name: Honeywell
+    inventory_authority: discovery_only
     platform: oracle_recruiting
     careers_url: https://ibqbjb.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/Honeywell/jobs
     endpoint_url: https://ibqbjb.fa.ocs.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
@@ -338,6 +341,7 @@ target_companies:
     endpoint_variant: rmk_tile
     max_pages: 2
   - name: Microsoft
+    inventory_authority: discovery_only
     platform: eightfold
     careers_url: https://apply.careers.microsoft.com/careers
     endpoint_url: https://apply.careers.microsoft.com/api/pcsx/search
@@ -346,6 +350,7 @@ target_companies:
     max_pages: 2
     fingerprint_confidence: high
   - name: Qualcomm
+    inventory_authority: discovery_only
     platform: eightfold
     careers_url: https://careers.qualcomm.com/careers
     endpoint_url: https://careers.qualcomm.com/api/pcsx/search
@@ -354,6 +359,7 @@ target_companies:
     max_pages: 2
     fingerprint_confidence: high
   - name: Micron
+    inventory_authority: discovery_only
     platform: eightfold
     careers_url: https://careers.micron.com/careers
     endpoint_url: https://careers.micron.com/api/pcsx/search
@@ -370,6 +376,7 @@ target_companies:
     max_pages: 2
     fingerprint_confidence: high
   - name: Eaton
+    inventory_authority: discovery_only
     platform: eightfold
     careers_url: https://eaton.eightfold.ai/careers
     endpoint_url: https://eaton.eightfold.ai/api/pcsx/search
@@ -853,6 +860,7 @@ target_companies:
     evidence_confidence: high
     evidence_timestamp: '2026-08-05T01:24:24+00:00'
   - name: Rivian
+    inventory_authority: discovery_only
     platform: icims
     tenant: rivian
     board_id: rivian-public
@@ -1113,6 +1121,7 @@ target_companies:
     next_page_selector: null
     allow_url_id_fallback: true
   - name: Zalando
+    inventory_authority: discovery_only
     platform: static_html
     careers_url: https://jobs.zalando.com/en/jobs
     listing_url: https://jobs.zalando.com/en/jobs
@@ -1740,6 +1749,7 @@ target_companies:
     slug: janestreet
     search_url: https://www.janestreet.com/join-jane-street/open-roles/
   - name: Goldman Sachs
+    inventory_authority: discovery_only
     platform: browser_rendered_html
     careers_url: https://www.goldmansachs.com/careers
     listing_url: https://higher.gs.com/results
@@ -1889,6 +1899,7 @@ target_companies:
     evidence_confidence: high
     evidence_timestamp: '2026-09-29T00:00:00+00:00'
   - name: GlobalFoundries
+    inventory_authority: discovery_only
     platform: eightfold
     careers_url: https://careers.gf.com/careers
     source_identity_regex: GlobalFoundries
@@ -2166,6 +2177,7 @@ target_companies:
     search_url: https://marvell.wd1.myworkdayjobs.com/MarvellCareers
     identity_url: https://marvell.wd1.myworkdayjobs.com/MarvellCareers
   - name: Oracle
+    inventory_authority: discovery_only
     platform: oracle_recruiting
     careers_url: https://careers.oracle.com/en/sites/jobsearch/jobs
     source_identity_regex: Oracle
@@ -2372,6 +2384,7 @@ target_companies:
     search_url: https://careers.arcresources.com/search/
     endpoint_variant: rmk_table
   - name: Nutrien
+    inventory_authority: discovery_only
     platform: browser_rendered_html
     careers_url: https://www.nutrien.com/careers
     source_identity_regex: Nutrien Jobs
@@ -2396,6 +2409,7 @@ target_companies:
     external_id_regex: /([0-9]+)/?$
     empty_selector: '[data-testid="headerTitle"]'
   - name: Stantec
+    inventory_authority: discovery_only
     platform: browser_rendered_html
     careers_url: https://www.stantec.com/en/careers
     listing_url: https://stantec.jobs/jobs/?q=Calgary
@@ -3166,6 +3180,7 @@ target_companies:
     identity_url: https://jobs.ashbyhq.com/perplexity
     slug: perplexity
   - name: Espressif Systems
+    inventory_authority: discovery_only
     platform: static_html
     careers_url: https://www.espressif.com/en/careers
     source_identity_regex: Espressif Systems|Job Search
@@ -3509,6 +3524,7 @@ target_companies:
     max_pages: 1
     max_jobs: 20
   - name: CPKC
+    inventory_authority: discovery_only
     platform: sap_successfactors
     careers_url: https://www.cpkcr.com/en/careers
     search_url: https://careers.cpr.ca/search/
@@ -3553,6 +3569,7 @@ target_companies:
     wd_subdomain: wd3
     site_id: TD_Bank_Careers
   - name: Scotiabank
+    inventory_authority: discovery_only
     platform: sap_successfactors
     careers_url: https://jobs.scotiabank.com/
     source_identity_regex: Scotiabank|Scotia
@@ -3946,6 +3963,7 @@ target_companies:
     endpoint_variant: pcsx
     organization_id: atb.com
   - name: ecobee
+    inventory_authority: discovery_only
     platform: static_html
     careers_url: https://careers.generac.com/en/brands/ecobee/
     source_identity_regex: \becobee\b
@@ -4026,6 +4044,7 @@ target_companies:
     ref_num: GAOGAYGLOBAL
     locale: en_global
   - name: Bombardier
+    inventory_authority: discovery_only
     platform: sap_successfactors
     careers_url: https://bombardier.com/en/careers
     source_identity_regex: \bBombardier\b
@@ -4043,6 +4062,7 @@ target_companies:
     locale: en_US
     page_size: 10
   - name: Fortinet
+    inventory_authority: discovery_only
     platform: oracle_recruiting
     careers_url: https://edel.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_2001/jobs
     source_identity_regex: \bFortinet\b
@@ -4129,6 +4149,7 @@ target_companies:
     max_jobs: 20
     max_response_bytes: 3000000
   - name: Nordic Semiconductor
+    inventory_authority: discovery_only
     platform: teamtailor
     careers_url: https://www.nordicsemi.com/About-us/Careers
     listing_url: https://careers.nordicsemi.com/jobs
@@ -4523,6 +4544,7 @@ target_companies:
     identity_url: https://careers.twitch.com/en/careers
     slug: twitch
   - name: CN Rail
+    inventory_authority: discovery_only
     platform: sap_successfactors
     careers_url: https://www.cn.ca/en/careers
     search_url: https://careers.cn.ca/search/
@@ -4573,6 +4595,7 @@ target_companies:
     max_jobs: 20
     max_response_bytes: 3000000
   - name: Athabasca Oil
+    inventory_authority: discovery_only
     platform: static_html
     careers_url: https://www.atha.com/careers-details/calgary-ab.html
     listing_url: https://www.atha.com/careers-details/calgary-ab.html
@@ -4788,6 +4811,7 @@ target_companies:
     max_response_bytes: 3000000
     slug: coconutsoftware
   - name: HP Inc.
+    inventory_authority: discovery_only
     platform: eightfold
     careers_url: https://hp.eightfold.ai/careers
     identity_url: https://hp.eightfold.ai/careers
@@ -4835,6 +4859,7 @@ target_companies:
     endpoint_variant: companies_postings_v1
     page_size: 20
   - name: Seagate
+    inventory_authority: discovery_only
     platform: sap_successfactors
     careers_url: https://www.seagate.com/ca/en/jobs/
     identity_url: https://seagatecareers.com/AllJobs
@@ -6633,6 +6658,7 @@ target_companies:
     max_pages: 1
     max_jobs: 20
   - name: Kinross Gold
+    inventory_authority: discovery_only
     platform: sap_successfactors
     careers_url: https://www.kinross.com/careers/
     search_url: https://jobs.kinross.com/search/

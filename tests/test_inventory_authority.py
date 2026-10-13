@@ -482,6 +482,11 @@ def test_candidate_overlay_and_36_source_classification_are_deterministic() -> N
         )
     )
     production_by_name = {row["name"]: row for row in production}
+    discovery_only_production = {
+        row["name"]: row
+        for row in production
+        if row.get("inventory_authority") == "discovery_only"
+    }
     candidate_names = {row["name"] for row in candidates}
     source_rows = artifact["sources"]
 
@@ -496,16 +501,22 @@ def test_candidate_overlay_and_36_source_classification_are_deterministic() -> N
         row["company"] for row in source_rows if row["recommended_mode"] == "DISCOVERY_ONLY"
     }
     assert all(row["inventory_authority"] == "discovery_only" for row in candidates)
+    assert set(discovery_only_production) == candidate_names
+    assert len(discovery_only_production) == 26
     for candidate in candidates:
-        expected = dict(production_by_name[candidate["name"]])
-        expected["inventory_authority"] = "discovery_only"
-        assert candidate == expected
-    assert all("inventory_authority" not in row for row in production)
+        assert candidate == production_by_name[candidate["name"]]
     blocked = {row["company"]: row for row in source_rows}
     assert blocked["JPMorgan Chase"]["recommended_mode"] == "BLOCKED_IDENTITY"
     assert blocked["Coupang"]["recommended_mode"] == "BLOCKED_IDENTITY"
     assert "JPMorgan Chase" not in candidate_names
     assert "Coupang" not in candidate_names
+    blocked_names = {
+        row["company"]
+        for row in source_rows
+        if row["recommended_mode"] in {"BLOCKED_IDENTITY", "BLOCKED_CONTRACT"}
+    }
+    assert blocked_names.isdisjoint(discovery_only_production)
+    assert production_by_name["Micron"]["platform"] == "eightfold"
     required = {
         "company",
         "current_platform",

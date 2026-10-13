@@ -16,7 +16,10 @@ from unittest.mock import patch
 
 import yaml
 
-from tests.company_careers_reliability_assertions import assert_historical_prefix
+from tests.company_careers_reliability_assertions import (
+    assert_historical_prefix,
+    with_reliability_repairs,
+)
 from tests.text_bytes import (
     canonical_sha256_for_legacy_text_sha256,
     canonical_text_sha256,
@@ -130,7 +133,10 @@ class SourceExpansionV2BatchCArtifactTests(unittest.TestCase):
         production_promotions = self.production[self.historical_count:promotion_end]
         self.assertEqual(safe, VALIDATED)
         self.assertEqual([entry["name"] for entry in validated_promotions], VALIDATED)
-        self.assertEqual(production_promotions, validated_promotions)
+        self.assertEqual(
+            production_promotions,
+            with_reliability_repairs(validated_promotions),
+        )
         self.assertEqual(len(self.validated), self.historical_count + len(VALIDATED))
         self.assertGreaterEqual(len(self.production), promotion_end)
         production_names = [entry["name"] for entry in self.production]

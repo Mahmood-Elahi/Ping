@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 import yaml
 
+from tests.company_careers_reliability_assertions import with_reliability_repairs
 from scripts import validate_source_integrity_canaries as canaries
 from src.scraper.company_careers.adapters import (
     ashby,
@@ -210,7 +211,11 @@ def test_phase1_rollback_snapshot_matches_current_production_sources() -> None:
     rollback = {entry["name"]: entry for entry in _entries(ROLLBACK_PATH)}
     assert set(rollback) == ROLLBACK_COMPANIES
     unchanged = ROLLBACK_COMPANIES - set(ACTIVATED_PRODUCTION)
-    assert {name: rollback[name] for name in unchanged} == {
+    expected = {
+        row["name"]: row
+        for row in with_reliability_repairs([rollback[name] for name in unchanged])
+    }
+    assert expected == {
         name: production[name] for name in unchanged
     }
     for name in ACTIVATED_PRODUCTION:

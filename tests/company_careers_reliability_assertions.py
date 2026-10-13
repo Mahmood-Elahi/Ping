@@ -187,6 +187,35 @@ APPROVED_SOURCE_MIGRATIONS: dict[str, dict[str, Any]] = {
     },
 }
 
+APPROVED_DISCOVERY_ONLY_PROMOTIONS = {
+    "athabasca oil",
+    "bombardier",
+    "cn rail",
+    "cpkc",
+    "eaton",
+    "ecobee",
+    "emerson",
+    "espressif systems",
+    "fortinet",
+    "globalfoundries",
+    "goldman sachs",
+    "honeywell",
+    "hp inc.",
+    "kinross gold",
+    "meta",
+    "micron",
+    "microsoft",
+    "nordic semiconductor",
+    "nutrien",
+    "oracle",
+    "qualcomm",
+    "rivian",
+    "scotiabank",
+    "seagate",
+    "stantec",
+    "zalando",
+}
+
 
 def with_reliability_repairs(
     entries: Sequence[Mapping[str, Any]],
@@ -199,7 +228,10 @@ def with_reliability_repairs(
     for item in entries:
         key = str(item.get("name") or "").casefold()
         migrated = APPROVED_SOURCE_MIGRATIONS.get(key)
-        result.append(deepcopy(migrated or by_name.get(key, item)))
+        expected = deepcopy(migrated or by_name.get(key, item))
+        if key in APPROVED_DISCOVERY_ONLY_PROMOTIONS:
+            expected["inventory_authority"] = "discovery_only"
+        result.append(expected)
     return result
 
 

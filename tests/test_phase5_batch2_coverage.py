@@ -22,7 +22,7 @@ BATCH1 = ROOT / "config" / "target_companies.phase5_batch1_candidates.yaml"
 BATCH1_CANARIES = ROOT / "config" / "target_companies.phase5_batch1_canaries.yaml"
 BATCH2 = ROOT / "config" / "target_companies.phase5_batch2_candidates.yaml"
 BATCH2_CANARIES = ROOT / "config" / "target_companies.phase5_batch2_canaries.yaml"
-PRODUCTION_SHA256 = "794e477d04da7a2825b3d14157fd35f97c03fc35a8ded3878c9d0b3d598bfc4f"
+PRODUCTION_SHA256 = "8fecb534be41b22325531fbea93a7825673f1f4533bd5c159ac1cca1f299e7f2"
 OVERLAPS = {"DISJOINT", "PARTIAL_OVERLAP", "SUBSET", "UNKNOWN"}
 
 

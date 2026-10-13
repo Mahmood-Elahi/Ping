@@ -31,7 +31,7 @@ from src.scraper.company_careers.scanner import ADAPTERS
 ROOT = Path(__file__).resolve().parents[1]
 NOW = datetime(2026, 10, 10, tzinfo=timezone.utc)
 EXPECTED_REGISTRY_SHA256 = (
-    "794e477d04da7a2825b3d14157fd35f97c03fc35a8ded3878c9d0b3d598bfc4f"
+    "8fecb534be41b22325531fbea93a7825673f1f4533bd5c159ac1cca1f299e7f2"
 )
 EXPECTED_PRODUCTION_COUNTS = {
     "adp": 8,
