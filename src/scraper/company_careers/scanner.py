@@ -64,6 +64,7 @@ from src.scraper.company_careers.models import (
     CompanyTarget,
     CoverageStatus,
     InventoryItem,
+    InventoryAuthority,
     JobRecord,
     SourceScanMetadata,
     adapter_exception_metadata,
@@ -129,6 +130,9 @@ def _completion_result_fields(metadata: SourceScanMetadata) -> dict[str, Any]:
         ),
         "source_activation_state": str(
             metadata.get("source_activation_state") or "active"
+        ),
+        "positive_inventory_usable": bool(
+            metadata.get("positive_inventory_usable")
         ),
         "jobs_collected": int(metadata.get("jobs_collected") or 0),
         "inventory_items_collected": int(
@@ -594,7 +598,34 @@ class CompanyCareersScanner:
                     failure.outcome == "rejected" for failure in item_failures
                 ),
                 activation_state=target.source_activation,
+                inventory_authority=target.inventory_authority,
             )
+            discovery_failure = bool(
+                target.inventory_authority is InventoryAuthority.DISCOVERY_ONLY
+                and scan_metadata.get("scan_state") == "failed"
+            )
+            if discovery_failure:
+                fetched_jobs = []
+                matched_jobs = []
+                inventory_items = ()
+                status = CoverageStatus.FAILED_TECHNICAL
+            if target.inventory_authority is InventoryAuthority.DISCOVERY_ONLY:
+                effective_result_authority = (
+                    ResultAuthority.POSITIVE_ONLY
+                    if scan_metadata.get("positive_inventory_usable")
+                    else ResultAuthority.INCOMPLETE
+                )
+            else:
+                effective_result_authority = (
+                    result_authority
+                    if result_authority.value != "incomplete"
+                    else (
+                        ResultAuthority.AUTHORITATIVE_INVENTORY
+                        if crawl_mode.value == "full_authoritative"
+                        and scan_metadata["scan_complete"]
+                        else result_authority
+                    )
+                )
             return CompanyScanResult(
                 target=target,
                 jobs=matched_jobs,
@@ -603,16 +634,18 @@ class CompanyCareersScanner:
                 item_failures=item_failures,
                 capabilities_used=capabilities_used,
                 crawl_mode=crawl_mode,
-                result_authority=(
-                    result_authority
-                    if result_authority.value != "incomplete"
-                    else (
-                        ResultAuthority.AUTHORITATIVE_INVENTORY
-                        if crawl_mode.value == "full_authoritative" and scan_metadata["scan_complete"]
-                        else result_authority
-                    )
-                ),
+                result_authority=effective_result_authority,
                 status=status,
+                error_type=(
+                    str(scan_metadata.get("source_health_code"))
+                    if discovery_failure
+                    else None
+                ),
+                remediation=(
+                    "Repair the positive identity/record contract before using this source."
+                    if discovery_failure
+                    else None
+                ),
                 fetched_count=len(fetched_jobs),
                 **_completion_result_fields(scan_metadata),
                 exclusion_counts=exclusion_counts,
@@ -632,6 +665,7 @@ class CompanyCareersScanner:
                 failed=True,
                 failure_code=error_type,
                 activation_state=target.source_activation,
+                inventory_authority=target.inventory_authority,
             )
             return CompanyScanResult(
                 target=target,
@@ -654,6 +688,7 @@ class CompanyCareersScanner:
                 failed=True,
                 failure_code="request_error",
                 activation_state=target.source_activation,
+                inventory_authority=target.inventory_authority,
             )
             return CompanyScanResult(
                 target=target,
@@ -679,6 +714,7 @@ class CompanyCareersScanner:
                 failed=True,
                 failure_code="unexpected_error",
                 activation_state=target.source_activation,
+                inventory_authority=target.inventory_authority,
             )
             return CompanyScanResult(
                 target=target,

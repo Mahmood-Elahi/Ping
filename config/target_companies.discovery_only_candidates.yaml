@@ -1,0 +1,430 @@
+# Isolated candidate registry. Not loaded by production.
+# Every row is trusted for positive attribution only; none may reconcile absence.
+target_companies:
+- name: Emerson
+  platform: oracle_recruiting
+  careers_url: https://hdjq.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/jobs
+  endpoint_url: https://hdjq.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+  site_number: CX_1
+  locale: en
+  max_pages: 2
+  inventory_authority: discovery_only
+- name: Honeywell
+  platform: oracle_recruiting
+  careers_url: https://ibqbjb.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/Honeywell/jobs
+  endpoint_url: https://ibqbjb.fa.ocs.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+  site_number: CX_1
+  locale: en
+  max_pages: 2
+  inventory_authority: discovery_only
+- name: Microsoft
+  platform: eightfold
+  careers_url: https://apply.careers.microsoft.com/careers
+  endpoint_url: https://apply.careers.microsoft.com/api/pcsx/search
+  endpoint_variant: pcsx
+  organization_id: microsoft.com
+  max_pages: 2
+  fingerprint_confidence: high
+  inventory_authority: discovery_only
+- name: Eaton
+  platform: eightfold
+  careers_url: https://eaton.eightfold.ai/careers
+  endpoint_url: https://eaton.eightfold.ai/api/pcsx/search
+  endpoint_variant: pcsx
+  organization_id: eaton.com
+  max_pages: 2
+  fingerprint_confidence: high
+  inventory_authority: discovery_only
+- name: Oracle
+  platform: oracle_recruiting
+  careers_url: https://careers.oracle.com/en/sites/jobsearch/jobs
+  source_identity_regex: Oracle
+  allowed_apply_hosts:
+  - careers.oracle.com
+  original_workbook_rank: 42
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  endpoint_url: https://eeho.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+  site_number: CX_45001
+  locale: en
+  inventory_authority: discovery_only
+- name: Stantec
+  platform: browser_rendered_html
+  careers_url: https://www.stantec.com/en/careers
+  listing_url: https://stantec.jobs/jobs/?q=Calgary
+  endpoint_variant: browser_rendered_html_v1
+  source_identity_regex: Stantec
+  browser_wait_selector: a[href*="/job/"]
+  browser_scroll_steps: 0
+  browser_static_variant: server_rendered_links
+  browser_identity_selector: title
+  browser_identity_regex: Stantec
+  listing_selector: main
+  job_card_selector: a[href*="/job/"]
+  title_selector: h2
+  location_selector: p:nth-child(3)
+  detail_link_selector: :self
+  external_id_regex: /([0-9A-F]{32})/job$
+  allowed_apply_hosts:
+  - stantec.jobs
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  evidence_source: https://stantec.jobs/jobs/?q=Calgary
+  evidence_confidence: high
+  evidence_timestamp: '2026-09-29T00:00:00+00:00'
+  inventory_authority: discovery_only
+- name: CPKC
+  platform: sap_successfactors
+  careers_url: https://www.cpkcr.com/en/careers
+  search_url: https://careers.cpr.ca/search/
+  endpoint_url: https://careers.cpr.ca/services/recruiting/v1/jobs
+  endpoint_variant: rmk_columnized
+  identity_regex: \bCPKC\b
+  locale: en_US
+  allowed_apply_hosts:
+  - careers.cpr.ca
+  page_size: 10
+  max_pages: 2
+  max_jobs: 20
+  max_response_bytes: 3000000
+  inventory_authority: discovery_only
+- name: Scotiabank
+  platform: sap_successfactors
+  careers_url: https://jobs.scotiabank.com/
+  source_identity_regex: Scotiabank|Scotia
+  allowed_apply_hosts:
+  - jobs.scotiabank.com
+  original_workbook_rank: null
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  identity_url: https://jobs.scotiabank.com/search/
+  search_url: https://jobs.scotiabank.com/search/
+  endpoint_variant: rmk_table
+  inventory_authority: discovery_only
+- name: Bombardier
+  platform: sap_successfactors
+  careers_url: https://bombardier.com/en/careers
+  source_identity_regex: \bBombardier\b
+  identity_regex: \bBombardier\b
+  allowed_apply_hosts:
+  - jobs.bombardier.com
+  original_workbook_rank: null
+  max_pages: 2
+  max_jobs: 20
+  max_response_bytes: 3000000
+  identity_url: https://jobs.bombardier.com/search/
+  search_url: https://jobs.bombardier.com/search/
+  endpoint_url: https://jobs.bombardier.com/services/recruiting/v1/jobs
+  endpoint_variant: rmk_columnized
+  locale: en_US
+  page_size: 10
+  inventory_authority: discovery_only
+- name: Fortinet
+  platform: oracle_recruiting
+  careers_url: https://edel.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_2001/jobs
+  source_identity_regex: \bFortinet\b
+  identity_regex: \bFortinet\b
+  allowed_apply_hosts:
+  - edel.fa.us2.oraclecloud.com
+  original_workbook_rank: null
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  identity_url: https://edel.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_2001/jobs
+  endpoint_url: https://edel.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+  site_number: CX_2001
+  locale: en
+  endpoint_variant: recruiting_ce_v1
+  inventory_authority: discovery_only
+- name: CN Rail
+  platform: sap_successfactors
+  careers_url: https://www.cn.ca/en/careers
+  search_url: https://careers.cn.ca/search/
+  endpoint_url: https://careers.cn.ca/services/recruiting/v1/jobs
+  endpoint_variant: rmk_columnized
+  source_identity_regex: Canadian National|\bCN\b
+  identity_regex: Canadian National|\bCN\b
+  allowed_apply_hosts:
+  - careers.cn.ca
+  locale: en_US
+  page_size: 10
+  max_pages: 20
+  max_jobs: 500
+  max_response_bytes: 3000000
+  evidence_source: https://www.cn.ca/en/careers
+  evidence_confidence: high
+  evidence_timestamp: '2026-09-29T00:00:00+00:00'
+  inventory_authority: discovery_only
+- name: HP Inc.
+  platform: eightfold
+  careers_url: https://hp.eightfold.ai/careers
+  identity_url: https://hp.eightfold.ai/careers
+  source_identity_regex: \bHP\b
+  identity_regex: \bHP\b
+  allowed_apply_hosts:
+  - hp.eightfold.ai
+  original_workbook_rank: null
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  endpoint_url: https://hp.eightfold.ai/api/pcsx/search
+  endpoint_variant: pcsx
+  organization_id: hp.com
+  inventory_authority: discovery_only
+- name: Seagate
+  platform: sap_successfactors
+  careers_url: https://www.seagate.com/ca/en/jobs/
+  identity_url: https://seagatecareers.com/AllJobs
+  source_identity_regex: \bSeagate\b
+  identity_regex: \bSeagate\b
+  search_url: https://seagatecareers.com/search/
+  endpoint_url: https://seagatecareers.com/services/recruiting/v1/jobs
+  endpoint_variant: rmk_columnized
+  locale: en_US
+  page_size: 10
+  allowed_apply_hosts:
+  - seagatecareers.com
+  original_workbook_rank: null
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  evidence_source: https://seagatecareers.com/search/
+  evidence_confidence: high
+  evidence_timestamp: '2026-08-28T00:00:00+00:00'
+  inventory_authority: discovery_only
+- name: Kinross Gold
+  platform: sap_successfactors
+  careers_url: https://www.kinross.com/careers/
+  search_url: https://jobs.kinross.com/search/
+  endpoint_url: https://jobs.kinross.com/services/recruiting/v1/jobs
+  endpoint_variant: rmk_columnized
+  identity_regex: \bKinross\b
+  locale: en_US
+  allowed_apply_hosts:
+  - jobs.kinross.com
+  page_size: 10
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  inventory_authority: discovery_only
+- name: Meta
+  platform: meta
+  max_pages: 3
+  search_terms:
+  - Principal Software Engineer
+  - Staff Software Engineer
+  - Production Engineer
+  inventory_authority: discovery_only
+- name: Qualcomm
+  platform: eightfold
+  careers_url: https://careers.qualcomm.com/careers
+  endpoint_url: https://careers.qualcomm.com/api/pcsx/search
+  endpoint_variant: pcsx
+  organization_id: qualcomm.com
+  max_pages: 2
+  fingerprint_confidence: high
+  inventory_authority: discovery_only
+- name: Micron
+  platform: eightfold
+  careers_url: https://careers.micron.com/careers
+  endpoint_url: https://careers.micron.com/api/pcsx/search
+  endpoint_variant: pcsx
+  organization_id: micron.com
+  max_pages: 2
+  fingerprint_confidence: high
+  inventory_authority: discovery_only
+- name: Rivian
+  platform: icims
+  tenant: rivian
+  board_id: rivian-public
+  careers_url: https://careers.rivian.com/
+  search_url: https://careers.rivian.com/careers-home/jobs
+  endpoint_variant: icims_jibe_api
+  original_workbook_rank: 116
+  industry: Not recorded in repository master workbook
+  allowed_apply_hosts:
+  - us-careers-rivian.icims.com
+  - sb-careers-rivian.icims.com
+  page_size: 10
+  max_pages: 2
+  max_jobs: 20
+  evidence_source: config/company_remaining_inventory_v2.csv
+  evidence_confidence: high
+  evidence_timestamp: '2026-08-05T01:24:24+00:00'
+  endpoint_url: https://careers.rivian.com/api/jobs
+  inventory_authority: discovery_only
+- name: Goldman Sachs
+  platform: browser_rendered_html
+  careers_url: https://www.goldmansachs.com/careers
+  listing_url: https://higher.gs.com/results
+  endpoint_variant: browser_rendered_html_v1
+  browser_wait_selector: a[href^='/roles/']
+  browser_scroll_steps: 0
+  browser_static_variant: server_rendered_links
+  browser_identity_selector: head title
+  browser_identity_regex: Goldman Sachs
+  listing_selector: a[href^=/roles/]
+  job_card_selector: a[href^=/roles/]
+  title_selector: span.gs-uitk-mb-1
+  location_selector: div[data-testid=location]
+  detail_link_selector: :self
+  external_id_regex: /roles/([0-9]+)$
+  allowed_apply_hosts:
+  - higher.gs.com
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  evidence_source: https://higher.gs.com/results
+  evidence_confidence: high
+  evidence_timestamp: '2026-09-29T00:00:00+00:00'
+  inventory_authority: discovery_only
+- name: GlobalFoundries
+  platform: eightfold
+  careers_url: https://careers.gf.com/careers
+  source_identity_regex: GlobalFoundries
+  allowed_apply_hosts:
+  - careers.gf.com
+  original_workbook_rank: 37
+  max_pages: 2
+  max_jobs: 20
+  max_response_bytes: 3000000
+  endpoint_url: https://careers.gf.com/api/pcsx/search
+  endpoint_variant: pcsx
+  organization_id: globalfoundries.com
+  identity_url: https://gf.com/careers/
+  inventory_authority: discovery_only
+- name: Espressif Systems
+  platform: static_html
+  careers_url: https://www.espressif.com/en/careers
+  source_identity_regex: Espressif Systems|Job Search
+  identity_regex: Espressif Systems|Job Search
+  allowed_apply_hosts:
+  - www.espressif.com
+  original_workbook_rank: null
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  identity_url: https://www.espressif.com/en/join-us/job-search
+  listing_url: https://www.espressif.com/en/join-us/job-search
+  endpoint_variant: server_rendered_cards
+  listing_selector: .view-job-search
+  job_card_selector: .item-wrap
+  title_selector: .item-title
+  location_selector: .item-location
+  department_selector: .item-function
+  detail_link_selector: .item-share
+  reference_url_attribute: data-share
+  external_id_regex: /job-detail/([^/?#]+)$
+  inventory_authority: discovery_only
+- name: ecobee
+  platform: static_html
+  careers_url: https://careers.generac.com/en/brands/ecobee/
+  source_identity_regex: \becobee\b
+  identity_regex: \becobee\b
+  allowed_apply_hosts:
+  - careers.generac.com
+  original_workbook_rank: null
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  identity_url: https://careers.generac.com/en/brands/ecobee/
+  listing_url: https://careers.generac.com/en/brands/ecobee/
+  endpoint_variant: server_rendered_cards
+  listing_selector: div.job-listing
+  job_card_selector: div.card-job
+  title_selector: h2.card-title a
+  location_selector: ul.job-meta li:first-child
+  department_selector: ul.job-meta li:nth-child(2), ul.job-meta li:nth-child(3)
+  detail_link_selector: h2.card-title a
+  external_id_regex: null
+  external_id_attribute: data-id
+  inventory_authority: discovery_only
+- name: Nordic Semiconductor
+  platform: teamtailor
+  careers_url: https://www.nordicsemi.com/About-us/Careers
+  listing_url: https://careers.nordicsemi.com/jobs
+  endpoint_variant: server_rendered_jobs_v1
+  source_identity_regex: Nordic Semiconductor|Nordic
+  identity_regex: Nordic Semiconductor
+  allowed_apply_hosts:
+  - careers.nordicsemi.com
+  original_workbook_rank: null
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  inventory_authority: discovery_only
+- name: Athabasca Oil
+  platform: static_html
+  careers_url: https://www.atha.com/careers-details/calgary-ab.html
+  listing_url: https://www.atha.com/careers-details/calgary-ab.html
+  endpoint_variant: server_rendered_cards
+  listing_selector: .blog
+  job_card_selector: '[itemprop=blogPost]'
+  title_selector: h2[itemprop=name] a
+  detail_link_selector: h2[itemprop=name] a
+  external_id_regex: /([0-9]+)-
+  fixed_location: Calgary, Alberta, Canada
+  identity_regex: Athabasca Oil|ATHA Energy
+  allowed_apply_hosts:
+  - www.atha.com
+  original_workbook_rank: null
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 500000
+  inventory_authority: discovery_only
+- name: Nutrien
+  platform: browser_rendered_html
+  careers_url: https://www.nutrien.com/careers
+  source_identity_regex: Nutrien Jobs
+  allowed_apply_hosts:
+  - jobs.nutrien.com
+  original_workbook_rank: null
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  listing_url: https://jobs.nutrien.com/North-America/search/
+  endpoint_variant: browser_rendered_html_v1
+  browser_wait_selector: '[data-testid="headerTitle"]'
+  browser_scroll_steps: 0
+  browser_static_variant: server_rendered_links
+  browser_identity_selector: title
+  browser_identity_regex: Nutrien Jobs
+  listing_selector: '[data-testid="headerTitle"]'
+  job_card_selector: a[href*="/job/"]
+  title_selector: :self
+  location_selector: null
+  detail_link_selector: :self
+  external_id_regex: /([0-9]+)/?$
+  empty_selector: '[data-testid="headerTitle"]'
+  inventory_authority: discovery_only
+- name: Zalando
+  platform: static_html
+  careers_url: https://jobs.zalando.com/en/jobs
+  listing_url: https://jobs.zalando.com/en/jobs
+  endpoint_variant: server_rendered_links
+  original_workbook_rank: 210
+  allowed_apply_hosts:
+  - jobs.zalando.com
+  max_pages: 1
+  max_jobs: 20
+  max_scripts: 20
+  max_response_bytes: 3000000
+  max_script_bytes: 1000000
+  evidence_source: config/company_unknown_investigation_v3.csv
+  evidence_confidence: medium
+  evidence_timestamp: '2026-08-05T02:56:57+00:00'
+  listing_selector: main a[href^='/en/jobs/']
+  job_card_selector: main a[href^='/en/jobs/']
+  title_selector: :self
+  detail_link_selector: :self
+  external_id_regex: /jobs/(\d+)-
+  external_id_attribute: null
+  location_selector: null
+  department_selector: null
+  pagination_url_template: null
+  next_page_selector: null
+  allow_url_id_fallback: false
+  inventory_authority: discovery_only

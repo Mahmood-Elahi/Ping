@@ -1,0 +1,514 @@
+# Deterministic maintenance classification; no live requests were made.
+artifact:
+  name: discovery_only_source_classification
+  evidence_date: '2026-10-12'
+  repository_head_reviewed: 0bbc419544ef9a3f990d88d7a9f12ac91eb5b7a2
+  production_registry_changed: false
+  live_network_work_performed: false
+  classification_counts:
+    AUTHORITATIVE: 0
+    DISCOVERY_ONLY: 26
+    BLOCKED_IDENTITY: 9
+    BLOCKED_CONTRACT: 1
+  safe_discovery_only:
+  - Emerson
+  - Honeywell
+  - Microsoft
+  - Eaton
+  - Oracle
+  - Stantec
+  - CPKC
+  - Scotiabank
+  - Bombardier
+  - Fortinet
+  - CN Rail
+  - HP Inc.
+  - Seagate
+  - Kinross Gold
+  - Meta
+  - Qualcomm
+  - Micron
+  - Rivian
+  - Goldman Sachs
+  - GlobalFoundries
+  - Espressif Systems
+  - ecobee
+  - Nordic Semiconductor
+  - Athabasca Oil
+  - Nutrien
+  - Zalando
+  still_blocked_identity:
+  - AstraZeneca
+  - Samsung Electronics
+  - GE Vernova
+  - General Motors
+  - Caterpillar
+  - Capital One
+  - Cameco
+  - JPMorgan Chase
+  - Coupang
+  still_blocked_contract:
+  - Atlassian
+  already_authoritative_after_existing_fix: []
+  candidate_registry: config/target_companies.discovery_only_candidates.yaml
+  representative_manual_canaries:
+  - Microsoft
+  - CPKC
+  - Stantec
+  - Rivian
+  canary_pass_criteria:
+  - positive employer/source identity validated
+  - one or more stable provider IDs and canonical/apply URLs
+  - bounded operation respected
+  - no malformed or rejected-data catastrophe
+  - positive-only result authority
+  - zero absence-authoritative source scopes
+  - no persistence
+  canary_failure_criteria:
+  - identity contradiction or unbound employer scope
+  - malformed provider response or stable IDs
+  - invalid canonical/apply URL
+  - unexpected duplicate conflict or repeated-page ingestion
+  - positive-only mode authorizes any absence reconciliation
+  - canary performs persistence
+  eof_required_for_discovery_only: false
+  micron_prepared_alternate:
+    platform: workday
+    tenant: micron
+    wd_subdomain: wd1
+    site_id: External
+    is_external: true
+    source: https://micron.wd1.myworkdayjobs.com/en-US/External
+    status: PREPARED_NOT_ACTIVATED
+    positive_identity_evidence: Micron official Eightfold surface directly exposes the Workday login; board title is Careers
+      at Micron.
+    scope_note: Observed Workday inventory is broader than Eightfold; use for positive discovery only until its own complete
+      traversal is proven.
+sources:
+- company: AstraZeneca
+  current_platform: workday
+  current_source: https://careers.astrazeneca.com/
+  positive_identity_status: UNRESOLVED
+  positive_record_contract_status: UNASSESSED_PENDING_IDENTITY
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: BLOCKED_IDENTITY
+  reason: The reachable Workday tenant/site lacks the reviewed official employer-to-board binding required even for positive
+    attribution.
+  current_blocker: collection mutation plus unvalidated runtime identity
+  requires_live_canary: false
+  candidate_registry_present: false
+- company: Athabasca Oil
+  current_platform: static_html
+  current_source: https://www.atha.com/careers-details/calgary-ab.html
+  positive_identity_status: VALID
+  positive_record_contract_status: VALID_BOUNDED_POSITIVES
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: DISCOVERY_ONLY
+  reason: The official employer careers surface and stable job links support positive attribution; the bounded page has no
+    reliable exhaustion proof.
+  current_blocker: two positive cards without terminal proof
+  requires_live_canary: true
+  candidate_registry_present: true
+- company: Atlassian
+  current_platform: atlassian
+  current_source: ''
+  positive_identity_status: VALID
+  positive_record_contract_status: INVALID_POSITIVE_RECORD_CONTRACT
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: BLOCKED_CONTRACT
+  reason: The first-party endpoint establishes employer identity, but observed canonical/apply URLs violate the reviewed stable-ID
+    path contract; positive records are not trustworthy until the contract is repaired.
+  current_blocker: canonical URL violates reviewed iCIMS host/stable-ID path
+  requires_live_canary: false
+  candidate_registry_present: false
+- company: Bombardier
+  current_platform: sap_successfactors
+  current_source: https://jobs.bombardier.com/services/recruiting/v1/jobs
+  positive_identity_status: VALID
+  positive_record_contract_status: VALID_BOUNDED_POSITIVES
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: DISCOVERY_ONLY
+  reason: The official employer SuccessFactors host and apply URLs safely attribute positive jobs; mutation, repetition, or
+    missing terminal proof prevents absence authority.
+  current_blocker: repeated page
+  requires_live_canary: true
+  candidate_registry_present: true
+- company: Cameco
+  current_platform: static_html
+  current_source: https://jobs.jobvite.com/cameco/jobs
+  positive_identity_status: UNRESOLVED
+  positive_record_contract_status: UNASSESSED_PENDING_IDENTITY
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: BLOCKED_IDENTITY
+  reason: The Jobvite tenant is not bound by checked-in official evidence to the canonical Cameco source.
+  current_blocker: retained source terminal unproved and Jobvite alternate failed official binding
+  requires_live_canary: false
+  candidate_registry_present: false
+- company: Capital One
+  current_platform: workday
+  current_source: https://capitalone.wd12.myworkdayjobs.com/Capital_One
+  positive_identity_status: UNRESOLVED
+  positive_record_contract_status: UNASSESSED_PENDING_IDENTITY
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: BLOCKED_IDENTITY
+  reason: The Workday tenant/site lacks reviewed exact employer binding.
+  current_blocker: exact Workday employer/site identity absent
+  requires_live_canary: false
+  candidate_registry_present: false
+- company: Caterpillar
+  current_platform: static_html
+  current_source: https://careers.caterpillar.com/en/jobs/
+  positive_identity_status: UNRESOLVED
+  positive_record_contract_status: UNASSESSED_PENDING_IDENTITY
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: BLOCKED_IDENTITY
+  reason: The static collection does not safely separate Caterpillar parent postings from Progress Rail or other subsidiary
+    scope.
+  current_blocker: parent scope and Progress Rail separation unresolved
+  requires_live_canary: false
+  candidate_registry_present: false
+- company: CN Rail
+  current_platform: sap_successfactors
+  current_source: https://careers.cn.ca/services/recruiting/v1/jobs
+  positive_identity_status: VALID
+  positive_record_contract_status: VALID_BOUNDED_POSITIVES
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: DISCOVERY_ONLY
+  reason: The official employer SuccessFactors host and apply URLs safely attribute positive jobs; mutation, repetition, or
+    missing terminal proof prevents absence authority.
+  current_blocker: reported total reached while collection changed
+  requires_live_canary: true
+  candidate_registry_present: true
+- company: Coupang
+  current_platform: static_html
+  current_source: https://www.coupang.jobs/en/jobs/
+  positive_identity_status: UNRESOLVED
+  positive_record_contract_status: UNASSESSED_PENDING_IDENTITY
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: BLOCKED_IDENTITY
+  reason: The retained exact host, stable IDs, canonical URLs, and apply URLs prove record shape but the static adapter and
+    checked-in configuration do not prove positive employer/source identity.
+  current_blocker: source identity remains unproven; page parameter also repeats page one
+  requires_live_canary: false
+  candidate_registry_present: false
+- company: CPKC
+  current_platform: sap_successfactors
+  current_source: https://careers.cpr.ca/services/recruiting/v1/jobs
+  positive_identity_status: VALID
+  positive_record_contract_status: VALID_BOUNDED_POSITIVES
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: DISCOVERY_ONLY
+  reason: The official employer SuccessFactors host and apply URLs safely attribute positive jobs; mutation, repetition, or
+    missing terminal proof prevents absence authority.
+  current_blocker: collection mutation
+  requires_live_canary: true
+  candidate_registry_present: true
+- company: Eaton
+  current_platform: eightfold
+  current_source: https://eaton.eightfold.ai/api/pcsx/search
+  positive_identity_status: VALID
+  positive_record_contract_status: VALID_BOUNDED_POSITIVES
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: DISCOVERY_ONLY
+  reason: The configured first-party employer careers host and organization safely attribute positive jobs; mutation, overlap,
+    or caps prevent exhaustive negative inference.
+  current_blocker: mutable PCSx overlap
+  requires_live_canary: true
+  candidate_registry_present: true
+- company: ecobee
+  current_platform: static_html
+  current_source: https://careers.generac.com/en/brands/ecobee/
+  positive_identity_status: VALID
+  positive_record_contract_status: VALID_BOUNDED_POSITIVES
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: DISCOVERY_ONLY
+  reason: The official employer careers surface and stable job links support positive attribution; the bounded page has no
+    reliable exhaustion proof.
+  current_blocker: no explicit terminal
+  requires_live_canary: true
+  candidate_registry_present: true
+- company: Emerson
+  current_platform: oracle_recruiting
+  current_source: https://hdjq.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+  positive_identity_status: VALID
+  positive_record_contract_status: VALID_BOUNDED_POSITIVES
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: DISCOVERY_ONLY
+  reason: The configured employer Oracle host/site safely attributes positive requisitions; mutable offset traversal and no
+    finite facet universe prevent absence authority.
+  current_blocker: mutable offset traversal and no authoritative facet universe
+  requires_live_canary: true
+  candidate_registry_present: true
+- company: Espressif Systems
+  current_platform: static_html
+  current_source: https://www.espressif.com/en/join-us/job-search
+  positive_identity_status: VALID
+  positive_record_contract_status: VALID_BOUNDED_POSITIVES
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: DISCOVERY_ONLY
+  reason: The official employer careers surface and stable job links support positive attribution; the bounded page has no
+    reliable exhaustion proof.
+  current_blocker: no explicit terminal
+  requires_live_canary: true
+  candidate_registry_present: true
+- company: Fortinet
+  current_platform: oracle_recruiting
+  current_source: https://edel.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+  positive_identity_status: VALID
+  positive_record_contract_status: VALID_BOUNDED_POSITIVES
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: DISCOVERY_ONLY
+  reason: The configured employer Oracle host/site safely attributes positive requisitions; mutable offset traversal and no
+    finite facet universe prevent absence authority.
+  current_blocker: mutable offset traversal and no authoritative facet universe
+  requires_live_canary: true
+  candidate_registry_present: true
+- company: GE Vernova
+  current_platform: workday
+  current_source: https://gevernova.wd5.myworkdayjobs.com/Vernova_ExternalSite
+  positive_identity_status: UNRESOLVED
+  positive_record_contract_status: UNASSESSED_PENDING_IDENTITY
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: BLOCKED_IDENTITY
+  reason: The Workday tenant/site binding to the intended canonical employer remains unproved.
+  current_blocker: exact identity absent and total exceeds direct cap
+  requires_live_canary: false
+  candidate_registry_present: false
+- company: General Motors
+  current_platform: static_html
+  current_source: https://search-careers.gm.com/en/jobs/
+  positive_identity_status: UNRESOLVED
+  positive_record_contract_status: UNASSESSED_PENDING_IDENTITY
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: BLOCKED_IDENTITY
+  reason: The static collection does not identify parent versus subsidiary employer per posting strongly enough to resolve
+    canonical attribution.
+  current_blocker: parent/subsidiary scope equivalence unresolved
+  requires_live_canary: false
+  candidate_registry_present: false
+- company: GlobalFoundries
+  current_platform: eightfold
+  current_source: https://careers.gf.com/api/pcsx/search
+  positive_identity_status: VALID
+  positive_record_contract_status: VALID_BOUNDED_POSITIVES
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: DISCOVERY_ONLY
+  reason: The configured first-party employer careers host and organization safely attribute positive jobs; mutation, overlap,
+    or caps prevent exhaustive negative inference.
+  current_blocker: alternate tenant identity and scope equivalence unproved
+  requires_live_canary: true
+  candidate_registry_present: true
+- company: Goldman Sachs
+  current_platform: browser_rendered_html
+  current_source: https://higher.gs.com/results
+  positive_identity_status: VALID
+  positive_record_contract_status: VALID_BOUNDED_POSITIVES
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: DISCOVERY_ONLY
+  reason: The official employer careers surface and stable job links support positive attribution; the bounded page has no
+    reliable exhaustion proof.
+  current_blocker: GraphQL replay/public stability and exact category-union completeness unproved
+  requires_live_canary: true
+  candidate_registry_present: true
+- company: Honeywell
+  current_platform: oracle_recruiting
+  current_source: https://ibqbjb.fa.ocs.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+  positive_identity_status: VALID
+  positive_record_contract_status: VALID_BOUNDED_POSITIVES
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: DISCOVERY_ONLY
+  reason: The configured employer Oracle host/site safely attributes positive requisitions; mutable offset traversal and no
+    finite facet universe prevent absence authority.
+  current_blocker: mutable offset traversal and no authoritative facet universe
+  requires_live_canary: true
+  candidate_registry_present: true
+- company: HP Inc.
+  current_platform: eightfold
+  current_source: https://hp.eightfold.ai/api/pcsx/search
+  positive_identity_status: VALID
+  positive_record_contract_status: VALID_BOUNDED_POSITIVES
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: DISCOVERY_ONLY
+  reason: The configured first-party employer careers host and organization safely attribute positive jobs; mutation, overlap,
+    or caps prevent exhaustive negative inference.
+  current_blocker: mutable PCSx retained only 16 of 911 advertised records
+  requires_live_canary: true
+  candidate_registry_present: true
+- company: JPMorgan Chase
+  current_platform: oracle_recruiting
+  current_source: https://jpmc.fa.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+  positive_identity_status: UNRESOLVED
+  positive_record_contract_status: UNASSESSED_PENDING_IDENTITY
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: BLOCKED_IDENTITY
+  reason: The Oracle adapter validates endpoint shape, response schema, and configured site-number consistency, but neither
+    the adapter nor retained configuration proves that the site is positively bound to JPMorgan Chase.
+  current_blocker: positive employer/source identity remains unproven
+  requires_live_canary: false
+  candidate_registry_present: false
+- company: Kinross Gold
+  current_platform: sap_successfactors
+  current_source: https://jobs.kinross.com/services/recruiting/v1/jobs
+  positive_identity_status: VALID
+  positive_record_contract_status: VALID_BOUNDED_POSITIVES
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: DISCOVERY_ONLY
+  reason: The official employer SuccessFactors host and apply URLs safely attribute positive jobs; mutation, repetition, or
+    missing terminal proof prevents absence authority.
+  current_blocker: reported total reached while collection changed
+  requires_live_canary: true
+  candidate_registry_present: true
+- company: Meta
+  current_platform: meta
+  current_source: ''
+  positive_identity_status: VALID
+  positive_record_contract_status: VALID_BOUNDED_POSITIVES
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: DISCOVERY_ONLY
+  reason: The fixed first-party Meta adapter yields attributable jobs, but configured search terms cannot exhaust employer
+    inventory.
+  current_blocker: sitemap active-only and complete-shard semantics unproved
+  requires_live_canary: true
+  candidate_registry_present: true
+- company: Micron
+  current_platform: eightfold
+  current_source: https://careers.micron.com/api/pcsx/search
+  positive_identity_status: VALID
+  positive_record_contract_status: VALID_BOUNDED_POSITIVES
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: DISCOVERY_ONLY
+  reason: Official Micron Eightfold positives are attributable; operator evidence also binds Micron Workday External as a
+    broader positive source, but neither source proves absence authority.
+  current_blocker: alternate tenant identity and scope equivalence unproved
+  requires_live_canary: true
+  candidate_registry_present: true
+- company: Microsoft
+  current_platform: eightfold
+  current_source: https://apply.careers.microsoft.com/api/pcsx/search
+  positive_identity_status: VALID
+  positive_record_contract_status: VALID_BOUNDED_POSITIVES
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: DISCOVERY_ONLY
+  reason: The configured first-party employer careers host and organization safely attribute positive jobs; mutation, overlap,
+    or caps prevent exhaustive negative inference.
+  current_blocker: mutable PCSx overlap
+  requires_live_canary: true
+  candidate_registry_present: true
+- company: Nordic Semiconductor
+  current_platform: teamtailor
+  current_source: https://careers.nordicsemi.com/jobs
+  positive_identity_status: VALID
+  positive_record_contract_status: VALID_BOUNDED_POSITIVES
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: DISCOVERY_ONLY
+  reason: The employer-branded Teamtailor surface supports positive attribution; retained exact terminal evidence is absent.
+  current_blocker: no retained exact target response proves identity plus absent-next terminal
+  requires_live_canary: true
+  candidate_registry_present: true
+- company: Nutrien
+  current_platform: browser_rendered_html
+  current_source: https://jobs.nutrien.com/North-America/search/
+  positive_identity_status: VALID
+  positive_record_contract_status: VALID_BOUNDED_POSITIVES
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: DISCOVERY_ONLY
+  reason: The official employer careers surface and stable job links support positive attribution; the bounded page has no
+    reliable exhaustion proof.
+  current_blocker: exact SuccessFactors endpoint North America scope identity and terminal unproved
+  requires_live_canary: true
+  candidate_registry_present: true
+- company: Oracle
+  current_platform: oracle_recruiting
+  current_source: https://eeho.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions
+  positive_identity_status: VALID
+  positive_record_contract_status: VALID_BOUNDED_POSITIVES
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: DISCOVERY_ONLY
+  reason: The configured employer Oracle host/site safely attributes positive requisitions; mutable offset traversal and no
+    finite facet universe prevent absence authority.
+  current_blocker: mutable offset traversal and no authoritative facet universe
+  requires_live_canary: true
+  candidate_registry_present: true
+- company: Qualcomm
+  current_platform: eightfold
+  current_source: https://careers.qualcomm.com/api/pcsx/search
+  positive_identity_status: VALID
+  positive_record_contract_status: VALID_BOUNDED_POSITIVES
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: DISCOVERY_ONLY
+  reason: The configured first-party employer careers host and organization safely attribute positive jobs; mutation, overlap,
+    or caps prevent exhaustive negative inference.
+  current_blocker: alternate sitemap active-only/job-only semantics unproved
+  requires_live_canary: true
+  candidate_registry_present: true
+- company: Rivian
+  current_platform: icims
+  current_source: https://careers.rivian.com/api/jobs
+  positive_identity_status: VALID
+  positive_record_contract_status: VALID_BOUNDED_POSITIVES
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: DISCOVERY_ONLY
+  reason: The first-party Rivian careers API and exact approved iCIMS apply hosts support positive records; full active-inventory
+    completeness is unproved.
+  current_blocker: sitemap active-only/scope/ID equivalence unproved
+  requires_live_canary: true
+  candidate_registry_present: true
+- company: Samsung Electronics
+  current_platform: workday
+  current_source: https://sec.wd3.myworkdayjobs.com/Samsung_Careers
+  positive_identity_status: UNRESOLVED
+  positive_record_contract_status: UNASSESSED_PENDING_IDENTITY
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: BLOCKED_IDENTITY
+  reason: The Workday tenant/site is reachable but exact canonical Samsung employer/site binding remains absent.
+  current_blocker: exact Workday employer/site identity absent
+  requires_live_canary: false
+  candidate_registry_present: false
+- company: Scotiabank
+  current_platform: sap_successfactors
+  current_source: https://jobs.scotiabank.com/search/
+  positive_identity_status: VALID
+  positive_record_contract_status: VALID_BOUNDED_POSITIVES
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: DISCOVERY_ONLY
+  reason: The official employer SuccessFactors host and apply URLs safely attribute positive jobs; mutation, repetition, or
+    missing terminal proof prevents absence authority.
+  current_blocker: collection mutation
+  requires_live_canary: true
+  candidate_registry_present: true
+- company: Seagate
+  current_platform: sap_successfactors
+  current_source: https://seagatecareers.com/services/recruiting/v1/jobs
+  positive_identity_status: VALID
+  positive_record_contract_status: VALID_BOUNDED_POSITIVES
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: DISCOVERY_ONLY
+  reason: The official employer SuccessFactors host and apply URLs safely attribute positive jobs; mutation, repetition, or
+    missing terminal proof prevents absence authority.
+  current_blocker: repeated full page after 97 of 284
+  requires_live_canary: true
+  candidate_registry_present: true
+- company: Stantec
+  current_platform: browser_rendered_html
+  current_source: https://stantec.jobs/jobs/?q=Calgary
+  positive_identity_status: VALID
+  positive_record_contract_status: VALID_BOUNDED_POSITIVES
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: DISCOVERY_ONLY
+  reason: The official employer careers surface and stable job links support positive attribution; the bounded page has no
+    reliable exhaustion proof.
+  current_blocker: scope-local terminal authority absent
+  requires_live_canary: true
+  candidate_registry_present: true
+- company: Zalando
+  current_platform: static_html
+  current_source: https://jobs.zalando.com/en/jobs
+  positive_identity_status: VALID
+  positive_record_contract_status: VALID_BOUNDED_POSITIVES
+  absence_authority_status: NOT_AUTHORIZED
+  recommended_mode: DISCOVERY_ONLY
+  reason: The official employer careers surface and stable job links support positive attribution; the bounded page has no
+    reliable exhaustion proof.
+  current_blocker: alternate board identity and scope equivalence unproved
+  requires_live_canary: true
+  candidate_registry_present: true

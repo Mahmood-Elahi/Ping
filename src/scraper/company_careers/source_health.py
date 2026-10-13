@@ -43,6 +43,44 @@ class SourceHealthCode(str, Enum):
     UNSPLITTABLE_PARTITION = "unsplittable_partition"
     PARTITION_INCOMPLETE = "partition_incomplete"
     PARTITION_CONTRADICTION = "partition_contradiction"
+    HEALTHY_DISCOVERY_ONLY = "healthy_discovery_only"
+
+
+def can_reconcile_absence(
+    *,
+    inventory_authority: Any,
+    status: str,
+    scan_complete: bool,
+    scan_state: str,
+    source_health_code: str,
+    source_activation_state: str,
+    result_authority: Any,
+    inventory_complete: bool,
+    safety_limit_reached: bool,
+    collection_changed_during_scan: bool,
+    source_identity_status: str,
+    pagination_evidence_conflicting: bool,
+    pagination_evidence_malformed: bool,
+) -> bool:
+    """The single lifecycle gate for source/scope absence reconciliation."""
+    authority = getattr(inventory_authority, "value", inventory_authority)
+    result = getattr(result_authority, "value", result_authority)
+    return bool(
+        str(authority).casefold() == "authoritative"
+        and status in {"fetched", "fetched_no_matching_roles"}
+        and scan_complete
+        and scan_state == SourceScanState.COMPLETE.value
+        and source_health_code
+        in {SourceHealthCode.HEALTHY.value, SourceHealthCode.HYDRATION_DEGRADED.value}
+        and source_activation_state == "active"
+        and str(result).casefold() == "authoritative_inventory"
+        and inventory_complete
+        and not safety_limit_reached
+        and not collection_changed_during_scan
+        and str(source_identity_status or "unproven").casefold() != "failed"
+        and not pagination_evidence_conflicting
+        and not pagination_evidence_malformed
+    )
 
 
 _COMPLETE_COLLECTION_REASONS = {
@@ -79,6 +117,7 @@ def finalize_source_scan(
     failed: bool = False,
     failure_code: str | None = None,
     activation_state: str = "active",
+    inventory_authority: Any = "authoritative",
 ) -> MutableMapping[str, Any]:
     """Normalize adapter evidence and enforce the authoritative boundary.
 
@@ -102,6 +141,12 @@ def finalize_source_scan(
     metadata["rejected_items"] = rejected_items
     metadata["hydration_complete"] = not (unreadable_items or rejected_items)
     metadata["source_activation_state"] = str(activation_state or "active")
+    configured_authority = str(
+        getattr(inventory_authority, "value", inventory_authority) or "authoritative"
+    ).casefold()
+    if configured_authority not in {"authoritative", "discovery_only"}:
+        raise ValueError(f"unsupported inventory authority: {configured_authority}")
+    metadata["inventory_authority"] = configured_authority
     original_complete = bool(metadata.get("scan_complete"))
     original_reason = str(metadata.get("scan_completeness_reason") or "")
     original_stop_reason = str(metadata.get("stop_reason") or "")
@@ -120,12 +165,24 @@ def finalize_source_scan(
         if metadata["source_health_code"] == SourceHealthCode.IDENTITY_FAILURE.value:
             metadata["source_identity_status"] = "failed"
         metadata["inventory_complete"] = False
+        metadata["positive_inventory_usable"] = False
         return metadata
 
     _normalize_started_stop_reason(metadata, jobs_collected)
     _normalize_legacy_terminal_evidence(metadata, inventory_count)
     _reconcile_provisional_terminal(metadata, inventory_count)
     code = _completion_contradiction(metadata, inventory_count)
+    identity_status = str(
+        metadata.get("source_identity_status") or "unproven"
+    ).casefold()
+    if (
+        configured_authority == "discovery_only"
+        and identity_status not in {"validated", "verified"}
+    ):
+        # Positive-only inventory still needs positive attribution authority.
+        # A bounded or structurally valid response cannot supply that authority
+        # merely because records were parsed from the configured endpoint.
+        code = SourceHealthCode.IDENTITY_FAILURE
     if (
         code is None
         and metadata.get("scan_complete")
@@ -137,6 +194,51 @@ def finalize_source_scan(
         metadata["scan_complete"] = False
         metadata["scan_completeness_reason"] = code.value
         metadata["stop_reason"] = code.value
+    discovery_hard_failure = bool(
+        configured_authority == "discovery_only"
+        and code
+        in {
+            SourceHealthCode.IDENTITY_FAILURE,
+            SourceHealthCode.MALFORMED_COLLECTION,
+            SourceHealthCode.MALFORMED_RECORDS,
+            SourceHealthCode.UNPROVEN_EMPTY,
+        }
+    )
+    if discovery_hard_failure:
+        metadata["scan_complete"] = False
+        metadata["scan_state"] = SourceScanState.FAILED.value
+        metadata["inventory_complete"] = False
+        metadata["source_health_code"] = code.value
+        metadata["positive_inventory_usable"] = False
+        return metadata
+    discovery_expected_partial = bool(
+        configured_authority == "discovery_only"
+        and str(activation_state or "active").casefold() == "active"
+        and identity_status in {"validated", "verified"}
+        and (jobs_collected > 0 or _valid_empty_evidence(metadata))
+        and code
+        in {
+            None,
+            SourceHealthCode.PAGINATION_UNPROVEN,
+            SourceHealthCode.PAGINATION_LOOP,
+            SourceHealthCode.SAFETY_LIMIT_REACHED,
+            SourceHealthCode.COLLECTION_CHANGED,
+            SourceHealthCode.TERMINAL_CONTRADICTION,
+            SourceHealthCode.AUTHORITATIVE_TOTAL_NOT_REACHED,
+            SourceHealthCode.PROVIDER_CAP_REQUIRES_PARTITION,
+            SourceHealthCode.UNSPLITTABLE_PARTITION,
+            SourceHealthCode.PARTITION_INCOMPLETE,
+            SourceHealthCode.PARTITION_CONTRADICTION,
+        }
+    )
+    if discovery_expected_partial:
+        metadata["scan_complete"] = False
+        metadata["scan_completeness_reason"] = "discovery_only_no_absence_authority"
+        metadata["inventory_complete"] = False
+        metadata["positive_inventory_usable"] = jobs_collected > 0
+        metadata["scan_state"] = SourceScanState.INCOMPLETE.value
+        metadata["source_health_code"] = SourceHealthCode.HEALTHY_DISCOVERY_ONLY.value
+        return metadata
     if str(activation_state or "active").casefold() != "active":
         code = code or SourceHealthCode.PAGINATION_UNPROVEN
         metadata["scan_complete"] = False
@@ -179,6 +281,16 @@ def finalize_source_scan(
         metadata["source_health_code"] = (
             code or _incomplete_health_code(metadata, inventory_count)
         ).value
+    metadata["positive_inventory_usable"] = bool(
+        jobs_collected > 0
+        and metadata["source_health_code"]
+        not in {
+            SourceHealthCode.IDENTITY_FAILURE.value,
+            SourceHealthCode.MALFORMED_COLLECTION.value,
+            SourceHealthCode.MALFORMED_RECORDS.value,
+            SourceHealthCode.PAGINATION_LOOP.value,
+        }
+    )
     return metadata
 
 

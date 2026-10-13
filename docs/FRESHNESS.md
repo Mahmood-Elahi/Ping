@@ -17,9 +17,28 @@ Stable identity uses the existing order: namespaced source job ID, normalized ca
 
 ### Exact absence-removal policy
 
-Absence only counts when that company's result is `fetched` or `fetched_no_matching_roles` **and** the normalized result count stayed below the configured source cap. Reaching a cap is conservatively treated as partial. Failed, manual, unsupported, capped, or otherwise incomplete scans do not increment missing evidence. The default requires two consecutive qualifying absences. This protects against network failures, pagination changes, source caps, and scraper regressions.
+Absence only counts when the exact company/source scope is configured with
+`inventory_authority: authoritative` and passes the central finalizer's full
+identity, completion, terminal-evidence, mutation, safety, health, and result-
+authority gate. Reaching a cap is conservatively treated as partial. Failed,
+manual, unsupported, capped, discovery-only, or otherwise incomplete scans do
+not increment missing evidence. The default requires two consecutive qualifying
+absences. This protects against network failures, pagination changes, source
+caps, scraper regressions, and intentionally bounded discovery.
+
+Discovery-only positive observations still create or refresh exact ownership
+and advance `last_seen_at`; omission from a later discovery-only result does
+not alter missing counts or lifecycle state. Expected bounded partial discovery
+does not create cooldown failures and does not update the last successful
+authoritative-inventory timestamp. Real transport, parser, identity, schema,
+record, and URL failures remain failures. The effective health is
+`healthy_discovery_only`; the raw bounded stop remains visible in `stop_reason`.
 
 The SQL RPC receives only companies meeting this completeness rule, so persistence enforces the same policy as in-memory reconciliation.
+
+Retention is independent of inventory authority. The configured 60-day age
+limit, stale-output filtering, and removed-row retention continue to apply, but
+none of those policies is evidence that a source was exhausted.
 
 ## Dates and time zones
 

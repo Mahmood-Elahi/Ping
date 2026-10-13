@@ -23,13 +23,19 @@ if str(ROOT) not in sys.path:
 
 from src.scraper.company_careers.models import (
     AdapterResult,
+    CoverageStatus,
+    InventoryAuthority,
     SourceScanMetadata,
     adapter_exception_metadata,
     source_scan_metadata,
 )
 from src.scraper.company_careers.registry import load_target_companies
 from src.scraper.company_careers.scanner import ADAPTERS
-from src.scraper.company_careers.source_health import finalize_source_scan
+from src.scraper.company_careers.incremental import ResultAuthority
+from src.scraper.company_careers.source_health import (
+    can_reconcile_absence,
+    finalize_source_scan,
+)
 
 
 DEFAULT_CANARIES = (
@@ -171,6 +177,7 @@ def run_canary(target: Any, request_budget: int) -> dict[str, Any]:
             unreadable_items=unreadable_items,
             rejected_items=rejected_items,
             activation_state=target.source_activation,
+            inventory_authority=target.inventory_authority,
         )
         if metadata.get("scan_state") == "complete":
             status = "ok"
@@ -195,6 +202,7 @@ def run_canary(target: Any, request_budget: int) -> dict[str, Any]:
             metadata,
             jobs_collected=int(metadata.get("jobs_normalized") or 0),
             activation_state=target.source_activation,
+            inventory_authority=target.inventory_authority,
         )
         canary_outcome = _incomplete_outcome(metadata)
         status = "partial" if canary_outcome == "PASS_PARTIAL" else "failed"
@@ -211,12 +219,14 @@ def run_canary(target: Any, request_budget: int) -> dict[str, Any]:
             failed=True,
             failure_code=failure_code,
             activation_state=target.source_activation,
+            inventory_authority=target.inventory_authority,
         )
         status = "failed"
         canary_outcome = _failure_outcome(metadata, exc)
         error = f"{type(exc).__name__}: {exc}"[:1000]
     finally:
         session.close()
+    authority_fields = _authority_fields(metadata, target)
     return {
         "company": target.name,
         "source_scope": target.source_scope,
@@ -227,6 +237,7 @@ def run_canary(target: Any, request_budget: int) -> dict[str, Any]:
         "scan_complete": metadata.get("scan_complete"),
         "scan_state": metadata.get("scan_state"),
         "source_health_code": metadata.get("source_health_code"),
+        **authority_fields,
         "scan_completeness_reason": metadata.get("scan_completeness_reason"),
         "stop_reason": metadata.get("stop_reason"),
         "safety_limit_reached": metadata.get("safety_limit_reached"),
@@ -234,10 +245,9 @@ def run_canary(target: Any, request_budget: int) -> dict[str, Any]:
             "collection_changed_during_scan"
         ),
         "inventory_complete": metadata.get("inventory_complete"),
-        "central_finalizer_authoritative": bool(
-            metadata.get("scan_state") == "complete"
-            and metadata.get("inventory_complete") is True
-        ),
+        "central_finalizer_authoritative": authority_fields[
+            "authoritative_for_absence"
+        ],
         "inventory_items_collected": metadata.get("inventory_items_collected"),
         "unreadable_items": metadata.get("unreadable_items"),
         "rejected_items": metadata.get("rejected_items"),
@@ -333,6 +343,62 @@ def run_canary(target: Any, request_budget: int) -> dict[str, Any]:
         "lifecycle_mutations": 0,
         "dashboard_published": False,
         "error": error,
+    }
+
+
+def _authority_fields(metadata: dict[str, Any], target: Any) -> dict[str, Any]:
+    """Serialize the central positive/absence authority decision for operators."""
+    inventory_authority = InventoryAuthority(target.inventory_authority)
+    positive_inventory_usable = bool(metadata.get("positive_inventory_usable"))
+    if (
+        inventory_authority is InventoryAuthority.DISCOVERY_ONLY
+        and positive_inventory_usable
+    ):
+        result_authority = ResultAuthority.POSITIVE_ONLY
+    elif (
+        inventory_authority is InventoryAuthority.AUTHORITATIVE
+        and metadata.get("scan_state") == "complete"
+        and metadata.get("inventory_complete") is True
+    ):
+        result_authority = ResultAuthority.AUTHORITATIVE_INVENTORY
+    else:
+        result_authority = ResultAuthority.INCOMPLETE
+
+    authoritative_for_absence = can_reconcile_absence(
+        inventory_authority=inventory_authority,
+        status=(
+            CoverageStatus.FETCHED
+            if int(metadata.get("jobs_collected") or 0) > 0
+            else CoverageStatus.FETCHED_NO_MATCHING_ROLES
+        ),
+        scan_complete=bool(metadata.get("scan_complete")),
+        scan_state=str(metadata.get("scan_state") or "incomplete"),
+        source_health_code=str(metadata.get("source_health_code") or ""),
+        source_activation_state=str(
+            metadata.get("source_activation_state") or target.source_activation
+        ),
+        result_authority=result_authority,
+        inventory_complete=bool(metadata.get("inventory_complete")),
+        safety_limit_reached=bool(metadata.get("safety_limit_reached")),
+        collection_changed_during_scan=bool(
+            metadata.get("collection_changed_during_scan")
+        ),
+        source_identity_status=str(
+            metadata.get("source_identity_status") or "unproven"
+        ),
+        pagination_evidence_conflicting=bool(
+            metadata.get("pagination_evidence_conflicting")
+        ),
+        pagination_evidence_malformed=bool(
+            metadata.get("pagination_evidence_malformed")
+        ),
+    )
+    return {
+        "inventory_authority": inventory_authority.value,
+        "positive_inventory_usable": positive_inventory_usable,
+        "result_authority": result_authority.value,
+        "authoritative_for_absence": authoritative_for_absence,
+        "can_reconcile_absence": authoritative_for_absence,
     }
 
 
@@ -618,6 +684,12 @@ def _incomplete_outcome(metadata: dict[str, Any]) -> str:
     ):
         # A valid inventory is useful for discovery even when it is not
         # authoritative for absence.  PASS_PARTIAL never marks it healthy.
+        return "PASS_PARTIAL"
+    if (
+        code == "healthy_discovery_only"
+        and metadata.get("positive_inventory_usable") is True
+        and metadata.get("source_identity_status") in {"validated", "verified"}
+    ):
         return "PASS_PARTIAL"
     if (
         code == "safety_limit_reached"

@@ -147,6 +147,43 @@ budgets remain safety limits and never terminal evidence. Incomplete and failed
 scans retain zero absence authority, so missing-job, possibly-missing, closure,
 reopening, and staged Supabase reconciliation behavior is unchanged.
 
+### Inventory authority modes
+
+This is a source-coverage maintenance capability, not a new architecture phase.
+Each source has an `inventory_authority`:
+
+- `authoritative` (the backward-compatible default) may contribute positives
+  and may reconcile scope-local absence only when every existing identity,
+  terminal, mutation, safety, health, and result-authority check passes.
+- `discovery_only` is trusted for positive observations but never for negative
+  inference. Valid normalized jobs are persisted and refresh `last_seen`; an
+  unseen job is never retired, deactivated, or marked missing from that result.
+
+Discovery-only does not mean untrusted. Employer/source identity, stable IDs,
+canonical and apply URLs, parsing, and exact source ownership remain subject to
+the same validation. It means only that exhaustion is not proven. Typical
+examples are a moving Oracle offset inventory, Eightfold pagination mutation, a
+static page without terminal evidence, or a browser result page without an
+exhaustion contract. Provider caps, request budgets, partial pagination, and
+collection mutation can therefore yield useful positive-only results without
+becoming absence evidence.
+
+`can_reconcile_absence` is the single final lifecycle gate. It requires
+`inventory_authority=authoritative` in addition to the pre-existing finalized
+completeness, active-source, identity, health, mutation, pagination, and Phase 6
+result-authority checks. Discovery-only finalization preserves terminal
+diagnostics but records `scan_complete=false`, `inventory_complete=false`,
+`result_authority=positive_only`, and no authoritative completion watermark.
+Expected bounded partial discovery with usable positives reports
+`healthy_discovery_only`; HTTP, parser, identity, schema, malformed-record, URL,
+and contract failures remain real failures. This permits the useful positive
+collection mechanics used by jobseek/freehire without importing unsafe absence
+assumptions.
+
+`source_health_code` is the effective finalized health used by cooldown policy.
+The adapter's raw bounded-stop diagnostic remains in `stop_reason` (for example,
+`canary_budget_reached` or `repeated_page`) and does not imply completeness.
+
 ### Final Phase 2 migration status
 
 All 43 canonical dispatcher boundaries now return explicit results. The first
@@ -425,6 +462,13 @@ incomplete scan or cooldown skip has no absence authority. `tracked_jobs`
 remains the canonical/dashboard row; `tracked_job_source_scopes` stores each
 scope's provider identity, last observation, missing count, and lifecycle
 state. The canonical row stays active while any owning scope is active.
+
+A discovery-only scope is likewise omitted from the exact authoritative scope
+set. Its positive observation may add or refresh only its own ownership row; it
+cannot close another scope, and an authoritative scope cannot treat a
+discovery-only result as evidence about its own missing jobs. Parent/subsidiary
+attribution is not relaxed: ambiguous employer binding remains blocked before
+positive ownership is created.
 
 Cross-source equivalence is opt-in and accepts only a shared requisition ID,
 provider-owned global ID, exact canonical apply URL, exact first-party job URL,

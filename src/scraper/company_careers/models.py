@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
+from enum import Enum
 from functools import wraps
 from typing import (
     Any,
@@ -38,6 +39,13 @@ class CoverageStatus:
     MAPPED_NO_CURRENT_JOBS = "mapped_no_current_jobs"
     PARENT_FAILED_TECHNICAL = "parent_failed_technical"
     PARENT_SOURCE_NOT_CONFIGURED = "parent_source_not_configured"
+
+
+class InventoryAuthority(str, Enum):
+    """Configured authority for positive observations versus negative inference."""
+
+    AUTHORITATIVE = "authoritative"
+    DISCOVERY_ONLY = "discovery_only"
 
 
 class AdapterError(Exception):
@@ -148,6 +156,8 @@ class SourceScanMetadata(dict[str, Any]):
             pagination_evidence_conflicting=False,
             pagination_evidence_malformed=False,
             pagination_evidence_diagnostics=[],
+            inventory_authority=InventoryAuthority.AUTHORITATIVE.value,
+            positive_inventory_usable=False,
         )
         self.update(values)
 
@@ -423,6 +433,7 @@ class CompanyTarget:
     name: str
     platform: str
     source_scope: str = DEFAULT_SOURCE_SCOPE
+    inventory_authority: InventoryAuthority = InventoryAuthority.AUTHORITATIVE
     slug: Optional[str] = None
     tenant: Optional[str] = None
     wd_subdomain: Optional[str] = None
@@ -522,6 +533,7 @@ class CompanyTarget:
         self.name = str(self.name or "").strip()
         self.platform = str(self.platform or "").strip()
         self.source_scope = normalize_source_scope(self.source_scope)
+        self.inventory_authority = InventoryAuthority(self.inventory_authority)
 
     @property
     def source_scope_key(self) -> str:
@@ -539,6 +551,9 @@ class CompanyTarget:
             name=str(data["name"]),
             platform=platform,
             source_scope=normalize_source_scope(data.get("source_scope")),
+            inventory_authority=InventoryAuthority(
+                data.get("inventory_authority", InventoryAuthority.AUTHORITATIVE.value)
+            ),
             slug=data.get("slug"),
             tenant=data.get("tenant"),
             wd_subdomain=data.get("wd_subdomain"),
@@ -716,6 +731,7 @@ class CompanyScanResult:
     pagination_evidence_diagnostics: List[Dict[str, Any]] = field(default_factory=list)
     exclusion_counts: Dict[str, int] = field(default_factory=dict)
     mapped_child_brand_counts: Dict[str, int] = field(default_factory=dict)
+    positive_inventory_usable: bool = False
 
     def __post_init__(self) -> None:
         self.crawl_mode = CrawlMode(self.crawl_mode)
@@ -743,6 +759,7 @@ class CompanyScanResult:
             self.scan_state = "complete"
             if self.source_health_code == "pagination_unproven":
                 self.source_health_code = "healthy"
+            self.inventory_complete = True
         if self.source_activation_state == "active":
             self.source_activation_state = self.target.source_activation
 
@@ -752,14 +769,22 @@ class CompanyScanResult:
 
     @property
     def authoritative_for_absence(self) -> bool:
-        return bool(
-            self.status
-            in {CoverageStatus.FETCHED, CoverageStatus.FETCHED_NO_MATCHING_ROLES}
-            and self.scan_complete
-            and self.scan_state == "complete"
-            and self.source_health_code in {"healthy", "hydration_degraded"}
-            and self.source_activation_state == "active"
-            and self.result_authority is ResultAuthority.AUTHORITATIVE_INVENTORY
+        from src.scraper.company_careers.source_health import can_reconcile_absence
+
+        return can_reconcile_absence(
+            inventory_authority=self.target.inventory_authority,
+            status=self.status,
+            scan_complete=self.scan_complete,
+            scan_state=self.scan_state,
+            source_health_code=self.source_health_code,
+            source_activation_state=self.source_activation_state,
+            result_authority=self.result_authority,
+            inventory_complete=self.inventory_complete,
+            safety_limit_reached=self.safety_limit_reached,
+            collection_changed_during_scan=self.collection_changed_during_scan,
+            source_identity_status=self.source_identity_status,
+            pagination_evidence_conflicting=self.pagination_evidence_conflicting,
+            pagination_evidence_malformed=self.pagination_evidence_malformed,
         )
 
     @property
@@ -809,6 +834,9 @@ class CompanyScanResult:
             "complete_collection_response": self.complete_collection_response,
             "scan_state": self.scan_health,
             "authoritative_for_absence": self.authoritative_for_absence,
+            "can_reconcile_absence": self.authoritative_for_absence,
+            "inventory_authority": self.target.inventory_authority.value,
+            "positive_inventory_usable": self.positive_inventory_usable,
             "crawl_mode": self.crawl_mode.value,
             "result_authority": self.result_authority.value,
             "source_health_code": self.source_health_code,
@@ -911,7 +939,13 @@ class CompanyCareersReport:
     def source_health_summary(self) -> Dict[str, Any]:
         states = Counter(result.scan_health for result in self.results)
         codes = Counter(result.source_health_code for result in self.results)
-        if not states["incomplete"] and not states["failed"]:
+        expected_discovery_partial = sum(
+            result.scan_health == "incomplete"
+            and result.source_health_code == "healthy_discovery_only"
+            for result in self.results
+        )
+        unexpected_incomplete = states["incomplete"] - expected_discovery_partial
+        if not unexpected_incomplete and not states["failed"]:
             coverage_health = "healthy"
         elif not states["complete"] and states["failed"]:
             coverage_health = "failed"
@@ -923,6 +957,7 @@ class CompanyCareersReport:
             "complete": states["complete"],
             "incomplete": states["incomplete"],
             "failed": states["failed"],
+            "healthy_discovery_only": expected_discovery_partial,
             "by_health_code": dict(sorted(codes.items())),
         }
 

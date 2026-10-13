@@ -139,6 +139,8 @@ def classify_failure(result: CompanyScanResult) -> str | None:
     if result.authoritative_for_absence:
         return None
     health = str(result.source_health_code or "").casefold()
+    if health == "healthy_discovery_only":
+        return None
     reason = str(result.stop_reason or "").casefold()
     error_type = str(result.error_type or "").casefold()
     message = str(result.error or "").casefold()
@@ -212,6 +214,16 @@ def reconcile_source_health(
                     "cooldown_until": None,
                     "last_failure_classification": None,
                     "last_successful_authoritative_inventory": observed_at.isoformat(),
+                }
+            )
+            continue
+        if result.source_health_code == "healthy_discovery_only":
+            rows.append(
+                {
+                    **base,
+                    "consecutive_transient_failures": 0,
+                    "cooldown_until": None,
+                    "last_failure_classification": None,
                 }
             )
             continue

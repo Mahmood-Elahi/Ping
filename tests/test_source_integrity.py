@@ -470,6 +470,10 @@ class RegistryIntegrityGateTests(unittest.TestCase):
         self.assertEqual(row["scan_state"], "incomplete")
         self.assertEqual(row["source_health_code"], "safety_limit_reached")
         self.assertEqual(row["source_identity_status"], "validated")
+        self.assertEqual(row["inventory_authority"], "authoritative")
+        self.assertEqual(row["result_authority"], "incomplete")
+        self.assertFalse(row["authoritative_for_absence"])
+        self.assertFalse(row["can_reconcile_absence"])
 
     def test_bounded_canary_surfaces_record_rejection_and_dedup_diagnostics(self):
         target = CompanyTarget(name="Diagnostic", platform="fixture")
