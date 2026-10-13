@@ -38,7 +38,7 @@ target_companies:
     max_pages: 1
     max_jobs: 10000
     max_response_bytes: 5000000
-    evidence_source: docs/PHASE1_ATS_MIGRATION_REVIEW.md and jobseek apps/crawler/data/boards.csv
+    evidence_source: docs/ROADMAP.md and jobseek apps/crawler/data/boards.csv
     evidence_confidence: high
 
 phase5_activation:

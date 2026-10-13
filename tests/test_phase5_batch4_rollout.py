@@ -197,17 +197,17 @@ def test_lightspeed_france_canary_contract_is_exact_and_bounded() -> None:
 
 
 def test_rollout_runbook_records_final_rejection_and_phase6_handoff() -> None:
-    runbook = (ROOT / "docs" / "PHASE5_MULTI_SCOPE_ROLLOUT.md").read_text(
+    runbook = (ROOT / "docs" / "ROADMAP.md").read_text(
         encoding="utf-8"
     )
-    assert "Status: `PHASE5_COMPLETE`" in runbook
-    assert "Final status: `REJECTED`" in runbook
-    assert "Canary outcome: `FAIL_IDENTITY`" in runbook
-    assert "Greenhouse HTTP 404 for lightspeedhqfr" in runbook
-    assert "Production activation: false" in runbook
-    assert "Canary rerun in Phase 5: forbidden" in runbook
-    assert "Phase 6 handoff: incremental optimization" in runbook
-    assert "never infer absence from an incremental slice alone" in runbook
+    normalized = " ".join(runbook.split())
+    assert "Phase 5 — multi-scope lifecycle" in runbook
+    assert "Lightspeed France" in runbook
+    assert "`FAIL_IDENTITY`" in runbook
+    assert "HTTP 404" in runbook
+    assert "rejected and never activated" in runbook
+    assert "Phase 6 — incremental optimization" in runbook
+    assert "never infer absence from an incremental slice" in normalized
     assert "--run" not in runbook
 
 

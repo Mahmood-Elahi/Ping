@@ -23,11 +23,18 @@ output/
 jobs/
 examples/output/
 
+# Retained private/publication-review evidence (preserve locally; do not stage)
+/batch9_*_results.zip
+/evidence/
+/discovery_*.txt
+/identity*_audit.txt
+/identity*_history.txt
+/config/job_radar_run_history.json
+
 # Candidate-specific and local-only files
 *Resume*.pdf
 *_Resume.pdf
 HANDOFF*.md
-AGENTS.md
 tasks/
 
 # Local notebooks, browser logs, and archived experiments

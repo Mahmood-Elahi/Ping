@@ -17,7 +17,8 @@ CANDIDATES = (
     ROOT / "config" / "target_companies.pagination_completeness_batch3_canaries.yaml"
 )
 PRODUCTION = ROOT / "config" / "target_companies.yaml"
-PLAYBOOK = ROOT / "docs" / "PAGINATION_COMPLETENESS_RECOVERY_BATCH1.md"
+ROADMAP = ROOT / "docs" / "ROADMAP.md"
+SOURCE_CONTRACTS = ROOT / "docs" / "SOURCE_CONTRACTS.md"
 
 EXPECTED = [
     "Meta",
@@ -355,17 +356,15 @@ def test_pass_gates_accounting_rollback_and_batch4_are_durable() -> None:
 
 
 def test_playbook_contains_batch3_acceptance_rules_and_no_false_recovery() -> None:
-    text = PLAYBOOK.read_text(encoding="utf-8")
+    text = ROADMAP.read_text(encoding="utf-8")
+    contracts = SOURCE_CONTRACTS.read_text(encoding="utf-8")
 
-    assert "## Batch 3 deterministic closeout" in text
-    assert "Accepted candidate: Bosch bound-only repair" in text
-    assert "Accept a first-party sitemap for absence only" in text
-    assert "GraphQL total authorizes absence only" in text
-    assert "Oracle partitioning requires an authoritative finite facet universe" in text
-    assert "SuccessFactors RSS or sitemap" in text
-    assert "Migration from an unstable ATS" in text
-    assert "Static completion needs a provider-visible final page" in text
-    assert "deterministic `READY_FOR_CANARY`" in text
-    assert "live `PASS_COMPLETE`" in text
-    assert "production activation" in text
+    assert "## Post-roadmap source recovery" in text
+    assert "Bosch later" in text
+    assert "Oracle-family mutable offsets still lack an exhaustive finite facet universe" in text
+    assert "Sitemap, RSS, and GraphQL leads lack active-only completeness" in text
+    assert "Static/browser stragglers lack reviewed source-local terminal evidence" in text
+    assert "`READY_FOR_CANARY` is empty" in text
+    assert "`PASS_COMPLETE`" in contracts
+    assert "Activate only the exact tested configuration" in contracts
     assert "50 jobs of remaining capacity" in text

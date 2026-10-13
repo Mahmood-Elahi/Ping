@@ -1,317 +1,190 @@
-```text
-__________       .__        __________             .___
-\______   \ ____ |  |   ____\______   \_____     __| _/____ _______
- |       _//  _ \|  | _/ __ \|       _/\__  \   / __ |\__  \\_  __ \
- |    |   (  <_> )  |_\  ___/|    |   \ / __ \_/ /_/ | / __ \|  | \/
- |____|_  /\____/|____/\___  >____|_  /(____  /\____ |(____  /__|
-        \/                 \/       \/      \/      \/     \/
-```
+# Ping
 
-# RoleRadar
+_New roles. Less noise._
 
-Target-company job discovery with source coverage.
+Ping is a target-company job-discovery system that scans LinkedIn and direct
+employer career sites, normalizes postings, ranks relevant roles, and reports
+source coverage separately from search results. That separation is deliberate:
+an empty result is not treated as proof that an employer has no open roles.
 
-RoleRadar scans LinkedIn and company career systems such as Greenhouse, Ashby, Workday, Lever, Dayforce, Amazon Jobs, Google Careers, Meta Careers, Atlassian, Uber, Shopify, and other custom career pages. It normalizes postings, ranks relevant roles, and writes transparent coverage reports so you can see matches, gaps, and failed sources.
+The repository keeps its established technical identifiers—such as the
+`role-radar` package/repository name, `job_radar_*` metadata, database objects,
+environment variables, and workflow identifiers—to avoid breaking automation.
+**Ping** is the user-facing product name.
 
-Most job-search workflows depend on LinkedIn alone or hide source failures. RoleRadar is built for targeted searches: define companies, run scans, review ranked jobs, and inspect source coverage without guessing what was missed.
+## What Ping does
 
-## What It Does
+- Runs LinkedIn and direct company-careers acquisition from one pipeline.
+- Dispatches a YAML registry to 41 active platform keys covering common ATSs
+  and reviewed custom sources.
+- Normalizes source records while retaining stable provider identity and source
+  diagnostics.
+- Separates source completion, role relevance, candidate preference,
+  freshness, urgency, and lifecycle decisions.
+- Writes ranked jobs plus explicit coverage and failure artifacts.
+- Optionally persists student-role lifecycle state in Supabase and publishes
+  managed Google Sheets views.
+- Fails closed when source identity, scope, pagination, terminal evidence, or
+  inventory accounting is ambiguous.
 
-- Scans LinkedIn and direct company career pages from one CLI pipeline.
-- Uses a YAML company registry instead of hardcoded one-off scripts.
-- Supports reusable adapters for common ATS and custom career systems.
-- Normalizes jobs into a consistent shape for downstream review.
-- Ranks roles with a deterministic relevance layer.
-- Optionally ranks student roles with a config-backed deterministic candidate-preference layer.
-- Tracks deterministic first/last seen lifecycle state, source-posted freshness, and explicit deadline urgency across scans.
-- Exports ranked jobs, coverage reports, and failure reports as JSON, CSV, and Markdown.
-- Optionally generates CVs and cover letters from selected job data.
+The checked-in production registry currently contains 533 canonical companies,
+533 configured sources, and 533 logical source scopes. Those are configuration
+counts, not a claim that all sources are currently reachable or complete. The
+latest retained maintenance closeout parks 36 unresolved sources; see
+[Roadmap](docs/ROADMAP.md) for the dated evidence boundary.
 
-RoleRadar is role-agnostic at the scanner level. The current default relevance scoring is tuned for senior technical roles, but search terms and relevance rules can be adapted for product, design, data, operations, or other functions.
+## Safety model
 
-## Quick Start
+Every direct source produces observations; only the central finalizer decides
+whether they prove a complete authoritative inventory. A request or page limit
+is a safety bound, never terminal evidence. Partial and discovery-only runs may
+add or refresh jobs, but they cannot advance absence-based lifecycle removal.
 
-```bash
-git clone git@github.com:swanidhi/role-radar.git
-cd role-radar
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-playwright install
-cp .env.example .env
-```
+A source may be activated only after exact employer/source identity, source
+scope, stable job identity, authoritative terminal evidence, complete inventory
+accounting, deterministic fixtures, and a bounded non-persistent canary all
+pass. `PASS_COMPLETE` is the only generally activation-eligible canary result.
+See [Source Contracts](docs/SOURCE_CONTRACTS.md) before changing any source.
 
-Edit `.env` with the credentials you need:
+## Quick start
 
-```env
-# LinkedIn credentials
-LINKEDIN_USERNAME=your_linkedin_email@example.com
-LINKEDIN_PASSWORD=your_linkedin_password
-
-# Required only for CV / cover-letter generation
-GOOGLE_API_KEY=your_google_api_key_here
-GPT_4O_API=your_openai_key_here
-GPT_4_1_API=your_openai_key_here
-```
-
-Run a direct company-careers scan:
-
-```bash
-python main.py search "Staff Software Engineer" \
-  --locations "Remote" "United States" \
-  --scrapers company_careers \
-  --max-jobs 5
-```
-
-Run a combined LinkedIn and company-careers scan:
-
-```bash
-python main.py search "Staff Software Engineer" \
-  --locations "Remote" "United States" \
-  --scrapers linkedin company_careers \
-  --max-jobs 5
-```
-
-Generated artifacts are written under `jobs/` or `output/` depending on the command path. Runtime output directories are intentionally ignored by git.
-
-## How It Works
-
-```mermaid
-flowchart LR
-    A[Keywords + locations] --> B[JobSearchPipeline]
-    B --> C[LinkedIn scraper]
-    B --> D[Company careers scanner]
-    D --> E[ATS + custom adapters]
-    C --> F[Normalized job records]
-    E --> F
-    F --> G[Relevance ranking]
-    F --> H[Coverage + failure reports]
-    G --> I[Ranked JSON and CSV]
-    H --> J[Markdown, CSV, JSON reports]
-```
-
-The important design choice is coverage transparency. A company can return matches, return jobs that do not match the current search, require manual review, fail technically, or be unsupported. RoleRadar records those states explicitly instead of silently dropping companies from the result set.
-
-## Student Dashboard (Opt In)
-
-The local student dashboard is separate from the normal `main.py search` workflow. It scans each configured company once per update, applies the student title and location filters, ranks the retained jobs, persists them in Supabase, and then publishes the managed Google Sheets tabs.
-
-### Architecture
-
-```text
-Student company scan
-        ↓
-Filtering and student relevance ranking
-        ↓
-Supabase persistent storage
-        ↓
-Google Sheets dashboard
-```
-
-### Supabase Setup
-
-1. Create a Supabase project.
-2. Open the SQL editor.
-3. Run `sql/supabase_schema.sql`.
-4. Run every file in `sql/migrations` in filename order.
-5. Copy the project URL.
-6. Copy the service-role key.
-7. Keep the service-role key private; it must never be exposed in client-side code or committed files.
-
-### Google Sheets Setup
-
-1. Create a Google Cloud project.
-2. Enable the Google Sheets API.
-3. Create a service account.
-4. Download its JSON key.
-5. Store the key in an ignored `secrets` directory.
-6. Create the Google Sheet.
-7. Share the sheet with the service-account email as Editor.
-8. Copy the spreadsheet ID.
-
-### Required Local Environment Variables
-
-Configure these local environment variables without committing real values:
-
-```text
-SUPABASE_URL
-SUPABASE_SERVICE_ROLE_KEY
-GOOGLE_SHEET_ID
-GOOGLE_CREDENTIALS_PATH
-NEW_JOB_WINDOW_DAYS
-CLOSE_AFTER_MISSING_RUNS
-```
-
-`NEW_JOB_WINDOW_DAYS` and `CLOSE_AFTER_MISSING_RUNS` have defaults of `7` and `2`; set them only when you need different behavior. Supabase synchronization uses a 120-second request timeout, three bounded attempts for transient failures, and a 0.5-second exponential retry base; override these with `SUPABASE_REQUEST_TIMEOUT_SECONDS`, `SUPABASE_SYNC_MAX_ATTEMPTS`, and `SUPABASE_SYNC_RETRY_DELAY_SECONDS` when operational measurements require it. Source rows are durably staged in chunks capped at 200 rows and 524,288 serialized bytes. `SUPABASE_SYNC_CHUNK_ROWS` and `SUPABASE_SYNC_CHUNK_BYTES` may lower, but not raise, those server-enforced ceilings.
-
-### Commands
-
-Run the dashboard from Windows PowerShell:
+Python 3.11 is the repository baseline.
 
 ```powershell
+git clone git@github.com:swanidhi/role-radar.git
+Set-Location role-radar
+python -m venv .venv
 .\.venv\Scripts\Activate.ps1
+python -m pip install uv
+uv sync --locked --dev
+python -m playwright install chromium
+Copy-Item .env.example .env
+```
+
+On macOS or Linux, activate with `source .venv/bin/activate` and copy the
+environment template with `cp .env.example .env`.
+
+`pyproject.toml` is the dependency declaration and `uv.lock` is the
+cross-platform lock. `requirements.txt` is a generated, pinned runtime export
+retained for Docker and the existing GitHub Actions workflow; do not edit it by
+hand.
+
+Run a direct company-careers search:
+
+```powershell
+.\.venv\Scripts\python.exe main.py search "Software Engineer" `
+  --locations "Canada" "Remote" `
+  --scrapers company_careers `
+  --max-jobs 5
+```
+
+Run both acquisition paths:
+
+```powershell
+.\.venv\Scripts\python.exe main.py search "Software Engineer" `
+  --locations "Canada" "Remote" `
+  --scrapers linkedin company_careers `
+  --max-jobs 5
+```
+
+These search commands contact external sites. For a no-network dashboard
+preflight, use:
+
+```powershell
 .\.venv\Scripts\python.exe scripts\update_student_dashboard.py --dry-run
-.\.venv\Scripts\python.exe scripts\update_student_dashboard.py --max-jobs 1
-.\.venv\Scripts\python.exe scripts\update_student_dashboard.py --skip-sheets
 ```
 
-`--max-jobs` limits retained results per company after filtering; some adapters may fetch more raw postings from the network. `--dry-run` prints the plan and performs no scan, artifact write, Supabase call, or Google call. `--skip-sheets` updates Supabase without accessing Google Sheets.
+## Configuration and credentials
 
-### Managed Google Sheets Tabs
+Copy `.env.example` to `.env` and set only the integrations you use. Important
+groups are:
 
-The publisher manages `New Jobs`, `Active Jobs`, `Companies`, `System Status`, and six adjacent company-industry job views:
+- LinkedIn: `LINKEDIN_USERNAME`, `LINKEDIN_PASSWORD`, or the documented cookie
+  and profile alternatives.
+- Document generation: `GOOGLE_API_KEY`, `GPT_4O_API`, `GPT_4_1_API`.
+- API: `API_KEY`, explicit comma-separated `ALLOWED_ORIGINS`; administrative
+  JSON-to-SQLite migration additionally requires `ADMIN_API_KEY` and
+  `ENABLE_API_MIGRATIONS=true`.
+- Supabase: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
+- Google Sheets: `GOOGLE_SHEET_ID`, `GOOGLE_CREDENTIALS_PATH`.
 
-- `Tech & AI`
-- `Chips & Hardware`
-- `Mobility & Robotics`
-- `Energy & Industrial`
-- `Finance & Fintech`
-- `Consumer & Health`
+Never commit credentials. The Supabase service-role key is backend-only.
 
-The `Applications` tab is deliberately untouched so manually maintained application data remains under user control. All six industry tabs are generated from the same canonical active-job dataset; they are views, not independent stores or ranking pipelines. Industry is assigned from each job's canonical company name using `config/company_industries.yaml`, never from title keywords. Each view retains every eligible job, uses the same `Score`, `Company`, `Position`, `Location`, `Freshness`, `Urgency`, `Why`, and `Apply` projection as the core job tabs, and sorts by the existing relevance/ranking score from highest to lowest. Existing freshness and deterministic company/title ordering resolve ties.
-
-When adding a company to `config/target_companies.yaml`, add that exact canonical name to exactly one of the six lists in `config/company_industries.yaml`. Configuration validation rejects missing or additional industry groups, duplicate assignments, and target companies with no assignment. Publication also fails before modifying Google Sheets if a company or active job cannot be mapped, preventing jobs from silently disappearing.
-
-`New Jobs` and `Active Jobs` are intentionally user-facing views. `Why` summarizes the ranked job's positive signals, and `Apply` retains the direct application URL. The canonical ranked-job model and persisted Supabase records continue to retain relevance bands, categories, eligibility/location status, lifecycle and deadline data, timestamps, source identifiers, child-brand mappings, industry metadata, and other diagnostic metadata for ranking, filtering, deduplication, replay, diagnostics, and future product features.
-
-## Supported Sources
-
-RoleRadar currently includes adapters for:
-
-- LinkedIn through Playwright
-- Greenhouse
-- Lever
-- Dayforce
-- Ashby
-- Workday
-- Amazon Jobs
-- Google Careers
-- Meta Careers
-- Atlassian Careers
-- Uber Careers
-- Shopify Careers
-- IBM-backed career search
-
-The default registry in `config/target_companies.yaml` includes companies such as Airbnb, Stripe, Databricks, Cloudflare, Datadog, MongoDB, Coinbase, Elastic, GitLab, Twilio, Zscaler, Anthropic, OpenAI, Amazon, Adobe, CrowdStrike, Nvidia, PayPal, Atlassian, Uber, Snowflake, Salesforce, HashiCorp, Confluent, Shopify, Google, and Meta.
-
-## Project Layout
-
-```text
-config/target_companies.yaml              # Company registry for direct career-site scans
-src/scraper/company_careers/              # Company-careers scanner package
-src/scraper/company_careers/adapters/     # ATS and custom source adapters
-src/scraper/search/linkedin_scraper/      # Playwright LinkedIn scraper
-src/utils/job_search_pipeline.py          # Shared orchestration for CLI/API flows
-tests/test_company_careers.py             # Focused tests for adapters, coverage, ranking
-docs/                                     # Architecture and usage docs
-output/                                   # Generated artifacts, ignored by git
-```
-
-## Configuration
-
-The company-careers scanner reads from `config/target_companies.yaml`.
-
-Each target declares a company name, platform, and platform-specific fields:
-
-```yaml
-target_companies:
-  - name: OpenAI
-    platform: ashby
-    slug: openai
-
-  - name: Adobe
-    platform: workday
-    tenant: adobe
-    wd_subdomain: wd5
-    site_id: external_experienced
-
-  - name: Google
-    platform: google
-    max_pages: 3
-    search_terms:
-      - Principal Engineer
-      - Staff Software Engineer
-```
-
-See [Configuration](docs/CONFIGURATION.md) for the supported fields and examples.
+The active direct-source registry is `config/target_companies.yaml`. Candidate,
+canary, rollback, and historical validation registries are intentionally
+separate and are not normal production inputs. Student relevance, industry,
+freshness, and retention settings live under `config/` as named in
+[Operations](docs/OPERATIONS.md).
 
 ## Outputs
 
-A company-careers run can write:
+Commands write generated artifacts under `jobs/` or `output/`, including:
 
-- `job_postings_*.json`: normalized matched jobs
-- `company_careers_ranked_*.json`: ranked jobs with relevance scores and reasons
-- `company_careers_ranked_*.csv`: spreadsheet-friendly ranked review
-- `company_careers_coverage_*.md`: readable source coverage summary
-- `company_careers_coverage_*.csv`: source coverage table
-- `company_careers_coverage_*.json`: structured coverage state
-- `company_careers_failures_*.json`: technical/manual failures for follow-up
+- normalized job JSON;
+- ranked JSON and CSV;
+- coverage Markdown, CSV, and JSON;
+- source failure and student-search diagnostic JSON; and
+- optional generated application documents.
 
-See [Outputs](docs/OUTPUTS.md) for the schema and how to interpret each artifact.
+Coverage states distinguish successful matching, successful no-match,
+incomplete/manual coverage, technical failure, cooldown skip, and parent-source
+coverage. Always review coverage alongside ranked jobs.
 
-## Example Review Snapshot
+## Student dashboard
 
-A ranked CSV gives reviewers a compact view of the best roles:
+The opt-in dashboard scans configured sources, ranks eligible student roles,
+performs source-scoped staged synchronization to Supabase, and publishes the
+managed Sheets tabs `New Jobs`, `Active Jobs`, `Companies`, `System Status`, and
+six industry views. The manually maintained `Applications` tab is never
+managed by Ping.
 
-| company | title | location | relevance_score | relevance_band |
-| --- | --- | --- | ---: | --- |
-| ExampleCo | Staff Software Engineer, Platform | Remote | 84 | high |
-| Acme Cloud | Principal Software Engineer | United States | 82 | high |
-| DataWorks | Senior Staff Machine Learning Engineer | Remote | 78 | good |
+Apply `sql/supabase_schema.sql` for a clean database or the ordered migrations
+listed in [Architecture](docs/ARCHITECTURE.md). Verify with `--dry-run` before
+any external operation. Normal updates can mutate Supabase and Sheets; see the
+operations safety table before running them.
 
-A coverage report shows source health separately from role matching:
+## API
 
-| company | status | fetched_count | matched_count | follow-up |
-| --- | --- | ---: | ---: | --- |
-| ExampleCo | fetched | 42 | 3 | none |
-| Acme Cloud | fetched_no_matching_roles | 18 | 0 | tune search/relevance or check later |
-| LegacyCorp | manual_review_required | 0 | 0 | add adapter or review manually |
+`python main_api.py` starts the legacy FastAPI surface. Interactive OpenAPI docs
+are exposed at `/docs`. The implemented surface includes asynchronous search,
+WebSocket progress, search history/results, and SQLite job queries. The
+repository does not implement the aspirational parse/process endpoints that
+appeared in older documentation.
 
-These are representative shapes. Actual output depends on configured companies, search terms, locations, and source availability.
+## Project map
 
-## Documentation
-
-- [Architecture](docs/ARCHITECTURE.md): pipeline flow, adapter model, and data model
-- [Configuration](docs/CONFIGURATION.md): adding companies and tuning source behavior
-- [Outputs](docs/OUTPUTS.md): generated files and coverage states
-- [Relevance](docs/RELEVANCE.md): ranking behavior and how to adapt it beyond technical roles
-- [Candidate Profile v1](docs/CANDIDATE_PROFILE.md): optional deterministic student preferences
-- [Freshness / Urgency v1](docs/FRESHNESS.md): lifecycle state, source dates, deadlines, and replay
-- [Attribution](docs/ATTRIBUTION.md): upstream credit and what changed
-- [Publishing Notes](docs/PUBLISHING.md): public-name, description, and topic guidance
-- [LinkedIn Scraper Guide](docs/LINKEDIN_SCRAPER.md): LinkedIn-specific usage
-- [API Reference](docs/API.md): FastAPI endpoints
-- [Testing Guide](docs/TESTING.md): verification commands
-
-## Common Commands
-
-```bash
-# LinkedIn-only search
-python main.py search "Data Scientist" --locations "Remote" --scrapers linkedin --max-jobs 5
-
-# Company-careers-only search
-python main.py search "Staff Software Engineer" --locations "Remote" "United States" --scrapers company_careers --max-jobs 5
-
-# Combined search
-python main.py search "Staff Software Engineer" --locations "Remote" "United States" --scrapers linkedin company_careers --max-jobs 5
-
-# Process existing jobs and generate a CV
-python main.py process jobs/job_search_YYYYMMDD_HHMMSS.json --generate-cv
-
-# Start the API server
-python main_api.py
+```text
+main.py                                  CLI entry point
+main_api.py                              FastAPI entry point
+config/target_companies.yaml             production source registry
+src/scraper/company_careers/             scanner, contracts, lifecycle, ranking
+src/scraper/company_careers/adapters/    ATS and custom adapters
+src/scraper/search/linkedin_scraper/     Playwright LinkedIn implementation
+src/integrations/                        Supabase and Google Sheets integrations
+scripts/                                 audits, validators, replay, operations
+sql/                                     bootstrap schema and migrations
+tests/                                   deterministic regression fixtures
+docs/                                    four authoritative supplementary docs
 ```
 
-## Limits And Caveats
+## Authoritative documentation
 
-- Career-site APIs and HTML structures change; adapters need maintenance.
-- LinkedIn can rate limit or require manual authentication checks.
-- Some company sources may need manual review when no stable endpoint exists.
-- Default relevance scoring currently favors senior technical roles.
-- Users are responsible for complying with site terms, rate limits, and applicable law.
+- [Architecture](docs/ARCHITECTURE.md) — data flow, components, persistence,
+  lifecycle, and incremental-crawl design.
+- [Source Contracts](docs/SOURCE_CONTRACTS.md) — mandatory identity, scope,
+  completeness, activation, rollback, and retirement rules.
+- [Operations](docs/OPERATIONS.md) — setup, configuration, commands, outputs,
+  dashboard operation, and deterministic verification.
+- [Roadmap](docs/ROADMAP.md) — the preserved seven-phase roadmap, historical
+  validation record, recoveries, and unresolved work.
+
+Codex sessions must also follow [AGENTS.md](AGENTS.md).
 
 ## Attribution
 
-RoleRadar started from the open-source [JobSearch-Agent](https://github.com/sreekar2858/JobSearch-Agent) project by `sreekar2858`. This version extends that base with a config-driven company-careers scanner, ATS/custom adapters, relevance ranking, coverage reporting, and a more transparent review workflow.
-
-See [Attribution](docs/ATTRIBUTION.md) for details.
+Ping began as an extension of the open-source
+[JobSearch-Agent](https://github.com/sreekar2858/JobSearch-Agent) project by
+`sreekar2858`, through the upstream RoleRadar project. This repository retains
+that attribution and the inherited GNU General Public License v3.0 in
+[LICENSE](LICENSE); package metadata identifies it as `GPL-3.0-only`. No
+third-party material is relicensed by this statement.

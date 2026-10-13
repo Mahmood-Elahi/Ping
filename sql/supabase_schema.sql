@@ -1,4 +1,4 @@
--- RoleRadar student-job persistence for Supabase/PostgreSQL.
+-- Ping student-job persistence for Supabase/PostgreSQL.
 -- Apply from a trusted admin context; never expose the service-role key.
 
 create extension if not exists pgcrypto with schema extensions;

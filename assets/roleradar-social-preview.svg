@@ -1,6 +1,6 @@
 <svg width="1280" height="640" viewBox="0 0 1280 640" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
-  <title id="title">RoleRadar social preview</title>
-  <desc id="desc">Social preview graphic for RoleRadar, a target-company job discovery tool with source coverage.</desc>
+  <title id="title">Ping social preview</title>
+  <desc id="desc">Social preview graphic for Ping. New roles. Less noise.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1280" y2="640" gradientUnits="userSpaceOnUse">
       <stop stop-color="#081118"/>
@@ -27,10 +27,10 @@
 
   <g opacity="0.95">
     <text x="90" y="206" fill="#F6FBFA" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="104" font-weight="850" letter-spacing="-4">
-      RoleRadar
+      Ping
     </text>
     <text x="96" y="278" fill="#A8C3C0" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="30" font-weight="650" letter-spacing="0.5">
-      target-company job discovery with source coverage
+      New roles. Less noise.
     </text>
     <path d="M98 326H474" stroke="#32D6C4" stroke-width="8" stroke-linecap="round"/>
     <path d="M496 326H614" stroke="#F4A62A" stroke-width="8" stroke-linecap="round"/>

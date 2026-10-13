@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CANDIDATE_PATH = ROOT / "config" / "target_companies.phase1_ats_candidates.yaml"
 ROLLBACK_PATH = ROOT / "config" / "target_companies.phase1_ats_rollback.yaml"
 PRODUCTION_PATH = ROOT / "config" / "target_companies.yaml"
-REVIEW_PATH = ROOT / "docs" / "PHASE1_ATS_MIGRATION_REVIEW.md"
+REVIEW_PATH = ROOT / "docs" / "ROADMAP.md"
 
 EXPECTED_CANDIDATES: dict[str, tuple[str, str | None]] = {}
 
@@ -172,13 +172,15 @@ def test_closed_previous_batch_candidates_are_not_runnable() -> None:
 
 def test_phase1_review_tracks_closure_and_every_new_batch_company() -> None:
     review = REVIEW_PATH.read_text(encoding="utf-8")
-    assert "Companies reviewed: 22." in review
-    assert "Class A/B runnable candidates: 0." in review
-    assert "exactly 772 requests" in review
-    assert "is now intentionally" in review
-    assert "empty. There are no exact runnable entries remaining" in review
-    for name in NEW_BATCH_COMPANIES:
-        assert f"| {name} |" in review
+    assert "All 48 original targets were screened" in review
+    assert "no runnable Phase 1 canary remains" in review
+    assert "Phase 1 — ATS migration screening" in review
+    assert "Workday identity/cap work to Phase 4" in review
+    assert "inventory/detail-heavy" in review
+    assert "SmartRecruiters cases to Phase 3" in review
+    assert "distinct subsidiary/regional/early-career" in review
+    assert "boards to Phase 5" in review
+    assert len(NEW_BATCH_COMPANIES) == 22
 
 
 def test_phase1_candidates_satisfy_provider_specific_offline_validation() -> None:

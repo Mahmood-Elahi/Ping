@@ -1,4 +1,16 @@
-# Python
+# Version control and local tooling
+.git/
+.github/
+.gitignore
+.gitattributes
+.agents/
+.codex/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python environments, caches, tests, and build products
 __pycache__/
 *.py[cod]
 *$py.class
@@ -8,39 +20,76 @@ env/
 venv/
 .venv/
 ENV/
-key.json
-
-# IDEs
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Git
-.git/
-.gitignore
-
-# Documentation
-docs/
-*.md
-!README.md
-
-# Tests
 tests/
 *.ipynb
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
 
-# Output and data (will be recreated)
+# Credentials and local environment configuration
+.env
+.env.*
+**/.env
+**/.env.*
+key.json
+**/key.json
+*credential*.json
+**/*credential*.json
+*service-account*.json
+**/*service-account*.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+secrets/
+
+# Private evidence, archives, logs, and generated operational data
+evidence/
+archive/
+archives/
+*.zip
+*.tar
+*.tar.gz
+*.7z
+*.log
+logs/
 output/
 jobs/
-.pytest_cache/
-*.log
+*.db
+*.sqlite
+*.sqlite3
+playwright-report/
+test-results/
 
-# Environment files
-.env
-.env.local
-
-# Archives
-archive/
+# Only runtime configuration is allowed into the context. Everything else in
+# config/ is candidate, rollback, audit, recovery, or historical evidence.
+config/*
+!config/jobsearch_config.yaml
+!config/file_config.yaml
+!config/job_app_agent_config.yaml
+!config/cv_app_agent_config.yaml
+!config/litellm_config.yaml
+!config/candidate_profile.yaml
+!config/freshness.yaml
+!config/company_industries.yaml
+!config/target_companies.yaml
+!config/company_careers_reliability_repairs_v1.yaml
+!config/company_parent_source_mappings.yaml
+!config/company_remaining_inventory_v2.csv
+!config/discovery_only_source_classification.yaml
+config/job_radar_run_history.json
+config/company_unknown_investigation_v3.csv
+config/company_uncovered_fingerprints_v4.csv
+discovery*.txt
+identity*_audit.txt
+identity*_history.txt
 
 # Examples
 examples/output/
@@ -52,10 +101,9 @@ data/*CoverLetter*
 !data/cv_template.example.txt
 !data/cover_letter_template.example.txt
 
-# GitHub
-.github/
-
-# Build artifacts
-build/
-dist/
-*.egg-info/
+# Repository-only material not required by the API image
+docs/
+scripts/
+sql/
+*.md
+!README.md

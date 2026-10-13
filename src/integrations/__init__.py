@@ -1,1 +1,1 @@
-"""External service integrations for RoleRadar."""
+"""External service integrations for Ping."""

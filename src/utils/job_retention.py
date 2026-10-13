@@ -1,4 +1,4 @@
-"""Central bounded-retention policy for current Job Radar postings."""
+"""Central bounded-retention policy for current Ping postings."""
 
 from __future__ import annotations
 

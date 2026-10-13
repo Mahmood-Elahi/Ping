@@ -489,7 +489,7 @@ def print_summary(
     print(f"  Failed sources: {health.get('failed', 0)}")
     if coverage_health != "healthy" and os.environ.get("GITHUB_ACTIONS") == "true":
         print(
-            "::warning title=Job Radar source coverage degraded::"
+            "::warning title=Ping source coverage degraded::"
             f"coverage_health={coverage_health}, complete={health.get('complete', 0)}, "
             f"incomplete={health.get('incomplete', 0)}, failed={health.get('failed', 0)}"
         )
@@ -497,7 +497,7 @@ def print_summary(
     if step_summary:
         with Path(step_summary).open("a", encoding="utf-8") as summary_file:
             summary_file.write(
-                "## Job Radar source coverage\n\n"
+                "## Ping source coverage\n\n"
                 f"- Process result: success\n"
                 f"- Coverage health: **{coverage_health}**\n"
                 f"- Complete: {health.get('complete', 0)}\n"

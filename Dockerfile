@@ -21,8 +21,20 @@ RUN pip install --no-cache-dir -r requirements.txt
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN playwright install --with-deps chromium
 
-# Copy application code
-COPY . .
+# Copy only runtime inputs. .dockerignore additionally prevents local secrets,
+# evidence, archives, logs, and generated data from entering the build context.
+COPY main.py main_api.py start_api.py __init__.py ./
+COPY src ./src
+COPY config/jobsearch_config.yaml config/file_config.yaml ./config/
+COPY config/job_app_agent_config.yaml config/cv_app_agent_config.yaml ./config/
+COPY config/litellm_config.yaml config/candidate_profile.yaml ./config/
+COPY config/freshness.yaml config/company_industries.yaml ./config/
+COPY config/target_companies.yaml ./config/
+COPY config/company_careers_reliability_repairs_v1.yaml ./config/
+COPY config/company_parent_source_mappings.yaml ./config/
+COPY config/company_remaining_inventory_v2.csv ./config/
+COPY config/discovery_only_source_classification.yaml ./config/
+COPY data/*.example.txt ./data/
 
 # Create necessary directories
 RUN mkdir -p output jobs data

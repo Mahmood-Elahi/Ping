@@ -31,17 +31,9 @@ evidence:
       individual source conclusions but cannot be arithmetically promoted into
       a new full-scan health total.
   later_deterministic_reviews:
-    - docs/PHASE1_ATS_MIGRATION_REVIEW.md
-    - docs/PHASE3_INVENTORY_HYDRATION_REVIEW.md
-    - docs/PHASE4_ADP_BROWSER_REVIEW.md
-    - docs/PHASE4_DAYFORCE_SUCCESSFACTORS_REVIEW.md
-    - docs/PHASE4_PROTOCOL_HARDENING_SUMMARY.md
-    - docs/PHASE4_WORKDAY_PROTOCOL_REVIEW.md
-    - docs/PHASE5_COVERAGE_EXPANSION_REVIEW.md
-    - docs/PHASE5_MULTI_SCOPE_ROLLOUT.md
-    - docs/PHASE6_INCREMENTAL_OPTIMIZATION.md
-    - docs/COMPANY_CAREERS_RECOVERY_BATCH10.md
-    - docs/PAGINATION_COMPLETENESS_RECOVERY_BATCH1.md
+    - docs/ROADMAP.md
+    - docs/SOURCE_CONTRACTS.md
+    - docs/ARCHITECTURE.md
 
 taxonomy:
   A: ADAPTER_BUG
@@ -171,23 +163,23 @@ resolved_after_runtime_snapshot:
   - company: Waymo
     category: F
     current_platform: greenhouse
-    evidence: docs/PHASE1_ATS_MIGRATION_REVIEW.md
+    evidence: docs/ROADMAP.md
   - company: Wise
     category: D
     current_platform: smartrecruiters
-    evidence: docs/PHASE1_ATS_MIGRATION_REVIEW.md
+    evidence: docs/ROADMAP.md
   - company: ASML
     category: D
     current_platform: smartrecruiters
-    evidence: docs/PHASE1_ATS_MIGRATION_REVIEW.md
+    evidence: docs/ROADMAP.md
   - company: Dyson
     category: D
     current_platform: public_json
-    evidence: docs/COMPANY_CAREERS_RECOVERY_BATCH10.md
+    evidence: docs/ROADMAP.md
   - company: Box
     category: D
     current_platform: greenhouse
-    evidence: docs/PHASE1_ATS_MIGRATION_REVIEW.md
+    evidence: docs/ROADMAP.md
   - company: SGS
     category: D
     current_platform: smartrecruiters
@@ -201,7 +193,7 @@ post_snapshot_problem_findings:
   - company: Nutrien
     category: D
     source_scope: default
-    evidence: docs/PHASE4_ADP_BROWSER_REVIEW.md
+    evidence: docs/ROADMAP.md
     note: >-
       The later browser audit classifies terminal evidence as unproven, so its
       older complete zero-job runtime row is not treated as current authority.

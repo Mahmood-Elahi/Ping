@@ -8,7 +8,7 @@ evidence_boundary:
   sibling_repositories_read_only: true
   production_registry_execution: false
   protected_artifacts_untouched:
-    - docs/COMPANY_CAREERS_RECOVERY_BATCH9.md
+    - evidence/preserved_uncommitted_company_careers_recovery_batch9.txt
     - batch9_extended_results.zip
     - batch9_probe_results.zip
     - batch9_xml_results.zip

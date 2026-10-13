@@ -1,9 +1,11 @@
-// Example React component for connecting to the RoleRadar API
+// Example React component for connecting to the Ping API
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
 // API base URL - update with your actual server URL when deploying
 const API_BASE_URL = 'http://localhost:8000';
+const API_KEY = import.meta.env.VITE_PING_API_KEY || '';
+const API_HEADERS = { 'X-API-Key': API_KEY };
 
 // WebSocket connection
 const useWebSocket = (onMessage) => {
@@ -12,7 +14,11 @@ const useWebSocket = (onMessage) => {
   
   useEffect(() => {
     // Create WebSocket connection
-    socket.current = new WebSocket(`ws://localhost:8000/ws`);
+    // Browser WebSocket APIs cannot set X-API-Key. Use this query form only for
+    // a trusted single-user frontend; use session auth before public hosting.
+    socket.current = new WebSocket(
+      `ws://localhost:8000/ws?api_key=${encodeURIComponent(API_KEY)}`
+    );
     
     socket.current.onopen = () => {
       console.log('WebSocket connected');
@@ -116,13 +122,17 @@ export const JobSearch = () => {
     setError('');
     
     try {
-      const response = await axios.post(`${API_BASE_URL}/search`, {
-        keywords,
-        locations: [location],
-        job_type: jobType,
-        experience_level: experience,
-        max_jobs: maxJobs
-      });
+      const response = await axios.post(
+        `${API_BASE_URL}/search`,
+        {
+          keywords,
+          locations: [location],
+          job_type: jobType,
+          experience_level: experience,
+          max_jobs: maxJobs
+        },
+        { headers: API_HEADERS }
+      );
       
       const searchId = response.data.search_id;
       setProgress(prev => [...prev, `Search started with ID: ${searchId}`]);
@@ -135,7 +145,10 @@ export const JobSearch = () => {
         await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
         attempts++;
         
-        const resultsResponse = await axios.get(`${API_BASE_URL}/search/${searchId}`);
+        const resultsResponse = await axios.get(
+          `${API_BASE_URL}/search/${searchId}`,
+          { headers: API_HEADERS }
+        );
         
         if (resultsResponse.data.status !== 'in_progress') {
           setResults(resultsResponse.data);

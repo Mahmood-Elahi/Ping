@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run a conservative student-role scan through RoleRadar's existing pipeline."""
+"""Run a conservative student-role scan through Ping's existing pipeline."""
 
 from __future__ import annotations
 
@@ -70,7 +70,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--locations",
         nargs="+",
         default=DEFAULT_LOCATIONS,
-        help="Locations retained by RoleRadar's existing location matcher",
+        help="Locations retained by Ping's existing location matcher",
     )
     parser.add_argument(
         "--max-jobs",

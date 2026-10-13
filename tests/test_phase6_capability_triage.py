@@ -242,13 +242,13 @@ def test_priority_scores_are_bounded_and_do_not_claim_measurements():
 
 
 def test_phase6_runbook_records_triage_decision_and_next_action():
-    runbook = (ROOT / "docs" / "PHASE6_INCREMENTAL_OPTIMIZATION.md").read_text(
+    runbook = (ROOT / "docs" / "ROADMAP.md").read_text(
         encoding="utf-8"
     )
 
-    assert "## Stage B3: cross-adapter capability triage" in runbook
-    assert "41 production adapter families" in runbook
-    assert "533 production sources" in runbook
+    assert "Phase 6 — incremental optimization" in runbook
+    assert "41 active families" in runbook
+    assert "533 configured" in runbook
     assert "NEXT_DEEP_REVIEW = NONE" in runbook
     assert "PHASE6_CLOSE_EARLY" in runbook
     assert "jobseek/apps/crawler/src/core/monitors/eightfold.py" in runbook

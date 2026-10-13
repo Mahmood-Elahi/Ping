@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """
-Start script for the RoleRadar API server.
-This script sets up and runs the FastAPI server for RoleRadar.
+Start script for the Ping API server.
+This script sets up and runs the FastAPI server for Ping.
 """
 
 import os
@@ -139,7 +139,7 @@ def run_comprehensive_tests():
 
 def start_server(host="0.0.0.0", port=8000, reload=True, debug=False, test=False):
     """Start the FastAPI server"""
-    print(f"[SERVER] Starting RoleRadar API server on http://{host}:{port}")
+    print(f"[SERVER] Starting Ping API server on http://{host}:{port}")
     print("[DOCS] API Documentation will be available at: http://localhost:8000/docs")
     print("[WS] WebSocket endpoint: ws://localhost:8000/ws")
 
@@ -206,7 +206,7 @@ uvicorn.run("main_api:app", host="{host}", port={port}, log_level="{'debug' if d
 
 def main():
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description="Start RoleRadar API Server")
+    parser = argparse.ArgumentParser(description="Start Ping API Server")
     parser.add_argument("--host", default="0.0.0.0", help="Host to bind the server to")
     parser.add_argument(
         "--port", type=int, default=8000, help="Port to bind the server to"
@@ -226,7 +226,7 @@ def main():
 
     args = parser.parse_args()
 
-    print("[START] RoleRadar API Startup")
+    print("[START] Ping API Startup")
     print("=" * 40)
 
     # Install dependencies if requested

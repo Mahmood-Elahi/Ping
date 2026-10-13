@@ -13,6 +13,7 @@ from google.adk.tools.langchain_tool import LangchainTool
 from langchain_community.tools import TavilySearchResults
 from google.adk.tools import google_search
 import json
+import os
 import re
 
 from src.utils.file_utils import load_config
@@ -127,22 +128,26 @@ multi_site_search_agent = LlmAgent(
 )
 
 # --- Tavily Search Agent ---
-# Instantiate the LangChain tool
-tavily_tool_instance = TavilySearchResults(
-    max_results=10,
-    search_depth="advanced",
-    include_answer=True,
-)
-
-# Wrap it with LangchainTool for ADK
-adk_tavily_tool = LangchainTool(tool=tavily_tool_instance)
+# Instantiate the optional LangChain tool only when its credential exists.
+# Importing the application must remain safe for fresh installs and offline tests.
+if os.environ.get("TAVILY_API_KEY", "").strip():
+    tavily_tool_instance = TavilySearchResults(
+        max_results=10,
+        search_depth="advanced",
+        include_answer=True,
+    )
+    adk_tavily_tool = LangchainTool(tool=tavily_tool_instance)
+else:
+    tavily_tool_instance = None
+    adk_tavily_tool = None
 
 # Define the ADK agent for job searching
-tavily_search_agent = LlmAgent(
-    name="job_search_agent",
-    model=LiteLlm(model=f"{jobsearch_config['models']['gpt_4o']}"),
-    description="Agent that searches for jobs online using keywords and a specified time frame.",
-    instruction=(
+tavily_search_agent = (
+    LlmAgent(
+        name="job_search_agent",
+        model=LiteLlm(model=f"{jobsearch_config['models']['gpt_4o']}"),
+        description="Agent that searches for jobs online using keywords and a specified time frame.",
+        instruction=(
         "You are an expert job search assistant. When given keywords and a time frame, "
         "you should find recent job listings matching those keywords.\n"
         "Use the search tool to look for job postings.\n"
@@ -172,8 +177,11 @@ tavily_search_agent = LlmAgent(
         "14. company_website\n"
         "15. job_url\n"
         "16. source_site\n\n"
-    ),
-    tools=[adk_tavily_tool],
+        ),
+        tools=[adk_tavily_tool],
+    )
+    if adk_tavily_tool is not None
+    else None
 )
 
 

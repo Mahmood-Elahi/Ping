@@ -1,5 +1,5 @@
 """
-RoleRadar - targeted job discovery and review tooling.
+Ping - targeted job discovery and review tooling.
 
 This package provides tools to:
 - Search for job postings online
@@ -34,4 +34,4 @@ __all__ = [
 ]
 
 __version__ = "0.1.0"
-__author__ = "RoleRadar contributors"
+__author__ = "Ping contributors"

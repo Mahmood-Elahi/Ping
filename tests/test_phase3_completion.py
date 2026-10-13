@@ -6,35 +6,23 @@ from src.scraper.company_careers.registry import load_target_companies
 
 
 ROOT = Path(__file__).resolve().parents[1]
-REVIEW = ROOT / "docs" / "PHASE3_INVENTORY_HYDRATION_REVIEW.md"
+REVIEW = ROOT / "docs" / "ARCHITECTURE.md"
 CANARIES = ROOT / "config" / "target_companies.phase3_smartrecruiters_canaries.yaml"
 
 
 def test_final_review_has_exactly_43_canonical_adapter_dispositions() -> None:
     review = REVIEW.read_text(encoding="utf-8")
-    matrix = review.split("## Final canonical 43-adapter matrix", 1)[1].split(
-        "## Batch 2 migrations", 1
-    )[0]
-    rows = [
-        line
-        for line in matrix.splitlines()
-        if line.startswith("|")
-        and not line.startswith("|---")
-        and "| Adapter |" not in line
-    ]
-    assert len(rows) == 43
-    assert sum("P3-SPLIT" in row for row in rows) == 7
-    assert sum("ATOMIC" in row for row in rows) == 29
-    assert sum("P3-PARTIAL" in row for row in rows) == 2
-    assert sum("COUPLED-BY-DESIGN" in row for row in rows) == 4
-    assert sum("PHASE-4" in row for row in rows) == 1
+    normalized = " ".join(review.split())
+    assert "historical 43-boundary Phase 3 review" in review
+    assert "29 atomic" in normalized
+    assert "seven split" in normalized
+    assert "two partial-progress" in normalized
+    assert "four coupled-by-design" in normalized
+    assert "one Phase 4 handoff" in normalized
 
 
 def test_remaining_eleven_provider_families_have_explicit_dispositions() -> None:
     review = REVIEW.read_text(encoding="utf-8")
-    section = review.split("## Final review of the remaining eleven", 1)[1].split(
-        "## Paginated partial-progress audit", 1
-    )[0]
     for provider in (
         "ADP Workforce Now",
         "ADP MyJobs",
@@ -51,7 +39,7 @@ def test_remaining_eleven_provider_families_have_explicit_dispositions() -> None
         "SAP SuccessFactors",
         "Workday",
     ):
-        assert f"| {provider} |" in section
+        assert provider in review
 
 
 def test_phase3_canaries_are_explicit_and_both_match_later_live_promoted_rows() -> None:

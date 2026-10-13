@@ -374,15 +374,13 @@ def test_generic_material_fingerprint_covers_scope_and_equivalence():
 
 
 def test_phase6_runbook_records_verdict_request_model_and_no_fake_canary():
-    runbook = (ROOT / "docs" / "PHASE6_INCREMENTAL_OPTIMIZATION.md").read_text(
+    runbook = (ROOT / "docs" / "ROADMAP.md").read_text(
         encoding="utf-8"
     )
 
-    assert "## Greenhouse Stage B contract audit" in runbook
-    assert "Classification: **A. FULL_CRAWL_ONLY**" in runbook
-    assert "**102** Greenhouse sources" in runbook
-    assert "Future canary company: **NONE**" in runbook
-    assert "No exact manual Greenhouse A/B canary" in runbook
-    assert "expected safe\nrequest savings are exactly **0**" in runbook
-    assert "the exact\nproduction diff is empty" in runbook
+    assert "Greenhouse and SmartRecruiters were explicitly classified full-crawl-only" in runbook
+    assert "102 Greenhouse sources" in runbook
+    assert "Future incremental canary: none" in runbook
+    assert "safe request savings remained zero" in runbook
+    assert "production diff remained empty" in runbook
 

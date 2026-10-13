@@ -31,7 +31,7 @@ EXECUTION_CONFIRMATION = "DELETE_RETENTION_CANDIDATES"
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Plan or execute bounded Job Radar retention maintenance.",
+        description="Plan or execute bounded Ping retention maintenance.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(

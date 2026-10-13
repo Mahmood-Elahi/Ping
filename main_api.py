@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """
-RoleRadar API - FastAPI application exposing the RoleRadar functionality.
+Ping API - FastAPI application exposing Ping functionality.
 
 This API allows external applications (such as a React webapp) to communicate
-with the RoleRadar system through HTTP endpoints and WebSocket connections.
+with Ping through HTTP endpoints and WebSocket connections.
 """
 
 import os
@@ -11,15 +11,22 @@ import sys
 import json
 import asyncio
 import hashlib
+import hmac
+import re
 from datetime import datetime
 from typing import Dict, List, Any, Optional
-from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, WebSocket, BackgroundTasks, HTTPException, Depends, status
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    HTTPException,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
 
@@ -53,8 +60,8 @@ from src.utils.document_database import DocumentStorage, DocumentDatabase
 
 # Create FastAPI app
 app = FastAPI(
-    title="RoleRadar API",
-    description="API for interacting with the RoleRadar system",
+    title="Ping API",
+    description="Ping — New roles. Less noise.",
     version="1.0.0",
 )
 
@@ -64,14 +71,41 @@ try:
 except:
     pass
 
-# API Key Authentication
-API_KEY = os.getenv("API_KEY", "your-secret-api-key-change-this")  # Set in env vars
+# API authentication intentionally has no development fallback. A missing or
+# placeholder secret leaves public health/docs available but makes every
+# operational route fail closed.
+API_KEY = os.getenv("API_KEY", "").strip()
+ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "").strip()
+API_MIGRATIONS_ENABLED = os.getenv("ENABLE_API_MIGRATIONS", "").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+}
+_PLACEHOLDER_KEYS = {
+    "your-secret-api-key-change-this",
+    "replace-this-before-sharing",
+    "changeme",
+}
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+admin_api_key_header = APIKeyHeader(name="X-Admin-Key", auto_error=False)
+
+
+def _is_configured_secret(secret: str) -> bool:
+    return bool(secret) and secret.lower() not in _PLACEHOLDER_KEYS
+
+
+def _secret_matches(candidate: Optional[str], configured: str) -> bool:
+    return bool(candidate) and hmac.compare_digest(candidate, configured)
 
 
 async def verify_api_key(api_key: str = Depends(api_key_header)):
-    """Verify API key from request header"""
-    if api_key != API_KEY:
+    """Verify the API key while distinguishing bad auth from server misconfiguration."""
+    if not _is_configured_secret(API_KEY):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="API authentication is not configured",
+        )
+    if not _secret_matches(api_key, API_KEY):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or missing API Key",
@@ -79,21 +113,61 @@ async def verify_api_key(api_key: str = Depends(api_key_header)):
     return api_key
 
 
-# Add CORS middleware for React frontend
+async def verify_admin_key(admin_api_key: str = Depends(admin_api_key_header)):
+    """Require a separate configured secret for administrative mutations."""
+    if not _is_configured_secret(ADMIN_API_KEY):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Administrative API authentication is not configured",
+        )
+    if not _secret_matches(admin_api_key, ADMIN_API_KEY):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing administrative API key",
+        )
+    return admin_api_key
+
+
+def _trusted_cors_origins() -> List[str]:
+    """Return explicit trusted origins; wildcard or malformed values fail startup."""
+    raw = os.getenv("ALLOWED_ORIGINS", os.getenv("ALLOWED_ORIGIN", ""))
+    origins = [origin.strip().rstrip("/") for origin in raw.split(",") if origin.strip()]
+    invalid = [
+        origin
+        for origin in origins
+        if origin == "*"
+        or not re.fullmatch(r"https?://[^/\s]+(?::\d+)?", origin)
+    ]
+    if invalid:
+        raise RuntimeError(
+            "ALLOWED_ORIGINS must contain only explicit HTTP(S) origins without paths"
+        )
+    return list(dict.fromkeys(origins))
+
+
+# Cross-origin browser access is disabled when no trusted origins are set.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        os.getenv("ALLOWED_ORIGIN", "*")  # Set specific domains in production
-    ],
+    allow_origins=_trusted_cors_origins(),
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "X-API-Key", "X-Admin-Key"],
 )
 
-# Make output directory available for downloading generated files
+# Operational output remains local and is returned only through authenticated,
+# identifier-validated handlers. It is never exposed as a public static tree.
 output_dir = os.path.join(os.getcwd(), "output")
 ensure_dir_exists(output_dir)
-app.mount("/output", StaticFiles(directory=output_dir), name="output")
+_SEARCH_ID_PATTERN = re.compile(r"\Ajob_search_\d{8}_\d{6}\Z")
+
+
+def _search_artifact_paths(search_id: str) -> tuple[str, str]:
+    if not _SEARCH_ID_PATTERN.fullmatch(search_id):
+        raise HTTPException(status_code=400, detail="Invalid search identifier")
+    return (
+        os.path.join(output_dir, f"{search_id}.json"),
+        os.path.join(output_dir, f"{search_id}_error.txt"),
+    )
 
 
 # Define data models
@@ -283,7 +357,7 @@ def update_search_status(search_id: str, status: str, job_count: int = None):
 # Define API endpoints
 @app.get("/")
 async def root():
-    return {"message": "RoleRadar API is running. Access /docs for API documentation."}
+    return {"message": "Ping API is running. Access /docs for API documentation."}
 
 
 @app.post("/search", dependencies=[Depends(verify_api_key)])
@@ -641,6 +715,14 @@ async def _run_job_search(
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for real-time communication"""
+    supplied_key = websocket.headers.get("x-api-key") or websocket.query_params.get(
+        "api_key"
+    )
+    if not _is_configured_secret(API_KEY) or not _secret_matches(
+        supplied_key, API_KEY
+    ):
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
     await manager.connect(websocket)
     try:
         while True:  # Receive message from client
@@ -654,6 +736,8 @@ async def websocket_endpoint(websocket: WebSocket):
             else:
                 await manager.send_error(websocket, f"Unknown action: {action}")
 
+    except WebSocketDisconnect:
+        pass
     except Exception as e:
         print(f"WebSocket error: {e}")
     finally:
@@ -883,7 +967,7 @@ async def _run_job_search_with_websocket(
         await manager.send_error(websocket, f"Search failed: {str(e)}")
 
 
-@app.post("/search/check")
+@app.post("/search/check", dependencies=[Depends(verify_api_key)])
 async def check_similar_searches(request: JobSearchRequest):
     """Check for existing/similar searches before starting a new one"""
     try:
@@ -942,7 +1026,7 @@ async def check_similar_searches(request: JobSearchRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/search/history")
+@app.get("/search/history", dependencies=[Depends(verify_api_key)])
 async def get_search_history(limit: int = 20):
     """Get recent search history"""
     try:
@@ -973,19 +1057,16 @@ async def get_search_history(limit: int = 20):
 
 # IMPORTANT: Specific routes must come before parametrized routes in FastAPI
 # Otherwise /search/history would match /search/{search_id} with search_id="history"
-@app.get("/search/{search_id}")
+@app.get("/search/{search_id}", dependencies=[Depends(verify_api_key)])
 async def get_search_results(search_id: str):
     """Get the results of a job search by ID"""
-    result_file = os.path.join(output_dir, f"{search_id}.json")
-    error_file = os.path.join(output_dir, f"{search_id}_error.txt")
+    result_file, error_file = _search_artifact_paths(search_id)
 
     if os.path.exists(result_file):
         with open(result_file, "r", encoding="utf-8") as f:
             return json.load(f)
     elif os.path.exists(error_file):
-        with open(error_file, "r", encoding="utf-8") as f:
-            error = f.read()
-        raise HTTPException(status_code=500, detail=error)
+        raise HTTPException(status_code=500, detail="Job search failed")
     else:
         return {"status": "in_progress", "message": "Job search is still running"}
 
@@ -995,7 +1076,7 @@ async def get_search_results(search_id: str):
 # ============================================================================
 
 
-@app.get("/jobs/stats")
+@app.get("/jobs/stats", dependencies=[Depends(verify_api_key)])
 async def get_job_stats():
     """Get database statistics"""
     try:
@@ -1007,7 +1088,7 @@ async def get_job_stats():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/jobs")
+@app.get("/jobs", dependencies=[Depends(verify_api_key)])
 async def get_jobs(limit: int = 100, offset: int = 0):
     """Get jobs from database with pagination"""
     try:
@@ -1019,7 +1100,7 @@ async def get_jobs(limit: int = 100, offset: int = 0):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/jobs/search")
+@app.get("/jobs/search", dependencies=[Depends(verify_api_key)])
 async def search_jobs_db(
     keyword: str = None, company: str = None, location: str = None
 ):
@@ -1033,7 +1114,7 @@ async def search_jobs_db(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/jobs/{job_id}")
+@app.get("/jobs/{job_id}", dependencies=[Depends(verify_api_key)])
 async def get_job(job_id: int):
     """Get a specific job by ID"""
     try:
@@ -1050,9 +1131,17 @@ async def get_job(job_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/jobs/migrate")
+@app.post(
+    "/jobs/migrate",
+    dependencies=[Depends(verify_api_key), Depends(verify_admin_key)],
+)
 async def migrate_jobs():
     """Migrate existing JSON files to database"""
+    if not API_MIGRATIONS_ENABLED:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="API-triggered migrations are disabled",
+        )
     try:
         import glob
 

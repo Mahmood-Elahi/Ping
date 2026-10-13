@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Comprehensive Test Suite for RoleRadar
+Comprehensive Test Suite for Ping
 
 This consolidated test file covers all major functionality:
 1. Database operations and migration
@@ -33,7 +33,7 @@ WS_URL = "ws://localhost:8000/ws"
 TEST_DATA_DIR = "jobs"
 
 class JobSearchTestSuite:
-    """Comprehensive test suite for RoleRadar"""
+    """Comprehensive test suite for Ping"""
     
     def __init__(self):
         self.test_results = {}
@@ -41,7 +41,7 @@ class JobSearchTestSuite:
         
     def run_all_tests(self):
         """Run all test categories"""
-        print("🧪 RoleRadar - Comprehensive Test Suite")
+        print("🧪 Ping - Comprehensive Test Suite")
         print("=" * 60)
         
         # Core functionality tests
@@ -319,7 +319,7 @@ class JobSearchTestSuite:
         print(f"  Skipped/Partial: {skipped}")
         
         if failed == 0:
-            print("\n🎊 All core tests passed! RoleRadar is working correctly.")
+            print("\n🎊 All core tests passed! Ping is working correctly.")
         else:
             print(f"\n⚠️ {failed} test(s) failed. Please check the issues above.")
         

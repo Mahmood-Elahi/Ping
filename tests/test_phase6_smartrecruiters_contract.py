@@ -306,12 +306,13 @@ def test_hydrated_detail_material_is_covered_by_the_generic_fingerprint():
 
 
 def test_phase6_runbook_records_the_fail_closed_verdict_and_no_fake_canary():
-    runbook = (ROOT / "docs" / "PHASE6_INCREMENTAL_OPTIMIZATION.md").read_text(
+    runbook = (ROOT / "docs" / "ROADMAP.md").read_text(
         encoding="utf-8"
     )
+    normalized = " ".join(runbook.split())
 
-    assert "Classification: **A. FULL_CRAWL_ONLY**" in runbook
-    assert "No exact manual incremental canary command is published" in runbook
+    assert "Greenhouse and SmartRecruiters were explicitly classified full-crawl-only" in runbook
+    assert "No exact manual incremental canary is published" in normalized
     assert "There is no future activation diff" in runbook
-    assert "Wise is a blocked research" in runbook
+    assert "Wise remains research-only" in normalized
 

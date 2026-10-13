@@ -67,7 +67,7 @@ FINGERPRINT_OUTPUT = PROJECT_ROOT / "config" / "company_uncovered_fingerprints_v
 CLUSTER_OUTPUT = PROJECT_ROOT / "config" / "company_uncovered_clusters_v4.csv"
 BATCH_OUTPUT = PROJECT_ROOT / "config" / "company_recovery_batches_v4.csv"
 NEXT_BATCH_OUTPUT = PROJECT_ROOT / "config" / "company_next_bulk_batch_v4.csv"
-SUMMARY_OUTPUT = PROJECT_ROOT / "config" / "company_uncovered_summary_v4.md"
+SUMMARY_OUTPUT = PROJECT_ROOT / "output" / "uncovered_refingerprint_v4_summary.txt"
 JSON_OUTPUT = PROJECT_ROOT / "output" / "uncovered_refingerprint_v4.json"
 
 MAX_BATCH_SIZE = 25
