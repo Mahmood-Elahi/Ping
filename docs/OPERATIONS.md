@@ -128,9 +128,21 @@ never modified.
 
 The checked-in workflow `.github/workflows/hourly-job-radar.yml` retains its
 legacy identifier intentionally. Despite the historical “hourly” name, its
-current cron is every six hours at minute 17 UTC. It runs strict onboarding,
-expects 533 configured sources and five parent mappings, updates Supabase and
-Sheets, uploads seven-day diagnostics, and removes temporary credentials.
+cron is exactly `17 */6 * * *`, every six hours at minute 17 UTC. It expects
+`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
+`GOOGLE_SERVICE_ACCOUNT_JSON`, and `GOOGLE_SHEET_ID` to be supplied through
+GitHub Secrets. The service-account JSON is materialized as a mode-restricted
+temporary file; it is never checked in.
+
+Production preflight and the dashboard update run behind a public-CI logging
+boundary. Their stdout, stderr, descendant-process output, traceback text,
+inventory and coverage details, rankings, job records, integration responses,
+and local paths are captured only in runner-temporary private logs. Public
+Actions output contains fixed stage start/success/failure messages and the real
+exit code. GitHub command-file channels, including the public step summary,
+are removed from the operational child process. The workflow uploads no
+diagnostic artifacts and deletes its temporary credentials and private logs in
+an always-run cleanup step.
 
 ## Production registry and related configuration
 

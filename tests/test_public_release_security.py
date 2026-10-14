@@ -2,6 +2,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -220,11 +221,176 @@ class WorkflowSecurityTests(unittest.TestCase):
         self.assertNotIn("actions/upload-artifact", self.workflow)
         self.assertNotIn("job-radar-diagnostics", self.workflow)
 
+    def test_operational_steps_use_the_public_logging_boundary(self):
+        self.assertIn("--stage production-preflight", self.workflow)
+        self.assertIn("--stage dashboard-update", self.workflow)
+        self.assertIn("scripts/run_public_ci_step.py", self.workflow)
+        self.assertNotIn(
+            "run: python scripts/update_student_dashboard.py", self.workflow
+        )
+
+    def test_all_four_production_values_come_from_github_secrets(self):
+        for name in (
+            "SUPABASE_URL",
+            "SUPABASE_SERVICE_ROLE_KEY",
+            "GOOGLE_SERVICE_ACCOUNT_JSON",
+            "GOOGLE_SHEET_ID",
+        ):
+            with self.subTest(name=name):
+                self.assertIn(f"${{{{ secrets.{name} }}}}", self.workflow)
+        self.assertNotIn("vars.GOOGLE_SHEET_ID", self.workflow)
+
     def test_current_tree_secret_scan_runs_before_dependencies(self):
         scan_index = self.workflow.index("Scan the checked-out tree for credentials")
         install_index = self.workflow.index("Install Python dependencies")
         self.assertLess(scan_index, install_index)
         self.assertIn("scripts/check_public_release_secrets.py", self.workflow)
+
+
+class PublicCILoggingBoundaryTests(unittest.TestCase):
+    def _run_boundary(
+        self,
+        temp_dir: str,
+        child_code: str,
+        *,
+        stage: str = "dashboard-update",
+    ) -> subprocess.CompletedProcess[str]:
+        environment = os.environ.copy()
+        environment["RUNNER_TEMP"] = temp_dir
+        for variable in (
+            "GITHUB_ENV",
+            "GITHUB_OUTPUT",
+            "GITHUB_PATH",
+            "GITHUB_STEP_SUMMARY",
+        ):
+            environment[variable] = str(Path(temp_dir) / f"{variable}.txt")
+        return subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts" / "run_public_ci_step.py"),
+                "--stage",
+                stage,
+                "--",
+                sys.executable,
+                "-c",
+                child_code,
+            ],
+            cwd=ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+
+    def test_sensitive_stdout_stderr_subprocesses_and_exceptions_are_private(self):
+        sensitive_values = (
+            "PRIVATE_COMPANY_INVENTORY=Acme:42",
+            "PRIVATE_RANKING=student@example.invalid",
+            "PRIVATE_JOB_RECORD=requisition-123",
+            "PRIVATE_SOURCE_FAILURE=provider payload",
+            "SUPABASE_URL=https://private.invalid",
+            "GOOGLE_SHEET_ID=private-sheet",
+            "PRIVATE_TOKEN=secret-value",
+            "PRIVATE_PATH=/private/operator/path",
+            "NESTED_PRIVATE_DIAGNOSTIC",
+            "RAW_PRIVATE_EXCEPTION",
+        )
+        child_code = """
+import os
+from pathlib import Path
+import subprocess
+import sys
+import traceback
+
+values = (
+    "PRIVATE_COMPANY_INVENTORY=Acme:42",
+    "PRIVATE_RANKING=student@example.invalid",
+    "PRIVATE_JOB_RECORD=requisition-123",
+    "PRIVATE_SOURCE_FAILURE=provider payload",
+    "SUPABASE_URL=https://private.invalid",
+    "GOOGLE_SHEET_ID=private-sheet",
+    "PRIVATE_TOKEN=secret-value",
+    "PRIVATE_PATH=/private/operator/path",
+)
+for index, value in enumerate(values):
+    print(value, file=sys.stdout if index % 2 == 0 else sys.stderr)
+subprocess.run(
+    [sys.executable, "-c", "import sys; print('NESTED_PRIVATE_DIAGNOSTIC', file=sys.stderr)"],
+    check=True,
+)
+for variable in ("GITHUB_ENV", "GITHUB_OUTPUT", "GITHUB_PATH", "GITHUB_STEP_SUMMARY"):
+    path = os.environ.get(variable)
+    if path:
+        Path(path).write_text("PRIVATE_GITHUB_COMMAND_FILE_LEAK", encoding="utf-8")
+try:
+    raise RuntimeError("RAW_PRIVATE_EXCEPTION")
+except RuntimeError:
+    traceback.print_exc()
+sys.exit(23)
+"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = self._run_boundary(temp_dir, child_code)
+            public_log = result.stdout + result.stderr
+            self.assertEqual(result.returncode, 23, public_log)
+            self.assertIn("dashboard update started", public_log)
+            self.assertIn("dashboard update failed (exit code 23)", public_log)
+            for value in sensitive_values:
+                with self.subTest(value=value):
+                    self.assertNotIn(value, public_log)
+
+            diagnostics = (
+                Path(temp_dir) / "ping-private-ci" / "dashboard-update.log"
+            ).read_text(encoding="utf-8")
+            for value in sensitive_values:
+                with self.subTest(diagnostic=value):
+                    self.assertIn(value, diagnostics)
+
+            for variable in (
+                "GITHUB_ENV",
+                "GITHUB_OUTPUT",
+                "GITHUB_PATH",
+                "GITHUB_STEP_SUMMARY",
+            ):
+                self.assertFalse((Path(temp_dir) / f"{variable}.txt").exists())
+
+    def test_success_output_is_generic_and_exit_zero_is_preserved(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            result = self._run_boundary(
+                temp_dir,
+                "print('PRIVATE_SUCCESS_PAYLOAD')",
+                stage="production-preflight",
+            )
+        public_log = result.stdout + result.stderr
+        self.assertEqual(result.returncode, 0, public_log)
+        self.assertIn("production preflight started", public_log)
+        self.assertIn("production preflight completed successfully", public_log)
+        self.assertNotIn("PRIVATE_SUCCESS_PAYLOAD", public_log)
+
+    def test_spawn_exception_does_not_echo_command_or_exception_details(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            environment = os.environ.copy()
+            environment["RUNNER_TEMP"] = temp_dir
+            private_command = "private-token-command-that-does-not-exist"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts" / "run_public_ci_step.py"),
+                    "--stage",
+                    "dashboard-update",
+                    "--",
+                    private_command,
+                ],
+                cwd=ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+        public_log = result.stdout + result.stderr
+        self.assertEqual(result.returncode, 1, public_log)
+        self.assertIn("dashboard update failed (exit code 1)", public_log)
+        self.assertNotIn(private_command, public_log)
+        self.assertNotIn("FileNotFoundError", public_log)
 
 
 if __name__ == "__main__":

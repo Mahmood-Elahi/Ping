@@ -46,7 +46,7 @@ jobs:
       - name: Install Playwright Chromium
         run: python -m playwright install --with-deps chromium
 
-      - name: Validate GitHub configuration and materialize Google credentials
+      - name: Prepare production credentials
         shell: bash
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -56,14 +56,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          missing=()
-          [[ -n "${SUPABASE_URL:-}" ]] || missing+=("SUPABASE_URL secret")
-          [[ -n "${SUPABASE_SERVICE_ROLE_KEY:-}" ]] || missing+=("SUPABASE_SERVICE_ROLE_KEY secret")
-          [[ -n "${GOOGLE_SERVICE_ACCOUNT_JSON:-}" ]] || missing+=("GOOGLE_SERVICE_ACCOUNT_JSON secret")
-          [[ -n "${GOOGLE_SHEET_ID:-}" ]] || missing+=("GOOGLE_SHEET_ID secret")
+          missing=0
+          [[ -n "${SUPABASE_URL:-}" ]] || missing=1
+          [[ -n "${SUPABASE_SERVICE_ROLE_KEY:-}" ]] || missing=1
+          [[ -n "${GOOGLE_SERVICE_ACCOUNT_JSON:-}" ]] || missing=1
+          [[ -n "${GOOGLE_SHEET_ID:-}" ]] || missing=1
 
-          if (( ${#missing[@]} )); then
-            printf '::error::Missing required GitHub configuration: %s\n' "$(IFS=', '; echo "${missing[*]}")" >&2
+          if (( missing )); then
+            printf '::error::Required production GitHub Secrets are missing.\n' >&2
             exit 1
           fi
 
@@ -81,57 +81,26 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-        run: |
-          python scripts/validate_source_integrity.py \
-            --strict-onboarding \
-            --retained-pattern "__no_ci_retained_coverage__"
-          python - <<'PY'
-          import os
-          from pathlib import Path
-
-          from src.scraper.company_careers.parent_sources import load_parent_source_mappings
-          from src.scraper.company_careers.registry import load_target_companies
-
-          required = (
-              "SUPABASE_URL",
-              "SUPABASE_SERVICE_ROLE_KEY",
-              "GOOGLE_SHEET_ID",
-              "GOOGLE_CREDENTIALS_PATH",
-          )
-          missing = [name for name in required if not os.environ.get(name)]
-          if missing:
-              raise SystemExit(
-                  "Missing required environment variables: " + ", ".join(missing)
-              )
-
-          credentials_path = Path(os.environ["GOOGLE_CREDENTIALS_PATH"])
-          if not credentials_path.is_file() or credentials_path.stat().st_size == 0:
-              raise SystemExit(
-                  "Google credentials file was not created under RUNNER_TEMP"
-              )
-
-          companies = load_target_companies()
-          mappings = load_parent_source_mappings()
-          if len(companies) != 533:
-              raise SystemExit(
-                  f"Production registry count mismatch: expected 533, found {len(companies)}"
-              )
-          if len(mappings) != 5:
-              raise SystemExit(
-                  f"Parent mapping count mismatch: expected 5, found {len(mappings)}"
-              )
-
-          print("Production preflight passed: 533 canonical sources and 5 parent mappings.")
-          PY
+        run: >-
+          python scripts/run_public_ci_step.py
+          --stage production-preflight
+          -- python scripts/validate_production_ci_preflight.py
 
       - name: Update student dashboard
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-        run: python scripts/update_student_dashboard.py
+        run: >-
+          python scripts/run_public_ci_step.py
+          --stage dashboard-update
+          -- python scripts/update_student_dashboard.py
 
-      - name: Remove temporary Google credentials
+      - name: Remove temporary private files
         if: ${{ always() }}
         shell: bash
-        run: rm -f "${RUNNER_TEMP}/google-service-account.json"
+        run: |
+          rm -f "${RUNNER_TEMP}/google-service-account.json"
+          rm -f "${RUNNER_TEMP}/ping-private-ci/production-preflight.log"
+          rm -f "${RUNNER_TEMP}/ping-private-ci/dashboard-update.log"
+          rmdir "${RUNNER_TEMP}/ping-private-ci" 2>/dev/null || true
