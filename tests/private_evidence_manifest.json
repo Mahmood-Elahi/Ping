@@ -1,0 +1,253 @@
+{
+  "version": 1,
+  "expected_test_count": 430,
+  "policy": "These tests retain their original assertions and are deselected from the default public suite because their inputs contain private operational or historical validation evidence. Running the private_evidence marker explicitly does not skip or synthesize missing inputs.",
+  "evidence_groups": [
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/adapter_extensions_v4b_validation.json"],
+      "selectors": ["tests/test_adapter_extensions_v4b_bulk_activation.py::AdapterExtensionsV4BArtifactTests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/ai_ml_expansion_v1_batch_a_validation.json"],
+      "selectors": ["tests/test_ai_ml_expansion_v1_batch_a.py::AiMlExpansionV1BatchAArtifactTests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/alberta_canada_employer_expansion_v1_batch_a_validation.json"],
+      "selectors": ["tests/test_alberta_canada_employer_expansion_v1_batch_a.py::AlbertaCanadaEmployerExpansionV1BatchATests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/alberta_energy_expansion_v1_batch_a_validation.json"],
+      "selectors": ["tests/test_alberta_energy_expansion_v1_batch_a.py::AlbertaEnergyExpansionV1BatchATests::test_report_and_csv_preserve_validation_milestone"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/ats_adapter_expansion_v2_batch_a_validation.json"],
+      "selectors": ["tests/test_ats_adapter_expansion_v2_batch_a.py::BatchArtifactTests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/ats_adapter_expansion_v2_batch_b_validation.json"],
+      "selectors": ["tests/test_ats_adapter_expansion_v2_batch_b.py::BatchArtifactsTests"]
+    },
+    {
+      "classification": "private_operational_evidence",
+      "dependencies": ["jobs/company_careers_coverage_20261001_142550.json"],
+      "selectors": [
+        "tests/test_batch9_recovery.py::Batch9RecoveryEvidenceTests",
+        "tests/test_phase7_infrastructure_audit.py",
+        "tests/test_pagination_completeness_batch1.py::test_review_is_anchored_to_activated_registry_and_runtime_evidence",
+        "tests/test_pagination_completeness_batch2.py::test_latest_deterministic_failures_match_checked_in_snapshot",
+        "tests/test_pagination_completeness_batch4.py::test_batch4_evidence_hashes_are_immutable_and_offline"
+      ]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/browser_expansion_v1a_validation.json"],
+      "selectors": [
+        "tests/test_browser_expansion_v1a_bulk_activation.py::BrowserExpansionV1AArtifactTests",
+        "tests/test_browser_expansion_v1a_bulk_activation.py::BrowserExpansionV1AContractTests::test_21_one_browser_process_and_fresh_context_contract"
+      ]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/browser_expansion_v1b_validation.json"],
+      "selectors": [
+        "tests/test_browser_expansion_v1b_bulk_activation.py::BrowserExpansionV1BArtifactTests",
+        "tests/test_browser_expansion_v1b_bulk_activation.py::BrowserExpansionV1BContractTests::test_21_one_browser_process_fresh_context_and_lazy_import_contract"
+      ]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/browser_pilot_v1_validation.json"],
+      "selectors": [
+        "tests/test_browser_pilot_v1_bulk_activation.py::BrowserPilotBulkActivationTests::test_03_validated_registry_only_contains_two_pass_successes",
+        "tests/test_browser_pilot_v1_bulk_activation.py::BrowserPilotBulkActivationTests::test_06_production_and_parent_mappings_unchanged",
+        "tests/test_browser_pilot_v1_bulk_activation.py::BrowserPilotBulkActivationTests::test_07_no_persistence_or_dashboard_publication_imports",
+        "tests/test_browser_pilot_v1_bulk_activation.py::BrowserPilotBulkActivationTests::test_10_projected_coverage_uses_only_validated_sources"
+      ]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/calgary_alberta_expansion_v2_batch_b_validation.json"],
+      "selectors": ["tests/test_calgary_alberta_expansion_v2_batch_b.py::CalgaryAlbertaExpansionV2BatchBArtifactTests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/calgary_canada_expansion_v2_batch_a_validation.json"],
+      "selectors": ["tests/test_calgary_canada_expansion_v2_batch_a.py::CalgaryCanadaExpansionV2BatchAArtifactTests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/calgary_student_employers_v1_batch_a_validation.json"],
+      "selectors": ["tests/test_calgary_student_employers_v1_batch_a.py::CalgaryStudentEmployersBatchAArtifactTests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/canada_high_fit_expansion_v1_batch_a_validation.json"],
+      "selectors": ["tests/test_canada_high_fit_expansion_v1_batch_a.py::CanadaHighFitExpansionV1BatchAArtifactTests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/canadian_expansion_v3_batch_c_validation.json"],
+      "selectors": ["tests/test_canadian_expansion_v3_batch_c.py::CanadianExpansionV3BatchCArtifactTests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/existing_adapter_v4_validation.json"],
+      "selectors": ["tests/test_existing_adapter_v4_bulk_activation.py::ExistingAdapterV4ArtifactTests::test_09_validated_registry_contains_only_safe_candidates"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/hardware_semiconductor_expansion_v1_batch_a_validation.json"],
+      "selectors": ["tests/test_hardware_semiconductor_expansion_v1_batch_a.py::HardwareSemiconductorExpansionV1BatchATests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/infrastructure_expansion_v1_batch_a_validation.json"],
+      "selectors": ["tests/test_infrastructure_expansion_v1_batch_a.py::InfrastructureExpansionV1BatchAArtifactTests"]
+    },
+    {
+      "classification": "private_operational_evidence",
+      "dependencies": ["jobs/company_careers_coverage_20260924_005547.json", "jobs/company_careers_failures_20260924_005547.json", "jobs/student_search_diagnostics_20260924_005547.json", "config/job_radar_run_history.json"],
+      "selectors": [
+        "tests/test_incomplete_source_pareto.py::IncompleteSourceParetoTests::test_saved_report_uses_latest_actual_incomplete_denominator",
+        "tests/test_incomplete_source_pareto.py::IncompleteSourceParetoTests::test_exact_large_board_selection_and_cost_bands_are_deterministic",
+        "tests/test_incomplete_source_pareto.py::IncompleteSourceParetoTests::test_cumulative_recovery_tiers_expose_cost_cliff_and_runtime",
+        "tests/test_incomplete_source_pareto.py::IncompleteSourceParetoTests::test_large_board_table_uses_effective_page_size_for_projection",
+        "tests/test_incomplete_source_pareto.py::IncompleteSourceParetoTests::test_primary_categories_are_mutually_exclusive",
+        "tests/test_incomplete_source_pareto.py::IncompleteSourceParetoTests::test_detail_coupled_target_remains_excluded_from_recovery",
+        "tests/test_incomplete_source_pareto.py::IncompleteSourceParetoTests::test_page_size_optimizations_are_safe_and_deterministic"
+      ]
+    },
+    {
+      "classification": "private_operational_evidence",
+      "dependencies": ["jobs/company_careers_coverage_20260922_210359.json"],
+      "selectors": [
+        "tests/test_incomplete_source_pareto.py::IncompleteSourceParetoTests::test_manual_validation_selects_one_source_per_migrated_family",
+        "tests/test_seven_browser_source_recovery.py::SevenBrowserSourceRecoveryTests::test_saved_diagnostics_classify_adapter_migrations_without_reopening_them"
+      ]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/incomplete_source_pareto_20260924_005547.json"],
+      "selectors": ["tests/test_incomplete_source_pareto.py::IncompleteSourceParetoTests::test_exact_29_source_terminal_target_table"]
+    },
+    {
+      "classification": "private_operator_evidence",
+      "dependencies": ["evidence/micron_identity/micron_id_crosswalk.json", "evidence/micron_identity/micron_JR101216_probe.json"],
+      "selectors": ["tests/test_inventory_authority.py::test_micron_decision_uses_checked_in_operator_evidence_without_activation"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/ml_infrastructure_data_systems_expansion_v1_batch_a_validation.json"],
+      "selectors": ["tests/test_ml_infrastructure_data_systems_expansion_v1_batch_a.py::MlInfrastructureDataSystemsExpansionV1BatchAArtifactTests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/ontario_canada_expansion_v1_batch_a_validation.json"],
+      "selectors": ["tests/test_ontario_canada_expansion_v1_batch_a.py::OntarioCanadaExpansionV1BatchAArtifactTests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/ontario_canada_expansion_v1_batch_b_validation.json"],
+      "selectors": ["tests/test_ontario_canada_expansion_v1_batch_b.py::OntarioCanadaExpansionV1BatchBArtifactTests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/original_master_recovery_batch_g_validation.json"],
+      "selectors": ["tests/test_original_master_recovery_batch_g.py::OriginalMasterRecoveryBatchGArtifactTests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/original_master_recovery_batch_h_validation.json"],
+      "selectors": ["tests/test_original_master_recovery_batch_h.py::OriginalMasterRecoveryBatchHArtifactTests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/original_master_recovery_batch_i_validation.json"],
+      "selectors": ["tests/test_original_master_recovery_batch_i.py::OriginalMasterRecoveryBatchIArtifactTests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/original_master_recovery_batch_j_validation.json"],
+      "selectors": ["tests/test_original_master_recovery_batch_j.py::OriginalMasterRecoveryBatchJArtifactTests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/quick_wins_candidate_validation.json"],
+      "selectors": [
+        "tests/test_quick_wins_validation.py::QuickWinsRegistryTests::test_03_validated_registry_contains_only_safe_registry_candidates",
+        "tests/test_quick_wins_validation.py::QuickWinsIsolationTests::test_20_historical_config_matches_report_and_current_production_prefix"
+      ]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/requested_expansion_v3_batch_a_validation.json"],
+      "selectors": ["tests/test_requested_expansion_v3_batch_a.py::RequestedExpansionV3BatchAArtifactTests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/requested_expansion_v3_batch_b_validation.json"],
+      "selectors": ["tests/test_requested_expansion_v3_batch_b.py::RequestedExpansionV3BatchBArtifactTests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/requested_expansion_v3_batch_d_validation.json"],
+      "selectors": ["tests/test_requested_expansion_v3_batch_d.py::RequestedExpansionV3BatchDArtifactTests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/requested_expansion_v3_batch_e_validation.json"],
+      "selectors": ["tests/test_requested_expansion_v3_batch_e.py::RequestedExpansionV3BatchEArtifactTests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/requested_expansion_v3_batch_f_validation.json"],
+      "selectors": ["tests/test_requested_expansion_v3_batch_f.py::RequestedExpansionV3BatchFArtifactTests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/robotics_expansion_v1_batch_a_validation.json"],
+      "selectors": ["tests/test_robotics_expansion_v1_batch_a.py::RoboticsExpansionV1BatchAArtifactTests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/robotics_semiconductor_high_fit_expansion_v1_batch_a_validation.json"],
+      "selectors": ["tests/test_robotics_semiconductor_high_fit_expansion_v1_batch_a.py::RoboticsSemiconductorHighFitExpansionV1BatchAArtifactTests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/shared_api_validation.json"],
+      "selectors": ["tests/test_shared_source_bulk_activation.py::SharedSourceBulkActivationTests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/software_expansion_v1_batch_a_validation.json"],
+      "selectors": ["tests/test_software_expansion_v1_batch_a.py::SoftwareExpansionV1BatchAArtifactTests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/source_expansion_v2_batch_a_validation.json"],
+      "selectors": ["tests/test_source_expansion_v2_batch_a.py::SourceExpansionV2BatchAArtifactTests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/source_expansion_v2_batch_b_validation.json"],
+      "selectors": ["tests/test_source_expansion_v2_batch_b.py::SourceExpansionV2BatchBArtifactTests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/source_expansion_v2_batch_c_validation.json"],
+      "selectors": ["tests/test_source_expansion_v2_batch_c.py::SourceExpansionV2BatchCArtifactTests"]
+    },
+    {
+      "classification": "historical_validation_data",
+      "dependencies": ["output/static_embedded_validation.json"],
+      "selectors": ["tests/test_static_embedded_bulk_activation.py::StaticEmbeddedBulkActivationTests::test_19_inventory_order_and_report_schema"]
+    }
+  ]
+}

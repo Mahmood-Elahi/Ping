@@ -52,6 +52,7 @@ def row(company: str, **overrides):
 class IncompleteSourceParetoTests(unittest.TestCase):
     def test_report_excludes_hard_failures_and_has_deterministic_bucket_metrics(self):
         coverage = {
+            "runtime_seconds": 123.4,
             "coverage": [
                 row("Alpha"),
                 row(
@@ -90,7 +91,10 @@ class IncompleteSourceParetoTests(unittest.TestCase):
         self.assertEqual(paged["max_pages_hit"], 1)
 
     def test_representatives_are_sorted_and_capped_at_ten(self):
-        coverage = {"coverage": [row(f"Company {index:02d}") for index in range(12, 0, -1)]}
+        coverage = {
+            "runtime_seconds": 123.4,
+            "coverage": [row(f"Company {index:02d}") for index in range(12, 0, -1)],
+        }
         with TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "company_careers_coverage_fixture.json"
             path.write_text(json.dumps(coverage), encoding="utf-8")

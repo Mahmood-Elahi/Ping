@@ -280,6 +280,22 @@ scope warrants it:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
+The default command is the supported public offline suite. Pytest deselects
+tests marked `private_evidence`; their exact selectors and required local
+inputs are recorded in `tests/private_evidence_manifest.json`. Those tests
+retain their original assertions and can be run by an authorized operator who
+has restored the ignored evidence files:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q -m private_evidence
+```
+
+Missing private inputs remain hard failures when that category is selected;
+they are never converted into passing tests or runtime skips. Historical
+validation reports, coverage snapshots, raw provider responses, rankings, and
+operator evidence must not be copied into the public repository merely to make
+that optional category green.
+
 Documentation/reference checks should confirm:
 
 - exactly `README.md`, `AGENTS.md`, and the four files under `docs/` remain as

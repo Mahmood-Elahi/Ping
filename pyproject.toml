@@ -55,3 +55,9 @@ dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=1.4.0",
 ]
+
+[tool.pytest.ini_options]
+addopts = ["-m", "not private_evidence"]
+markers = [
+    "private_evidence: requires locally retained private operational evidence that is intentionally excluded from the public repository",
+]

@@ -33,6 +33,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PRODUCTION = ROOT / "config" / "target_companies.yaml"
 PARENT_MAPPINGS = ROOT / "config" / "company_parent_source_mappings.yaml"
 HISTORICAL_REPORT = ROOT / "output" / "avature_icims_validation.json"
+HISTORICAL_CANDIDATES = ROOT / "config" / "company_avature_icims_candidates.csv"
 CSV_REPORT = ROOT / "config" / "company_tsmc_source_recovery.csv"
 CANDIDATE = ROOT / "config" / "target_companies.tsmc_recovery_candidate.yaml"
 VALIDATED = ROOT / "config" / "target_companies.tsmc_recovery_validated.yaml"
@@ -272,11 +273,31 @@ def recovered_entry() -> dict[str, Any]:
 
 
 def historical_evidence() -> dict[str, Any]:
-    if not HISTORICAL_REPORT.exists():
-        return {}
-    data = json.loads(HISTORICAL_REPORT.read_text(encoding="utf-8"))
-    records = data.get("results") or data.get("companies") or []
-    return next((dict(row) for row in records if row.get("company") == "TSMC"), {})
+    if HISTORICAL_REPORT.exists():
+        data = json.loads(HISTORICAL_REPORT.read_text(encoding="utf-8"))
+        records = data.get("results") or data.get("companies") or []
+        match = next(
+            (dict(row) for row in records if row.get("company") == "TSMC"),
+            None,
+        )
+        if match is not None:
+            return match
+
+    if HISTORICAL_CANDIDATES.exists():
+        with HISTORICAL_CANDIDATES.open(encoding="utf-8", newline="") as handle:
+            row = next(
+                (
+                    dict(item)
+                    for item in csv.DictReader(handle)
+                    if item.get("company") == "TSMC"
+                ),
+                None,
+            )
+        if row is not None:
+            row["status"] = row.get("validation_status", "")
+            return row
+
+    return {}
 
 
 def _entry_offsets(content: bytes) -> list[int]:
