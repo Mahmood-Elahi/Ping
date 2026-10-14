@@ -25,6 +25,12 @@ workflow. Regenerate it with
 `uv export --locked --no-dev --no-hashes --no-emit-project -o requirements.txt`
 after any dependency change.
 
+Docker is optional infrastructure. Production runs Python directly in GitHub
+Actions; no active workflow or production integration depends on a container
+image. The checked-in `Dockerfile` and `.dockerignore` retain their existing
+security protections, but an actual image build has not been verified for this
+release and container deployment must not be advertised as verified.
+
 The base `.env.example` documents supported names. Do not rename environment
 variables for branding and never commit real values.
 

@@ -135,6 +135,13 @@ class OptionalCredentialImportTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
 
 
+class PublicRepositoryDocumentationTests(unittest.TestCase):
+    def test_quick_start_clones_the_permanent_public_repository(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("https://github.com/Mahmood-Elahi/Job-Radar.git", readme)
+        self.assertNotIn("git clone git@github.com:swanidhi/role-radar.git", readme)
+
+
 class DockerReleaseContextTests(unittest.TestCase):
     def test_sensitive_context_classes_are_explicitly_excluded(self):
         rules = {
@@ -183,6 +190,20 @@ class DockerReleaseContextTests(unittest.TestCase):
         dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
         self.assertNotIn("company_unknown_investigation_v3.csv", dockerfile)
         self.assertNotIn("company_uncovered_fingerprints_v4.csv", dockerfile)
+
+    def test_production_workflow_does_not_depend_on_docker(self):
+        workflow = (ROOT / ".github" / "workflows" / "hourly-job-radar.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotRegex(workflow.lower(), r"\bdocker\b|\bcontainer\s*:")
+
+    def test_documentation_marks_docker_optional_and_unverified(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        operations = (ROOT / "docs" / "OPERATIONS.md").read_text(encoding="utf-8")
+        for document in (readme, operations):
+            with self.subTest(document=document[:20]):
+                self.assertIn("Docker is optional", document)
+                self.assertIn("actual image build has not been verified", document)
 
 
 class WorkflowSecurityTests(unittest.TestCase):

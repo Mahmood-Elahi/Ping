@@ -51,8 +51,8 @@ See [Source Contracts](docs/SOURCE_CONTRACTS.md) before changing any source.
 Python 3.11 is the repository baseline.
 
 ```powershell
-git clone git@github.com:swanidhi/role-radar.git
-Set-Location role-radar
+git clone https://github.com/Mahmood-Elahi/Job-Radar.git
+Set-Location Job-Radar
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install uv
@@ -68,6 +68,12 @@ environment template with `cp .env.example .env`.
 cross-platform lock. `requirements.txt` is a generated, pinned runtime export
 retained for Docker and the existing GitHub Actions workflow; do not edit it by
 hand.
+
+Docker is optional infrastructure, not Ping's production execution path. The
+scheduled GitHub Actions workflow runs Python directly, and no current workflow
+or production integration requires a container image. The retained
+`Dockerfile` and `.dockerignore` preserve a security-hardened build context, but
+an actual image build has not been verified for this release.
 
 Run a direct company-careers search:
 
