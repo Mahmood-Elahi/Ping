@@ -249,6 +249,131 @@ apply every migration in filename order and run `sql/phase5_multi_scope_verify.s
 after the Phase 5 chain. Migrations and the clean schema must converge on the
 same RLS/service-role-only model.
 
+### Source-sync optimization deployment and rollback
+
+`20261015_optimize_source_sync_finalizer.sql` contains `CREATE INDEX
+CONCURRENTLY`; run the file with autocommit enabled. A migration runner that
+wraps the whole file in a transaction is not compatible. Do not raise
+`statement_timeout` as the rollout and do not remove or weaken retention
+indexes to manufacture HOT-update eligibility.
+
+The exact production sequence is:
+
+1. **Approval required:** confirm the production GitHub Actions workflow is
+   disabled. Keep its `17 */6 * * *` schedule unchanged.
+2. **Approval required:** confirm every external writer is idle, including
+   dashboard updates, finalizers, retention execution, scope retirement, and
+   operator SQL sessions that can mutate the synchronization tables.
+3. **Approval required:** confirm the approved Supabase backup/recovery
+   capability, and record the recovery-point identifier, restore owner, and
+   tested restore procedure.
+4. **Read-only after database-access approval:** run
+   `sql/20261015_source_sync_optimization_verify.sql` and save every result set.
+   Preserve the complete `function_definition`, not only its hashes. The
+   verifier reports exact stale-active-`removed_at` drift separately from every
+   other lifecycle inconsistency.
+5. Resolve any function-body mismatch before data remediation or migration.
+   Save the deployed `pg_get_functiondef` result as plain SQL and run:
+
+   ```powershell
+   .\.venv\Scripts\python.exe scripts\compare_source_sync_finalizer.py `
+     --deployed <captured-function.sql>
+   ```
+
+   `TOKEN_EQUIVALENT` proves only that the difference is whitespace, comments,
+   or unquoted identifier casing. `TOKEN_DIFFERENCE_STOP`, a parse failure, or
+   a missing deployed definition is a substantive/unresolved blocker. The tool
+   never updates an accepted hash. Even for token equivalence, record the
+   deployed definition and both fingerprints and make a separately reviewed
+   repository change before accepting its exact normalized-body hash.
+6. **Separate data-remediation approval required:** while the same writer
+   freeze and recovery point remain valid, run
+   `sql/20261015_canonical_removed_at_remediation.sql` as `postgres`. It must
+   report exactly 81 eligible rows, zero other lifecycle inconsistencies, 81
+   snapshotted rows, 81 updates, and zero postflight drift. The transaction
+   creates
+   `public.canonical_removed_at_remediation_20261015_snapshot`, revokes API and
+   service-role access to it, and changes only canonical
+   `tracked_jobs.removed_at`. Keep the snapshot through the observation window.
+   Any count or guard mismatch rolls back the whole transaction and requires
+   new diagnosis; never edit `81` merely to make it run.
+7. **Read-only after database-access approval:** rerun the verifier and save all
+   results. Require `canonical_lifecycle_inconsistency_count=0`,
+   `canonical_stale_active_removed_at_count=0`, and
+   `canonical_other_lifecycle_inconsistency_count=0`.
+8. Require `PASS_BASELINE_READY` and `safe_to_apply_migration=true`. The
+   verifier requires the sole overload to be exactly
+   `public.finalize_student_job_source_sync(uuid) -> jsonb`; hashes the actual
+   deployed PL/pgSQL body; checks owner `postgres`, `SECURITY DEFINER`, search
+   path `public, extensions, pg_temp`, exact materialized execute ACL
+   `postgres:EXECUTE:false` plus `service_role:EXECUTE:false`, effective
+   execution for those two roles, and no `PUBLIC`, `anon`, or `authenticated`
+   access. The owner's materialized grant-option flag is not ownership
+   authority. The verifier also checks the exact checkpoint trigger, retention
+   index, candidate scope index, and canonical/ownership lifecycle parity.
+9. Preserve the deployed function definition, normalized body hash, owner,
+   function configuration, execute ACL, overload inventory, trigger definitions,
+   and index definitions with the recovery record. A signature alone is not a
+   rollback record.
+10. **Migration approval required:** recheck writer idleness, then apply
+   `sql/migrations/20261015_optimize_source_sync_finalizer.sql` with autocommit
+   enabled. The preflight compatibility block runs before `CREATE INDEX
+   CONCURRENTLY`; the index statement runs outside an explicit transaction, and
+   the function replacement runs in its own later transaction.
+11. **Read-only after database-access approval:** rerun
+   `sql/20261015_source_sync_optimization_verify.sql` and save every result set.
+12. Require `PASS_OPTIMIZED` and `post_deployment_verified=true`. Confirm the
+   exact two-column B-tree scope index is valid, ready, and live with no
+   predicate, expression, included column, or reordered key; reconfirm the
+   function body/security contract, sole overload, exact checkpoint trigger,
+   exact retention index, and lifecycle parity.
+13. **Separate approval required:** perform one controlled, bounded production
+    synchronization for a reviewed source scope. Confirm lifecycle and
+    source-ownership counts, replay idempotency, and the absence of unrelated
+    scope changes.
+14. Monitor PostgreSQL `57014`/statement-timeout events, finalizer duration,
+    locks and lock waits, failed staging sessions, row/index write volume, and
+    lifecycle integrity through the approved observation window. Offline tests
+    do not prove production performance or that the timeout is resolved.
+15. **Approval required:** re-enable the unchanged six-hour GitHub Actions
+    schedule only after the controlled synchronization and monitoring checks
+    succeed.
+
+Stop immediately and keep all writers disabled for any verifier `STOP_*`
+result, either required boolean being false, a backup/recovery gap, writer
+activity, a baseline-preflight diagnostic, a concurrent-index failure, an
+invalid/not-ready/not-live index, a definition/owner/configuration/ACL/overload
+mismatch, trigger drift or duplication, lifecycle drift, a timeout, or
+unexpected lifecycle/ownership changes. `IF NOT EXISTS` is not proof that a
+same-named index has the required definition. If concurrent creation leaves the
+exact named scope index invalid or unfinished, inspect its catalog identity;
+drop only that index with `DROP INDEX CONCURRENTLY` and retry only under a new
+approval. Never weaken a contract to continue the rollout.
+
+Rollback the two changes independently:
+
+- To reverse only the lifecycle remediation, keep writers disabled and run
+  `sql/20261015_canonical_removed_at_remediation_rollback.sql`. It aborts unless
+  all 81 canonical rows and their ownership aggregates still exactly match the
+  snapshot, and it restores only the captured `removed_at` timestamps. This
+  deliberately restores the known 81-row drift, so the verifier must return
+  `STOP_CANONICAL_LIFECYCLE_DRIFT`; do not proceed to migration. Do not use this
+  rollback after legitimate lifecycle changes.
+- To reverse the optimization, disable writers again, restore the captured
+  pre-deploy function definition and its owner/configuration/ACL, verify it,
+  and then decide whether to retain the additive index. If and only if the saved
+  baseline verifier output exactly matched the repository baseline, reapplying
+  `sql/migrations/20261010_phase5_scope_local_finalizer.sql` is the verified
+  function rollback. Dropping the additive index is optional; if required, use
+  `DROP INDEX CONCURRENTLY IF EXISTS
+  public.tracked_job_source_scopes_scope_source_idx;` in autocommit mode after
+  checking its exact identity.
+
+After either rollback, rerun the read-only verifier and save the result before
+re-enabling writers. Keep the remediation snapshot as audit evidence. The prior
+function also restores the prior timeout risk, so rollback is not evidence of
+recovery.
+
 Normal source sync uses bounded retry and staged chunks. The default absence
 threshold is two qualifying runs. Retention is configured for a 60-day maximum
 job age, stale-output filtering, zero-day removed-row retention, and seven-day

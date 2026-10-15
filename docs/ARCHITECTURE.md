@@ -201,6 +201,25 @@ migration path is:
 6. `20261010_phase5_pgcrypto_digest_resolution.sql`
 7. `20261010_phase5_scope_local_finalizer.sql`
 8. `20261010_phase6_incremental_checkpoints.sql`
+9. `20261015_optimize_source_sync_finalizer.sql`
+
+The latest finalizer serializes each logical source scope across scans and with
+explicit source retirement, uses a scope/key index for ownership enumeration,
+and writes canonical lifecycle only when the ownership-derived state differs.
+It validates observed keys and reconciles missing-owner transitions without a
+full-table canonical update. Materially stable jobs and owners update only
+`last_seen_at`, avoiding assignment of unchanged wide/material values.
+
+That heartbeat update is **not generally HOT eligible** on `tracked_jobs`:
+`tracked_jobs_retention_removed_idx` indexes
+`coalesce(removed_at, last_seen_at, first_seen_at)`. The retained optimization
+still removes speculative conflict work for ordinary existing rows, avoids
+unnecessary wide-column assignments and no-op canonical writes, and bounds
+ownership lookup to indexed affected keys. Those are verified structural work
+reductions, not proof that the production timeout is resolved. Wide JSONB
+comparison, the required `last_seen_at` write and its index maintenance, large
+single-scope inventories, locking, and transaction duration remain rollout
+measurements. Retention indexes and freshness semantics are unchanged.
 
 Migrations are forward-only historical records. Do not edit an applied
 migration to express a later change.

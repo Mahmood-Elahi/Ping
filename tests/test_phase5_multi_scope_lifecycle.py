@@ -36,6 +36,12 @@ PGCRYPTO_REPAIR_MIGRATION = (
 SCOPE_LOCAL_FINALIZER_MIGRATION = (
     ROOT / "sql" / "migrations" / "20261010_phase5_scope_local_finalizer.sql"
 )
+OPTIMIZED_FINALIZER_MIGRATION = (
+    ROOT / "sql" / "migrations" / "20261015_optimize_source_sync_finalizer.sql"
+)
+OPTIMIZED_FINALIZER_VERIFY = (
+    ROOT / "sql" / "20261015_source_sync_optimization_verify.sql"
+)
 AS_OF = datetime(2026, 10, 10, 12, 0, tzinfo=timezone.utc)
 CONFIG = load_freshness_config(str(ROOT / "config" / "freshness.yaml"))
 
@@ -485,13 +491,14 @@ def test_latest_finalizer_state_has_no_unresolved_pgcrypto_dependency() -> None:
         "20261009_phase3_source_reliability.sql",
         "20261010_phase5_multi_scope_lifecycle.sql",
         "20261010_phase5_scope_local_finalizer.sql",
+        "20261015_optimize_source_sync_finalizer.sql",
     ]
     assert PGCRYPTO_REPAIR_MIGRATION.name < definitions[-1]
     assert "set search_path to public, extensions, pg_temp" in (
         PGCRYPTO_REPAIR_MIGRATION.read_text(encoding="utf-8").casefold()
     )
     assert "set search_path = public, extensions, pg_temp" in (
-        SCOPE_LOCAL_FINALIZER_MIGRATION.read_text(encoding="utf-8").casefold()
+        OPTIMIZED_FINALIZER_MIGRATION.read_text(encoding="utf-8").casefold()
     )
 
 
@@ -525,7 +532,7 @@ def test_phase3_through_phase5_security_definers_have_no_other_pgcrypto_calls() 
         sql,
     )
 
-    assert pgcrypto_calls == ["digest", "digest", "digest"]
+    assert pgcrypto_calls == ["digest", "digest", "digest", "digest"]
 
 
 def test_scope_local_finalizer_sql_is_bounded_and_preserves_rpc_contract() -> None:
@@ -571,8 +578,8 @@ def test_scope_local_finalizer_keeps_reconciliation_replay_and_cleanup_contracts
     assert "perform public.finalize_student_job_source_sync" not in sql
 
 
-def test_scope_local_finalizer_bootstrap_definition_matches_forward_migration() -> None:
-    migration = SCOPE_LOCAL_FINALIZER_MIGRATION.read_text(encoding="utf-8")
+def test_latest_finalizer_bootstrap_definition_matches_forward_migration() -> None:
+    migration = OPTIMIZED_FINALIZER_MIGRATION.read_text(encoding="utf-8")
     schema = (ROOT / "sql" / "supabase_schema.sql").read_text(encoding="utf-8")
     pattern = re.compile(
         r"create or replace function public\.finalize_student_job_source_sync"
@@ -585,5 +592,590 @@ def test_scope_local_finalizer_bootstrap_definition_matches_forward_migration() 
 
     assert migration_definition is not None
     assert schema_definition is not None
-    assert migration_definition.group(0) == schema_definition.group(0)
-    assert "20261010_phase5_scope_local_finalizer.sql" in schema
+    def normalized_definition(value: str) -> str:
+        without_comments = re.sub(r"--[^\n]*", "", value)
+        return re.sub(r"\s+", " ", without_comments).strip()
+
+    assert normalized_definition(migration_definition.group(0)) == normalized_definition(
+        schema_definition.group(0)
+    )
+    assert "20261015_optimize_source_sync_finalizer.sql" in schema
+
+
+def test_optimized_finalizer_limits_lifecycle_work_and_serializes_scope() -> None:
+    sql = OPTIMIZED_FINALIZER_MIGRATION.read_text(encoding="utf-8").casefold()
+    retirement_sql = PHASE5_MIGRATION.read_text(encoding="utf-8").casefold()
+    function_match = re.search(
+        r"create or replace function public\.finalize_student_job_source_sync"
+        r"\(p_sync_id uuid\).*?\n\$\$;",
+        sql,
+        re.DOTALL,
+    )
+    assert function_match is not None
+    function_sql = function_match.group(0)
+
+    assert (
+        "create index concurrently if not exists "
+        "tracked_job_source_scopes_scope_source_idx"
+    ) in sql
+    assert "(source_scope_key, source_key)" in sql
+    assert "'retire:' || v_session.source_scope_key" in sql
+    assert "'retire:' || p_source_scope_key" in retirement_sql
+    assert "v_session.scan_id::text || ':' || v_session.source_scope_key" not in sql
+    assert "cannot finalize a retired source scope" in sql
+    assert "cannot finalize a source scope after a newer observation" in sql
+    assert "update public.tracked_jobs tracked set" in sql
+    assert "select 1 from public.tracked_jobs existing" in sql
+    assert "update public.tracked_job_source_scopes owner set" in sql
+    assert "from public.tracked_job_source_scopes existing" in sql
+    assert "text[]" not in function_sql
+    for removed_array in (
+        "v_material_keys",
+        "v_owner_material_keys",
+        "v_lifecycle_keys",
+        "v_missing_keys",
+    ):
+        assert removed_array not in sql
+    assert "with affected as (" in sql
+    assert "left join missing using(ownership_key)" in sql
+    assert "select count(*) into v_canonical_updated from canonical_updates" in sql
+    assert ") is distinct from row(" in sql
+    assert "not generally a hot update" in sql
+
+
+def test_scope_source_index_check_requires_the_exact_physical_definition() -> None:
+    sql = OPTIMIZED_FINALIZER_MIGRATION.read_text(encoding="utf-8").casefold()
+
+    for contract in (
+        "table_namespace.nspname='public'",
+        "table_class.relname='tracked_job_source_scopes'",
+        "access_method.amname='btree'",
+        "not index_state.indisunique",
+        "index_state.indnkeyatts=2",
+        "index_state.indnatts=2",
+        "index_state.indexprs is null",
+        "index_state.indpred is null",
+        "pg_catalog.pg_get_indexdef(index_state.indexrelid,1,true)='source_scope_key'",
+        "pg_catalog.pg_get_indexdef(index_state.indexrelid,2,true)='source_key'",
+        "index_state.indisvalid",
+        "index_state.indisready",
+        "index_state.indislive",
+    ):
+        assert contract in sql
+    assert sql.index("create index concurrently") < sql.index("\nbegin;")
+    assert "invalid_or_wrong_definition" in sql
+
+
+def test_large_inventory_avoids_material_and_canonical_noop_writes() -> None:
+    """Model a 100k+ ownership inventory without claiming a live speedup."""
+    background = {
+        f"background-{index}": ("other-scope", 0, "active", None)
+        for index in range(100_001)
+    }
+    current = {
+        f"source-{index}": ("target-scope", 0, "active", None)
+        for index in range(5_000)
+    }
+    owners = {**background, **current}
+    staged = {source_key: (0, "active", None) for source_key in current}
+    material_payloads = {
+        source_key: ("title", "location", "raw")
+        for source_key in current
+    }
+    tracked_payloads = dict(material_payloads)
+
+    material_keys = {
+        source_key
+        for source_key, desired in material_payloads.items()
+        if tracked_payloads.get(source_key) != desired
+    }
+
+    assert len(owners) == 105_001
+    assert material_keys == set()
+    assert len(staged) == 5_000  # required last_seen_at heartbeats; not generally HOT
+    canonical_updates = {
+        source_key
+        for source_key, desired in staged.items()
+        if owners[source_key][1:] != desired
+    }
+    assert canonical_updates == set()
+
+    material_payloads["source-5"] = ("changed title", "location", "raw")
+    material_keys = {
+        source_key
+        for source_key, desired in material_payloads.items()
+        if tracked_payloads.get(source_key) != desired
+    }
+    owners["source-7"] = ("target-scope", 1, "possibly_missing", None)
+    canonical_updates = {
+        source_key
+        for source_key, desired in staged.items()
+        if source_key not in owners or owners[source_key][1:] != desired
+    }
+
+    assert material_keys == {"source-5"}
+    assert canonical_updates == {"source-7"}
+    assert len(canonical_updates) < len(staged)
+
+
+def _derive_canonical(owner_rows: list[dict]) -> tuple[str, str, int]:
+    has_active = any(row["lifecycle_status"] == "active" for row in owner_rows)
+    has_possible = any(
+        row["lifecycle_status"] == "possibly_missing" for row in owner_rows
+    )
+    return (
+        "active" if has_active or has_possible else "closed",
+        "active" if has_active else "possibly_missing" if has_possible else "removed",
+        min(row["missing_successful_runs"] for row in owner_rows),
+    )
+
+
+def _canonical_write_if_needed(
+    canonical: dict,
+    owner_rows: list[dict],
+) -> bool:
+    desired = _derive_canonical(owner_rows)
+    current = (
+        canonical["status"],
+        canonical["lifecycle_status"],
+        canonical["missing_successful_runs"],
+    )
+    if current == desired:
+        return False
+    canonical["status"], canonical["lifecycle_status"], canonical[
+        "missing_successful_runs"
+    ] = desired
+    return True
+
+
+def test_touched_canonical_drift_is_repaired_but_consistent_state_is_not_written() -> None:
+    owners = [
+        {"lifecycle_status": "active", "missing_successful_runs": 0},
+    ]
+    canonical = {
+        "status": "closed",
+        "lifecycle_status": "removed",
+        "missing_successful_runs": 2,
+    }
+
+    assert _canonical_write_if_needed(canonical, owners)
+    assert canonical == {
+        "status": "active",
+        "lifecycle_status": "active",
+        "missing_successful_runs": 0,
+    }
+    assert not _canonical_write_if_needed(canonical, owners)
+
+
+def test_shared_job_stays_active_when_one_scope_becomes_missing_and_removed() -> None:
+    professional = {"lifecycle_status": "active", "missing_successful_runs": 0}
+    university = {"lifecycle_status": "active", "missing_successful_runs": 0}
+    canonical = {
+        "status": "active",
+        "lifecycle_status": "active",
+        "missing_successful_runs": 0,
+    }
+
+    professional.update(lifecycle_status="possibly_missing", missing_successful_runs=1)
+    assert not _canonical_write_if_needed(canonical, [professional, university])
+    professional.update(lifecycle_status="removed", missing_successful_runs=2)
+    assert not _canonical_write_if_needed(canonical, [professional, university])
+    assert canonical["status"] == "active"
+
+
+def test_reappearance_preserves_first_seen_and_advances_last_seen() -> None:
+    first_seen = AS_OF - timedelta(days=5)
+    canonical = {
+        "status": "closed",
+        "lifecycle_status": "removed",
+        "missing_successful_runs": 2,
+        "first_seen_at": first_seen,
+        "last_seen_at": AS_OF - timedelta(days=1),
+    }
+    owner = {"lifecycle_status": "removed", "missing_successful_runs": 2}
+
+    owner.update(lifecycle_status="active", missing_successful_runs=0)
+    canonical["last_seen_at"] = AS_OF
+    assert _canonical_write_if_needed(canonical, [owner])
+    assert canonical["first_seen_at"] == first_seen
+    assert canonical["last_seen_at"] == AS_OF
+    assert canonical["lifecycle_status"] == "active"
+
+
+def test_protected_or_non_authoritative_absence_cannot_advance_evidence() -> None:
+    owner = {
+        "provider_source_key": "unreadable",
+        "lifecycle_status": "active",
+        "missing_successful_runs": 0,
+    }
+
+    for reconcile_absence, protected in ((True, {"unreadable"}), (False, set())):
+        before = dict(owner)
+        if reconcile_absence and owner["provider_source_key"] not in protected:
+            owner["missing_successful_runs"] += 1
+        assert owner == before
+
+
+def test_two_complete_absences_close_and_replay_is_idempotent() -> None:
+    owner = {"lifecycle_status": "active", "missing_successful_runs": 0}
+    completed_syncs: set[str] = set()
+
+    def finalize(sync_id: str) -> bool:
+        if sync_id in completed_syncs:
+            return True
+        owner["missing_successful_runs"] += 1
+        owner["lifecycle_status"] = (
+            "removed" if owner["missing_successful_runs"] >= 2 else "possibly_missing"
+        )
+        completed_syncs.add(sync_id)
+        return False
+
+    assert not finalize("scan-1")
+    assert owner == {"lifecycle_status": "possibly_missing", "missing_successful_runs": 1}
+    assert finalize("scan-1")
+    assert owner["missing_successful_runs"] == 1
+    assert not finalize("scan-2")
+    assert owner == {"lifecycle_status": "removed", "missing_successful_runs": 2}
+
+
+def test_overlapping_scope_scans_reject_out_of_order_finalization() -> None:
+    finalized_at = AS_OF + timedelta(minutes=5)
+    older_observation = AS_OF
+
+    with pytest.raises(ValueError, match="newer observation"):
+        if finalized_at > older_observation:
+            raise ValueError("newer observation already finalized")
+
+
+def test_optimized_finalizer_verification_is_read_only_and_checks_access() -> None:
+    sql = OPTIMIZED_FINALIZER_VERIFY.read_text(encoding="utf-8").casefold()
+    executable = re.sub(r"--[^\n]*", "", sql)
+    executable = re.sub(r"'(?:''|[^'])*'", "''", executable)
+
+    assert "begin transaction read only;" in sql
+    assert "pg_get_functiondef" in sql
+    assert "function_definition_md5" in sql
+    assert "normalized_function_body_md5" in sql
+    assert "owner_name='postgres'" in sql
+    assert "target.prosecdef" in sql
+    assert "search_path=public, extensions, pg_temp" in sql
+    assert "postgres:execute:false" in sql
+    assert "service_role:execute:false" in sql
+    assert "target.postgres_can_execute" in sql
+    assert "target.service_role_can_execute" in sql
+    assert "not target.anon_can_execute" in sql
+    assert "not target.authenticated_can_execute" in sql
+    assert "canonical_lifecycle_inconsistency_count" in sql
+    assert "stop_canonical_lifecycle_drift" in sql
+    assert "stop_scope_index_wrong_or_invalid" in sql
+    assert "pass_baseline_ready" in sql
+    assert "pass_optimized" in sql
+    assert "checkpoint_trigger_exact_and_enabled" in sql
+    assert "retention_index_exact_and_ready" in sql
+    assert "index_state.indexprs is null" in sql
+    assert "index_state.indpred is null" in sql
+    assert "access_method.amname='btree'" in sql
+    assert "pg_get_indexdef(index_state.indexrelid,1,true)='source_scope_key'" in sql
+    assert "pg_get_indexdef(index_state.indexrelid,2,true)='source_key'" in sql
+    assert "index_state.indisvalid" in sql
+    assert "index_state.indisready" in sql
+    assert sql.rstrip().endswith("rollback;")
+    assert not re.search(
+        r"\b(insert|update|delete|truncate|alter|drop|create)\b", executable
+    )
+
+
+def test_verifier_hashes_match_actual_baseline_and_optimized_function_bodies() -> None:
+    def normalized_body_md5(path: Path) -> str:
+        sql = path.read_text(encoding="utf-8")
+        match = re.search(
+            r"create or replace function public\.finalize_student_job_source_sync"
+            r"\(p_sync_id uuid\).*?as \$\$(.*?)\n\$\$;",
+            sql,
+            re.IGNORECASE | re.DOTALL,
+        )
+        assert match is not None
+        normalized = re.sub(r"\s+", " ", match.group(1)).strip()
+        return hashlib.md5(normalized.encode("utf-8")).hexdigest()
+
+    verifier = OPTIMIZED_FINALIZER_VERIFY.read_text(encoding="utf-8")
+    assert normalized_body_md5(SCOPE_LOCAL_FINALIZER_MIGRATION) in verifier
+    assert normalized_body_md5(OPTIMIZED_FINALIZER_MIGRATION) in verifier
+
+
+def _deployment_verification_result(**overrides: object) -> str:
+    state: dict[str, object] = {
+        "function_exists": True,
+        "exact_overload_inventory": True,
+        "exact_function_contract": True,
+        "retention_index_exact_and_ready": True,
+        "checkpoint_trigger_exact_and_enabled": True,
+        "canonical_lifecycle_inconsistency_count": 0,
+        "scope_index_name_present": False,
+        "scope_index_exact_and_ready": False,
+        "normalized_body": "baseline",
+    }
+    state.update(overrides)
+    if not state["function_exists"]:
+        return "STOP_FUNCTION_MISSING"
+    if not state["exact_overload_inventory"]:
+        return "STOP_FUNCTION_OVERLOAD_MISMATCH"
+    if not state["exact_function_contract"]:
+        return "STOP_FUNCTION_CONTRACT_MISMATCH"
+    if not state["retention_index_exact_and_ready"]:
+        return "STOP_RETENTION_INDEX_MISMATCH"
+    if not state["checkpoint_trigger_exact_and_enabled"]:
+        return "STOP_CHECKPOINT_TRIGGER_MISMATCH"
+    if state["canonical_lifecycle_inconsistency_count"] != 0:
+        return "STOP_CANONICAL_LIFECYCLE_DRIFT"
+    if state["scope_index_name_present"] and not state["scope_index_exact_and_ready"]:
+        return "STOP_SCOPE_INDEX_WRONG_OR_INVALID"
+    if state["normalized_body"] == "baseline":
+        return "PASS_BASELINE_READY"
+    if state["normalized_body"] == "optimized" and state["scope_index_exact_and_ready"]:
+        return "PASS_OPTIMIZED"
+    return "STOP_FUNCTION_DEFINITION_MISMATCH"
+
+
+def test_exact_expected_overload_inventory_passes_and_additional_overload_stops() -> None:
+    sql = OPTIMIZED_FINALIZER_VERIFY.read_text(encoding="utf-8").casefold()
+
+    for contract in (
+        "count(*)=1 and bool_and(",
+        "procedure_state.pronargs=1",
+        "procedure_state.proargtypes[0]='uuid'::regtype::oid",
+        "procedure_state.proallargtypes is null",
+        "procedure_state.proargmodes is null",
+        "procedure_state.provariadic=0",
+        "procedure_state.pronargdefaults=0",
+        "not procedure_state.proretset",
+        "procedure_state.prorettype='jsonb'::regtype",
+        "stop_function_overload_mismatch",
+    ):
+        assert contract in sql
+
+    assert _deployment_verification_result() == "PASS_BASELINE_READY"
+    assert (
+        _deployment_verification_result(exact_overload_inventory=False)
+        == "STOP_FUNCTION_OVERLOAD_MISMATCH"
+    )
+
+
+_EXPECTED_CHECKPOINT_WHEN = (
+    "((new.status = 'finalized'::text) and "
+    "(old.status is distinct from new.status))"
+)
+
+
+def _checkpoint_trigger_contract(**overrides: object) -> bool:
+    state: dict[str, object] = {
+        "inventory_count": 1,
+        "table": ("public", "job_sync_sessions"),
+        "function": "public.commit_student_job_incremental_checkpoint()",
+        "tgtype": 17,
+        "updated_columns": ("status",),
+        "when": _EXPECTED_CHECKPOINT_WHEN,
+        "enabled": "O",
+        "arguments": (),
+        "transition_tables": (),
+    }
+    state.update(overrides)
+    return state == {
+        "inventory_count": 1,
+        "table": ("public", "job_sync_sessions"),
+        "function": "public.commit_student_job_incremental_checkpoint()",
+        "tgtype": 17,
+        "updated_columns": ("status",),
+        "when": _EXPECTED_CHECKPOINT_WHEN,
+        "enabled": "O",
+        "arguments": (),
+        "transition_tables": (),
+    }
+
+
+def test_checkpoint_trigger_exact_contract_is_catalog_backed() -> None:
+    sql = OPTIMIZED_FINALIZER_VERIFY.read_text(encoding="utf-8").casefold()
+
+    for contract in (
+        "trigger_namespace.nspname='public'",
+        "trigger_table.relname='job_sync_sessions'",
+        "trigger_state.tgtype=17",
+        "trigger_state.tgattr::text=status_attribute.attnum::text",
+        "trigger_state.tgenabled='o'",
+        "trigger_state.tgnargs=0",
+        "trigger_state.tgoldtable is null",
+        "trigger_state.tgnewtable is null",
+        "pg_get_triggerdef(trigger_state.oid,false)",
+        "checkpoint_trigger_inventory_count",
+    ):
+        assert contract in sql
+    assert _checkpoint_trigger_contract()
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        {"tgtype": 19},  # BEFORE UPDATE at row level
+        {"when": "new.status = 'finalized'::text"},
+        {"enabled": "D"},
+        {"inventory_count": 2},
+    ],
+    ids=["wrong-timing", "wrong-when", "disabled", "conflicting-duplicate"],
+)
+def test_checkpoint_trigger_mismatches_fail_closed(mutation: dict[str, object]) -> None:
+    assert not _checkpoint_trigger_contract(**mutation)
+    assert (
+        _deployment_verification_result(checkpoint_trigger_exact_and_enabled=False)
+        == "STOP_CHECKPOINT_TRIGGER_MISMATCH"
+    )
+
+
+_EXPECTED_RETENTION_PREDICATE = (
+    "((lifecycle_status = 'removed'::text) and (status = 'closed'::text))"
+)
+
+
+def _retention_index_contract(**overrides: object) -> bool:
+    state: dict[str, object] = {
+        "identity": ("public", "tracked_jobs", "tracked_jobs_retention_removed_idx"),
+        "access_method": "btree",
+        "unique": False,
+        "key_count": 2,
+        "attribute_count": 2,
+        "keys": (
+            "coalesce(removed_at, last_seen_at, first_seen_at)",
+            "source_key",
+        ),
+        "ordering_options": (0, 0),
+        "predicate": _EXPECTED_RETENTION_PREDICATE,
+        "valid": True,
+        "ready": True,
+        "live": True,
+    }
+    expected = dict(state)
+    state.update(overrides)
+    return state == expected
+
+
+def test_retention_index_exact_contract_is_catalog_backed() -> None:
+    sql = OPTIMIZED_FINALIZER_VERIFY.read_text(encoding="utf-8").casefold()
+
+    for contract in (
+        "index_class.relname='tracked_jobs_retention_removed_idx'",
+        "table_namespace.nspname='public'",
+        "table_class.relname='tracked_jobs'",
+        "access_method.amname='btree'",
+        "not index_state.indisunique",
+        "index_state.indnkeyatts=2",
+        "index_state.indnatts=2",
+        "index_state.indkey[0]=0",
+        "index_state.indkey[1]=source_key_attribute.attnum",
+        "index_state.indoption[0]=0",
+        "index_state.indoption[1]=0",
+        "pg_get_expr(index_state.indexprs,index_state.indrelid,false)",
+        "pg_get_expr(index_state.indpred,index_state.indrelid,false)",
+        "index_state.indisvalid",
+        "index_state.indisready",
+        "index_state.indislive",
+    ):
+        assert contract in sql
+    assert "like '%lifecycle_status%removed%status%closed%'" not in sql
+    assert _retention_index_contract()
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        {"predicate": "(status = 'closed'::text)"},
+        {"keys": ("coalesce(last_seen_at, removed_at, first_seen_at)", "source_key")},
+        {"keys": ("source_key", "coalesce(removed_at, last_seen_at, first_seen_at)")},
+        {"attribute_count": 3},
+        {"ordering_options": (1, 0)},
+        {"valid": False},
+        {"ready": False},
+        {"live": False},
+    ],
+    ids=[
+        "wrong-predicate",
+        "wrong-expression",
+        "wrong-key-order",
+        "included-column",
+        "descending-key",
+        "invalid",
+        "unfinished",
+        "not-live",
+    ],
+)
+def test_retention_index_mismatches_fail_closed(mutation: dict[str, object]) -> None:
+    assert not _retention_index_contract(**mutation)
+    assert (
+        _deployment_verification_result(retention_index_exact_and_ready=False)
+        == "STOP_RETENTION_INDEX_MISMATCH"
+    )
+
+
+def _normalized_finalizer_body_md5(path: Path) -> str:
+    sql = path.read_text(encoding="utf-8")
+    match = re.search(
+        r"create or replace function public\.finalize_student_job_source_sync"
+        r"\(p_sync_id uuid\).*?as \$\$(.*?)\n\$\$;",
+        sql,
+        re.IGNORECASE | re.DOTALL,
+    )
+    assert match is not None
+    normalized = re.sub(r"\s+", " ", match.group(1)).strip()
+    return hashlib.md5(normalized.encode("utf-8")).hexdigest()
+
+
+def test_migration_checks_compatible_baseline_before_concurrent_index_creation() -> None:
+    sql = OPTIMIZED_FINALIZER_MIGRATION.read_text(encoding="utf-8").casefold()
+    baseline_hash = _normalized_finalizer_body_md5(SCOPE_LOCAL_FINALIZER_MIGRATION)
+    optimized_hash = _normalized_finalizer_body_md5(OPTIMIZED_FINALIZER_MIGRATION)
+
+    assert sql.index("do $preflight$") < sql.index("create index concurrently")
+    assert baseline_hash in sql
+    assert optimized_hash in sql
+    assert "baseline_overload_mismatch" in sql
+    assert "baseline_contract_mismatch" in sql
+    assert "baseline_body_mismatch" in sql
+    assert "owner_name is distinct from 'postgres'" in sql
+    assert "security_definer is distinct from true" in sql
+    assert "postgres:execute:false" in sql
+    assert "service_role:execute:false" in sql
+    assert "v_postgres_can_execute is distinct from true" in sql
+    assert "v_service_role_can_execute is distinct from true" in sql
+    assert "v_anon_can_execute is distinct from false" in sql
+    assert "v_authenticated_can_execute is distinct from false" in sql
+
+
+def test_baseline_to_optimized_and_safe_optimized_rerun_are_the_only_body_paths() -> None:
+    assert _deployment_verification_result(normalized_body="baseline") == (
+        "PASS_BASELINE_READY"
+    )
+    assert _deployment_verification_result(
+        normalized_body="optimized",
+        scope_index_name_present=True,
+        scope_index_exact_and_ready=True,
+    ) == "PASS_OPTIMIZED"
+    assert _deployment_verification_result(normalized_body="unknown") == (
+        "STOP_FUNCTION_DEFINITION_MISMATCH"
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation,expected",
+    [
+        ({"normalized_body": "unknown"}, "STOP_FUNCTION_DEFINITION_MISMATCH"),
+        ({"exact_function_contract": False}, "STOP_FUNCTION_CONTRACT_MISMATCH"),
+        ({"exact_overload_inventory": False}, "STOP_FUNCTION_OVERLOAD_MISMATCH"),
+        (
+            {"scope_index_name_present": True, "scope_index_exact_and_ready": False},
+            "STOP_SCOPE_INDEX_WRONG_OR_INVALID",
+        ),
+    ],
+    ids=["wrong-body", "wrong-owner-or-acl", "wrong-overload", "wrong-index"],
+)
+def test_incompatible_preexisting_state_fails_closed(
+    mutation: dict[str, object], expected: str
+) -> None:
+    assert _deployment_verification_result(**mutation) == expected

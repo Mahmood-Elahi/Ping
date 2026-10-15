@@ -111,6 +111,8 @@ create index if not exists tracked_job_source_scopes_scope_idx
     on public.tracked_job_source_scopes (source_scope_key, lifecycle_status);
 create index if not exists tracked_job_source_scopes_source_idx
     on public.tracked_job_source_scopes (source_key);
+create index if not exists tracked_job_source_scopes_scope_source_idx
+    on public.tracked_job_source_scopes (source_scope_key, source_key);
 
 alter table public.tracked_job_source_scopes enable row level security;
 revoke all on table public.tracked_job_source_scopes from public, anon, authenticated;
@@ -613,7 +615,7 @@ comment on function public.sync_student_job_source(uuid, text, jsonb, boolean, i
 -- apply sql/migrations/20260924_staged_source_sync.sql next to install the
 -- bounded durable-staging RPCs used by the application, then apply the later
 -- chronological migrations through
--- 20261010_phase5_scope_local_finalizer.sql. The final migrations keep the
+-- 20261015_optimize_source_sync_finalizer.sql. The final migrations keep the
 -- SECURITY DEFINER finalizer's fixed search path able to resolve pgcrypto and
 -- bound canonical lifecycle aggregation to the current sync/scope's keys.
 drop function if exists public.sync_student_job_source(
@@ -640,11 +642,16 @@ declare
     v_chunks integer; v_rows bigint; v_bytes bigint; v_stage_rows bigint;
     v_inserted integer := 0; v_updated integer := 0; v_unchanged integer := 0;
     v_missing_incremented integer := 0; v_closed integer := 0; v_result jsonb;
+    v_canonical_updated integer := 0;
 begin
     select * into v_session from public.job_sync_sessions where sync_id = p_sync_id;
     if not found then raise exception 'unknown sync ID'; end if;
+
+    -- Use the existing retirement mutex identity so finalization and explicit
+    -- retirement cannot mutate the same logical source scope concurrently.
+    -- Unrelated scopes remain independent.
     perform pg_advisory_xact_lock(hashtextextended(
-        v_session.scan_id::text || ':' || v_session.source_scope_key, 0
+        'retire:' || v_session.source_scope_key, 0
     ));
     select * into v_session from public.job_sync_sessions
     where sync_id = p_sync_id for update;
@@ -661,6 +668,22 @@ begin
         delete from public.job_sync_stage where sync_id=p_sync_id;
         return v_result || jsonb_build_object('replayed', true);
     end if;
+    if exists (
+        select 1 from public.source_scope_retirements retirement
+        where retirement.source_scope_key=v_session.source_scope_key
+    ) then
+        raise exception 'cannot finalize a retired source scope';
+    end if;
+    if exists (
+        select 1 from public.job_sync_sessions newer
+        where newer.source_scope_key=v_session.source_scope_key
+          and newer.status='finalized'
+          and newer.sync_id<>p_sync_id
+          and row(newer.seen_at,newer.created_at) >
+              row(v_session.seen_at,v_session.created_at)
+    ) then
+        raise exception 'cannot finalize a source scope after a newer observation';
+    end if;
     select count(*), coalesce(sum(row_count),0), coalesce(sum(payload_bytes),0)
       into v_chunks,v_rows,v_bytes from public.job_sync_chunks where sync_id=p_sync_id;
     select count(*) into v_stage_rows from public.job_sync_stage where sync_id=p_sync_id;
@@ -675,6 +698,60 @@ begin
     from public.job_sync_stage incoming
     left join public.tracked_jobs existing using(source_key)
     where incoming.sync_id=p_sync_id;
+
+    -- Compare wide/material values once. Only rows with a real material change
+    -- assign those columns; the following heartbeat update sees their refreshed
+    -- last_seen_at and therefore touches only materially stable observations.
+    update public.tracked_jobs tracked set
+        company=incoming.company, source_scope=incoming.source_scope,
+        title=incoming.title, location=incoming.location, department=incoming.department,
+        apply_url=incoming.apply_url, source_url=incoming.source_url,
+        source_platform=incoming.source_platform, primary_category=incoming.primary_category,
+        matched_categories=incoming.matched_categories,
+        relevance_score=incoming.relevance_score, relevance_band=incoming.relevance_band,
+        positive_signals=incoming.positive_signals, negative_signals=incoming.negative_signals,
+        location_status=incoming.location_status, source_updated_at=incoming.source_updated_at,
+        source_posted_at=coalesce(incoming.source_posted_at,tracked.source_posted_at),
+        source_closes_at=coalesce(incoming.source_closes_at,tracked.source_closes_at),
+        last_seen_at=incoming.last_seen_at, is_ranked_output=incoming.is_ranked_output,
+        raw_data=incoming.raw_data
+    from public.job_sync_stage incoming
+    where incoming.sync_id=p_sync_id
+      and tracked.source_key=incoming.source_key
+      and row(
+            tracked.company, tracked.source_scope, tracked.title,
+            tracked.location, tracked.department, tracked.apply_url,
+            tracked.source_url, tracked.source_platform,
+            tracked.primary_category, tracked.matched_categories,
+            tracked.relevance_score, tracked.relevance_band,
+            tracked.positive_signals, tracked.negative_signals,
+            tracked.location_status, tracked.source_updated_at,
+            tracked.source_posted_at, tracked.source_closes_at,
+            tracked.is_ranked_output, tracked.raw_data
+          ) is distinct from row(
+            incoming.company, incoming.source_scope, incoming.title,
+            incoming.location, incoming.department, incoming.apply_url,
+            incoming.source_url, incoming.source_platform,
+            incoming.primary_category, incoming.matched_categories,
+            incoming.relevance_score, incoming.relevance_band,
+            incoming.positive_signals, incoming.negative_signals,
+            incoming.location_status, incoming.source_updated_at,
+            coalesce(incoming.source_posted_at,tracked.source_posted_at),
+            coalesce(incoming.source_closes_at,tracked.source_closes_at),
+            incoming.is_ranked_output, incoming.raw_data
+          );
+
+    -- last_seen_at participates in tracked_jobs_retention_removed_idx, so this
+    -- is not generally a HOT update. It still avoids assigning wide JSONB and
+    -- other unchanged material values. Although the comparison may detoast
+    -- JSONB, the measured production gain must come from the controlled rollout,
+    -- not from an inferred HOT benefit.
+    update public.tracked_jobs tracked set
+        last_seen_at=incoming.last_seen_at
+    from public.job_sync_stage incoming
+    where incoming.sync_id=p_sync_id
+      and tracked.source_key=incoming.source_key
+      and tracked.last_seen_at is distinct from incoming.last_seen_at;
 
     insert into public.tracked_jobs (
         source_key, company, source_scope, title, location, department, apply_url,
@@ -694,7 +771,12 @@ begin
         lifecycle_status,missing_successful_runs,freshness_age_source,age_days,
         first_seen_age_hours,freshness_band,deadline_days_remaining,urgency_band,
         urgency_score,urgency_reasons,date_parse_errors,is_ranked_output,raw_data
-    from public.job_sync_stage where sync_id=p_sync_id
+    from public.job_sync_stage incoming
+    where incoming.sync_id=p_sync_id
+      and not exists (
+          select 1 from public.tracked_jobs existing
+          where existing.source_key=incoming.source_key
+      )
     on conflict(source_key) do update set
         company=excluded.company, source_scope=excluded.source_scope,
         title=excluded.title, location=excluded.location, department=excluded.department,
@@ -709,6 +791,36 @@ begin
         last_seen_at=excluded.last_seen_at, is_ranked_output=excluded.is_ranked_output,
         raw_data=excluded.raw_data;
 
+    update public.tracked_job_source_scopes owner set
+        provider_source_key=incoming.provider_source_key,
+        last_seen_at=incoming.last_seen_at,
+        missing_successful_runs=0,
+        lifecycle_status=incoming.lifecycle_status,
+        removed_at=incoming.removed_at
+    from public.job_sync_stage incoming
+    where incoming.sync_id=p_sync_id
+      and owner.source_key=incoming.source_key
+      and owner.source_scope_key=incoming.source_scope_key
+      and row(
+            owner.provider_source_key,
+            owner.missing_successful_runs,
+            owner.lifecycle_status,
+            owner.removed_at
+          ) is distinct from row(
+            incoming.provider_source_key,
+            0,
+            incoming.lifecycle_status,
+            incoming.removed_at
+          );
+
+    update public.tracked_job_source_scopes owner set
+        last_seen_at=incoming.last_seen_at
+    from public.job_sync_stage incoming
+    where incoming.sync_id=p_sync_id
+      and owner.source_key=incoming.source_key
+      and owner.source_scope_key=incoming.source_scope_key
+      and owner.last_seen_at is distinct from incoming.last_seen_at;
+
     insert into public.tracked_job_source_scopes (
         ownership_key,source_key,canonical_company,source_scope,source_scope_key,
         provider_source_key,first_seen_at,last_seen_at,missing_successful_runs,
@@ -716,11 +828,62 @@ begin
     ) select encode(digest(source_key || E'\x1f' || source_scope_key,'sha256'),'hex'),
         source_key,company,source_scope,source_scope_key,provider_source_key,
         first_seen_at,last_seen_at,missing_successful_runs,lifecycle_status,removed_at
-    from public.job_sync_stage where sync_id=p_sync_id
+    from public.job_sync_stage incoming
+    where incoming.sync_id=p_sync_id
+      and not exists (
+          select 1
+          from public.tracked_job_source_scopes existing
+          where existing.source_key=incoming.source_key
+            and existing.source_scope_key=incoming.source_scope_key
+      )
     on conflict(source_key,source_scope_key) do update set
         provider_source_key=excluded.provider_source_key,
         last_seen_at=excluded.last_seen_at, missing_successful_runs=0,
         lifecycle_status=excluded.lifecycle_status, removed_at=excluded.removed_at;
+
+    -- Reconcile only canonical keys observed by this sync. This bounded guard
+    -- repairs pre-existing drift for touched jobs without scanning the entire
+    -- canonical table, and the DISTINCT predicate prevents no-op writes.
+    with affected as (
+        select incoming.source_key
+        from public.job_sync_stage incoming
+        where incoming.sync_id=p_sync_id
+    ), aggregate as (
+        select owner.source_key,
+            bool_or(owner.lifecycle_status='active') as has_active,
+            bool_or(owner.lifecycle_status='possibly_missing') as has_possible,
+            min(owner.missing_successful_runs) as minimum_missing
+        from affected
+        join public.tracked_job_source_scopes owner using(source_key)
+        group by owner.source_key
+    ), canonical_updates as (
+        update public.tracked_jobs tracked set
+            status=case when aggregate.has_active or aggregate.has_possible
+                        then 'active' else 'closed' end,
+            lifecycle_status=case when aggregate.has_active then 'active'
+                        when aggregate.has_possible then 'possibly_missing' else 'removed' end,
+            missing_successful_runs=aggregate.minimum_missing,
+            removed_at=case when aggregate.has_active or aggregate.has_possible then null
+                            else coalesce(tracked.removed_at,v_session.seen_at) end
+        from aggregate
+        where tracked.source_key=aggregate.source_key
+          and row(
+                tracked.status,
+                tracked.lifecycle_status,
+                tracked.missing_successful_runs,
+                tracked.removed_at
+              ) is distinct from row(
+                case when aggregate.has_active or aggregate.has_possible
+                     then 'active' else 'closed' end,
+                case when aggregate.has_active then 'active'
+                     when aggregate.has_possible then 'possibly_missing' else 'removed' end,
+                aggregate.minimum_missing,
+                case when aggregate.has_active or aggregate.has_possible then null
+                     else coalesce(tracked.removed_at,v_session.seen_at) end
+              )
+        returning tracked.source_key
+    )
+    select count(*) into v_canonical_updated from canonical_updates;
 
     with missing as (
         update public.tracked_job_source_scopes owner set
@@ -735,36 +898,55 @@ begin
           and not(owner.provider_source_key=any(v_session.protected_source_keys))
           and not exists(select 1 from public.job_sync_stage incoming
               where incoming.sync_id=p_sync_id and incoming.source_key=owner.source_key)
-        returning owner.source_key
-    ) select count(*) into v_missing_incremented from missing;
-
-    with affected as (
-        select source_key
-        from public.job_sync_stage
-        where sync_id=p_sync_id
-        union
-        select source_key
-        from public.tracked_job_source_scopes
-        where source_scope_key=v_session.source_scope_key
+        returning owner.ownership_key,owner.source_key,
+                  owner.missing_successful_runs,owner.lifecycle_status,owner.removed_at
+    ), affected as (
+        select distinct missing.source_key from missing
     ), aggregate as (
         select owner.source_key,
-            bool_or(owner.lifecycle_status='active') as has_active,
-            bool_or(owner.lifecycle_status='possibly_missing') as has_possible,
-            min(owner.missing_successful_runs) as minimum_missing
+            bool_or((case when missing.ownership_key is not null
+                then missing.lifecycle_status else owner.lifecycle_status end)='active')
+                as has_active,
+            bool_or((case when missing.ownership_key is not null
+                then missing.lifecycle_status else owner.lifecycle_status end)='possibly_missing')
+                as has_possible,
+            min(case when missing.ownership_key is not null
+                then missing.missing_successful_runs
+                else owner.missing_successful_runs end) as minimum_missing
         from affected
         join public.tracked_job_source_scopes owner using(source_key)
+        left join missing using(ownership_key)
         group by owner.source_key
+    ), canonical_updates as (
+        update public.tracked_jobs tracked set
+            status=case when aggregate.has_active then 'active'
+                        when aggregate.has_possible then 'active' else 'closed' end,
+            lifecycle_status=case when aggregate.has_active then 'active'
+                        when aggregate.has_possible then 'possibly_missing' else 'removed' end,
+            missing_successful_runs=aggregate.minimum_missing,
+            removed_at=case when aggregate.has_active or aggregate.has_possible then null
+                            else coalesce(tracked.removed_at,v_session.seen_at) end
+        from aggregate
+        where tracked.source_key=aggregate.source_key
+          and row(
+                tracked.status,
+                tracked.lifecycle_status,
+                tracked.missing_successful_runs,
+                tracked.removed_at
+              ) is distinct from row(
+                case when aggregate.has_active then 'active'
+                     when aggregate.has_possible then 'active' else 'closed' end,
+                case when aggregate.has_active then 'active'
+                     when aggregate.has_possible then 'possibly_missing' else 'removed' end,
+                aggregate.minimum_missing,
+                case when aggregate.has_active or aggregate.has_possible then null
+                     else coalesce(tracked.removed_at,v_session.seen_at) end
+              )
+        returning tracked.source_key
     )
-    update public.tracked_jobs tracked set
-        status=case when aggregate.has_active then 'active'
-                    when aggregate.has_possible then 'active' else 'closed' end,
-        lifecycle_status=case when aggregate.has_active then 'active'
-                    when aggregate.has_possible then 'possibly_missing' else 'removed' end,
-        missing_successful_runs=aggregate.minimum_missing,
-        removed_at=case when aggregate.has_active or aggregate.has_possible then null
-                        else coalesce(tracked.removed_at,v_session.seen_at) end
-    from aggregate
-    where tracked.source_key=aggregate.source_key;
+    select (select count(*) from missing),
+           v_canonical_updated+(select count(*) from canonical_updates)
+      into v_missing_incremented,v_canonical_updated;
 
     select count(*) into v_closed from public.tracked_jobs tracked
     where tracked.status='closed' and tracked.source_key in (
