@@ -250,6 +250,11 @@ class WorkflowSecurityTests(unittest.TestCase):
             "run: python scripts/update_student_dashboard.py", self.workflow
         )
 
+    def test_schedule_and_public_report_cleanup_remain_bounded(self):
+        self.assertIn('cron: "17 */6 * * *"', self.workflow)
+        self.assertIn("dashboard-update.report.jsonl", self.workflow)
+        self.assertIn("production-preflight.report.jsonl", self.workflow)
+
     def test_all_four_production_values_come_from_github_secrets(self):
         for name in (
             "SUPABASE_URL",

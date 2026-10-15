@@ -141,14 +141,24 @@ GitHub Secrets. The service-account JSON is materialized as a mode-restricted
 temporary file; it is never checked in.
 
 Production preflight and the dashboard update run behind a public-CI logging
-boundary. Their stdout, stderr, descendant-process output, traceback text,
-inventory and coverage details, rankings, job records, integration responses,
-and local paths are captured only in runner-temporary private logs. Public
-Actions output contains fixed stage start/success/failure messages and the real
-exit code. GitHub command-file channels, including the public step summary,
-are removed from the operational child process. The workflow uploads no
-diagnostic artifacts and deletes its temporary credentials and private logs in
-an always-run cleanup step.
+boundary. Ordinary stdout, stderr, descendant-process output, traceback text,
+raw job records, integration responses, and local paths remain in
+runner-temporary private logs. The dashboard has a separate versioned JSON-lines
+channel containing only validated company names, bounded counts, canonical scan
+states, allowlisted reason categories, stage states, and durations. The wrapper
+validates every event again before writing readable Actions output or the job
+summary; malformed, multiline, oversized, unknown, or control-character-bearing
+events are rejected without echoing their content. The operational child cannot
+write GitHub command files directly.
+
+Company events are flushed as each contained source result finishes. A later
+ranking, Supabase, source-health, dashboard-read, or Sheets failure therefore
+does not erase completed source results. When scanning stops early, the wrapper
+reports only observed companies and explicitly leaves unattempted companies
+unclassified. The channel never carries exception text, request or response
+content, credentials, endpoints, job descriptions, or candidate data. The
+workflow uploads no diagnostic artifacts and deletes its temporary credentials,
+private logs, and reporting sidecars in an always-run cleanup step.
 
 ## Production registry and related configuration
 

@@ -93,6 +93,7 @@ AdapterFn = Callable[[requests.Session, CompanyTarget, int], AdapterOutput]
 JobFilterFn = Callable[[JobRecord], Optional[str]]
 LocationFilterFn = Callable[[JobRecord], Optional[str]]
 SessionFactory = Callable[[], requests.Session]
+ResultObserver = Callable[[CompanyScanResult], None]
 DEFAULT_SCAN_WORKERS = 6
 
 
@@ -239,6 +240,7 @@ class CompanyCareersScanner:
         original_company_inventory_path: str = DEFAULT_ORIGINAL_COMPANY_INVENTORY_PATH,
         cooldown_states: Optional[Mapping[str, Mapping[str, Any]]] = None,
         as_of: Optional[datetime] = None,
+        result_observer: Optional[ResultObserver] = None,
     ):
         self.targets = (
             targets
@@ -262,6 +264,7 @@ class CompanyCareersScanner:
             str(key): dict(value) for key, value in (cooldown_states or {}).items()
         }
         self.as_of = as_of or datetime.now(timezone.utc)
+        self.result_observer = result_observer
         self.original_company_inventory_path = original_company_inventory_path
         self.parent_source_mappings = list(
             parent_source_mappings
@@ -317,7 +320,7 @@ class CompanyCareersScanner:
 
         if self.max_workers == 1:
             for index, target in indexed_targets:
-                results[index] = self._scan_target(
+                results[index] = self._scan_target_and_observe(
                     target,
                     keywords=keywords,
                     locations=locations,
@@ -343,7 +346,7 @@ class CompanyCareersScanner:
             ) as executor:
                 futures: dict[Future[CompanyScanResult], int] = {
                     executor.submit(
-                        self._scan_target,
+                        self._scan_target_and_observe,
                         target,
                         keywords=keywords,
                         locations=locations,
@@ -358,7 +361,7 @@ class CompanyCareersScanner:
                 # Playwright's sync API stays on the owning thread and reuses a
                 # single Chromium process, while ordinary HTTP sources progress.
                 for index, target in browser_targets:
-                    results[index] = self._scan_target(
+                    results[index] = self._scan_target_and_observe(
                         target,
                         keywords=keywords,
                         locations=locations,
@@ -383,6 +386,20 @@ class CompanyCareersScanner:
                 inventory_path=self.original_company_inventory_path,
             ),
         )
+
+    def _scan_target_and_observe(self, target: CompanyTarget, **options: Any) -> CompanyScanResult:
+        """Report a contained result without making reporting scan-critical."""
+
+        result = self._scan_target(target, **options)
+        if self.result_observer is not None:
+            try:
+                self.result_observer(result)
+            except Exception:
+                # Observability cannot change scan state, source authority, or
+                # lifecycle behavior. The CI wrapper separately reports a
+                # missing/malformed public channel.
+                pass
+        return result
 
     def _scan_target(
         self,

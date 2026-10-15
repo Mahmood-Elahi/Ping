@@ -1,8 +1,12 @@
 import io
+import json
+import os
+import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime, timezone
 from types import SimpleNamespace
+from pathlib import Path
 from unittest.mock import patch
 
 from scripts import update_student_dashboard as dashboard
@@ -332,6 +336,51 @@ class UpdateStudentDashboardTests(unittest.TestCase):
         self.assertEqual(len(store.failed_scan_calls), 1)
         self.assertIn("Supabase unavailable", error_output.getvalue())
 
+    def test_supabase_sync_failure_keeps_scan_summary_public_and_secret_free(self):
+        secret = "SUPABASE_SERVICE_ROLE_KEY=private-value"
+        pipeline = FakePipeline(
+            self.report,
+            dict(
+                self.summary,
+                normalized_jobs=2,
+                scan_runtime_seconds=1.25,
+                scan_health_counts=self.report.source_health_summary(),
+            ),
+        )
+        store = FakeStore(sync_error=RuntimeError(secret))
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            report_path = Path(temp_dir) / "public-report.jsonl"
+            report_path.touch()
+            with (
+                patch.dict(
+                    os.environ,
+                    {"PING_PUBLIC_REPORT_PATH": str(report_path)},
+                    clear=False,
+                ),
+                patch.object(dashboard, "load_target_companies", return_value=[self.target]),
+                patch.object(dashboard, "build_pipeline", return_value=pipeline),
+                patch.object(dashboard.SupabaseJobStore, "from_env", return_value=store),
+                redirect_stdout(io.StringIO()),
+                redirect_stderr(io.StringIO()),
+            ):
+                exit_code = dashboard.main(["--skip-sheets", "--no-freshness"])
+            report_text = report_path.read_text(encoding="utf-8")
+            events = [json.loads(line) for line in report_text.splitlines()]
+
+        self.assertEqual(exit_code, 1)
+        self.assertNotIn(secret, report_text)
+        self.assertTrue(any(event["type"] == "scan_summary" for event in events))
+        self.assertTrue(any(event["type"] == "ranking_summary" for event in events))
+        failure = next(
+            event
+            for event in events
+            if event["type"] == "stage"
+            and event["stage"] == "supabase_synchronization"
+            and event["status"] == "failed"
+        )
+        self.assertEqual(failure["failure_category"], "internal_failure")
+
     def test_fatal_sheets_publication_error_returns_nonzero(self):
         pipeline = FakePipeline(self.report, self.summary)
         store = FakeStore()
@@ -362,6 +411,61 @@ class UpdateStudentDashboardTests(unittest.TestCase):
         self.assertFalse(store.publication_calls[0]["success"])
         self.assertIn("operation=batch_format", error_output.getvalue())
         self.assertIn("attempts=3", error_output.getvalue())
+
+    def test_sheets_failure_preserves_scan_ranking_and_sync_public_results(self):
+        secret = "private-sheet-id"
+        pipeline = FakePipeline(
+            self.report,
+            dict(
+                self.summary,
+                normalized_jobs=2,
+                scan_runtime_seconds=1.5,
+                scan_health_counts=self.report.source_health_summary(),
+            ),
+        )
+        store = FakeStore()
+        publisher = FakePublisher(
+            publish_error=GoogleSheetsAccessError(
+                f"Google Sheets failed for {secret}; response=private-provider-body"
+            )
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            report_path = Path(temp_dir) / "public-report.jsonl"
+            report_path.touch()
+            with (
+                patch.dict(
+                    os.environ,
+                    {"PING_PUBLIC_REPORT_PATH": str(report_path)},
+                    clear=False,
+                ),
+                patch.object(dashboard, "load_target_companies", return_value=[self.target]),
+                patch.object(dashboard, "build_pipeline", return_value=pipeline),
+                patch.object(dashboard.SupabaseJobStore, "from_env", return_value=store),
+                patch.object(
+                    dashboard.GoogleSheetsPublisher,
+                    "from_env",
+                    return_value=publisher,
+                ),
+                redirect_stdout(io.StringIO()),
+                redirect_stderr(io.StringIO()),
+            ):
+                exit_code = dashboard.main(["--no-freshness"])
+            report_text = report_path.read_text(encoding="utf-8")
+            events = [json.loads(line) for line in report_text.splitlines()]
+
+        self.assertEqual(exit_code, 1)
+        self.assertNotIn(secret, report_text)
+        event_types = {event["type"] for event in events}
+        self.assertTrue({"company", "scan_summary", "ranking_summary", "sync_summary"} <= event_types)
+        failure = next(
+            event
+            for event in events
+            if event["type"] == "stage"
+            and event["stage"] == "google_sheets_publication"
+            and event["status"] == "failed"
+        )
+        self.assertEqual(failure["failure_category"], "integration_access_failure")
 
     def test_partial_company_failure_advances_only_successful_company(self):
         failed_target = CompanyTarget(

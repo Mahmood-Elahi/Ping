@@ -45,6 +45,7 @@ from src.scraper.company_careers.student_roles import (
     write_student_ranked_jobs_artifacts,
 )
 from src.utils.job_search_pipeline import JobSearchPipeline
+from scripts.public_ci_report import PublicCIReporter
 
 
 DEFAULT_LOCATIONS = ["Canada", "United States", "Remote"]
@@ -182,11 +183,13 @@ def build_pipeline(
     freshness_runtime: FreshnessRuntime | None = None,
     as_of: datetime | None = None,
     source_health: dict[str, dict[str, Any]] | None = None,
+    result_observer: Any = None,
 ) -> JobSearchPipeline:
     scanner = CompanyCareersScanner(
         targets=targets,
         cooldown_states=source_health,
         as_of=as_of,
+        result_observer=result_observer,
     )
     return JobSearchPipeline(
         keywords=student_search_query(args.include_new_grad),
@@ -231,18 +234,21 @@ def build_pipeline(
 
 def run_update(args: argparse.Namespace) -> int:
     run_started = time.monotonic()
-    candidate_profile = (
-        load_candidate_profile(args.candidate_profile)
-        if args.candidate_profile else None
-    )
-    freshness_config = (
-        load_freshness_config(args.freshness_config)
-        if args.freshness_config else None
-    )
-    targets = configure_student_targets(
-        load_target_companies(apply_reliability_repairs=True),
-        include_new_grad=args.include_new_grad,
-    )
+    reporter = PublicCIReporter.from_environment()
+    with reporter.stage("configuration"):
+        candidate_profile = (
+            load_candidate_profile(args.candidate_profile)
+            if args.candidate_profile else None
+        )
+        freshness_config = (
+            load_freshness_config(args.freshness_config)
+            if args.freshness_config else None
+        )
+        targets = configure_student_targets(
+            load_target_companies(apply_reliability_repairs=True),
+            include_new_grad=args.include_new_grad,
+        )
+    reporter.run_start(len(targets))
     print_plan(args, len(targets))
 
     if args.dry_run:
@@ -262,9 +268,15 @@ def run_update(args: argparse.Namespace) -> int:
             if freshness_config is not None else None
         )
         pipeline = build_pipeline(
-            args, targets, candidate_profile, freshness_runtime, as_of
+            args,
+            targets,
+            candidate_profile,
+            freshness_runtime,
+            as_of,
+            result_observer=reporter.company_result,
         )
-        pipeline.search_jobs()
+        with reporter.stage("company_scanning"):
+            pipeline.search_jobs()
         summary = pipeline.company_careers_summary
         if summary is None:
             raise RuntimeError("The company-careers pipeline did not expose its scan summary")
@@ -272,25 +284,36 @@ def run_update(args: argparse.Namespace) -> int:
         return 0
 
     started_at = as_of
-    job_store = SupabaseJobStore.from_env(
-        now_factory=lambda: as_of,
-        close_after_missing_runs=(
-            freshness_config.removal.consecutive_complete_scans
+    with reporter.stage("supabase_initialization"):
+        job_store = SupabaseJobStore.from_env(
+            now_factory=lambda: as_of,
+            close_after_missing_runs=(
+                freshness_config.removal.consecutive_complete_scans
+                if freshness_config is not None else None
+            ),
+            retention_policy=(freshness_config.retention if freshness_config else None),
+        )
+        job_store.validate_setup()
+    with reporter.stage("lifecycle_state_retrieval"):
+        source_health = job_store.fetch_source_health()
+        previous_state = (
+            job_store.fetch_lifecycle_state()
             if freshness_config is not None else None
-        ),
-        retention_policy=(freshness_config.retention if freshness_config else None),
-    )
-    job_store.validate_setup()
-    source_health = job_store.fetch_source_health()
+        )
     freshness_runtime = (
         FreshnessRuntime(
             config=freshness_config,
-            previous_state=job_store.fetch_lifecycle_state(),
+            previous_state=previous_state,
             as_of=as_of,
         )
         if freshness_config is not None else None
     )
-    publisher = None if args.skip_sheets else GoogleSheetsPublisher.from_env()
+    if args.skip_sheets:
+        publisher = None
+        reporter.skipped_stage("google_sheets_initialization")
+    else:
+        with reporter.stage("google_sheets_initialization"):
+            publisher = GoogleSheetsPublisher.from_env()
     pipeline = build_pipeline(
         args,
         targets,
@@ -298,59 +321,92 @@ def run_update(args: argparse.Namespace) -> int:
         freshness_runtime,
         as_of,
         source_health,
+        result_observer=reporter.company_result,
     )
 
     try:
-        pipeline.search_jobs()
-        report = pipeline.company_careers_report
-        summary = pipeline.company_careers_summary
-        if report is None or summary is None:
-            raise RuntimeError("The company-careers pipeline did not expose its scan report")
-        ranked_jobs = rank_student_jobs(
-            report.jobs,
-            include_new_grad=args.include_new_grad,
-            locations=args.locations,
-            candidate_profile=candidate_profile,
-            freshness_by_key=(
-                freshness_runtime.annotations if freshness_runtime else None
+        scan_started = time.monotonic()
+        with reporter.stage("company_scanning"):
+            pipeline.search_jobs()
+            report = pipeline.company_careers_report
+            summary = pipeline.company_careers_summary
+            if report is None or summary is None:
+                raise RuntimeError("The company-careers pipeline did not expose its scan report")
+        for result in report.results:
+            reporter.company_result(result)
+        health = summary.get("scan_health_counts") or report.source_health_summary()
+        reporter.emit(
+            "scan_summary",
+            configured_companies=len(targets),
+            attempted_companies=len(report.results),
+            complete_companies=int(health.get("complete", 0)),
+            incomplete_companies=int(health.get("incomplete", 0)),
+            failed_companies=int(health.get("failed", 0)),
+            jobs_fetched=int(summary.get("jobs_fetched", 0)),
+            normalized_jobs=int(summary.get("normalized_jobs", len(report.normalized_jobs))),
+            retained_jobs=int(summary.get("jobs_retained", len(report.jobs))),
+            coverage_health=str(health.get("coverage_health", "unknown")),
+            scan_runtime_seconds=float(
+                summary.get("scan_runtime_seconds", time.monotonic() - scan_started)
             ),
-            retention_policy=(
-                freshness_config.retention if freshness_config else None
-            ),
-            now=as_of,
         )
+        with reporter.stage("job_ranking"):
+            ranked_jobs = rank_student_jobs(
+                report.jobs,
+                include_new_grad=args.include_new_grad,
+                locations=args.locations,
+                candidate_profile=candidate_profile,
+                freshness_by_key=(
+                    freshness_runtime.annotations if freshness_runtime else None
+                ),
+                retention_policy=(
+                    freshness_config.retention if freshness_config else None
+                ),
+                now=as_of,
+            )
         summary["final_ranked_jobs"] = len(ranked_jobs)
+        reporter.emit("ranking_summary", final_ranked_jobs=len(ranked_jobs))
         successful_companies = [
             result.target.name
             for result in report.results
             if result.authoritative_for_absence and result.target.source_scope == "default"
         ]
-        sync_result = job_store.sync_student_jobs(
-            ranked_jobs,
-            successful_companies=successful_companies,
-            started_at=started_at,
-            companies_checked=summary["companies_checked"],
-            jobs_fetched=summary["jobs_fetched"],
-            lifecycle_jobs=(
-                freshness_runtime.lifecycle_jobs(report.normalized_jobs)
-                if freshness_runtime else None
-            ),
-            successful_source_scopes=report.authoritative_source_scopes(),
-            protected_source_keys_by_scope=report.protected_source_keys_by_scope(),
-            exclusion_counts=summary["exclusion_counts"],
-            coverage_report_path=summary["coverage_report_path"],
-            ranked_artifact_path=summary["ranked_results_path"],
-            normalized_jobs=summary.get("normalized_jobs", len(report.normalized_jobs)),
-            source_summary=summary.get("scan_health_counts", {}),
-            scan_runtime_seconds=summary.get("scan_runtime_seconds"),
-        )
-        job_store.persist_source_health(
-            reconcile_source_health(
-                report.results,
-                source_health,
-                as_of=as_of,
+        with reporter.stage("supabase_synchronization"):
+            sync_result = job_store.sync_student_jobs(
+                ranked_jobs,
+                successful_companies=successful_companies,
+                started_at=started_at,
+                companies_checked=summary["companies_checked"],
+                jobs_fetched=summary["jobs_fetched"],
+                lifecycle_jobs=(
+                    freshness_runtime.lifecycle_jobs(report.normalized_jobs)
+                    if freshness_runtime else None
+                ),
+                successful_source_scopes=report.authoritative_source_scopes(),
+                protected_source_keys_by_scope=report.protected_source_keys_by_scope(),
+                exclusion_counts=summary["exclusion_counts"],
+                coverage_report_path=summary["coverage_report_path"],
+                ranked_artifact_path=summary["ranked_results_path"],
+                normalized_jobs=summary.get("normalized_jobs", len(report.normalized_jobs)),
+                source_summary=summary.get("scan_health_counts", {}),
+                scan_runtime_seconds=summary.get("scan_runtime_seconds"),
             )
+        reporter.emit(
+            "sync_summary",
+            inserted=int(sync_result.inserted),
+            updated=int(sync_result.updated),
+            unchanged=int(sync_result.unchanged),
+            missing_incremented=int(sync_result.missing_incremented),
+            closed=int(sync_result.closed),
         )
+        with reporter.stage("source_health_persistence"):
+            job_store.persist_source_health(
+                reconcile_source_health(
+                    report.results,
+                    source_health,
+                    as_of=as_of,
+                )
+            )
     except Exception as exc:
         _record_failed_scan(job_store, pipeline, started_at, exc)
         raise
@@ -361,25 +417,34 @@ def run_update(args: argparse.Namespace) -> int:
     sheet_counts: dict[str, int] | None = None
     if publisher is not None:
         try:
-            dashboard_data = job_store.fetch_dashboard_data()
+            with reporter.stage("dashboard_data_retrieval"):
+                dashboard_data = job_store.fetch_dashboard_data()
             sheet_scan_run = _publication_preview(
                 dashboard_data.latest_scan,
                 status="publishing",
                 runtime_seconds=time.monotonic() - run_started,
             )
-            sheet_counts = publisher.publish(
-                active_jobs=dashboard_data.active_jobs,
-                scan_run=sheet_scan_run,
-                companies=report.coverage(),
-                company_statuses=company_statuses,
-                coverage_summary=report.original_coverage,
+            with reporter.stage("google_sheets_publication"):
+                sheet_counts = publisher.publish(
+                    active_jobs=dashboard_data.active_jobs,
+                    scan_run=sheet_scan_run,
+                    companies=report.coverage(),
+                    company_statuses=company_statuses,
+                    coverage_summary=report.original_coverage,
+                )
+            reporter.emit(
+                "sheets_summary",
+                new_jobs=int(sheet_counts.get("new_jobs", 0)),
+                active_jobs=int(sheet_counts.get("active_jobs", 0)),
+                companies=int(sheet_counts.get("companies", 0)),
             )
-            job_store.record_publication_result(
-                started_at=started_at,
-                status="published",
-                success=True,
-                runtime_seconds=time.monotonic() - run_started,
-            )
+            with reporter.stage("publication_status_persistence"):
+                job_store.record_publication_result(
+                    started_at=started_at,
+                    status="published",
+                    success=True,
+                    runtime_seconds=time.monotonic() - run_started,
+                )
         except Exception as exc:
             try:
                 job_store.record_publication_result(
@@ -397,14 +462,18 @@ def run_update(args: argparse.Namespace) -> int:
                     )
             raise
     else:
-        job_store.record_publication_result(
-            started_at=started_at,
-            status="skipped",
-            success=True,
-            runtime_seconds=time.monotonic() - run_started,
-        )
+        reporter.skipped_stage("dashboard_data_retrieval")
+        reporter.skipped_stage("google_sheets_publication")
+        with reporter.stage("publication_status_persistence"):
+            job_store.record_publication_result(
+                started_at=started_at,
+                status="skipped",
+                success=True,
+                runtime_seconds=time.monotonic() - run_started,
+            )
 
     runtime_seconds = round(time.monotonic() - run_started, 3)
+    reporter.emit("run_summary", runtime_seconds=runtime_seconds)
     print_summary(
         summary,
         sync_result,

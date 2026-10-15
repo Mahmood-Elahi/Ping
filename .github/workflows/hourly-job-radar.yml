@@ -103,4 +103,6 @@ jobs:
           rm -f "${RUNNER_TEMP}/google-service-account.json"
           rm -f "${RUNNER_TEMP}/ping-private-ci/production-preflight.log"
           rm -f "${RUNNER_TEMP}/ping-private-ci/dashboard-update.log"
+          rm -f "${RUNNER_TEMP}/ping-private-ci/production-preflight.report.jsonl"
+          rm -f "${RUNNER_TEMP}/ping-private-ci/dashboard-update.report.jsonl"
           rmdir "${RUNNER_TEMP}/ping-private-ci" 2>/dev/null || true
