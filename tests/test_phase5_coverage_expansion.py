@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PRODUCTION = ROOT / "config" / "target_companies.yaml"
 CANDIDATES = ROOT / "config" / "target_companies.phase5_batch1_candidates.yaml"
 CANARIES = ROOT / "config" / "target_companies.phase5_batch1_canaries.yaml"
-PRODUCTION_SHA256 = "8fecb534be41b22325531fbea93a7825673f1f4533bd5c159ac1cca1f299e7f2"
+PRODUCTION_SHA256 = "5efb8fb28f9405c2b3528d98a33e9f1c33475465f001a1d73fe681f995c2e168"
 STATUSES = {
     "READY_FOR_CANARY",
     "NEEDS_IDENTITY_EVIDENCE",

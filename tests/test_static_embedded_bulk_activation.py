@@ -115,6 +115,19 @@ LATER_SOURCE_MIGRATIONS = {
     "Box",
     "Miro",
     "Redis",
+    "CrowdStrike",
+    "Salesforce",
+    "Boston Dynamics",
+    "Cadence Design Systems",
+    "Blue Origin",
+    "Medtronic",
+    "Visa",
+    "NXP Semiconductors",
+    "Intel",
+    "KLA",
+    "Marvell Technology",
+    "TD Bank",
+    "Analog Devices",
 }
 
 

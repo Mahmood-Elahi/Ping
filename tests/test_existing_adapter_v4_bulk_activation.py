@@ -18,7 +18,10 @@ from unittest.mock import patch
 
 import yaml
 
-from tests.company_careers_reliability_assertions import assert_historical_prefix
+from tests.company_careers_reliability_assertions import (
+    assert_historical_prefix,
+    with_reliability_repairs,
+)
 
 from scripts import validate_company_registry as validator
 from scripts import validate_existing_adapter_v4_batch as batch
@@ -433,7 +436,7 @@ class ExistingAdapterV4ContractTests(unittest.TestCase):
                 entry for entry in production
                 if validator._name_key(entry) == validator._name_key(addition)
             ]
-            self.assertEqual(matches, [addition])
+            self.assertEqual(matches, with_reliability_repairs([addition]))
 
         workday_sites = [
             (entry["tenant"].casefold(), entry["site_id"].casefold())

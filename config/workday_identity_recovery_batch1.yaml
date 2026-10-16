@@ -1,0 +1,297 @@
+goal:
+  name: workday_identity_recovery_batch1
+  evidence_date: '2026-10-15'
+  timezone: UTC
+  production_registry_modified: false
+  live_provider_requests_performed: false
+  canary_performed: false
+  recovered_sources: []
+  candidate_registry: config/target_companies.workday_identity_batch1_candidates.yaml
+  rollback_registry: config/target_companies.workday_identity_batch1_rollback.yaml
+
+decision_rules:
+  - A first-party corporate careers page must bind the exact Workday tenant, site, hostname, apply hostname, employer, and logical scope.
+  - A full-board link or a first-party full-search surface with consistent Workday apply URLs can support a candidate contract.
+  - An individual posting alone does not prove the full recruiting board or its absence-authoritative scope.
+  - Tenant-name similarity, CXS reachability, third-party listings, and separate unbound careers and ATS URLs carry no identity authority.
+  - READY_FOR_CANARY is not RECOVERED; only a later independently authorized PASS_COMPLETE canary may support activation.
+
+companies:
+  - company: Adobe
+    anchor: adobe
+    existing_configuration: {tenant: adobe, wd_subdomain: wd5, site_id: external_experienced, source_scope: default, workday_identity_present: false}
+    evidence:
+      official_source_url: https://careers.adobe.com/us/en/search-results
+      available: The first-party full search surface retains multiple apply URLs under adobe.wd5.myworkdayjobs.com/external_experienced; the December 2025 Adobe blog post independently binds one experienced-role posting to the same site.
+      binding_type: embedded_config
+      scope: experienced roles only; Adobe university recruiting is a separate Workday site and is not claimed.
+    proposed_candidate: {tenant: adobe, wd_subdomain: wd5, site_id: external_experienced, source_scope: experienced, apply_host: adobe.wd5.myworkdayjobs.com}
+    evidence_gaps: [Live inventory completeness and exact terminal accounting remain untested.]
+    rollback_reference: config/target_companies.workday_identity_batch1_rollback.yaml#Adobe
+    final_status: READY_FOR_CANARY
+    next_action: Review the experienced-only scope, then authorize one bounded non-persistent canary if accepted.
+  - company: CrowdStrike
+    anchor: crowdstrike
+    existing_configuration: {tenant: crowdstrike, wd_subdomain: wd5, site_id: crowdstrikecareers, source_scope: default, workday_identity_present: false}
+    evidence:
+      official_source_url: https://www.crowdstrike.com/en-us/careers/
+      available: The corporate careers page links View job postings and Apply now directly to the exact crowdstrikecareers board root; category links retain the same site with filters.
+      binding_type: direct_link
+      scope: company-wide external recruiting board.
+    proposed_candidate: {tenant: crowdstrike, wd_subdomain: wd5, site_id: crowdstrikecareers, source_scope: default, apply_host: crowdstrike.wd5.myworkdayjobs.com}
+    evidence_gaps: [Live inventory completeness and exact terminal accounting remain untested.]
+    rollback_reference: config/target_companies.workday_identity_batch1_rollback.yaml#CrowdStrike
+    final_status: READY_FOR_CANARY
+    next_action: Authorize one bounded non-persistent canary after review.
+  - company: PayPal
+    anchor: paypal
+    existing_configuration: {tenant: paypal, wd_subdomain: wd1, site_id: jobs, source_scope: default, workday_identity_present: false}
+    evidence:
+      official_source_url: https://careers.pypl.com/home/
+      available: The current first-party careers site exposes PayPal Eightfold candidate and talent-community surfaces and no retained exact Workday binding.
+      binding_type: none
+      scope: The configured Workday board is not proven current or equivalent to the current first-party inventory.
+    proposed_candidate: null
+    evidence_gaps: [Current first-party binding to paypal.wd1.myworkdayjobs.com/jobs, exact migration equivalence, and rollback-safe replacement contract.]
+    rollback_reference: config/target_companies.workday_identity_batch1_rollback.yaml#PayPal
+    final_status: FAIL_IDENTITY
+    next_action: Investigate the Eightfold-backed current source as a separate source-replacement task; do not canary the Workday row.
+  - company: Salesforce
+    anchor: salesforce
+    existing_configuration: {tenant: salesforce, wd_subdomain: wd12, site_id: External_Career_Site, source_scope: default, workday_identity_present: false}
+    evidence:
+      official_source_url: https://www.salesforce.com/company/careers/jobs/
+      available: The corporate full-search surface serves Salesforce roles and its official job details use Apply Now URLs under salesforce.wd12.myworkdayjobs.com/External_Career_Site.
+      binding_type: embedded_config
+      scope: company-wide external recruiting board.
+    proposed_candidate: {tenant: salesforce, wd_subdomain: wd12, site_id: External_Career_Site, source_scope: default, apply_host: salesforce.wd12.myworkdayjobs.com}
+    evidence_gaps: [Live inventory completeness and exact terminal accounting remain untested.]
+    rollback_reference: config/target_companies.workday_identity_batch1_rollback.yaml#Salesforce
+    final_status: READY_FOR_CANARY
+    next_action: Authorize one bounded non-persistent canary after review.
+  - company: Boston Dynamics
+    anchor: boston-dynamics
+    existing_configuration: {tenant: bostondynamics, wd_subdomain: wd1, site_id: Boston_Dynamics, source_scope: default, workday_identity_present: false}
+    evidence:
+      official_source_url: https://bostondynamics.com/careers/
+      available: The first-party careers page renders its open-role inventory with consistent job URLs under the Boston_Dynamics site and a talent-hub link under the same exact site.
+      binding_type: embedded_config
+      scope: Boston Dynamics external recruiting shown on its corporate careers page.
+    proposed_candidate: {tenant: bostondynamics, wd_subdomain: wd1, site_id: Boston_Dynamics, source_scope: default, apply_host: bostondynamics.wd1.myworkdayjobs.com}
+    evidence_gaps: [Live inventory completeness and exact terminal accounting remain untested.]
+    rollback_reference: config/target_companies.workday_identity_batch1_rollback.yaml#Boston-Dynamics
+    final_status: READY_FOR_CANARY
+    next_action: Authorize one bounded non-persistent canary after review.
+  - company: Cadence Design Systems
+    anchor: cadence-design-systems
+    existing_configuration: {tenant: cadence, wd_subdomain: wd1, site_id: External_Careers, source_scope: default, workday_identity_present: false}
+    evidence:
+      official_source_url: https://www.cadence.com/en_US/home/company/life-at-cadence/careers.html
+      available: The corporate careers page repeatedly links Explore Jobs directly to the exact External_Careers board root.
+      binding_type: direct_link
+      scope: Cadence external recruiting board.
+    proposed_candidate: {tenant: cadence, wd_subdomain: wd1, site_id: External_Careers, source_scope: default, apply_host: cadence.wd1.myworkdayjobs.com}
+    evidence_gaps: [Live inventory completeness and exact terminal accounting remain untested.]
+    rollback_reference: config/target_companies.workday_identity_batch1_rollback.yaml#Cadence-Design-Systems
+    final_status: READY_FOR_CANARY
+    next_action: Authorize one bounded non-persistent canary after review.
+  - company: Blue Origin
+    anchor: blue-origin
+    existing_configuration: {tenant: blueorigin, wd_subdomain: wd5, site_id: BlueOrigin, source_scope: default, workday_identity_present: false}
+    evidence:
+      official_source_url: https://www.blueorigin.com/careers/search
+      available: The first-party all-open-positions search embeds its current role URLs under blueorigin.wd5.myworkdayjobs.com/BlueOrigin.
+      binding_type: embedded_config
+      scope: Blue Origin external roles exposed by the corporate all-positions search.
+    proposed_candidate: {tenant: blueorigin, wd_subdomain: wd5, site_id: BlueOrigin, source_scope: default, apply_host: blueorigin.wd5.myworkdayjobs.com}
+    evidence_gaps: [Live inventory completeness and exact terminal accounting remain untested.]
+    rollback_reference: config/target_companies.workday_identity_batch1_rollback.yaml#Blue-Origin
+    final_status: READY_FOR_CANARY
+    next_action: Authorize one bounded non-persistent canary after review.
+  - company: Medtronic
+    anchor: medtronic
+    existing_configuration: {tenant: medtronic, wd_subdomain: wd1, site_id: MedtronicCareers, source_scope: default, workday_identity_present: false}
+    evidence:
+      official_source_url: https://www.medtronic.com/en-us/our-company/careers.html
+      available: The corporate careers page links Search jobs directly to the exact MedtronicCareers board root.
+      binding_type: direct_link
+      scope: Medtronic external recruiting board.
+    proposed_candidate: {tenant: medtronic, wd_subdomain: wd1, site_id: MedtronicCareers, source_scope: default, apply_host: medtronic.wd1.myworkdayjobs.com}
+    evidence_gaps: [Live inventory completeness and exact terminal accounting remain untested.]
+    rollback_reference: config/target_companies.workday_identity_batch1_rollback.yaml#Medtronic
+    final_status: READY_FOR_CANARY
+    next_action: Authorize one bounded non-persistent canary after review.
+  - company: Samsung Electronics
+    anchor: samsung-electronics
+    existing_configuration: {tenant: sec, wd_subdomain: wd3, site_id: Samsung_Careers, source_scope: default, workday_identity_present: false}
+    evidence:
+      official_source_url: https://research.samsung.com/news/From-Dreams-to-Extended-Reality
+      available: Multiple first-party Samsung Research articles link the exact board root, but describe recruiting for Samsung R&D Institute India-Bangalore (SRI-B).
+      binding_type: retained_first_party_artifact
+      scope: Proven for SRI-B; not proven equivalent to canonical global Samsung Electronics or its other separately recruiting affiliates.
+    proposed_candidate: null
+    evidence_gaps: [Reviewed parent/subsidiary attribution and an exact logical-scope decision for SRI-B versus Samsung Electronics.]
+    rollback_reference: config/target_companies.workday_identity_batch1_rollback.yaml#Samsung-Electronics
+    final_status: FAIL_IDENTITY
+    next_action: Model SRI-B as an explicitly reviewed scope or separate employer only after ownership and lifecycle boundaries are approved.
+  - company: Visa
+    anchor: visa
+    existing_configuration: {tenant: visa, wd_subdomain: wd5, site_id: Visa, source_scope: default, workday_identity_present: false}
+    evidence:
+      official_source_url: https://corporate.visa.com/en/careers.html
+      available: The corporate careers page links Job Search directly to the exact Visa board root.
+      binding_type: direct_link
+      scope: Visa external recruiting board.
+    proposed_candidate: {tenant: visa, wd_subdomain: wd5, site_id: Visa, source_scope: default, apply_host: visa.wd5.myworkdayjobs.com}
+    evidence_gaps: [Live inventory completeness and exact terminal accounting remain untested.]
+    rollback_reference: config/target_companies.workday_identity_batch1_rollback.yaml#Visa
+    final_status: READY_FOR_CANARY
+    next_action: Authorize one bounded non-persistent canary after review.
+  - company: Rockwell Automation
+    anchor: rockwell-automation
+    existing_configuration: {tenant: rockwellautomation, wd_subdomain: wd1, site_id: External_Rockwell_Automation, source_scope: default, workday_identity_present: false}
+    evidence:
+      official_source_url: https://www.rockwellautomation.com/en-us/careers.html
+      available: The corporate page links a talent-network path under the exact Workday site, establishing a relationship to the site but not a full-board inventory binding.
+      binding_type: insufficient
+      scope: Full external recruiting inventory and subsidiary boundaries remain unproved.
+    proposed_candidate: null
+    evidence_gaps: [A first-party full-board link, full-search embedded configuration, or retained authoritative artifact for External_Rockwell_Automation.]
+    rollback_reference: config/target_companies.workday_identity_batch1_rollback.yaml#Rockwell-Automation
+    final_status: INSUFFICIENT_EVIDENCE
+    next_action: Obtain a retained first-party all-jobs binding before preparing a canary row.
+  - company: NXP Semiconductors
+    anchor: nxp-semiconductors
+    existing_configuration: {tenant: nxp, wd_subdomain: wd3, site_id: careers, source_scope: default, workday_identity_present: false}
+    evidence:
+      official_source_url: https://www.nxp.com/company/about-nxp/careers:CAREERS
+      available: The NXP corporate careers page labels the exact board root as Job Search and Join our team; an NXP TechSupport response independently directs applicants to the same exact root.
+      binding_type: direct_link
+      scope: NXP Semiconductors external recruiting board; contractor opportunities are explicitly separate and not claimed.
+    proposed_candidate: {tenant: nxp, wd_subdomain: wd3, site_id: careers, source_scope: default, apply_host: nxp.wd3.myworkdayjobs.com}
+    evidence_gaps: [Live inventory completeness and exact terminal accounting remain untested.]
+    rollback_reference: config/target_companies.workday_identity_batch1_rollback.yaml#NXP-Semiconductors
+    final_status: READY_FOR_CANARY
+    next_action: Authorize one bounded non-persistent canary after review.
+  - company: Intel
+    anchor: intel
+    existing_configuration: {tenant: intel, wd_subdomain: wd1, site_id: External, source_scope: default, workday_identity_present: false}
+    evidence:
+      official_source_url: https://www.intel.com/content/www/us/en/support/articles/000089205/programs/jobs-at-intel.html
+      available: Intel's official application guide sends applicants to a non-posting page under the External site; Intel's corporate careers page also links board navigation pages, while the March 2026 Intel Community post corroborates individual jobs under the same site.
+      binding_type: retained_first_party_artifact
+      scope: Intel external recruiting board.
+    proposed_candidate: {tenant: intel, wd_subdomain: wd1, site_id: External, source_scope: default, apply_host: intel.wd1.myworkdayjobs.com}
+    evidence_gaps: [Live inventory completeness and exact terminal accounting remain untested.]
+    rollback_reference: config/target_companies.workday_identity_batch1_rollback.yaml#Intel
+    final_status: READY_FOR_CANARY
+    next_action: Authorize one bounded non-persistent canary after review.
+  - company: KLA
+    anchor: kla
+    existing_configuration: {tenant: kla, wd_subdomain: wd1, site_id: Search, source_scope: default, workday_identity_present: false}
+    evidence:
+      official_source_url: https://www.kla.com/careers
+      available: The corporate careers page links Search All Jobs and Search Jobs directly to the exact Search board root, with filtered category links on the same site.
+      binding_type: direct_link
+      scope: KLA external recruiting board.
+    proposed_candidate: {tenant: kla, wd_subdomain: wd1, site_id: Search, source_scope: default, apply_host: kla.wd1.myworkdayjobs.com}
+    evidence_gaps: [Live inventory completeness and exact terminal accounting remain untested.]
+    rollback_reference: config/target_companies.workday_identity_batch1_rollback.yaml#KLA
+    final_status: READY_FOR_CANARY
+    next_action: Authorize one bounded non-persistent canary after review.
+  - company: Autodesk
+    anchor: autodesk
+    existing_configuration: {tenant: autodesk, wd_subdomain: wd1, site_id: Ext, source_scope: default, workday_identity_present: false}
+    evidence:
+      official_source_url: https://www.autodesk.com/careers/overview
+      available: Official Autodesk staff posts bind individual historical jobs to the Ext site, but the current corporate Search all jobs destination is jobs.autodesk.com/careers and exposes an Eightfold application surface.
+      binding_type: none_for_current_full_board
+      scope: Historical individual postings do not prove a current complete Ext inventory or equivalence to the present Eightfold surface.
+    proposed_candidate: null
+    evidence_gaps: [Current first-party full-board Workday binding or a separately reviewed Eightfold replacement contract.]
+    rollback_reference: config/target_companies.workday_identity_batch1_rollback.yaml#Autodesk
+    final_status: FAIL_IDENTITY
+    next_action: Investigate the current Eightfold source as a replacement; do not canary the historical Workday row.
+  - company: Marvell Technology
+    anchor: marvell-technology
+    existing_configuration: {tenant: marvell, wd_subdomain: wd1, site_id: MarvellCareers, source_scope: default, workday_identity_present: false}
+    evidence:
+      official_source_url: https://www.marvell.com/company/careers.html
+      available: The corporate careers page links See All Jobs directly to the exact MarvellCareers board root and filtered job families on the same site.
+      binding_type: direct_link
+      scope: Marvell external recruiting board.
+    proposed_candidate: {tenant: marvell, wd_subdomain: wd1, site_id: MarvellCareers, source_scope: default, apply_host: marvell.wd1.myworkdayjobs.com}
+    evidence_gaps: [Live inventory completeness and exact terminal accounting remain untested.]
+    rollback_reference: config/target_companies.workday_identity_batch1_rollback.yaml#Marvell-Technology
+    final_status: READY_FOR_CANARY
+    next_action: Authorize one bounded non-persistent canary after review.
+  - company: RBC
+    anchor: rbc
+    existing_configuration: {tenant: rbc, wd_subdomain: wd3, site_id: RBCGLOBAL1, source_scope: default, workday_identity_present: false}
+    evidence:
+      official_source_url: https://jobs.rbc.com/ca/en/search-results
+      available: The first-party full search surface embeds apply URLs under RBCGLOBAL1 and visibly includes roles outside Canada, supporting the global board scope.
+      binding_type: embedded_config
+      scope: global RBC external recruiting board.
+    proposed_candidate: {tenant: rbc, wd_subdomain: wd3, site_id: RBCGLOBAL1, source_scope: global, apply_host: rbc.wd3.myworkdayjobs.com}
+    evidence_gaps: [Live inventory completeness and exact terminal accounting remain untested.]
+    rollback_reference: config/target_companies.workday_identity_batch1_rollback.yaml#RBC
+    final_status: READY_FOR_CANARY
+    next_action: Review the explicit global scope, then authorize one bounded non-persistent canary.
+  - company: TD Bank
+    anchor: td-bank
+    existing_configuration: {tenant: td, wd_subdomain: wd3, site_id: TD_Bank_Careers, source_scope: default, workday_identity_present: false}
+    evidence:
+      official_source_url: https://careers.td.com/
+      available: The corporate careers page repeatedly links See all openings and Search openings to the locale-prefixed TD_Bank_Careers root.
+      binding_type: retained_first_party_artifact
+      scope: TD Bank external recruiting board.
+    proposed_candidate: {tenant: td, wd_subdomain: wd3, site_id: TD_Bank_Careers, source_scope: default, apply_host: td.wd3.myworkdayjobs.com}
+    evidence_gaps: [Live inventory completeness and exact terminal accounting remain untested.]
+    rollback_reference: config/target_companies.workday_identity_batch1_rollback.yaml#TD-Bank
+    final_status: READY_FOR_CANARY
+    next_action: Authorize one bounded non-persistent canary after review.
+  - company: CIBC
+    anchor: cibc
+    existing_configuration: {tenant: cibc, wd_subdomain: wd3, site_id: campus, source_scope: default, workday_identity_present: false}
+    evidence:
+      official_source_url: https://www.cibc.com/en/about-cibc/careers.html
+      available: The corporate careers page links Browse all opportunities to the exact search board root and separately links students and graduates to campus.
+      binding_type: direct_link
+      scope: The existing campus row is a student-only site mislabeled as default; the proposed search site represents the all-opportunities default scope.
+    proposed_candidate: {tenant: cibc, wd_subdomain: wd3, site_id: search, source_scope: default, apply_host: cibc.wd3.myworkdayjobs.com}
+    evidence_gaps: [Live inventory completeness and exact terminal accounting for the replacement site remain untested.]
+    rollback_reference: config/target_companies.workday_identity_batch1_rollback.yaml#CIBC
+    final_status: READY_FOR_CANARY
+    next_action: Review this exact source replacement and rollback row, then authorize one bounded non-persistent canary.
+  - company: Analog Devices
+    anchor: analog-devices
+    existing_configuration: {tenant: analogdevices, wd_subdomain: wd1, site_id: External, source_scope: default, workday_identity_present: false}
+    evidence:
+      official_source_url: https://www.analog.com/en/careers.html
+      available: The corporate careers page links Search for Jobs directly to the exact External board root and filtered searches on the same site.
+      binding_type: direct_link
+      scope: Analog Devices external recruiting board.
+    proposed_candidate: {tenant: analogdevices, wd_subdomain: wd1, site_id: External, source_scope: default, apply_host: analogdevices.wd1.myworkdayjobs.com}
+    evidence_gaps: [Live inventory completeness and exact terminal accounting remain untested.]
+    rollback_reference: config/target_companies.workday_identity_batch1_rollback.yaml#Analog-Devices
+    final_status: READY_FOR_CANARY
+    next_action: Authorize one bounded non-persistent canary after review.
+
+report:
+  status_counts:
+    READY_FOR_CANARY: 16
+    INSUFFICIENT_EVIDENCE: 1
+    FAIL_IDENTITY: 3
+    RECOVERED: 0
+  ready_for_canary: [Adobe, CrowdStrike, Salesforce, Boston Dynamics, Cadence Design Systems, Blue Origin, Medtronic, Visa, NXP Semiconductors, Intel, KLA, Marvell Technology, RBC, TD Bank, CIBC, Analog Devices]
+  blocked: [PayPal, Samsung Electronics, Rockwell Automation, Autodesk]
+  offline_validation:
+    status: PASS
+    commands:
+      - command: .venv/Scripts/python.exe -m pytest tests/test_workday_identity_recovery_batch1.py tests/test_phase4_workday_protocol.py tests/test_identity_recovery_pass.py -q
+        result: 52 passed
+      - command: .venv/Scripts/python.exe scripts/validate_source_integrity.py --registry config/target_companies.workday_identity_batch1_candidates.yaml --retained-pattern jobs/no-workday-identity-batch1-retained-coverage-*.json --strict-onboarding
+        result: 16 OK; 0 REVIEW_CONFIG; 0 TERMINAL_UNPROVEN; 0 SOURCE_STALE; 0 MIGRATION_REQUIRED; 0 ARCHITECTURAL
+      - command: .venv/Scripts/python.exe -m pytest tests/test_source_integrity.py tests/test_inventory_authority.py tests/test_listing_completion.py -q
+        result: 101 passed; 1 deselected; 56 subtests passed
