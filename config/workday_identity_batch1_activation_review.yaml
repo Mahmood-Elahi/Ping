@@ -1,0 +1,269 @@
+package:
+  name: workday_identity_batch1_production_activation_preparation
+  prepared_date: '2026-10-16'
+  baseline_branch: main
+  baseline_head: aea8a8b2abcdd0204e4e7be1cb89d1ac935243b1
+  baseline_production_registry_sha256: 8fecb534be41b22325531fbea93a7825673f1f4533bd5c159ac1cca1f299e7f2
+  activated_production_registry_sha256: 5efb8fb28f9405c2b3528d98a33e9f1c33475465f001a1d73fe681f995c2e168
+  production_registry_modified: true
+  activation_approved: true
+  activation_executed: true
+  deployment_executed: false
+  external_mutations_performed: false
+
+inputs:
+  production_registry: config/target_companies.yaml
+  reviewed_identity_evidence: config/workday_identity_recovery_batch1.yaml
+  exact_tested_candidates: config/target_companies.workday_identity_batch1_candidates.yaml
+  original_twenty_company_rollback: config/target_companies.workday_identity_batch1_rollback.yaml
+  activation_proposal: config/target_companies.workday_identity_batch1_activation_proposal.yaml
+  activation_rollback: config/target_companies.workday_identity_batch1_activation_rollback.yaml
+  readonly_migration_queries: sql/workday_identity_batch1_migration_audit_readonly.sql
+
+operator_supplied_live_evidence:
+  evidence_kind: historical_operator_canary_summary
+  evidence_location: operator supplied; raw canary reports are not copied into this checkout
+  fresh_validation_performed_by_this_task: false
+  canary_run_date: not provided
+  aggregate_jobs: 13632
+  common_result:
+    canary_outcome: PASS_COMPLETE
+    employer_identity_validated: true
+    inventory_complete: true
+    authoritative_total_and_terminal_evidence: true
+    inventory_accounting_exact: true
+    provider_job_ids_unique: true
+    canonical_urls_unique: true
+    malformed_or_rejected_items: 0
+    collection_mutations: 0
+    pagination_contradictions: 0
+    lifecycle_or_database_mutations: 0
+  companies:
+    - Adobe
+    - CrowdStrike
+    - Salesforce
+    - Boston Dynamics
+    - Cadence Design Systems
+    - Blue Origin
+    - Medtronic
+    - Visa
+    - NXP Semiconductors
+    - Intel
+    - KLA
+    - Marvell Technology
+    - RBC
+    - TD Bank
+    - CIBC
+    - Analog Devices
+
+capacity_assessment:
+  workday_page_size: 20
+  default_workday_request_budget: 500
+  bounded_canary_per_company_ceiling: 120
+  production_effective_normal_max_pages: 25
+  production_effective_normal_max_jobs: 500
+  absolute_listing_request_ceiling: 1000
+  absolute_listing_job_ceiling: 20000
+  workday_partition_threshold: 2000
+  workday_max_partition_depth: 3
+  workday_max_partitions: 128
+  workday_max_unique_jobs: 10000
+  conclusion: >-
+    The exact candidates reportedly reached authoritative terminal evidence under
+    the bounded canary harness. Production defaults are not narrower than that
+    harness, adaptive listing completion remains enabled, and cap-bound boards
+    retain the reviewed Workday partition contract. Bounds remain safety limits,
+    never terminal evidence. Per-company live request and inventory counts were
+    not present in the checkout and are not reconstructed here.
+
+activation_summary:
+  ready_for_controlled_activation: 13
+  needs_scope_migration: 2
+  blocked_pending_evidence: 1
+  independently_activatable: true
+  independence_condition: >-
+    Replace and verify one named production row at a time while every other row
+    remains byte-for-byte untouched; keep scheduled writers disabled until the
+    first persistent inventory and its lifecycle delta are reviewed.
+
+unchanged_scope_companies:
+  - company: CrowdStrike
+    status: READY_FOR_ACTIVATION
+    source_scope: default
+    proposed_change_fields: [allowed_apply_hosts, careers_url, search_url, source_scope, workday_identity]
+  - company: Salesforce
+    status: READY_FOR_ACTIVATION
+    source_scope: default
+    proposed_change_fields: [allowed_apply_hosts, careers_url, search_url, source_scope, workday_identity]
+  - company: Boston Dynamics
+    status: READY_FOR_ACTIVATION
+    source_scope: default
+    proposed_change_fields: [allowed_apply_hosts, careers_url, search_url, source_scope, workday_identity]
+  - company: Cadence Design Systems
+    status: READY_FOR_ACTIVATION
+    source_scope: default
+    proposed_change_fields: [allowed_apply_hosts, careers_url, search_url, source_scope, workday_identity]
+  - company: Blue Origin
+    status: READY_FOR_ACTIVATION
+    source_scope: default
+    proposed_change_fields: [allowed_apply_hosts, search_url, source_scope, workday_identity]
+  - company: Medtronic
+    status: READY_FOR_ACTIVATION
+    source_scope: default
+    proposed_change_fields: [allowed_apply_hosts, search_url, source_scope, workday_identity]
+  - company: Visa
+    status: READY_FOR_ACTIVATION
+    source_scope: default
+    proposed_change_fields: [source_scope, workday_identity]
+  - company: NXP Semiconductors
+    status: READY_FOR_ACTIVATION
+    source_scope: default
+    proposed_change_fields: [source_scope, workday_identity]
+  - company: Intel
+    status: READY_FOR_ACTIVATION
+    source_scope: default
+    proposed_change_fields: [careers_url, source_scope, workday_identity]
+  - company: KLA
+    status: READY_FOR_ACTIVATION
+    source_scope: default
+    proposed_change_fields: [source_scope, workday_identity]
+  - company: Marvell Technology
+    status: READY_FOR_ACTIVATION
+    source_scope: default
+    proposed_change_fields: [source_scope, workday_identity]
+  - company: TD Bank
+    status: READY_FOR_ACTIVATION
+    source_scope: default
+    proposed_change_fields: [source_scope, workday_identity]
+  - company: Analog Devices
+    status: READY_FOR_ACTIVATION
+    source_scope: default
+    proposed_change_fields: [source_scope, workday_identity]
+
+unchanged_scope_common_assessment:
+  exact_candidate_equivalence: >-
+    Each proposal row is structurally identical to its row in the reviewed
+    sixteen-company candidate registry.
+  baseline_comparison: >-
+    Each rollback row is structurally identical to its current production row.
+    The proposal changes only fields enumerated above and preserves every other
+    field from the tested candidate.
+  employer_binding: >-
+    workday_identity binds canonical employer, source scope, tenant, site,
+    Workday hostname, apply hostname, official source, and binding target.
+  stable_job_identity: >-
+    The Workday adapter namespaces stable provider job IDs by workday tenant;
+    these proposals retain each company's reviewed tenant and site.
+  permitted_apply_hosts: >-
+    Every expected_apply_hostname is present in allowed_apply_hosts.
+  duplicate_and_scope_collision: >-
+    The simulated production merge has one canonical company/default identity
+    per company, introduces no sibling scope, and changes no unrelated row.
+  lifecycle_effect: >-
+    Because the logical default scope is retained, an authoritative complete
+    persistent scan can reconcile existing ownership. A previously tracked job
+    absent from the new complete inventory may advance from active to
+    possibly_missing on the first qualifying absence and to removed on the
+    second. Activation must therefore be controlled one company at a time, and
+    the first lifecycle delta must be reviewed before another authoritative run.
+  source_health_effect: >-
+    Identity evidence changes the source/config fingerprint. New configuration
+    health must start independently and must not inherit stale authority or
+    cooldown state from the prior fingerprint.
+  rollback: >-
+    Restore only the named row from the activation rollback registry. This
+    restores configuration and does not erase lifecycle history, retire a
+    scope, or assert source health.
+
+migration_audits:
+  Adobe:
+    classification: NEEDS_SCOPE_MIGRATION
+    production_identity: {tenant: adobe, wd_subdomain: wd5, site_id: external_experienced, source_scope: default}
+    candidate_identity: {tenant: adobe, wd_subdomain: wd5, site_id: external_experienced, source_scope: experienced}
+    historical_default_owner_records: 332
+    semantic_scope: >-
+      The reviewed first-party evidence describes experienced roles and excludes
+      Adobe university recruiting, so experienced is semantically accurate for
+      this board.
+    collision_and_lifecycle_risk: >-
+      Production and candidate point to the same tenant/site but different
+      logical scope keys. Replacing default with experienced would leave the 332
+      default owners unretired; running both would create duplicate ownership of
+      the same provider inventory. A new scope cannot silently close the old one.
+    recommendation: >-
+      Do not activate the experienced row yet. The least disruptive option is
+      to preserve default and prepare a new exact default-scope candidate, which
+      requires a separately authorized canary because it differs from the tested
+      configuration. If the semantic rename is required, first export and
+      reconcile exact provider_source_key values, then approve a dedicated
+      ownership-migration and old-scope retirement plan with independent rollback.
+    rollback: restore the original Adobe default row; never rewrite lifecycle history
+
+  RBC:
+    classification: NEEDS_SCOPE_MIGRATION
+    production_identity: {tenant: rbc, wd_subdomain: wd3, site_id: RBCGLOBAL1, source_scope: default}
+    candidate_identity: {tenant: rbc, wd_subdomain: wd3, site_id: RBCGLOBAL1, source_scope: global}
+    historical_default_owner_records: 734
+    semantic_scope: >-
+      RBCGLOBAL1 and the reviewed first-party search surface support a global
+      recruiting interpretation, but production already collected this exact
+      tenant/site under default.
+    collision_and_lifecycle_risk: >-
+      Renaming the logical scope would strand 734 default ownership records;
+      parallel default/global rows would duplicate ownership for exact provider
+      IDs from the same board.
+    recommendation: >-
+      Preserve default unless an explicit semantic migration is approved. A
+      default-scope identity candidate would need a new authorized canary because
+      it is not the exact tested row. A global migration requires an exact
+      provider-ID crosswalk, ownership counts, retirement approval, and a tested
+      rollback plan before any persistent run.
+    rollback: restore the original RBC default row; never rewrite lifecycle history
+
+  CIBC:
+    classification: BLOCKED_PENDING_EVIDENCE
+    production_identity: {tenant: cibc, wd_subdomain: wd3, site_id: campus, source_scope: default}
+    candidate_identity: {tenant: cibc, wd_subdomain: wd3, site_id: search, source_scope: default}
+    historical_default_owner_records: 44
+    semantic_scope: >-
+      Existing evidence identifies campus as a distinct student/new-graduate
+      board and search as the all-opportunities board. It does not prove that the
+      latter contains the former.
+    collision_and_lifecycle_risk: >-
+      Replacing the site inside the same default scope changes the source
+      fingerprint but leaves absence reconciliation scope-local. Campus IDs not
+      returned by search could begin the two-complete-absence removal lifecycle.
+      Provider ID stability and containment across sites have not been proven.
+    required_evidence:
+      - exact provider job ID sets for the retained campus inventory and validated search inventory
+      - exact intersection, campus-only, search-only, and conflicting-ID counts
+      - canonical and apply URL comparison for shared IDs
+      - decision whether campus remains an independently authoritative recruiting scope
+      - reviewed lifecycle handling for the 44 existing default owners
+    recommendation: >-
+      Do not replace campus with search. Prefer separately modeled campus and
+      all-opportunities scopes only after exact cross-site evidence and a scope
+      ownership migration plan exist. Any changed scope configuration requires
+      its own explicitly authorized exact canary.
+    rollback: restore the original campus/default row; never rewrite lifecycle history
+
+activation_branch_execution:
+  - Explicit approval covered the exact thirteen named proposal rows.
+  - The untouched production rows first matched the exact rollback package; no baseline drift was present.
+  - All thirteen rows were replaced with their exact tested proposals while every unrelated row remained unchanged.
+  - Offline package, source-integrity, Workday, lifecycle, and full-suite regression verification was required before commit.
+  - No deployment, live scan, workflow trigger, persistence, dashboard publication, or external mutation was performed.
+
+remaining_deployment_procedure_not_executed:
+  - Confirm scheduled and external writers are paused before merge.
+  - Merge and deploy only under separate operational approval.
+  - Run one controlled persistent synchronization only under separate operational approval.
+  - Compare source ownership, lifecycle counts, missing counters, and duplicate keys before permitting a second authoritative run.
+  - Re-enable the unchanged schedule only after the per-company observation is accepted.
+
+proposed_rollback_procedure_not_executed:
+  - Keep scheduled and external writers disabled.
+  - Verify the active row is the exact approved proposal and the rollback row still matches the recorded baseline.
+  - Replace only that company row with its exact rollback definition; do not retire a scope or edit lifecycle history.
+  - Validate the registry, review the one-row diff, and deploy only under explicit approval.
+  - Under separate approval, run one controlled recovery synchronization and verify ownership/lifecycle state before re-enabling writers.

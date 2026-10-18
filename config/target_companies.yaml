@@ -51,6 +51,22 @@ target_companies:
     tenant: crowdstrike
     wd_subdomain: wd5
     site_id: crowdstrikecareers
+    source_scope: default
+    careers_url: https://www.crowdstrike.com/en-us/careers/
+    search_url: https://crowdstrike.wd5.myworkdayjobs.com/crowdstrikecareers
+    allowed_apply_hosts:
+    - crowdstrike.wd5.myworkdayjobs.com
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch1.yaml#crowdstrike
+      official_source_url: https://www.crowdstrike.com/en-us/careers/
+      official_binding_target_url: https://crowdstrike.wd5.myworkdayjobs.com/crowdstrikecareers
+      official_binding_type: direct_link
+      expected_employer_name: CrowdStrike
+      expected_source_scope: default
+      expected_workday_tenant: crowdstrike
+      expected_workday_site: crowdstrikecareers
+      expected_workday_hostname: crowdstrike.wd5.myworkdayjobs.com
+      expected_apply_hostname: crowdstrike.wd5.myworkdayjobs.com
   - name: Nvidia
     platform: workday
     tenant: nvidia
@@ -74,6 +90,22 @@ target_companies:
     tenant: salesforce
     wd_subdomain: wd12
     site_id: External_Career_Site
+    source_scope: default
+    careers_url: https://www.salesforce.com/company/careers/jobs/
+    search_url: https://salesforce.wd12.myworkdayjobs.com/External_Career_Site
+    allowed_apply_hosts:
+    - salesforce.wd12.myworkdayjobs.com
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch1.yaml#salesforce
+      official_source_url: https://www.salesforce.com/company/careers/jobs/
+      official_binding_target_url: https://salesforce.wd12.myworkdayjobs.com/External_Career_Site
+      official_binding_type: embedded_config
+      expected_employer_name: Salesforce
+      expected_source_scope: default
+      expected_workday_tenant: salesforce
+      expected_workday_site: External_Career_Site
+      expected_workday_hostname: salesforce.wd12.myworkdayjobs.com
+      expected_apply_hostname: salesforce.wd12.myworkdayjobs.com
   - name: HashiCorp
     platform: ibm_search
     max_pages: 2
@@ -110,17 +142,47 @@ target_companies:
     tenant: bostondynamics
     wd_subdomain: wd1
     site_id: Boston_Dynamics
-    careers_url: https://bostondynamics.com/careers
-    priority: TBD
+    source_scope: default
+    careers_url: https://bostondynamics.com/careers/
     source_url: https://bostondynamics.com/careers
+    search_url: https://bostondynamics.wd1.myworkdayjobs.com/Boston_Dynamics
+    allowed_apply_hosts:
+    - bostondynamics.wd1.myworkdayjobs.com
+    priority: TBD
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch1.yaml#boston-dynamics
+      official_source_url: https://bostondynamics.com/careers/
+      official_binding_target_url: https://bostondynamics.wd1.myworkdayjobs.com/Boston_Dynamics
+      official_binding_type: embedded_config
+      expected_employer_name: Boston Dynamics
+      expected_source_scope: default
+      expected_workday_tenant: bostondynamics
+      expected_workday_site: Boston_Dynamics
+      expected_workday_hostname: bostondynamics.wd1.myworkdayjobs.com
+      expected_apply_hostname: bostondynamics.wd1.myworkdayjobs.com
   - name: Cadence Design Systems
     platform: workday
     tenant: cadence
     wd_subdomain: wd1
     site_id: External_Careers
-    careers_url: https://www.cadence.com/en_US/home/company/careers.html
-    priority: TBD
+    source_scope: default
+    careers_url: https://www.cadence.com/en_US/home/company/life-at-cadence/careers.html
     source_url: https://www.cadence.com/en_US/home/company/careers.html
+    search_url: https://cadence.wd1.myworkdayjobs.com/External_Careers
+    allowed_apply_hosts:
+    - cadence.wd1.myworkdayjobs.com
+    priority: TBD
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch1.yaml#cadence-design-systems
+      official_source_url: https://www.cadence.com/en_US/home/company/life-at-cadence/careers.html
+      official_binding_target_url: https://cadence.wd1.myworkdayjobs.com/External_Careers
+      official_binding_type: direct_link
+      expected_employer_name: Cadence Design Systems
+      expected_source_scope: default
+      expected_workday_tenant: cadence
+      expected_workday_site: External_Careers
+      expected_workday_hostname: cadence.wd1.myworkdayjobs.com
+      expected_apply_hostname: cadence.wd1.myworkdayjobs.com
   - name: Figma
     platform: greenhouse
     slug: figma
@@ -168,9 +230,24 @@ target_companies:
     tenant: blueorigin
     wd_subdomain: wd5
     site_id: BlueOrigin
+    source_scope: default
     careers_url: https://www.blueorigin.com/careers
-    priority: TBD
     source_url: https://www.blueorigin.com/careers
+    search_url: https://blueorigin.wd5.myworkdayjobs.com/BlueOrigin
+    allowed_apply_hosts:
+    - blueorigin.wd5.myworkdayjobs.com
+    priority: TBD
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch1.yaml#blue-origin
+      official_source_url: https://www.blueorigin.com/careers/search
+      official_binding_target_url: https://blueorigin.wd5.myworkdayjobs.com/BlueOrigin
+      official_binding_type: embedded_config
+      expected_employer_name: Blue Origin
+      expected_source_scope: default
+      expected_workday_tenant: blueorigin
+      expected_workday_site: BlueOrigin
+      expected_workday_hostname: blueorigin.wd5.myworkdayjobs.com
+      expected_apply_hostname: blueorigin.wd5.myworkdayjobs.com
   - name: Rocket Lab
     platform: greenhouse
     slug: rocketlab
@@ -226,9 +303,24 @@ target_companies:
     tenant: medtronic
     wd_subdomain: wd1
     site_id: MedtronicCareers
+    source_scope: default
     careers_url: https://www.medtronic.com/en-us/our-company/careers.html
     source_url: https://www.medtronic.com/en-us/our-company/careers.html
+    search_url: https://medtronic.wd1.myworkdayjobs.com/MedtronicCareers
+    allowed_apply_hosts:
+    - medtronic.wd1.myworkdayjobs.com
     priority: TBD
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch1.yaml#medtronic
+      official_source_url: https://www.medtronic.com/en-us/our-company/careers.html
+      official_binding_target_url: https://medtronic.wd1.myworkdayjobs.com/MedtronicCareers
+      official_binding_type: direct_link
+      expected_employer_name: Medtronic
+      expected_source_scope: default
+      expected_workday_tenant: medtronic
+      expected_workday_site: MedtronicCareers
+      expected_workday_hostname: medtronic.wd1.myworkdayjobs.com
+      expected_apply_hostname: medtronic.wd1.myworkdayjobs.com
   - name: Shell
     platform: workday
     tenant: shell
@@ -478,6 +570,7 @@ target_companies:
     tenant: visa
     wd_subdomain: wd5
     site_id: Visa
+    source_scope: default
     careers_url: https://corporate.visa.com/en/careers.html
     search_url: https://visa.wd5.myworkdayjobs.com/Visa
     endpoint_variant: wday_cxs_v1
@@ -486,6 +579,17 @@ target_companies:
     - visa.wd5.myworkdayjobs.com
     max_pages: 1
     max_jobs: 20
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch1.yaml#visa
+      official_source_url: https://corporate.visa.com/en/careers.html
+      official_binding_target_url: https://visa.wd5.myworkdayjobs.com/Visa
+      official_binding_type: direct_link
+      expected_employer_name: Visa
+      expected_source_scope: default
+      expected_workday_tenant: visa
+      expected_workday_site: Visa
+      expected_workday_hostname: visa.wd5.myworkdayjobs.com
+      expected_apply_hostname: visa.wd5.myworkdayjobs.com
   - name: Plaid
     platform: ashby
     slug: plaid
@@ -1345,7 +1449,8 @@ target_companies:
     tenant: intel
     wd_subdomain: wd1
     site_id: External
-    careers_url: https://www.intel.com/content/www/us/en/jobs/jobs-at-intel.html
+    source_scope: default
+    careers_url: https://www.intel.com/content/www/us/en/jobs/life-at-intel.html
     search_url: https://intel.wd1.myworkdayjobs.com/External
     endpoint_variant: wday_cxs_v1
     original_workbook_rank: 19
@@ -1353,11 +1458,23 @@ target_companies:
     - intel.wd1.myworkdayjobs.com
     max_pages: 2
     max_jobs: 20
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch1.yaml#intel
+      official_source_url: https://www.intel.com/content/www/us/en/support/articles/000089205/programs/jobs-at-intel.html
+      official_binding_target_url: https://intel.wd1.myworkdayjobs.com/External
+      official_binding_type: retained_first_party_artifact
+      expected_employer_name: Intel
+      expected_source_scope: default
+      expected_workday_tenant: intel
+      expected_workday_site: External
+      expected_workday_hostname: intel.wd1.myworkdayjobs.com
+      expected_apply_hostname: intel.wd1.myworkdayjobs.com
   - name: NXP Semiconductors
     platform: workday
     tenant: nxp
     wd_subdomain: wd3
     site_id: careers
+    source_scope: default
     careers_url: https://www.nxp.com/company/about-nxp/careers:CAREERS
     search_url: https://nxp.wd3.myworkdayjobs.com/careers
     endpoint_variant: wday_cxs_v1
@@ -1366,11 +1483,23 @@ target_companies:
     - nxp.wd3.myworkdayjobs.com
     max_pages: 2
     max_jobs: 20
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch1.yaml#nxp-semiconductors
+      official_source_url: https://www.nxp.com/company/about-nxp/careers:CAREERS
+      official_binding_target_url: https://nxp.wd3.myworkdayjobs.com/careers
+      official_binding_type: direct_link
+      expected_employer_name: NXP Semiconductors
+      expected_source_scope: default
+      expected_workday_tenant: nxp
+      expected_workday_site: careers
+      expected_workday_hostname: nxp.wd3.myworkdayjobs.com
+      expected_apply_hostname: nxp.wd3.myworkdayjobs.com
   - name: KLA
     platform: workday
     tenant: kla
     wd_subdomain: wd1
     site_id: Search
+    source_scope: default
     careers_url: https://www.kla.com/careers
     search_url: https://kla.wd1.myworkdayjobs.com/Search
     endpoint_variant: wday_cxs_v1
@@ -1379,6 +1508,17 @@ target_companies:
     - kla.wd1.myworkdayjobs.com
     max_pages: 2
     max_jobs: 20
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch1.yaml#kla
+      official_source_url: https://www.kla.com/careers
+      official_binding_target_url: https://kla.wd1.myworkdayjobs.com/Search
+      official_binding_type: direct_link
+      expected_employer_name: KLA
+      expected_source_scope: default
+      expected_workday_tenant: kla
+      expected_workday_site: Search
+      expected_workday_hostname: kla.wd1.myworkdayjobs.com
+      expected_apply_hostname: kla.wd1.myworkdayjobs.com
   - name: Capital One
     platform: workday
     tenant: capitalone
@@ -2053,8 +2193,20 @@ target_companies:
     tenant: analogdevices
     wd_subdomain: wd1
     site_id: External
+    source_scope: default
     search_url: https://analogdevices.wd1.myworkdayjobs.com/External
     identity_url: https://analogdevices.wd1.myworkdayjobs.com/External
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch1.yaml#analog-devices
+      official_source_url: https://www.analog.com/en/careers.html
+      official_binding_target_url: https://analogdevices.wd1.myworkdayjobs.com/External
+      official_binding_type: direct_link
+      expected_employer_name: Analog Devices
+      expected_source_scope: default
+      expected_workday_tenant: analogdevices
+      expected_workday_site: External
+      expected_workday_hostname: analogdevices.wd1.myworkdayjobs.com
+      expected_apply_hostname: analogdevices.wd1.myworkdayjobs.com
   - name: Microchip Technology
     platform: workday
     careers_url: https://www.microchip.com/en-us/about/careers
@@ -2174,8 +2326,20 @@ target_companies:
     tenant: marvell
     wd_subdomain: wd1
     site_id: MarvellCareers
+    source_scope: default
     search_url: https://marvell.wd1.myworkdayjobs.com/MarvellCareers
     identity_url: https://marvell.wd1.myworkdayjobs.com/MarvellCareers
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch1.yaml#marvell-technology
+      official_source_url: https://www.marvell.com/company/careers.html
+      official_binding_target_url: https://marvell.wd1.myworkdayjobs.com/MarvellCareers
+      official_binding_type: direct_link
+      expected_employer_name: Marvell Technology
+      expected_source_scope: default
+      expected_workday_tenant: marvell
+      expected_workday_site: MarvellCareers
+      expected_workday_hostname: marvell.wd1.myworkdayjobs.com
+      expected_apply_hostname: marvell.wd1.myworkdayjobs.com
   - name: Oracle
     inventory_authority: discovery_only
     platform: oracle_recruiting
@@ -3568,6 +3732,18 @@ target_companies:
     tenant: td
     wd_subdomain: wd3
     site_id: TD_Bank_Careers
+    source_scope: default
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch1.yaml#td-bank
+      official_source_url: https://careers.td.com/
+      official_binding_target_url: https://td.wd3.myworkdayjobs.com/TD_Bank_Careers
+      official_binding_type: retained_first_party_artifact
+      expected_employer_name: TD Bank
+      expected_source_scope: default
+      expected_workday_tenant: td
+      expected_workday_site: TD_Bank_Careers
+      expected_workday_hostname: td.wd3.myworkdayjobs.com
+      expected_apply_hostname: td.wd3.myworkdayjobs.com
   - name: Scotiabank
     inventory_authority: discovery_only
     platform: sap_successfactors

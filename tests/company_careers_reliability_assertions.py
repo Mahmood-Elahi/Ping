@@ -14,6 +14,9 @@ from src.scraper.company_careers.models import (
 
 ROOT = Path(__file__).resolve().parents[1]
 REPAIRS = ROOT / "config" / "company_careers_reliability_repairs_v1.yaml"
+WORKDAY_BATCH1_ACTIVATION = (
+    ROOT / "config" / "target_companies.workday_identity_batch1_activation_proposal.yaml"
+)
 
 # Historical rollout registries intentionally preserve their original bytes.
 # Approved in-place Phase 1 source migrations intentionally differ from the
@@ -186,6 +189,12 @@ APPROVED_SOURCE_MIGRATIONS: dict[str, dict[str, Any]] = {
         "allowed_apply_hosts": ["jobs.ashbyhq.com"],
     },
 }
+
+_workday_batch1 = yaml.safe_load(
+    WORKDAY_BATCH1_ACTIVATION.read_text(encoding="utf-8")
+) or {}
+for _row in _workday_batch1.get("target_companies") or []:
+    APPROVED_SOURCE_MIGRATIONS[str(_row["name"]).casefold()] = _row
 
 APPROVED_DISCOVERY_ONLY_PROMOTIONS = {
     "athabasca oil",
