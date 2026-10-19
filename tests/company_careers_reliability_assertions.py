@@ -17,6 +17,9 @@ REPAIRS = ROOT / "config" / "company_careers_reliability_repairs_v1.yaml"
 WORKDAY_BATCH1_ACTIVATION = (
     ROOT / "config" / "target_companies.workday_identity_batch1_activation_proposal.yaml"
 )
+WORKDAY_BATCH2_ACTIVATION = (
+    ROOT / "config" / "target_companies.workday_identity_batch2_activation_proposal.yaml"
+)
 
 # Historical rollout registries intentionally preserve their original bytes.
 # Approved in-place Phase 1 source migrations intentionally differ from the
@@ -194,6 +197,12 @@ _workday_batch1 = yaml.safe_load(
     WORKDAY_BATCH1_ACTIVATION.read_text(encoding="utf-8")
 ) or {}
 for _row in _workday_batch1.get("target_companies") or []:
+    APPROVED_SOURCE_MIGRATIONS[str(_row["name"]).casefold()] = _row
+
+_workday_batch2 = yaml.safe_load(
+    WORKDAY_BATCH2_ACTIVATION.read_text(encoding="utf-8")
+) or {}
+for _row in _workday_batch2.get("target_companies") or []:
     APPROVED_SOURCE_MIGRATIONS[str(_row["name"]).casefold()] = _row
 
 APPROVED_DISCOVERY_ONLY_PROMOTIONS = {

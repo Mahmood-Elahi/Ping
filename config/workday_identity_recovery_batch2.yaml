@@ -1,0 +1,715 @@
+goal:
+  name: workday_identity_recovery_batch2
+  evidence_date: '2026-10-19'
+  timezone: UTC
+  baseline_branch: origin/main
+  baseline_head: 8fd33b4
+  production_registry_modified: false
+  official_employer_pages_retrieved: true
+  live_workday_inventory_requests_performed: false
+  canary_performed: false
+  production_data_accessed: false
+  candidate_registry: config/target_companies.workday_identity_batch2_candidates.yaml
+  migration_candidate_registry: config/target_companies.workday_identity_batch2_migration_candidates.yaml
+  rollback_registry: config/target_companies.workday_identity_batch2_rollback.yaml
+decision_rules:
+- A first-party employer page must bind the exact Workday tenant, site, hostname, apply hostname, employer, and logical scope.
+- A first-party full-search surface with consistent current Workday apply URLs can support a candidate contract.
+- An individual posting alone does not prove the full recruiting board or its absence-authoritative scope.
+- Existing default scope and tenant/site are preserved unless first-party evidence proves a genuine migration.
+- READY_FOR_CANARY is not recovered; only a later explicitly authorized PASS_COMPLETE canary may support activation.
+- No production lifecycle ownership or historical provider identity is inferred from repository configuration alone.
+lifecycle_identity_audit:
+  retained_active_or_historical_job_ids_in_checkout: 0
+  supabase_or_other_production_store_queried: false
+  reason: The task authorizes official careers-page retrieval and offline preparation, not a production audit.
+  unchanged_scope_decision: The 16 straightforward candidates keep the same canonical company, default scope, tenant, and site, so no ownership reassignment is proposed.
+  migration_decision: Sony and Shell remain isolated until exact source-owner counts and provider identity overlap/equivalence are reviewed read-only.
+companies:
+- company: Broadcom
+  existing_configuration:
+    tenant: broadcom
+    wd_subdomain: wd1
+    site_id: External_Career
+    source_scope: default
+    careers_url: https://www.broadcom.com/company/careers
+    search_url: https://broadcom.wd1.myworkdayjobs.com/External_Career
+    source_ownership: Broadcom::default
+  active_and_historical_job_identifiers:
+    repository_status: NOT_AVAILABLE_IN_CHECKOUT
+    production_store_queried: false
+    assessment: The current default logical ownership remains unchanged and non-authoritative.
+  identity_evidence:
+    official_source_url: https://www.broadcom.com/company/careers
+    official_binding_target_url: null
+    binding_type: insufficient
+    verified_fact: The corporate careers page advertises Search Jobs, and an employer-controlled community post links one historical role under External_Career.
+    assumption: No assumption is accepted that one historical posting proves the current full-board source or absence-authoritative scope.
+  classification: BLOCKED_PENDING_EVIDENCE
+  proposed_candidate: null
+  evidence_gaps:
+  - No current first-party full-board link or full-search embedded binding to External_Career was verified.
+  - The retained employer-controlled individual posting is not full-board or scope authority.
+  migration_risk: HIGH
+  rollback_reference: config/target_companies.workday_identity_batch2_rollback.yaml#broadcom
+- company: Microchip Technology
+  existing_configuration:
+    tenant: microchiphr
+    wd_subdomain: wd5
+    site_id: External
+    source_scope: default
+    careers_url: https://www.microchip.com/en-us/about/careers
+    search_url: https://microchiphr.wd5.myworkdayjobs.com/External
+    source_ownership: Microchip Technology::default
+  active_and_historical_job_identifiers:
+    repository_status: NOT_AVAILABLE_IN_CHECKOUT
+    production_store_queried: false
+    assessment: Logical ownership remains the exact canonical company plus default scope; provider tenant and site are unchanged.
+  identity_evidence:
+    official_source_url: https://www.microchip.com/en-us/about/careers
+    official_binding_target_url: https://microchiphr.wd5.myworkdayjobs.com/External
+    observed_first_party_target_url: https://wd5.myworkdaysite.com/en-US/recruiting/microchiphr/External
+    binding_type: direct_link
+    verified_fact: The current careers page links See All Open Positions directly to the Workday recruiting route encoding tenant microchiphr and site External.
+    assumption: The configured myworkdayjobs hostname is the CXS/apply hostname for the same exact tenant and site encoded by the first-party myworkdaysite route.
+  classification: READY_FOR_CANARY
+  proposed_candidate:
+    registry: config/target_companies.workday_identity_batch2_candidates.yaml
+    tenant: microchiphr
+    site_id: External
+    source_scope: default
+    changed_fields:
+    - source_scope
+    - workday_identity
+  evidence_gaps:
+  - Live inventory completeness and exact terminal accounting remain untested.
+  migration_risk: LOW
+  rollback_reference: config/target_companies.workday_identity_batch2_rollback.yaml#microchip-technology
+- company: Lattice Semiconductor
+  existing_configuration:
+    tenant: latticesemi
+    wd_subdomain: wd5
+    site_id: latticesemiconductorscareers
+    source_scope: default
+    careers_url: https://latticesemi.wd5.myworkdayjobs.com/latticesemiconductorscareers
+    search_url: null
+    source_ownership: Lattice Semiconductor::default
+  active_and_historical_job_identifiers:
+    repository_status: NOT_AVAILABLE_IN_CHECKOUT
+    production_store_queried: false
+    assessment: Logical ownership remains the exact canonical company plus default scope; provider tenant and site are unchanged.
+  identity_evidence:
+    official_source_url: https://www.latticesemi.com/careers
+    official_binding_target_url: https://latticesemi.wd5.myworkdayjobs.com/latticesemiconductorscareers
+    binding_type: direct_link
+    verified_fact: The current careers page links Search Job Openings directly to the exact configured Workday board.
+    assumption: The linked board represents the company-wide external inventory shown by the corporate careers page.
+  classification: READY_FOR_CANARY
+  proposed_candidate:
+    registry: config/target_companies.workday_identity_batch2_candidates.yaml
+    tenant: latticesemi
+    site_id: latticesemiconductorscareers
+    source_scope: default
+    changed_fields:
+    - allowed_apply_hosts
+    - careers_url
+    - search_url
+    - source_scope
+    - workday_identity
+  evidence_gaps:
+  - Live inventory completeness and exact terminal accounting remain untested.
+  migration_risk: LOW
+  rollback_reference: config/target_companies.workday_identity_batch2_rollback.yaml#lattice-semiconductor
+- company: Capital One
+  existing_configuration:
+    tenant: capitalone
+    wd_subdomain: wd12
+    site_id: Capital_One
+    source_scope: default
+    careers_url: https://www.capitalonecareers.com/search-jobs
+    search_url: https://capitalone.wd12.myworkdayjobs.com/Capital_One
+    source_ownership: Capital One::default
+  active_and_historical_job_identifiers:
+    repository_status: NOT_AVAILABLE_IN_CHECKOUT
+    production_store_queried: false
+    assessment: Logical ownership remains the exact canonical company plus default scope; provider tenant and site are unchanged.
+  identity_evidence:
+    official_source_url: https://www.capitalonecareers.com/search-jobs
+    official_binding_target_url: https://capitalone.wd12.myworkdayjobs.com/Capital_One
+    binding_type: embedded_config
+    verified_fact: The first-party full search exposes current job details whose Apply actions use the configured Capital_One site; one reviewed example was requisition R1003909.
+    assumption: The Workday site is application authority behind the full-search inventory; the separate Eightfold talent network is not treated as inventory authority.
+  classification: READY_FOR_CANARY
+  proposed_candidate:
+    registry: config/target_companies.workday_identity_batch2_candidates.yaml
+    tenant: capitalone
+    site_id: Capital_One
+    source_scope: default
+    changed_fields:
+    - source_scope
+    - workday_identity
+  evidence_gaps:
+  - Live inventory completeness and exact terminal accounting remain untested.
+  migration_risk: LOW
+  rollback_reference: config/target_companies.workday_identity_batch2_rollback.yaml#capital-one
+- company: Magna International
+  existing_configuration:
+    tenant: magna
+    wd_subdomain: wd3
+    site_id: Magna
+    source_scope: default
+    careers_url: https://www.magna.com/careers
+    search_url: https://magna.wd3.myworkdayjobs.com/Magna
+    source_ownership: Magna International::default
+  active_and_historical_job_identifiers:
+    repository_status: NOT_AVAILABLE_IN_CHECKOUT
+    production_store_queried: false
+    assessment: Logical ownership remains the exact canonical company plus default scope; provider tenant and site are unchanged.
+  identity_evidence:
+    official_source_url: https://www.magna.com/careers
+    official_binding_target_url: https://magna.wd3.myworkdayjobs.com/Magna
+    observed_first_party_target_url: https://wd3.myworkdaysite.com/recruiting/magna/Magna
+    binding_type: direct_link
+    verified_fact: The corporate careers page links Show all open positions directly to the Workday recruiting route encoding tenant magna and site Magna.
+    assumption: The configured myworkdayjobs hostname is the CXS/apply hostname for the same exact tenant and site encoded by the first-party myworkdaysite route.
+  classification: READY_FOR_CANARY
+  proposed_candidate:
+    registry: config/target_companies.workday_identity_batch2_candidates.yaml
+    tenant: magna
+    site_id: Magna
+    source_scope: default
+    changed_fields:
+    - source_scope
+    - workday_identity
+  evidence_gaps:
+  - Live inventory completeness and exact terminal accounting remain untested.
+  migration_risk: LOW
+  rollback_reference: config/target_companies.workday_identity_batch2_rollback.yaml#magna-international
+- company: Valeo
+  existing_configuration:
+    tenant: valeo
+    wd_subdomain: wd3
+    site_id: valeo_jobs
+    source_scope: default
+    careers_url: https://www.valeo.com/en/careers/
+    search_url: https://valeo.wd3.myworkdayjobs.com/valeo_jobs
+    source_ownership: Valeo::default
+  active_and_historical_job_identifiers:
+    repository_status: NOT_AVAILABLE_IN_CHECKOUT
+    production_store_queried: false
+    assessment: Logical ownership remains the exact canonical company plus default scope; provider tenant and site are unchanged.
+  identity_evidence:
+    official_source_url: https://www.valeo.com/en/careers/
+    official_binding_target_url: https://valeo.wd3.myworkdayjobs.com/valeo_jobs
+    binding_type: direct_link
+    verified_fact: The current corporate careers page links Our job offers and Sign me up directly to the exact configured Workday site.
+    assumption: The linked board is Valeo's global employee recruiting surface; country-specific content does not create a narrower claimed scope.
+  classification: READY_FOR_CANARY
+  proposed_candidate:
+    registry: config/target_companies.workday_identity_batch2_candidates.yaml
+    tenant: valeo
+    site_id: valeo_jobs
+    source_scope: default
+    changed_fields:
+    - source_scope
+    - workday_identity
+  evidence_gaps:
+  - Live inventory completeness and exact terminal accounting remain untested.
+  migration_risk: LOW
+  rollback_reference: config/target_companies.workday_identity_batch2_rollback.yaml#valeo
+- company: Unity
+  existing_configuration:
+    tenant: unitytech
+    wd_subdomain: wd1
+    site_id: Unity
+    source_scope: default
+    careers_url: https://unity.com/careers/positions
+    search_url: https://unitytech.wd1.myworkdayjobs.com/Unity
+    source_ownership: Unity::default
+  active_and_historical_job_identifiers:
+    repository_status: NOT_AVAILABLE_IN_CHECKOUT
+    production_store_queried: false
+    assessment: Logical ownership remains the exact canonical company plus default scope; provider tenant and site are unchanged.
+  identity_evidence:
+    official_source_url: https://unity.com/careers/positions
+    official_binding_target_url: https://unitytech.wd1.myworkdayjobs.com/Unity
+    binding_type: embedded_config
+    verified_fact: The first-party positions page embeds current job URLs under the configured Unity Workday site across multiple countries.
+    assumption: The embedded set is the company-wide external recruiting inventory represented by the first-party positions page.
+  classification: READY_FOR_CANARY
+  proposed_candidate:
+    registry: config/target_companies.workday_identity_batch2_candidates.yaml
+    tenant: unitytech
+    site_id: Unity
+    source_scope: default
+    changed_fields:
+    - source_scope
+    - workday_identity
+  evidence_gaps:
+  - Live inventory completeness and exact terminal accounting remain untested.
+  migration_risk: LOW
+  rollback_reference: config/target_companies.workday_identity_batch2_rollback.yaml#unity
+- company: Sony
+  existing_configuration:
+    tenant: sonyglobal
+    wd_subdomain: wd1
+    site_id: SonyGlobalCareers
+    source_scope: default
+    careers_url: https://www.sony.com/en/SonyInfo/Careers/
+    search_url: https://sonyglobal.wd1.myworkdayjobs.com/SonyGlobalCareers
+    source_ownership: Sony::default
+  active_and_historical_job_identifiers:
+    repository_status: NOT_AVAILABLE_IN_CHECKOUT
+    production_store_queried: false
+    assessment: The proposed site and/or logical scope differs from production; no lifecycle ownership transfer is inferred.
+  identity_evidence:
+    official_source_url: https://www.sony.com/en/SonyInfo/Careers/
+    official_binding_target_url: https://sonyglobal.wd1.myworkdayjobs.com/Sony_Europe_Careers
+    binding_type: direct_link
+    verified_fact: The global careers page links Europe opportunities to Sony_Europe_Careers, not the configured SonyGlobalCareers site.
+    assumption: The linked board is Europe-only and cannot inherit the current default/global logical scope.
+  classification: NEEDS_SCOPE_MIGRATION
+  proposed_candidate:
+    registry: config/target_companies.workday_identity_batch2_migration_candidates.yaml
+    tenant: sonyglobal
+    site_id: Sony_Europe_Careers
+    source_scope: europe
+    changed_fields:
+    - identity_url
+    - search_url
+    - site_id
+    - source_scope
+    - workday_identity
+  evidence_gaps:
+  - Exact active and historical provider-owned job identifiers are not retained in this checkout.
+  - A read-only production ownership/equivalence audit is required before any migration canary or activation proposal.
+  migration_risk: HIGH
+  rollback_reference: config/target_companies.workday_identity_batch2_rollback.yaml#sony
+- company: PTC
+  existing_configuration:
+    tenant: ptc
+    wd_subdomain: wd1
+    site_id: PTC
+    source_scope: default
+    careers_url: https://www.ptc.com/en/careers
+    search_url: https://ptc.wd1.myworkdayjobs.com/PTC
+    source_ownership: PTC::default
+  active_and_historical_job_identifiers:
+    repository_status: NOT_AVAILABLE_IN_CHECKOUT
+    production_store_queried: false
+    assessment: Logical ownership remains the exact canonical company plus default scope; provider tenant and site are unchanged.
+  identity_evidence:
+    official_source_url: https://www.ptc.com/en/careers
+    official_binding_target_url: https://ptc.wd1.myworkdayjobs.com/PTC
+    binding_type: direct_link
+    verified_fact: The current corporate careers page links Search Open Jobs directly to the exact configured Workday board.
+    assumption: The linked board remains PTC's company-wide external recruiting source.
+  classification: READY_FOR_CANARY
+  proposed_candidate:
+    registry: config/target_companies.workday_identity_batch2_candidates.yaml
+    tenant: ptc
+    site_id: PTC
+    source_scope: default
+    changed_fields:
+    - source_scope
+    - workday_identity
+  evidence_gaps:
+  - Live inventory completeness and exact terminal accounting remain untested.
+  migration_risk: LOW
+  rollback_reference: config/target_companies.workday_identity_batch2_rollback.yaml#ptc
+- company: TC Energy
+  existing_configuration:
+    tenant: tcenergy
+    wd_subdomain: wd3
+    site_id: CAREER_SITE_TC
+    source_scope: default
+    careers_url: https://www.tcenergy.com/careers/
+    search_url: https://tcenergy.wd3.myworkdayjobs.com/CAREER_SITE_TC
+    source_ownership: TC Energy::default
+  active_and_historical_job_identifiers:
+    repository_status: NOT_AVAILABLE_IN_CHECKOUT
+    production_store_queried: false
+    assessment: Logical ownership remains the exact canonical company plus default scope; provider tenant and site are unchanged.
+  identity_evidence:
+    official_source_url: https://www.tcenergy.com/careers/
+    official_binding_target_url: https://tcenergy.wd3.myworkdayjobs.com/CAREER_SITE_TC
+    binding_type: embedded_config
+    verified_fact: The current careers page publishes the exact configured Workday board root and filtered links under the same site.
+    assumption: The unfiltered board root is the employee inventory; contractor opportunities remain outside the claimed scope.
+  classification: READY_FOR_CANARY
+  proposed_candidate:
+    registry: config/target_companies.workday_identity_batch2_candidates.yaml
+    tenant: tcenergy
+    site_id: CAREER_SITE_TC
+    source_scope: default
+    changed_fields:
+    - source_scope
+    - workday_identity
+  evidence_gaps:
+  - Live inventory completeness and exact terminal accounting remain untested.
+  migration_risk: LOW
+  rollback_reference: config/target_companies.workday_identity_batch2_rollback.yaml#tc-energy
+- company: Enbridge
+  existing_configuration:
+    tenant: enbridge
+    wd_subdomain: wd3
+    site_id: enbridge_careers
+    source_scope: default
+    careers_url: https://www.enbridge.com/work-with-enbridge/careers
+    search_url: null
+    source_ownership: Enbridge::default
+  active_and_historical_job_identifiers:
+    repository_status: NOT_AVAILABLE_IN_CHECKOUT
+    production_store_queried: false
+    assessment: The current default logical ownership remains unchanged and non-authoritative.
+  identity_evidence:
+    official_source_url: https://www.enbridge.com/careers
+    official_binding_target_url: https://careers.enbridge.com/
+    binding_type: redirect
+    verified_fact: Enbridge states that Workday is its only online application path and Find your next job redirects to enbridge.wd3.myworkdayjobs.com/enbridge_careers.
+    assumption: The reviewed HTTPS redirect and final site define the employee scope; contingent roles are explicitly separate.
+  classification: BLOCKED_PENDING_EVIDENCE
+  proposed_candidate: null
+  evidence_gaps:
+  - The observed first-party URL is a custom-domain redirect, while the executable identity contract requires the exact canonical Workday board as the official binding target.
+  - A contract-compatible first-party exact-board artifact is required; the evidence record will not substitute the redirect destination merely to pass validation.
+  migration_risk: MEDIUM
+  rollback_reference: config/target_companies.workday_identity_batch2_rollback.yaml#enbridge
+- company: Shell
+  existing_configuration:
+    tenant: shell
+    wd_subdomain: wd3
+    site_id: shellcareers
+    source_scope: default
+    careers_url: https://www.shell.com/careers.html
+    search_url: null
+    source_ownership: Shell::default
+  active_and_historical_job_identifiers:
+    repository_status: NOT_AVAILABLE_IN_CHECKOUT
+    production_store_queried: false
+    assessment: The proposed site and/or logical scope differs from production; no lifecycle ownership transfer is inferred.
+  identity_evidence:
+    official_source_url: https://www.shell.com/careers.html
+    official_binding_target_url: https://shell.wd3.myworkdayjobs.com/ShellCareers
+    binding_type: direct_link
+    verified_fact: The current global careers page links Search for a job directly to ShellCareers; production uses the differently cased site identifier shellcareers.
+    assumption: Site identifiers are treated as exact and the case-correct site must be migration-audited before activation.
+  classification: NEEDS_SCOPE_MIGRATION
+  proposed_candidate:
+    registry: config/target_companies.workday_identity_batch2_migration_candidates.yaml
+    tenant: shell
+    site_id: ShellCareers
+    source_scope: default
+    changed_fields:
+    - allowed_apply_hosts
+    - identity_url
+    - search_url
+    - site_id
+    - source_scope
+    - workday_identity
+  evidence_gaps:
+  - Exact active and historical provider-owned job identifiers are not retained in this checkout.
+  - A read-only production ownership/equivalence audit is required before any migration canary or activation proposal.
+  migration_risk: MEDIUM
+  rollback_reference: config/target_companies.workday_identity_batch2_rollback.yaml#shell
+- company: Suncor Energy
+  existing_configuration:
+    tenant: suncor
+    wd_subdomain: wd1
+    site_id: Suncor_External
+    source_scope: default
+    careers_url: https://www.suncor.com/en-ca/careers
+    search_url: https://suncor.wd1.myworkdayjobs.com/Suncor_External
+    source_ownership: Suncor Energy::default
+  active_and_historical_job_identifiers:
+    repository_status: NOT_AVAILABLE_IN_CHECKOUT
+    production_store_queried: false
+    assessment: Logical ownership remains the exact canonical company plus default scope; provider tenant and site are unchanged.
+  identity_evidence:
+    official_source_url: https://www.suncor.com/en-ca/careers
+    official_binding_target_url: https://suncor.wd1.myworkdayjobs.com/Suncor_External
+    binding_type: direct_link
+    verified_fact: The current corporate careers page links Search jobs directly to the exact configured Workday board.
+    assumption: The linked external board is the employee scope; contract-partner roles remain separate.
+  classification: READY_FOR_CANARY
+  proposed_candidate:
+    registry: config/target_companies.workday_identity_batch2_candidates.yaml
+    tenant: suncor
+    site_id: Suncor_External
+    source_scope: default
+    changed_fields:
+    - source_scope
+    - workday_identity
+  evidence_gaps:
+  - Live inventory completeness and exact terminal accounting remain untested.
+  migration_risk: LOW
+  rollback_reference: config/target_companies.workday_identity_batch2_rollback.yaml#suncor-energy
+- company: Cenovus Energy
+  existing_configuration:
+    tenant: cenovus
+    wd_subdomain: wd3
+    site_id: careers
+    source_scope: default
+    careers_url: https://www.cenovus.com/Careers
+    search_url: https://cenovus.wd3.myworkdayjobs.com/careers
+    source_ownership: Cenovus Energy::default
+  active_and_historical_job_identifiers:
+    repository_status: NOT_AVAILABLE_IN_CHECKOUT
+    production_store_queried: false
+    assessment: Logical ownership remains the exact canonical company plus default scope; provider tenant and site are unchanged.
+  identity_evidence:
+    official_source_url: https://www.cenovus.com/Careers/Current-opportunities
+    official_binding_target_url: https://cenovus.wd3.myworkdayjobs.com/careers
+    binding_type: direct_link
+    verified_fact: The Current opportunities page links Employee opportunities directly to the exact configured site and separately identifies contractor opportunities.
+    assumption: The employee portal is the company-wide employee scope and excludes the contractor network.
+  classification: READY_FOR_CANARY
+  proposed_candidate:
+    registry: config/target_companies.workday_identity_batch2_candidates.yaml
+    tenant: cenovus
+    site_id: careers
+    source_scope: default
+    changed_fields:
+    - source_scope
+    - workday_identity
+  evidence_gaps:
+  - Live inventory completeness and exact terminal accounting remain untested.
+  migration_risk: LOW
+  rollback_reference: config/target_companies.workday_identity_batch2_rollback.yaml#cenovus-energy
+- company: ConocoPhillips
+  existing_configuration:
+    tenant: conocophillips
+    wd_subdomain: wd1
+    site_id: External
+    source_scope: default
+    careers_url: https://careers.conocophillips.com/
+    search_url: https://conocophillips.wd1.myworkdayjobs.com/External
+    source_ownership: ConocoPhillips::default
+  active_and_historical_job_identifiers:
+    repository_status: NOT_AVAILABLE_IN_CHECKOUT
+    production_store_queried: false
+    assessment: Logical ownership remains the exact canonical company plus default scope; provider tenant and site are unchanged.
+  identity_evidence:
+    official_source_url: https://careers.conocophillips.com/job-search-results/
+    official_binding_target_url: https://conocophillips.wd1.myworkdayjobs.com/External
+    binding_type: embedded_config
+    verified_fact: The first-party full search lists current requisition IDs and Apply links under the configured External Workday site.
+    assumption: The Workday site is the application authority behind the first-party complete-search surface.
+  classification: READY_FOR_CANARY
+  proposed_candidate:
+    registry: config/target_companies.workday_identity_batch2_candidates.yaml
+    tenant: conocophillips
+    site_id: External
+    source_scope: default
+    changed_fields:
+    - source_scope
+    - workday_identity
+  evidence_gaps:
+  - Live inventory completeness and exact terminal accounting remain untested.
+  migration_risk: LOW
+  rollback_reference: config/target_companies.workday_identity_batch2_rollback.yaml#conocophillips
+- company: CAE Inc.
+  existing_configuration:
+    tenant: cae
+    wd_subdomain: wd3
+    site_id: career
+    source_scope: default
+    careers_url: https://www.cae.com/careers/
+    search_url: https://cae.wd3.myworkdayjobs.com/career
+    source_ownership: CAE Inc.::default
+  active_and_historical_job_identifiers:
+    repository_status: NOT_AVAILABLE_IN_CHECKOUT
+    production_store_queried: false
+    assessment: Logical ownership remains the exact canonical company plus default scope; provider tenant and site are unchanged.
+  identity_evidence:
+    official_source_url: https://www.cae.com/careers/
+    official_binding_target_url: https://cae.wd3.myworkdayjobs.com/career
+    binding_type: direct_link
+    verified_fact: The current corporate careers page publishes the exact configured Workday career site and introduce-yourself route.
+    assumption: The linked board covers CAE employee opportunities represented by the corporate careers page.
+  classification: READY_FOR_CANARY
+  proposed_candidate:
+    registry: config/target_companies.workday_identity_batch2_candidates.yaml
+    tenant: cae
+    site_id: career
+    source_scope: default
+    changed_fields:
+    - source_scope
+    - workday_identity
+  evidence_gaps:
+  - Live inventory completeness and exact terminal accounting remain untested.
+  migration_risk: LOW
+  rollback_reference: config/target_companies.workday_identity_batch2_rollback.yaml#cae-inc
+- company: Silicon Labs
+  existing_configuration:
+    tenant: silabs
+    wd_subdomain: wd1
+    site_id: SiliconlabsCareers
+    source_scope: default
+    careers_url: https://www.silabs.com/about-us/careers
+    search_url: https://silabs.wd1.myworkdayjobs.com/SiliconlabsCareers
+    source_ownership: Silicon Labs::default
+  active_and_historical_job_identifiers:
+    repository_status: NOT_AVAILABLE_IN_CHECKOUT
+    production_store_queried: false
+    assessment: Logical ownership remains the exact canonical company plus default scope; provider tenant and site are unchanged.
+  identity_evidence:
+    official_source_url: https://www.silabs.com/about-us/careers
+    official_binding_target_url: https://silabs.wd1.myworkdayjobs.com/SiliconlabsCareers
+    binding_type: direct_link
+    verified_fact: The current corporate careers page links Browse Job Openings directly to the exact configured Workday board.
+    assumption: The linked board is the company-wide external recruiting source.
+  classification: READY_FOR_CANARY
+  proposed_candidate:
+    registry: config/target_companies.workday_identity_batch2_candidates.yaml
+    tenant: silabs
+    site_id: SiliconlabsCareers
+    source_scope: default
+    changed_fields:
+    - source_scope
+    - workday_identity
+  evidence_gaps:
+  - Live inventory completeness and exact terminal accounting remain untested.
+  migration_risk: LOW
+  rollback_reference: config/target_companies.workday_identity_batch2_rollback.yaml#silicon-labs
+- company: Ciena
+  existing_configuration:
+    tenant: ciena
+    wd_subdomain: wd5
+    site_id: Careers
+    source_scope: default
+    careers_url: https://www.ciena.com/careers
+    search_url: https://ciena.wd5.myworkdayjobs.com/Careers
+    source_ownership: Ciena::default
+  active_and_historical_job_identifiers:
+    repository_status: NOT_AVAILABLE_IN_CHECKOUT
+    production_store_queried: false
+    assessment: Logical ownership remains the exact canonical company plus default scope; provider tenant and site are unchanged.
+  identity_evidence:
+    official_source_url: https://www.ciena.com/careers
+    official_binding_target_url: https://ciena.wd5.myworkdayjobs.com/Careers
+    binding_type: direct_link
+    verified_fact: The current corporate careers page links Explore jobs directly to the exact configured Workday board.
+    assumption: The linked board is the company-wide external recruiting source.
+  classification: READY_FOR_CANARY
+  proposed_candidate:
+    registry: config/target_companies.workday_identity_batch2_candidates.yaml
+    tenant: ciena
+    site_id: Careers
+    source_scope: default
+    changed_fields:
+    - source_scope
+    - workday_identity
+  evidence_gaps:
+  - Live inventory completeness and exact terminal accounting remain untested.
+  migration_risk: LOW
+  rollback_reference: config/target_companies.workday_identity_batch2_rollback.yaml#ciena
+- company: Logitech
+  existing_configuration:
+    tenant: logitech
+    wd_subdomain: wd5
+    site_id: Logitech
+    source_scope: default
+    careers_url: https://www.logitech.com/en-us/careers
+    search_url: https://logitech.wd5.myworkdayjobs.com/Logitech
+    source_ownership: Logitech::default
+  active_and_historical_job_identifiers:
+    repository_status: NOT_AVAILABLE_IN_CHECKOUT
+    production_store_queried: false
+    assessment: Logical ownership remains the exact canonical company plus default scope; provider tenant and site are unchanged.
+  identity_evidence:
+    official_source_url: https://www.logitech.com/en-us/careers
+    official_binding_target_url: https://logitech.wd5.myworkdayjobs.com/Logitech
+    binding_type: embedded_config
+    verified_fact: The current corporate careers page publishes the exact configured Workday board URL in its rendered page configuration.
+    assumption: The embedded board is the company-wide external recruiting source behind the careers experience.
+  classification: READY_FOR_CANARY
+  proposed_candidate:
+    registry: config/target_companies.workday_identity_batch2_candidates.yaml
+    tenant: logitech
+    site_id: Logitech
+    source_scope: default
+    changed_fields:
+    - source_scope
+    - workday_identity
+  evidence_gaps:
+  - Live inventory completeness and exact terminal accounting remain untested.
+  migration_risk: LOW
+  rollback_reference: config/target_companies.workday_identity_batch2_rollback.yaml#logitech
+- company: Symbotic
+  existing_configuration:
+    tenant: symbotic
+    wd_subdomain: wd504
+    site_id: Symbotic
+    source_scope: default
+    careers_url: https://www.symbotic.com/careers/
+    search_url: https://symbotic.wd504.myworkdayjobs.com/Symbotic
+    source_ownership: Symbotic::default
+  active_and_historical_job_identifiers:
+    repository_status: NOT_AVAILABLE_IN_CHECKOUT
+    production_store_queried: false
+    assessment: Logical ownership remains the exact canonical company plus default scope; provider tenant and site are unchanged.
+  identity_evidence:
+    official_source_url: https://www.symbotic.com/careers/jobs/
+    official_binding_target_url: https://symbotic.wd504.myworkdayjobs.com/Symbotic
+    binding_type: embedded_config
+    verified_fact: The first-party all-open-positions page and job details expose current requisition IDs and Apply Now links under the configured site.
+    assumption: The Workday site is the application authority behind the first-party positions inventory.
+  classification: READY_FOR_CANARY
+  proposed_candidate:
+    registry: config/target_companies.workday_identity_batch2_candidates.yaml
+    tenant: symbotic
+    site_id: Symbotic
+    source_scope: default
+    changed_fields:
+    - source_scope
+    - workday_identity
+  evidence_gaps:
+  - Live inventory completeness and exact terminal accounting remain untested.
+  migration_risk: LOW
+  rollback_reference: config/target_companies.workday_identity_batch2_rollback.yaml#symbotic
+report:
+  status_counts:
+    READY_FOR_CANARY: 16
+    NEEDS_SCOPE_MIGRATION: 2
+    BLOCKED_PENDING_EVIDENCE: 2
+    INVALID_SOURCE: 0
+  ready_for_canary:
+  - Microchip Technology
+  - Lattice Semiconductor
+  - Capital One
+  - Magna International
+  - Valeo
+  - Unity
+  - PTC
+  - TC Energy
+  - Suncor Energy
+  - Cenovus Energy
+  - ConocoPhillips
+  - CAE Inc.
+  - Silicon Labs
+  - Ciena
+  - Logitech
+  - Symbotic
+  needs_scope_migration:
+  - Sony
+  - Shell
+  blocked_pending_evidence:
+  - Broadcom
+  - Enbridge
+  invalid_source: []
+  production_activation_proposed: false
+bounded_live_canary_plan:
+  authorization_required: true
+  required_result: PASS_COMPLETE
+  request_budget_per_sub_batch: 52
+  commands:
+  - .\.venv\Scripts\python.exe scripts\validate_source_integrity_canaries.py --registry config\target_companies.workday_identity_batch2_candidates.yaml --company "Microchip Technology" --company "Lattice Semiconductor" --company "Capital One" --company "Magna International" --company "Valeo" --request-budget 52 --run
+  - .\.venv\Scripts\python.exe scripts\validate_source_integrity_canaries.py --registry config\target_companies.workday_identity_batch2_candidates.yaml --company "Unity" --company "PTC" --company "TC Energy" --company "Suncor Energy" --company "Cenovus Energy" --request-budget 52 --run
+  - .\.venv\Scripts\python.exe scripts\validate_source_integrity_canaries.py --registry config\target_companies.workday_identity_batch2_candidates.yaml --company "ConocoPhillips" --company "CAE Inc." --company "Silicon Labs" --company "Ciena" --company "Logitech" --company "Symbotic" --request-budget 52 --run
+  stop_conditions:
+  - Any outcome other than PASS_COMPLETE.
+  - Any non-authoritative or non-terminal inventory.
+  - Any duplicate provider identity or canonical URL.
+  - Any rejected or unexplained inventory record.
+  - Any identity, scope, pagination, mutation, redirect, accounting, or safety contradiction.

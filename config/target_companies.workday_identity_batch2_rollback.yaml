@@ -1,0 +1,272 @@
+target_companies:
+- name: Broadcom
+  platform: workday
+  careers_url: https://www.broadcom.com/company/careers
+  source_identity_regex: Broadcom
+  allowed_apply_hosts:
+  - broadcom.wd1.myworkdayjobs.com
+  original_workbook_rank: 22
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  tenant: broadcom
+  wd_subdomain: wd1
+  site_id: External_Career
+  search_url: https://broadcom.wd1.myworkdayjobs.com/External_Career
+- name: Microchip Technology
+  platform: workday
+  careers_url: https://www.microchip.com/en-us/about/careers
+  source_identity_regex: microchiphr
+  allowed_apply_hosts:
+  - microchiphr.wd5.myworkdayjobs.com
+  original_workbook_rank: 39
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  tenant: microchiphr
+  wd_subdomain: wd5
+  site_id: External
+  search_url: https://microchiphr.wd5.myworkdayjobs.com/External
+  identity_url: https://microchiphr.wd5.myworkdayjobs.com/External
+- name: Lattice Semiconductor
+  platform: workday
+  tenant: latticesemi
+  wd_subdomain: wd5
+  site_id: latticesemiconductorscareers
+  careers_url: https://latticesemi.wd5.myworkdayjobs.com/latticesemiconductorscareers
+  source_url: https://www.latticesemi.com/About/Jobs
+  original_workbook_rank: 40
+  industry: Not recorded in repository master workbook
+  max_pages: 2
+  max_jobs: 20
+  evidence_source: https://www.latticesemi.com/About/Jobs
+  evidence_confidence: high
+  evidence_timestamp: '2026-08-11T00:00:00+00:00'
+- name: Capital One
+  platform: workday
+  tenant: capitalone
+  wd_subdomain: wd12
+  site_id: Capital_One
+  careers_url: https://www.capitalonecareers.com/search-jobs
+  search_url: https://capitalone.wd12.myworkdayjobs.com/Capital_One
+  endpoint_variant: wday_cxs_v1
+  original_workbook_rank: 89
+  allowed_apply_hosts:
+  - capitalone.wd12.myworkdayjobs.com
+  max_pages: 2
+  max_jobs: 20
+- name: Magna International
+  platform: workday
+  careers_url: https://www.magna.com/careers
+  source_identity_regex: Magna
+  allowed_apply_hosts:
+  - magna.wd3.myworkdayjobs.com
+  original_workbook_rank: 127
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  tenant: magna
+  wd_subdomain: wd3
+  site_id: Magna
+  search_url: https://magna.wd3.myworkdayjobs.com/Magna
+- name: Valeo
+  platform: workday
+  tenant: valeo
+  wd_subdomain: wd3
+  site_id: valeo_jobs
+  careers_url: https://www.valeo.com/en/careers/
+  search_url: https://valeo.wd3.myworkdayjobs.com/valeo_jobs
+  endpoint_variant: wday_cxs_v1
+  original_workbook_rank: 129
+  allowed_apply_hosts:
+  - valeo.wd3.myworkdayjobs.com
+  max_pages: 1
+  max_jobs: 20
+- name: Unity
+  platform: workday
+  tenant: unitytech
+  wd_subdomain: wd1
+  site_id: Unity
+  careers_url: https://unity.com/careers/positions
+  search_url: https://unitytech.wd1.myworkdayjobs.com/Unity
+  endpoint_variant: wday_cxs_v1
+  original_workbook_rank: 135
+  allowed_apply_hosts:
+  - unitytech.wd1.myworkdayjobs.com
+  max_pages: 2
+  max_jobs: 20
+- name: Sony
+  platform: workday
+  careers_url: https://www.sony.com/en/SonyInfo/Careers/
+  source_identity_regex: sonyglobal
+  allowed_apply_hosts:
+  - sonyglobal.wd1.myworkdayjobs.com
+  original_workbook_rank: 137
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  tenant: sonyglobal
+  wd_subdomain: wd1
+  site_id: SonyGlobalCareers
+  search_url: https://sonyglobal.wd1.myworkdayjobs.com/SonyGlobalCareers
+  identity_url: https://sonyglobal.wd1.myworkdayjobs.com/SonyGlobalCareers
+- name: PTC
+  platform: workday
+  tenant: ptc
+  wd_subdomain: wd1
+  site_id: PTC
+  careers_url: https://www.ptc.com/en/careers
+  search_url: https://ptc.wd1.myworkdayjobs.com/PTC
+  endpoint_variant: wday_cxs_v1
+  original_workbook_rank: 146
+  allowed_apply_hosts:
+  - ptc.wd1.myworkdayjobs.com
+  max_pages: 1
+  max_jobs: 20
+- name: TC Energy
+  platform: workday
+  tenant: tcenergy
+  wd_subdomain: wd3
+  site_id: CAREER_SITE_TC
+  careers_url: https://www.tcenergy.com/careers/
+  search_url: https://tcenergy.wd3.myworkdayjobs.com/CAREER_SITE_TC
+  endpoint_variant: wday_cxs_v1
+  original_workbook_rank: 176
+  allowed_apply_hosts:
+  - tcenergy.wd3.myworkdayjobs.com
+  max_pages: 1
+  max_jobs: 20
+- name: Enbridge
+  platform: workday
+  tenant: enbridge
+  wd_subdomain: wd3
+  site_id: enbridge_careers
+  careers_url: https://www.enbridge.com/work-with-enbridge/careers
+  source_url: https://www.enbridge.com/work-with-enbridge/careers
+  priority: TBD
+- name: Shell
+  platform: workday
+  tenant: shell
+  wd_subdomain: wd3
+  site_id: shellcareers
+  careers_url: https://www.shell.com/careers.html
+  source_url: https://www.shell.com/careers.html
+  priority: TBD
+- name: Suncor Energy
+  platform: workday
+  careers_url: https://www.suncor.com/en-ca/careers
+  source_identity_regex: suncor
+  allowed_apply_hosts:
+  - suncor.wd1.myworkdayjobs.com
+  original_workbook_rank: 170
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  tenant: suncor
+  wd_subdomain: wd1
+  site_id: Suncor_External
+  search_url: https://suncor.wd1.myworkdayjobs.com/Suncor_External
+  identity_url: https://suncor.wd1.myworkdayjobs.com/Suncor_External
+- name: Cenovus Energy
+  platform: workday
+  careers_url: https://www.cenovus.com/Careers
+  source_identity_regex: Cenovus
+  allowed_apply_hosts:
+  - cenovus.wd3.myworkdayjobs.com
+  original_workbook_rank: 175
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  identity_url: https://cenovus.wd3.myworkdayjobs.com/careers
+  tenant: cenovus
+  wd_subdomain: wd3
+  site_id: careers
+  search_url: https://cenovus.wd3.myworkdayjobs.com/careers
+- name: ConocoPhillips
+  platform: workday
+  tenant: conocophillips
+  wd_subdomain: wd1
+  site_id: External
+  careers_url: https://careers.conocophillips.com/
+  search_url: https://conocophillips.wd1.myworkdayjobs.com/External
+  endpoint_variant: wday_cxs_v1
+  original_workbook_rank: 177
+  allowed_apply_hosts:
+  - conocophillips.wd1.myworkdayjobs.com
+  max_pages: 1
+  max_jobs: 20
+- name: CAE Inc.
+  platform: workday
+  careers_url: https://www.cae.com/careers/
+  source_identity_regex: Welcome to CAE|One CAE
+  allowed_apply_hosts:
+  - cae.wd3.myworkdayjobs.com
+  original_workbook_rank: null
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  identity_url: https://cae.wd3.myworkdayjobs.com/career
+  tenant: cae
+  wd_subdomain: wd3
+  site_id: career
+  search_url: https://cae.wd3.myworkdayjobs.com/career
+- name: Silicon Labs
+  platform: workday
+  careers_url: https://www.silabs.com/about-us/careers
+  source_identity_regex: Silicon Labs|SiliconlabsCareers
+  allowed_apply_hosts:
+  - silabs.wd1.myworkdayjobs.com
+  original_workbook_rank: null
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  identity_url: https://silabs.wd1.myworkdayjobs.com/SiliconlabsCareers
+  tenant: silabs
+  wd_subdomain: wd1
+  site_id: SiliconlabsCareers
+  search_url: https://silabs.wd1.myworkdayjobs.com/SiliconlabsCareers
+- name: Ciena
+  platform: workday
+  careers_url: https://www.ciena.com/careers
+  source_identity_regex: Ciena
+  allowed_apply_hosts:
+  - ciena.wd5.myworkdayjobs.com
+  original_workbook_rank: null
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  identity_url: https://ciena.wd5.myworkdayjobs.com/Careers
+  search_url: https://ciena.wd5.myworkdayjobs.com/Careers
+  tenant: ciena
+  wd_subdomain: wd5
+  site_id: Careers
+- name: Logitech
+  platform: workday
+  careers_url: https://www.logitech.com/en-us/careers
+  identity_url: https://www.logitech.com/en-us/careers
+  source_identity_regex: Logitech
+  identity_regex: Logitech
+  allowed_apply_hosts:
+  - logitech.wd5.myworkdayjobs.com
+  original_workbook_rank: null
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  search_url: https://logitech.wd5.myworkdayjobs.com/Logitech
+  tenant: logitech
+  wd_subdomain: wd5
+  site_id: Logitech
+- name: Symbotic
+  platform: workday
+  careers_url: https://www.symbotic.com/careers/
+  original_workbook_rank: null
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  tenant: symbotic
+  wd_subdomain: wd504
+  site_id: Symbotic
+  search_url: https://symbotic.wd504.myworkdayjobs.com/Symbotic
+  source_identity_regex: Symbotic
+  allowed_apply_hosts:
+  - symbotic.wd504.myworkdayjobs.com

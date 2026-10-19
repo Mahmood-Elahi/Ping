@@ -687,6 +687,18 @@ target_companies:
     - ptc.wd1.myworkdayjobs.com
     max_pages: 1
     max_jobs: 20
+    source_scope: default
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch2.yaml#ptc
+      official_source_url: https://www.ptc.com/en/careers
+      official_binding_target_url: https://ptc.wd1.myworkdayjobs.com/PTC
+      official_binding_type: direct_link
+      expected_employer_name: PTC
+      expected_source_scope: default
+      expected_workday_tenant: ptc
+      expected_workday_site: PTC
+      expected_workday_hostname: ptc.wd1.myworkdayjobs.com
+      expected_apply_hostname: ptc.wd1.myworkdayjobs.com
   - name: Agility Robotics
     platform: greenhouse
     slug: agilityrobotics
@@ -713,6 +725,18 @@ target_companies:
     - tcenergy.wd3.myworkdayjobs.com
     max_pages: 1
     max_jobs: 20
+    source_scope: default
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch2.yaml#tc-energy
+      official_source_url: https://www.tcenergy.com/careers/
+      official_binding_target_url: https://tcenergy.wd3.myworkdayjobs.com/CAREER_SITE_TC
+      official_binding_type: embedded_config
+      expected_employer_name: TC Energy
+      expected_source_scope: default
+      expected_workday_tenant: tcenergy
+      expected_workday_site: CAREER_SITE_TC
+      expected_workday_hostname: tcenergy.wd3.myworkdayjobs.com
+      expected_apply_hostname: tcenergy.wd3.myworkdayjobs.com
   - name: ConocoPhillips
     platform: workday
     tenant: conocophillips
@@ -726,6 +750,18 @@ target_companies:
     - conocophillips.wd1.myworkdayjobs.com
     max_pages: 1
     max_jobs: 20
+    source_scope: default
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch2.yaml#conocophillips
+      official_source_url: https://careers.conocophillips.com/job-search-results/
+      official_binding_target_url: https://conocophillips.wd1.myworkdayjobs.com/External
+      official_binding_type: embedded_config
+      expected_employer_name: ConocoPhillips
+      expected_source_scope: default
+      expected_workday_tenant: conocophillips
+      expected_workday_site: External
+      expected_workday_hostname: conocophillips.wd1.myworkdayjobs.com
+      expected_apply_hostname: conocophillips.wd1.myworkdayjobs.com
   - name: Ovintiv
     platform: workday
     tenant: ovintiv
@@ -865,7 +901,7 @@ target_companies:
     tenant: latticesemi
     wd_subdomain: wd5
     site_id: latticesemiconductorscareers
-    careers_url: https://latticesemi.wd5.myworkdayjobs.com/latticesemiconductorscareers
+    careers_url: https://www.latticesemi.com/careers
     source_url: https://www.latticesemi.com/About/Jobs
     original_workbook_rank: 40
     industry: Not recorded in repository master workbook
@@ -874,6 +910,21 @@ target_companies:
     evidence_source: https://www.latticesemi.com/About/Jobs
     evidence_confidence: high
     evidence_timestamp: '2026-08-11T00:00:00+00:00'
+    search_url: https://latticesemi.wd5.myworkdayjobs.com/latticesemiconductorscareers
+    allowed_apply_hosts:
+    - latticesemi.wd5.myworkdayjobs.com
+    source_scope: default
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch2.yaml#lattice-semiconductor
+      official_source_url: https://www.latticesemi.com/careers
+      official_binding_target_url: https://latticesemi.wd5.myworkdayjobs.com/latticesemiconductorscareers
+      official_binding_type: direct_link
+      expected_employer_name: Lattice Semiconductor
+      expected_source_scope: default
+      expected_workday_tenant: latticesemi
+      expected_workday_site: latticesemiconductorscareers
+      expected_workday_hostname: latticesemi.wd5.myworkdayjobs.com
+      expected_apply_hostname: latticesemi.wd5.myworkdayjobs.com
   - name: GitHub
     platform: icims
     tenant: githubinc
@@ -1532,6 +1583,18 @@ target_companies:
     - capitalone.wd12.myworkdayjobs.com
     max_pages: 2
     max_jobs: 20
+    source_scope: default
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch2.yaml#capital-one
+      official_source_url: https://www.capitalonecareers.com/search-jobs
+      official_binding_target_url: https://capitalone.wd12.myworkdayjobs.com/Capital_One
+      official_binding_type: embedded_config
+      expected_employer_name: Capital One
+      expected_source_scope: default
+      expected_workday_tenant: capitalone
+      expected_workday_site: Capital_One
+      expected_workday_hostname: capitalone.wd12.myworkdayjobs.com
+      expected_apply_hostname: capitalone.wd12.myworkdayjobs.com
   - name: Unity
     platform: workday
     tenant: unitytech
@@ -1545,6 +1608,18 @@ target_companies:
     - unitytech.wd1.myworkdayjobs.com
     max_pages: 2
     max_jobs: 20
+    source_scope: default
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch2.yaml#unity
+      official_source_url: https://unity.com/careers/positions
+      official_binding_target_url: https://unitytech.wd1.myworkdayjobs.com/Unity
+      official_binding_type: embedded_config
+      expected_employer_name: Unity
+      expected_source_scope: default
+      expected_workday_tenant: unitytech
+      expected_workday_site: Unity
+      expected_workday_hostname: unitytech.wd1.myworkdayjobs.com
+      expected_apply_hostname: unitytech.wd1.myworkdayjobs.com
   - name: Loft Orbital
     platform: lever
     slug: loftorbital
@@ -2222,6 +2297,18 @@ target_companies:
     site_id: External
     search_url: https://microchiphr.wd5.myworkdayjobs.com/External
     identity_url: https://microchiphr.wd5.myworkdayjobs.com/External
+    source_scope: default
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch2.yaml#microchip-technology
+      official_source_url: https://www.microchip.com/en-us/about/careers
+      official_binding_target_url: https://microchiphr.wd5.myworkdayjobs.com/External
+      official_binding_type: direct_link
+      expected_employer_name: Microchip Technology
+      expected_source_scope: default
+      expected_workday_tenant: microchiphr
+      expected_workday_site: External
+      expected_workday_hostname: microchiphr.wd5.myworkdayjobs.com
+      expected_apply_hostname: microchiphr.wd5.myworkdayjobs.com
   - name: Omron
     platform: sap_successfactors
     careers_url: https://careers.omron.com/
@@ -2260,6 +2347,18 @@ target_companies:
     wd_subdomain: wd3
     site_id: Magna
     search_url: https://magna.wd3.myworkdayjobs.com/Magna
+    source_scope: default
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch2.yaml#magna-international
+      official_source_url: https://www.magna.com/careers
+      official_binding_target_url: https://magna.wd3.myworkdayjobs.com/Magna
+      official_binding_type: direct_link
+      expected_employer_name: Magna International
+      expected_source_scope: default
+      expected_workday_tenant: magna
+      expected_workday_site: Magna
+      expected_workday_hostname: magna.wd3.myworkdayjobs.com
+      expected_apply_hostname: magna.wd3.myworkdayjobs.com
   - name: Autodesk
     platform: workday
     careers_url: https://www.autodesk.com/careers
@@ -2396,6 +2495,18 @@ target_companies:
     site_id: Suncor_External
     search_url: https://suncor.wd1.myworkdayjobs.com/Suncor_External
     identity_url: https://suncor.wd1.myworkdayjobs.com/Suncor_External
+    source_scope: default
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch2.yaml#suncor-energy
+      official_source_url: https://www.suncor.com/en-ca/careers
+      official_binding_target_url: https://suncor.wd1.myworkdayjobs.com/Suncor_External
+      official_binding_type: direct_link
+      expected_employer_name: Suncor Energy
+      expected_source_scope: default
+      expected_workday_tenant: suncor
+      expected_workday_site: Suncor_External
+      expected_workday_hostname: suncor.wd1.myworkdayjobs.com
+      expected_apply_hostname: suncor.wd1.myworkdayjobs.com
   - name: Firefly Aerospace
     platform: clearcompany
     careers_url: https://fireflyspace.com/careers/
@@ -2511,6 +2622,18 @@ target_companies:
     wd_subdomain: wd3
     site_id: careers
     search_url: https://cenovus.wd3.myworkdayjobs.com/careers
+    source_scope: default
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch2.yaml#cenovus-energy
+      official_source_url: https://www.cenovus.com/Careers/Current-opportunities
+      official_binding_target_url: https://cenovus.wd3.myworkdayjobs.com/careers
+      official_binding_type: direct_link
+      expected_employer_name: Cenovus Energy
+      expected_source_scope: default
+      expected_workday_tenant: cenovus
+      expected_workday_site: careers
+      expected_workday_hostname: cenovus.wd3.myworkdayjobs.com
+      expected_apply_hostname: cenovus.wd3.myworkdayjobs.com
   - name: Imperial Oil
     platform: static_html
     careers_url: https://www.imperialoil.ca/careers/careers
@@ -2750,6 +2873,18 @@ target_companies:
     wd_subdomain: wd3
     site_id: career
     search_url: https://cae.wd3.myworkdayjobs.com/career
+    source_scope: default
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch2.yaml#cae-inc
+      official_source_url: https://www.cae.com/careers/
+      official_binding_target_url: https://cae.wd3.myworkdayjobs.com/career
+      official_binding_type: direct_link
+      expected_employer_name: CAE Inc.
+      expected_source_scope: default
+      expected_workday_tenant: cae
+      expected_workday_site: career
+      expected_workday_hostname: cae.wd3.myworkdayjobs.com
+      expected_apply_hostname: cae.wd3.myworkdayjobs.com
   - name: Cohere
     platform: ashby
     careers_url: https://cohere.com/careers
@@ -3205,6 +3340,18 @@ target_companies:
     wd_subdomain: wd1
     site_id: SiliconlabsCareers
     search_url: https://silabs.wd1.myworkdayjobs.com/SiliconlabsCareers
+    source_scope: default
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch2.yaml#silicon-labs
+      official_source_url: https://www.silabs.com/about-us/careers
+      official_binding_target_url: https://silabs.wd1.myworkdayjobs.com/SiliconlabsCareers
+      official_binding_type: direct_link
+      expected_employer_name: Silicon Labs
+      expected_source_scope: default
+      expected_workday_tenant: silabs
+      expected_workday_site: SiliconlabsCareers
+      expected_workday_hostname: silabs.wd1.myworkdayjobs.com
+      expected_apply_hostname: silabs.wd1.myworkdayjobs.com
   - name: TEKTELIC Communications
     platform: static_html
     careers_url: https://tektelic.com/career/
@@ -3860,6 +4007,18 @@ target_companies:
     tenant: ciena
     wd_subdomain: wd5
     site_id: Careers
+    source_scope: default
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch2.yaml#ciena
+      official_source_url: https://www.ciena.com/careers
+      official_binding_target_url: https://ciena.wd5.myworkdayjobs.com/Careers
+      official_binding_type: direct_link
+      expected_employer_name: Ciena
+      expected_source_scope: default
+      expected_workday_tenant: ciena
+      expected_workday_site: Careers
+      expected_workday_hostname: ciena.wd5.myworkdayjobs.com
+      expected_apply_hostname: ciena.wd5.myworkdayjobs.com
   - name: Nokia Canada
     platform: oracle_recruiting
     careers_url: https://fa-evmr-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/jobs
@@ -5144,6 +5303,18 @@ target_companies:
     tenant: logitech
     wd_subdomain: wd5
     site_id: Logitech
+    source_scope: default
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch2.yaml#logitech
+      official_source_url: https://www.logitech.com/en-us/careers
+      official_binding_target_url: https://logitech.wd5.myworkdayjobs.com/Logitech
+      official_binding_type: embedded_config
+      expected_employer_name: Logitech
+      expected_source_scope: default
+      expected_workday_tenant: logitech
+      expected_workday_site: Logitech
+      expected_workday_hostname: logitech.wd5.myworkdayjobs.com
+      expected_apply_hostname: logitech.wd5.myworkdayjobs.com
   - name: Sonos
     platform: workday
     careers_url: https://www.sonos.com/en-us/life-at-sonos
@@ -5328,6 +5499,18 @@ target_companies:
     source_identity_regex: Symbotic
     allowed_apply_hosts:
     - symbotic.wd504.myworkdayjobs.com
+    source_scope: default
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch2.yaml#symbotic
+      official_source_url: https://www.symbotic.com/careers/jobs/
+      official_binding_target_url: https://symbotic.wd504.myworkdayjobs.com/Symbotic
+      official_binding_type: embedded_config
+      expected_employer_name: Symbotic
+      expected_source_scope: default
+      expected_workday_tenant: symbotic
+      expected_workday_site: Symbotic
+      expected_workday_hostname: symbotic.wd504.myworkdayjobs.com
+      expected_apply_hostname: symbotic.wd504.myworkdayjobs.com
   - name: Plus One Robotics
     platform: bamboohr
     careers_url: https://www.plusonerobotics.com/careers

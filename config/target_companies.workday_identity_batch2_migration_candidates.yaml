@@ -1,0 +1,52 @@
+target_companies:
+- name: Sony
+  platform: workday
+  careers_url: https://www.sony.com/en/SonyInfo/Careers/
+  source_identity_regex: sonyglobal
+  allowed_apply_hosts:
+  - sonyglobal.wd1.myworkdayjobs.com
+  original_workbook_rank: 137
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  tenant: sonyglobal
+  wd_subdomain: wd1
+  site_id: Sony_Europe_Careers
+  search_url: https://sonyglobal.wd1.myworkdayjobs.com/Sony_Europe_Careers
+  identity_url: https://sonyglobal.wd1.myworkdayjobs.com/Sony_Europe_Careers
+  source_scope: europe
+  workday_identity:
+    evidence_source: config/workday_identity_recovery_batch2.yaml#sony
+    official_source_url: https://www.sony.com/en/SonyInfo/Careers/
+    official_binding_target_url: https://sonyglobal.wd1.myworkdayjobs.com/Sony_Europe_Careers
+    official_binding_type: direct_link
+    expected_employer_name: Sony
+    expected_source_scope: europe
+    expected_workday_tenant: sonyglobal
+    expected_workday_site: Sony_Europe_Careers
+    expected_workday_hostname: sonyglobal.wd1.myworkdayjobs.com
+    expected_apply_hostname: sonyglobal.wd1.myworkdayjobs.com
+- name: Shell
+  platform: workday
+  tenant: shell
+  wd_subdomain: wd3
+  site_id: ShellCareers
+  careers_url: https://www.shell.com/careers.html
+  source_url: https://www.shell.com/careers.html
+  priority: TBD
+  source_scope: default
+  search_url: https://shell.wd3.myworkdayjobs.com/ShellCareers
+  identity_url: https://shell.wd3.myworkdayjobs.com/ShellCareers
+  allowed_apply_hosts:
+  - shell.wd3.myworkdayjobs.com
+  workday_identity:
+    evidence_source: config/workday_identity_recovery_batch2.yaml#shell
+    official_source_url: https://www.shell.com/careers.html
+    official_binding_target_url: https://shell.wd3.myworkdayjobs.com/ShellCareers
+    official_binding_type: direct_link
+    expected_employer_name: Shell
+    expected_source_scope: default
+    expected_workday_tenant: shell
+    expected_workday_site: ShellCareers
+    expected_workday_hostname: shell.wd3.myworkdayjobs.com
+    expected_apply_hostname: shell.wd3.myworkdayjobs.com

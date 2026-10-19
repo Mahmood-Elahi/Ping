@@ -1,0 +1,224 @@
+package:
+  name: workday_identity_batch2_production_activation
+  prepared_date: '2026-10-19'
+  baseline_branch: main
+  baseline_head: 8fd33b4f4d917718d016e71650b2d2042fdc88ca
+  baseline_production_registry_sha256: 5efb8fb28f9405c2b3528d98a33e9f1c33475465f001a1d73fe681f995c2e168
+  baseline_production_registry_structural_sha256: e74c8ec2cbad64aac9bc6804611e190ef55cd0243c9074b91499466c4c577755
+  activated_production_registry_sha256: 0a2991152ef357b783c3c46fc96a77580ca734e9ef8da8d64bda1f305960d099
+  activated_production_registry_structural_sha256: c0e7da96fd390e5025bd104868d89683cd4f8cd2f961f5201eb56a1e99b8666b
+  production_registry_modified: true
+  activation_approved: true
+  activation_executed: true
+  deployment_executed: false
+  external_mutations_performed: false
+
+inputs:
+  production_registry: config/target_companies.yaml
+  reviewed_identity_evidence: config/workday_identity_recovery_batch2.yaml
+  exact_tested_candidates: config/target_companies.workday_identity_batch2_candidates.yaml
+  separately_blocked_migration_candidates: config/target_companies.workday_identity_batch2_migration_candidates.yaml
+  original_twenty_company_rollback: config/target_companies.workday_identity_batch2_rollback.yaml
+  activation_proposal: config/target_companies.workday_identity_batch2_activation_proposal.yaml
+  activation_rollback: config/target_companies.workday_identity_batch2_activation_rollback.yaml
+
+operator_supplied_live_evidence:
+  evidence_kind: operator_summary_of_bounded_live_canaries
+  evidence_location: operator supplied; raw canary reports are not copied into this checkout
+  fresh_validation_performed_by_this_task: false
+  canary_run_date: '2026-10-19'
+  common_result:
+    canary_outcome: PASS_COMPLETE
+    bounded_read_only_canary: true
+    employer_identity_validated: true
+    complete_authoritative_inventory: true
+    inventory_accounting_exact: true
+    provider_job_ids_stable_and_unique: true
+    canonical_urls_valid_and_unique: true
+    malformed_or_rejected_items: 0
+    collection_mutations: 0
+    lifecycle_or_database_mutations: 0
+  companies:
+  - Microchip Technology
+  - Lattice Semiconductor
+  - Capital One
+  - Magna International
+  - Unity
+  - PTC
+  - TC Energy
+  - Suncor Energy
+  - Cenovus Energy
+  - ConocoPhillips
+  - CAE Inc.
+  - Silicon Labs
+  - Ciena
+  - Logitech
+  - Symbotic
+
+activation_summary:
+  activated: 15
+  excluded: 5
+  logical_scope_migrations: 0
+  provider_identity_migrations: 0
+  independently_activatable: true
+  exact_candidate_rule: Only the exact fifteen PASS_COMPLETE candidate rows are activated.
+
+activated_companies:
+- company: Microchip Technology
+  canary_outcome: PASS_COMPLETE
+  tenant: microchiphr
+  site_id: External
+  source_scope: default
+  changed_fields: [source_scope, workday_identity]
+- company: Lattice Semiconductor
+  canary_outcome: PASS_COMPLETE
+  tenant: latticesemi
+  site_id: latticesemiconductorscareers
+  source_scope: default
+  changed_fields: [allowed_apply_hosts, careers_url, search_url, source_scope, workday_identity]
+- company: Capital One
+  canary_outcome: PASS_COMPLETE
+  tenant: capitalone
+  site_id: Capital_One
+  source_scope: default
+  changed_fields: [source_scope, workday_identity]
+- company: Magna International
+  canary_outcome: PASS_COMPLETE
+  tenant: magna
+  site_id: Magna
+  source_scope: default
+  changed_fields: [source_scope, workday_identity]
+- company: Unity
+  canary_outcome: PASS_COMPLETE
+  tenant: unitytech
+  site_id: Unity
+  source_scope: default
+  changed_fields: [source_scope, workday_identity]
+- company: PTC
+  canary_outcome: PASS_COMPLETE
+  tenant: ptc
+  site_id: PTC
+  source_scope: default
+  changed_fields: [source_scope, workday_identity]
+- company: TC Energy
+  canary_outcome: PASS_COMPLETE
+  tenant: tcenergy
+  site_id: CAREER_SITE_TC
+  source_scope: default
+  changed_fields: [source_scope, workday_identity]
+- company: Suncor Energy
+  canary_outcome: PASS_COMPLETE
+  tenant: suncor
+  site_id: Suncor_External
+  source_scope: default
+  changed_fields: [source_scope, workday_identity]
+- company: Cenovus Energy
+  canary_outcome: PASS_COMPLETE
+  tenant: cenovus
+  site_id: careers
+  source_scope: default
+  changed_fields: [source_scope, workday_identity]
+- company: ConocoPhillips
+  canary_outcome: PASS_COMPLETE
+  tenant: conocophillips
+  site_id: External
+  source_scope: default
+  changed_fields: [source_scope, workday_identity]
+- company: CAE Inc.
+  canary_outcome: PASS_COMPLETE
+  tenant: cae
+  site_id: career
+  source_scope: default
+  changed_fields: [source_scope, workday_identity]
+- company: Silicon Labs
+  canary_outcome: PASS_COMPLETE
+  tenant: silabs
+  site_id: SiliconlabsCareers
+  source_scope: default
+  changed_fields: [source_scope, workday_identity]
+- company: Ciena
+  canary_outcome: PASS_COMPLETE
+  tenant: ciena
+  site_id: Careers
+  source_scope: default
+  changed_fields: [source_scope, workday_identity]
+- company: Logitech
+  canary_outcome: PASS_COMPLETE
+  tenant: logitech
+  site_id: Logitech
+  source_scope: default
+  changed_fields: [source_scope, workday_identity]
+- company: Symbotic
+  canary_outcome: PASS_COMPLETE
+  tenant: symbotic
+  site_id: Symbotic
+  source_scope: default
+  changed_fields: [source_scope, workday_identity]
+
+excluded_companies:
+  Valeo:
+    canary_outcome: FAIL_CONTRACT
+    failure_reason: collection_mutation
+    production_changed: false
+    follow_up: Separate source-specific investigation; not part of this activation.
+  Broadcom:
+    status: BLOCKED_PENDING_EVIDENCE
+    production_changed: false
+    follow_up: Separate identity-evidence blocker; not part of this activation.
+  Enbridge:
+    status: BLOCKED_PENDING_EVIDENCE
+    production_changed: false
+    follow_up: Separate identity-evidence blocker; not part of this activation.
+  Sony:
+    status: NEEDS_SCOPE_MIGRATION
+    production_changed: false
+    follow_up: Separate scope migration; not part of this activation.
+  Shell:
+    status: NEEDS_SCOPE_MIGRATION
+    production_changed: false
+    follow_up: Separate site/scope migration; not part of this activation.
+
+registry_safety:
+  baseline_match: All fifteen production rows matched their exact reviewed rollback definitions before activation.
+  exact_candidate_match: Every activated row is structurally identical to its PASS_COMPLETE candidate row.
+  unrelated_rows: All 518 other production company rows, including every Batch 1 activation, remain unchanged.
+  canonical_company_count: 533
+  logical_scope_count: 533
+  duplicate_company_identities: 0
+  duplicate_logical_scopes: 0
+  new_workday_provider_identity_collisions: 0
+  ownership_migrations: 0
+  tenant_site_scope_preservation: Every activated row preserves its original company name, tenant, site ID, and default logical scope.
+  bounds_rule: Safety bounds are not terminal evidence; activation relies on the supplied PASS_COMPLETE canaries.
+
+lifecycle_preservation:
+  operator_supplied_readonly_inspection: true
+  inspection_was_read_only: true
+  inspection_repeated_by_this_task: false
+  possibly_missing_ownership_records: 22
+  companies_covered: 15
+  counters_reset_or_modified: false
+  closure_policy_changed: false
+  recovery_framework_added: false
+  logical_scope_migrations: 0
+  retained_rule: Two consecutive qualifying complete absences remain required for ordinary removal.
+  activation_effect: Configuration activation does not edit ownership rows, lifecycle state, or missing counters.
+  rollback_effect: Configuration rollback does not erase lifecycle history, retire a scope, or assert source health.
+
+activation_branch_execution:
+- Explicit approval covered exactly the fifteen named PASS_COMPLETE candidate rows.
+- The production rows first matched the exact reviewed baseline rollback rows; no baseline drift was present.
+- The fifteen rows were replaced with their exact tested candidates while every unrelated row remained unchanged.
+- No live scan, canary repeat, workflow trigger, Supabase or Sheets mutation, lifecycle change, or deployment was performed.
+
+exact_rollback_procedure_not_executed:
+- Keep scheduled and external writers disabled.
+- Verify the active rows match the exact approved proposal and the rollback rows still match the recorded baseline.
+- Replace only the fifteen named production rows with their exact activation rollback definitions.
+- Validate the reconstructed registry digest and confirm all unrelated rows remain unchanged.
+- Do not retire a scope, edit lifecycle history, reset missing counters, or change closure policy.
+
+merge_and_production_blockers:
+- Keep this pull request unmerged until the scheduled writer is paused.
+- Confirm all external writers are idle before merge or any separately authorized persistent synchronization.
+- Valeo, Broadcom, Enbridge, Sony, and Shell remain excluded and require separate work.

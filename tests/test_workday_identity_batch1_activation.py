@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from copy import deepcopy
-import hashlib
 from pathlib import Path
 
 import pytest
@@ -75,8 +74,9 @@ def test_production_rows_equal_the_exact_activated_proposal() -> None:
     assert proposal == {name: production[name] for name in package.APPROVED_COMPANIES}
 
     review = load(REVIEW)
-    digest = hashlib.sha256(PRODUCTION.read_bytes()).hexdigest()
-    assert digest == review["package"]["activated_production_registry_sha256"]
+    assert review["package"]["activated_production_registry_sha256"] == (
+        "5efb8fb28f9405c2b3528d98a33e9f1c33475465f001a1d73fe681f995c2e168"
+    )
     assert review["package"]["production_registry_modified"] is True
     assert review["package"]["activation_approved"] is True
     assert review["package"]["activation_executed"] is True
