@@ -171,6 +171,11 @@ def _fetch_jobs_once(
                 )
                 break
 
+            # Preserve mutation restart above, then validate the entire raw
+            # page before max_jobs can conceal contradictory accounting.
+            if offset + len(content) > total:
+                raise AdapterError("SmartRecruiters page exceeds its advertised total")
+
             inventory_on_page = 0
             page_ids: set[str] = set()
             page_overlap = 0
@@ -569,8 +574,33 @@ def _normalize(
             "apply_url": apply_url,
             "api_detail_url": detail_ref,
             "ref_number": _clean(detail.get("refNumber")),
+            **_optional_detail_metadata(detail),
         },
     )
+
+
+def _optional_detail_metadata(detail: Mapping[str, Any]) -> dict[str, str]:
+    """Retain provider content without changing normalized job/source identity."""
+    result: dict[str, str] = {}
+    for source, destination, field in (
+        ("typeOfEmployment", "employment_type", "label"),
+        ("experienceLevel", "experience_level", "label"),
+        ("language", "language", "code"),
+    ):
+        value = detail.get(source)
+        if isinstance(value, Mapping) and isinstance(value.get(field), str):
+            text = _clean(value[field])
+            if text:
+                result[destination] = text
+    location = detail.get("location")
+    if isinstance(location, Mapping):
+        remote = location.get("remote") is True
+        hybrid = location.get("hybrid") is True
+        if remote and not hybrid:
+            result["job_location_type"] = "remote"
+        elif hybrid and not remote:
+            result["job_location_type"] = "hybrid"
+    return result
 
 
 def _company_identity(value: Any, identifier: str, target: CompanyTarget) -> None:
@@ -650,7 +680,9 @@ def _description(value: Any) -> str:
     parts: list[str] = []
     for section in sections.values():
         if isinstance(section, Mapping) and section.get("text"):
-            parts.append(_html_text(section.get("text")))
+            body = _html_text(section.get("text"))
+            if body:
+                parts.append(body)
     return "\n\n".join(part for part in parts if part)
 
 
