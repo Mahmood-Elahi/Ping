@@ -11,12 +11,15 @@ import argparse
 from copy import deepcopy
 import json
 from pathlib import Path
+import sys
 from typing import Any, Mapping, Sequence
 
 import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 PRODUCTION = ROOT / "config" / "target_companies.yaml"
 TESTED_CANDIDATES = (
     ROOT / "config" / "target_companies.workday_identity_batch2_candidates.yaml"
@@ -120,7 +123,13 @@ def validate_package(
     rollback: Path = ROLLBACK,
     original_batch_rollback: Path = ORIGINAL_BATCH_ROLLBACK,
 ) -> dict[str, Any]:
-    production_rows = load_registry(production)["target_companies"]
+    # A later approved recovery supersedes Enbridge's historical exclusion.
+    # Validate that complete package before reconstructing this historical state.
+    if production.resolve() == PRODUCTION.resolve():
+        from scripts.validate_workday_recovery_activation import registry_before_recovery
+        production_rows = registry_before_recovery()["target_companies"]
+    else:
+        production_rows = load_registry(production)["target_companies"]
     tested_rows = load_registry(tested_candidates)["target_companies"]
     proposal_rows = load_registry(proposal)["target_companies"]
     rollback_rows = load_registry(rollback)["target_companies"]

@@ -1,0 +1,330 @@
+diff --git a/config/company_careers_reliability_repairs_v1.yaml b/config/company_careers_reliability_repairs_v1.yaml
+index 24b2485..eb081a5 100644
+--- a/config/company_careers_reliability_repairs_v1.yaml
++++ b/config/company_careers_reliability_repairs_v1.yaml
+@@ -2,14 +1,0 @@ company_careers_reliability_repairs:
+-  - name: Lattice Semiconductor
+-    platform: workday
+-    tenant: latticesemi
+-    wd_subdomain: wd5
+-    site_id: latticesemiconductorscareers
+-    careers_url: https://latticesemi.wd5.myworkdayjobs.com/latticesemiconductorscareers
+-    source_url: https://www.latticesemi.com/About/Jobs
+-    original_workbook_rank: 40
+-    industry: Not recorded in repository master workbook
+-    max_pages: 2
+-    max_jobs: 20
+-    evidence_source: https://www.latticesemi.com/About/Jobs
+-    evidence_confidence: high
+-    evidence_timestamp: '2026-08-11T00:00:00+00:00'
+diff --git a/config/target_companies.yaml b/config/target_companies.yaml
+index 0514a0f..a2e0092 100644
+--- a/config/target_companies.yaml
++++ b/config/target_companies.yaml
+@@ -300,0 +301,15 @@ target_companies:
++    source_scope: default
++    search_url: https://enbridge.wd3.myworkdayjobs.com/enbridge_careers
++    allowed_apply_hosts:
++    - enbridge.wd3.myworkdayjobs.com
++    workday_identity:
++      evidence_source: reports/ping-coverage-recovery-2026-10-25/VERIFIED_REPLACEMENTS.md#enbridge
++      official_source_url: https://www.enbridge.com/work-with-enbridge/careers
++      official_binding_target_url: https://enbridge.wd3.myworkdayjobs.com/enbridge_careers
++      official_binding_type: redirect
++      expected_employer_name: Enbridge
++      expected_source_scope: default
++      expected_workday_tenant: enbridge
++      expected_workday_site: enbridge_careers
++      expected_workday_hostname: enbridge.wd3.myworkdayjobs.com
++      expected_apply_hostname: enbridge.wd3.myworkdayjobs.com
+@@ -777,0 +793,12 @@ target_companies:
++    source_scope: default
++    workday_identity:
++      evidence_source: reports/ping-coverage-recovery-2026-10-25/VERIFIED_REPLACEMENTS.md#ovintiv
++      official_source_url: https://www.ovintiv.com/careers/
++      official_binding_target_url: https://ovintiv.wd3.myworkdayjobs.com/ovintivcareers
++      official_binding_type: direct_link
++      expected_employer_name: Ovintiv
++      expected_source_scope: default
++      expected_workday_tenant: ovintiv
++      expected_workday_site: ovintivcareers
++      expected_workday_hostname: ovintiv.wd3.myworkdayjobs.com
++      expected_apply_hostname: ovintiv.wd3.myworkdayjobs.com
+@@ -790,0 +818,12 @@ target_companies:
++    source_scope: default
++    workday_identity:
++      evidence_source: reports/ping-coverage-recovery-2026-10-25/VERIFIED_REPLACEMENTS.md#keyera
++      official_source_url: https://www.keyera.com/careers/
++      official_binding_target_url: https://keyera.wd10.myworkdayjobs.com/Keyera_Careers
++      official_binding_type: direct_link
++      expected_employer_name: Keyera
++      expected_source_scope: default
++      expected_workday_tenant: keyera
++      expected_workday_site: Keyera_Careers
++      expected_workday_hostname: keyera.wd10.myworkdayjobs.com
++      expected_apply_hostname: keyera.wd10.myworkdayjobs.com
+@@ -2596,0 +2636,12 @@ target_companies:
++    source_scope: default
++    workday_identity:
++      evidence_source: reports/ping-coverage-recovery-2026-10-25/VERIFIED_REPLACEMENTS.md#aeso-alberta-electric-system-operator
++      official_source_url: https://www.aeso.ca/aeso/work-with-us/
++      official_binding_target_url: https://aeso.wd3.myworkdayjobs.com/External
++      official_binding_type: redirect
++      expected_employer_name: AESO (Alberta Electric System Operator)
++      expected_source_scope: default
++      expected_workday_tenant: aeso
++      expected_workday_site: External
++      expected_workday_hostname: aeso.wd3.myworkdayjobs.com
++      expected_apply_hostname: aeso.wd3.myworkdayjobs.com
+@@ -2787,0 +2839,12 @@ target_companies:
++    source_scope: default
++    workday_identity:
++      evidence_source: reports/ping-coverage-recovery-2026-10-25/VERIFIED_REPLACEMENTS.md#whitecap-resources
++      official_source_url: https://www.wcap.ca/careers
++      official_binding_target_url: https://wcap.wd10.myworkdayjobs.com/Whitecap_Careers
++      official_binding_type: direct_link
++      expected_employer_name: Whitecap Resources
++      expected_source_scope: default
++      expected_workday_tenant: wcap
++      expected_workday_site: Whitecap_Careers
++      expected_workday_hostname: wcap.wd10.myworkdayjobs.com
++      expected_apply_hostname: wcap.wd10.myworkdayjobs.com
+@@ -2802,0 +2866,12 @@ target_companies:
++    source_scope: default
++    workday_identity:
++      evidence_source: reports/ping-coverage-recovery-2026-10-25/VERIFIED_REPLACEMENTS.md#vermilion-energy
++      official_source_url: https://www.vermilionenergy.com/careers/
++      official_binding_target_url: https://vermilionenergy.wd10.myworkdayjobs.com/VEI_EXTERNAL
++      official_binding_type: direct_link
++      expected_employer_name: Vermilion Energy
++      expected_source_scope: default
++      expected_workday_tenant: vermilionenergy
++      expected_workday_site: VEI_EXTERNAL
++      expected_workday_hostname: vermilionenergy.wd10.myworkdayjobs.com
++      expected_apply_hostname: vermilionenergy.wd10.myworkdayjobs.com
+@@ -3407,0 +3483,12 @@ target_companies:
++    source_scope: default
++    workday_identity:
++      evidence_source: reports/ping-coverage-recovery-2026-10-25/VERIFIED_REPLACEMENTS.md#strathcona-resources
++      official_source_url: https://www.strathconaresources.com/careers/
++      official_binding_target_url: https://strathconaresources.wd10.myworkdayjobs.com/Careers
++      official_binding_type: direct_link
++      expected_employer_name: Strathcona Resources
++      expected_source_scope: default
++      expected_workday_tenant: strathconaresources
++      expected_workday_site: Careers
++      expected_workday_hostname: strathconaresources.wd10.myworkdayjobs.com
++      expected_apply_hostname: strathconaresources.wd10.myworkdayjobs.com
+@@ -4082,0 +4170,12 @@ target_companies:
++    source_scope: default
++    workday_identity:
++      evidence_source: reports/ping-coverage-recovery-2026-10-25/VERIFIED_REPLACEMENTS.md#applyboard
++      official_source_url: https://www.applyboard.com/careers/
++      official_binding_target_url: https://applyboard.wd3.myworkdayjobs.com/ApplyBoardNH
++      official_binding_type: direct_link
++      expected_employer_name: ApplyBoard
++      expected_source_scope: default
++      expected_workday_tenant: applyboard
++      expected_workday_site: ApplyBoardNH
++      expected_workday_hostname: applyboard.wd3.myworkdayjobs.com
++      expected_apply_hostname: applyboard.wd3.myworkdayjobs.com
+@@ -4125,0 +4225,12 @@ target_companies:
++    source_scope: default
++    workday_identity:
++      evidence_source: reports/ping-coverage-recovery-2026-10-25/VERIFIED_REPLACEMENTS.md#arctic-wolf
++      official_source_url: https://arcticwolf.com/company/careers/
++      official_binding_target_url: https://arcticwolf.wd1.myworkdayjobs.com/External
++      official_binding_type: direct_link
++      expected_employer_name: Arctic Wolf
++      expected_source_scope: default
++      expected_workday_tenant: arcticwolf
++      expected_workday_site: External
++      expected_workday_hostname: arcticwolf.wd1.myworkdayjobs.com
++      expected_apply_hostname: arcticwolf.wd1.myworkdayjobs.com
+@@ -4187,0 +4299,12 @@ target_companies:
++    source_scope: default
++    workday_identity:
++      evidence_source: reports/ping-coverage-recovery-2026-10-25/VERIFIED_REPLACEMENTS.md#bruce-power
++      official_source_url: https://www.brucepower.com/careers/
++      official_binding_target_url: https://brucepower.wd3.myworkdayjobs.com/BrucePower
++      official_binding_type: direct_link
++      expected_employer_name: Bruce Power
++      expected_source_scope: default
++      expected_workday_tenant: brucepower
++      expected_workday_site: BrucePower
++      expected_workday_hostname: brucepower.wd3.myworkdayjobs.com
++      expected_apply_hostname: brucepower.wd3.myworkdayjobs.com
+@@ -4218 +4341 @@ target_companies:
+-    careers_url: https://www.multimatic.com/careers/
++    careers_url: https://www.multimatic.com/careers
+@@ -4231,0 +4355,12 @@ target_companies:
++    source_scope: default
++    workday_identity:
++      evidence_source: reports/ping-coverage-recovery-2026-10-25/VERIFIED_REPLACEMENTS.md#multimatic
++      official_source_url: https://www.multimatic.com/careers
++      official_binding_target_url: https://multimatic.wd10.myworkdayjobs.com/MMEC
++      official_binding_type: direct_link
++      expected_employer_name: Multimatic
++      expected_source_scope: default
++      expected_workday_tenant: multimatic
++      expected_workday_site: MMEC
++      expected_workday_hostname: multimatic.wd10.myworkdayjobs.com
++      expected_apply_hostname: multimatic.wd10.myworkdayjobs.com
+@@ -4636,0 +4772,12 @@ target_companies:
++    source_scope: default
++    workday_identity:
++      evidence_source: reports/ping-coverage-recovery-2026-10-25/VERIFIED_REPLACEMENTS.md#allegro-microsystems
++      official_source_url: https://www.allegromicro.com/en/About-Allegro/Careers
++      official_binding_target_url: https://allegromicro.wd5.myworkdayjobs.com/AllegroCareers
++      official_binding_type: direct_link
++      expected_employer_name: Allegro MicroSystems
++      expected_source_scope: default
++      expected_workday_tenant: allegromicro
++      expected_workday_site: AllegroCareers
++      expected_workday_hostname: allegromicro.wd5.myworkdayjobs.com
++      expected_apply_hostname: allegromicro.wd5.myworkdayjobs.com
+@@ -5068,0 +5216,12 @@ target_companies:
++    source_scope: default
++    workday_identity:
++      evidence_source: reports/ping-coverage-recovery-2026-10-25/VERIFIED_REPLACEMENTS.md#cineplex
++      official_source_url: https://corp.cineplex.com/careers
++      official_binding_target_url: https://cineplex.wd3.myworkdayjobs.com/Cineplex
++      official_binding_type: direct_link
++      expected_employer_name: Cineplex
++      expected_source_scope: default
++      expected_workday_tenant: cineplex
++      expected_workday_site: Cineplex
++      expected_workday_hostname: cineplex.wd3.myworkdayjobs.com
++      expected_apply_hostname: cineplex.wd3.myworkdayjobs.com
+@@ -5119,0 +5279,12 @@ target_companies:
++    source_scope: default
++    workday_identity:
++      evidence_source: reports/ping-coverage-recovery-2026-10-25/VERIFIED_REPLACEMENTS.md#solera-holdings
++      official_source_url: https://www.solera.com/careers/
++      official_binding_target_url: https://solera.wd5.myworkdayjobs.com/Global_Career_Site
++      official_binding_type: direct_link
++      expected_employer_name: Solera Holdings
++      expected_source_scope: default
++      expected_workday_tenant: solera
++      expected_workday_site: Global_Career_Site
++      expected_workday_hostname: solera.wd5.myworkdayjobs.com
++      expected_apply_hostname: solera.wd5.myworkdayjobs.com
+@@ -6661 +6832,2 @@ target_companies:
+-    allowed_apply_hosts: [lumentum.wd5.myworkdayjobs.com]
++    allowed_apply_hosts:
++    - lumentum.wd5.myworkdayjobs.com
+@@ -6663,0 +6836,13 @@ target_companies:
++    source_scope: default
++    search_url: https://lumentum.wd5.myworkdayjobs.com/LITE
++    workday_identity:
++      evidence_source: reports/ping-coverage-recovery-2026-10-25/VERIFIED_REPLACEMENTS.md#lumentum
++      official_source_url: https://www.lumentum.com/en/careers
++      official_binding_target_url: https://lumentum.wd5.myworkdayjobs.com/LITE
++      official_binding_type: direct_link
++      expected_employer_name: Lumentum
++      expected_source_scope: default
++      expected_workday_tenant: lumentum
++      expected_workday_site: LITE
++      expected_workday_hostname: lumentum.wd5.myworkdayjobs.com
++      expected_apply_hostname: lumentum.wd5.myworkdayjobs.com
+@@ -6698 +6883,2 @@ target_companies:
+-    allowed_apply_hosts: [hydroottawa.wd3.myworkdayjobs.com]
++    allowed_apply_hosts:
++    - hydroottawa.wd3.myworkdayjobs.com
+@@ -6700,0 +6887,13 @@ target_companies:
++    source_scope: default
++    search_url: https://hydroottawa.wd3.myworkdayjobs.com/hydro_ottawa_careersite
++    workday_identity:
++      evidence_source: reports/ping-coverage-recovery-2026-10-25/VERIFIED_REPLACEMENTS.md#hydro-ottawa
++      official_source_url: https://hydroottawa.com/en/about-us/careers
++      official_binding_target_url: https://hydroottawa.wd3.myworkdayjobs.com/hydro_ottawa_careersite
++      official_binding_type: direct_link
++      expected_employer_name: Hydro Ottawa
++      expected_source_scope: default
++      expected_workday_tenant: hydroottawa
++      expected_workday_site: hydro_ottawa_careersite
++      expected_workday_hostname: hydroottawa.wd3.myworkdayjobs.com
++      expected_apply_hostname: hydroottawa.wd3.myworkdayjobs.com
+@@ -6707 +6906,2 @@ target_companies:
+-    allowed_apply_hosts: [navcanada.wd10.myworkdayjobs.com]
++    allowed_apply_hosts:
++    - navcanada.wd10.myworkdayjobs.com
+@@ -6709,0 +6910,13 @@ target_companies:
++    source_scope: default
++    search_url: https://navcanada.wd10.myworkdayjobs.com/NAV_Careers
++    workday_identity:
++      evidence_source: reports/ping-coverage-recovery-2026-10-25/VERIFIED_REPLACEMENTS.md#nav-canada
++      official_source_url: https://www.navcanada.ca/en/careers.aspx
++      official_binding_target_url: https://navcanada.wd10.myworkdayjobs.com/NAV_Careers
++      official_binding_type: direct_link
++      expected_employer_name: NAV CANADA
++      expected_source_scope: default
++      expected_workday_tenant: navcanada
++      expected_workday_site: NAV_Careers
++      expected_workday_hostname: navcanada.wd10.myworkdayjobs.com
++      expected_apply_hostname: navcanada.wd10.myworkdayjobs.com
+@@ -6770 +6983,2 @@ target_companies:
+-    allowed_apply_hosts: [proofpoint.wd5.myworkdayjobs.com]
++    allowed_apply_hosts:
++    - proofpoint.wd5.myworkdayjobs.com
+@@ -6772,0 +6987,13 @@ target_companies:
++    source_scope: default
++    search_url: https://proofpoint.wd5.myworkdayjobs.com/proofpointcareers
++    workday_identity:
++      evidence_source: reports/ping-coverage-recovery-2026-10-25/VERIFIED_REPLACEMENTS.md#proofpoint
++      official_source_url: https://www.proofpoint.com/us/company/careers
++      official_binding_target_url: https://proofpoint.wd5.myworkdayjobs.com/proofpointcareers
++      official_binding_type: direct_link
++      expected_employer_name: Proofpoint
++      expected_source_scope: default
++      expected_workday_tenant: proofpoint
++      expected_workday_site: proofpointcareers
++      expected_workday_hostname: proofpoint.wd5.myworkdayjobs.com
++      expected_apply_hostname: proofpoint.wd5.myworkdayjobs.com
+@@ -6910 +7137 @@ target_companies:
+-    careers_url: https://www.bci.ca/careers/
++    careers_url: https://www.bci.ca/people/careers/
+@@ -6914 +7141,2 @@ target_companies:
+-    allowed_apply_hosts: [bci.wd10.myworkdayjobs.com]
++    allowed_apply_hosts:
++    - bci.wd10.myworkdayjobs.com
+@@ -6916,0 +7145,13 @@ target_companies:
++    source_scope: default
++    search_url: https://bci.wd10.myworkdayjobs.com/BCI_Careers
++    workday_identity:
++      evidence_source: reports/ping-coverage-recovery-2026-10-25/VERIFIED_REPLACEMENTS.md#bci
++      official_source_url: https://www.bci.ca/people/careers/
++      official_binding_target_url: https://bci.wd10.myworkdayjobs.com/BCI_Careers
++      official_binding_type: direct_link
++      expected_employer_name: BCI
++      expected_source_scope: default
++      expected_workday_tenant: bci
++      expected_workday_site: BCI_Careers
++      expected_workday_hostname: bci.wd10.myworkdayjobs.com
++      expected_apply_hostname: bci.wd10.myworkdayjobs.com
+diff --git a/src/scraper/company_careers/adapters/workday.py b/src/scraper/company_careers/adapters/workday.py
+index 27c7c36..a09a484 100644
+--- a/src/scraper/company_careers/adapters/workday.py
++++ b/src/scraper/company_careers/adapters/workday.py
+@@ -1202,2 +1202,5 @@ def _fetch_pages(
+-            metadata["total_available"] = enumerated
+-            finish_terminal(metadata, complete_reason="natural_terminal_page")
++            # CXS page length is not an authoritative inventory contract.
++            # In particular, an empty response without a provider total must
++            # never authorize absence, even with reviewed employer identity.
++            metadata["stop_reason"] = "missing_authoritative_total"
++            metadata["scan_completeness_reason"] = "missing_authoritative_total"
+diff --git a/tests/test_ats_completeness.py b/tests/test_ats_completeness.py
+index d9f2e74..67e1426 100644
+--- a/tests/test_ats_completeness.py
++++ b/tests/test_ats_completeness.py
+@@ -152 +152 @@ class WorkdayCompletenessTests(unittest.TestCase):
+-    def test_short_page_without_total_is_natural_terminal_evidence(self):
++    def test_short_page_without_total_cannot_establish_authoritative_completion(self):
+@@ -162,3 +162,3 @@ class WorkdayCompletenessTests(unittest.TestCase):
+-        self.assertTrue(metadata["scan_complete"])
+-        self.assertEqual(metadata["scan_completeness_reason"], "natural_terminal_page")
+-        self.assertEqual(metadata["total_available"], 20)
++        self.assertFalse(metadata["scan_complete"])
++        self.assertEqual(metadata["scan_completeness_reason"], "missing_authoritative_total")
++        self.assertIsNone(metadata["total_available"])

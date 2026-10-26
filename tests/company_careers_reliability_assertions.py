@@ -205,6 +205,20 @@ _workday_batch2 = yaml.safe_load(
 for _row in _workday_batch2.get("target_companies") or []:
     APPROVED_SOURCE_MIGRATIONS[str(_row["name"]).casefold()] = _row
 
+# This approved recovery supersedes historical prefix assumptions for exactly
+# nineteen raw rows. Validate the complete, hash-bound activation before using
+# its explicit before/after comparison; never derive exceptions from production.
+from scripts import validate_workday_recovery_activation as workday_recovery
+import json
+
+workday_recovery.validate_package()
+_recovery_changes = json.loads(
+    (ROOT / workday_recovery.PACKAGE / "comparison.json").read_text(encoding="utf-8")
+)["raw_rows_changed"]
+for _change in _recovery_changes:
+    APPROVED_SOURCE_MIGRATIONS[_change["company"].casefold()] = _change["after"]
+
+
 APPROVED_DISCOVERY_ONLY_PROMOTIONS = {
     "athabasca oil",
     "bombardier",

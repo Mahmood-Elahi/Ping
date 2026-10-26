@@ -126,7 +126,8 @@ def test_candidate_registries_match_the_classifications() -> None:
 
 
 def test_rollback_rows_preserve_the_exact_reviewed_baseline_definitions() -> None:
-    production = by_name(PRODUCTION)
+    from scripts.validate_workday_recovery_activation import registry_before_recovery
+    production = {r["name"]: r for r in registry_before_recovery()["target_companies"]}
     rollback = by_name(ROLLBACK)
     activation_rollback = by_name(ACTIVATION_ROLLBACK)
     assert list(rollback) == BATCH

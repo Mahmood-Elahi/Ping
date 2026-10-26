@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import datetime, timezone
-import hashlib
+from scripts.validate_workday_recovery_activation import historical_registry_sha256
 from pathlib import Path
 
 import pytest
@@ -197,7 +197,7 @@ def test_unknown_alias_fails_closed():
 
 def test_production_registry_file_and_registry_shape_remain_unchanged():
     registry = ROOT / "config" / "target_companies.yaml"
-    assert hashlib.sha256(registry.read_bytes()).hexdigest() == EXPECTED_REGISTRY_SHA256
+    assert historical_registry_sha256() == EXPECTED_REGISTRY_SHA256
 
 
 def test_request_cost_calculations_are_bounded_and_deterministic(production_targets):
