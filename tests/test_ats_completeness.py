@@ -149,7 +149,7 @@ class WorkdayCompletenessTests(unittest.TestCase):
         self.assertEqual(metadata["pages_completed"], 2)
         self.assertEqual(session.post_calls[1][1]["json"]["offset"], 20)
 
-    def test_short_page_without_total_is_natural_terminal_evidence(self):
+    def test_short_page_without_total_cannot_establish_authoritative_completion(self):
         session = Session(
             Response({"jobPostings": postings(0, 20)}),
             Response({"jobPostings": []}),
@@ -159,9 +159,9 @@ class WorkdayCompletenessTests(unittest.TestCase):
         metadata = source_scan_metadata(session)
 
         self.assertEqual(len(jobs), 20)
-        self.assertTrue(metadata["scan_complete"])
-        self.assertEqual(metadata["scan_completeness_reason"], "natural_terminal_page")
-        self.assertEqual(metadata["total_available"], 20)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertEqual(metadata["scan_completeness_reason"], "missing_authoritative_total")
+        self.assertIsNone(metadata["total_available"])
         self.assertEqual(metadata["pages_completed"], 2)
 
     def test_later_zero_total_sentinel_preserves_first_page_total(self):

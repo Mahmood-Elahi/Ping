@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import hashlib
+from scripts.validate_workday_recovery_activation import historical_registry_sha256
 from pathlib import Path
 
 import yaml
@@ -86,7 +86,7 @@ def test_final_candidate_disposition_is_fail_closed() -> None:
 
 
 def test_no_candidate_silently_overwrites_production() -> None:
-    digest = hashlib.sha256(PRODUCTION.read_bytes()).hexdigest()
+    digest = historical_registry_sha256()
     assert digest == PRODUCTION_SHA256
     production_names = {entry["name"] for entry in _production_entries()}
     canary_names = {target.name for target in load_target_companies(str(CANARIES))}

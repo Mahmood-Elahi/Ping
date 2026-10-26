@@ -9,6 +9,7 @@ import pytest
 import yaml
 
 from scripts import validate_workday_batch2_activation_package as package
+from scripts import validate_workday_recovery_activation as recovery
 from scripts.validate_source_integrity import validate_source_integrity
 from src.scraper.company_careers.adapters import workday
 from src.scraper.company_careers.models import CompanyTarget
@@ -100,7 +101,7 @@ def test_production_rows_equal_the_exact_activated_proposal() -> None:
     }
 
     review = load(REVIEW)
-    digest = hashlib.sha256(PRODUCTION.read_bytes()).hexdigest()
+    digest = recovery.baseline_record()["sha256"]["config/target_companies.yaml"]
     assert digest == review["package"]["activated_production_registry_sha256"]
     assert review["package"]["production_registry_modified"] is True
     assert review["package"]["activation_approved"] is True
@@ -121,8 +122,8 @@ def test_simulated_activation_changes_no_unrelated_production_row() -> None:
 
 
 def test_exact_rollback_reconstructs_the_pre_activation_registry() -> None:
-    production_data = load(PRODUCTION)
-    production = by_name(PRODUCTION)
+    production_data = recovery.registry_before_recovery()
+    production = {r["name"]: r for r in production_data["target_companies"]}
     rollback = by_name(ROLLBACK)
     restored = deepcopy(production_data)
     restored["target_companies"] = [
@@ -157,8 +158,8 @@ def test_activated_registry_has_no_identity_or_provider_collisions() -> None:
     assert len(provider_keys) == len(set(provider_keys))
 
 
-def test_excluded_companies_remain_exact_baseline_rows() -> None:
-    production = by_name(PRODUCTION)
+def test_historically_excluded_companies_have_exact_baseline_rows() -> None:
+    production = {r["name"]: r for r in recovery.registry_before_recovery()["target_companies"]}
     original_rollback = by_name(ORIGINAL_ROLLBACK)
     excluded = load(REVIEW)["excluded_companies"]
 

@@ -1199,8 +1199,11 @@ def _fetch_pages(
                     metadata["stop_reason"] = "premature_terminal_page"
                     metadata["scan_completeness_reason"] = "premature_terminal_page"
                 break
-            metadata["total_available"] = enumerated
-            finish_terminal(metadata, complete_reason="natural_terminal_page")
+            # CXS page length is not an authoritative inventory contract.
+            # In particular, an empty response without a provider total must
+            # never authorize absence, even with reviewed employer identity.
+            metadata["stop_reason"] = "missing_authoritative_total"
+            metadata["scan_completeness_reason"] = "missing_authoritative_total"
             break
         if expected_total is not None and page + 1 >= int(
             metadata.get(

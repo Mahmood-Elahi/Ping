@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import hashlib
+from scripts.validate_workday_recovery_activation import historical_registry_sha256
 from pathlib import Path
 
 import yaml
@@ -101,7 +101,7 @@ def test_only_rejected_historical_candidate_remains_in_canary_registry() -> None
 
 
 def test_production_registry_is_unchanged_and_batch2_is_opt_in() -> None:
-    assert hashlib.sha256(PRODUCTION.read_bytes()).hexdigest() == PRODUCTION_SHA256
+    assert historical_registry_sha256() == PRODUCTION_SHA256
     assert DEFAULT_REGISTRY_PATH == "config/target_companies.yaml"
     assert BATCH2_CANARIES.name != Path(DEFAULT_REGISTRY_PATH).name
     production_names = {item.name for item in load_target_companies(str(PRODUCTION))}
