@@ -1,0 +1,26 @@
+{
+  "companies": [
+    "Keyence",
+    "TransAlta",
+    "Spartan Controls",
+    "ARC Resources",
+    "Gibson Energy",
+    "SaskPower",
+    "Hydro One",
+    "Omron",
+    "Canada Life",
+    "Hyundai"
+  ],
+  "raw_rows_changed": 8,
+  "code_only_companies": [
+    "Gibson Energy",
+    "Hydro One"
+  ],
+  "unmodified_companies": 523,
+  "blocked": [
+    "FortisBC",
+    "John Deere"
+  ],
+  "new_live_requests": 0,
+  "merge_or_activation_authorized": false
+}

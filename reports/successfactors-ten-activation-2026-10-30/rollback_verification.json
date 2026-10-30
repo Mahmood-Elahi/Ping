@@ -1,0 +1,44 @@
+{
+  "files": {
+    "config/target_companies.yaml": {
+      "before_exists": true,
+      "before_sha256": "9f11ed5e161c61ed487b856638eb3c5699525a6875cf87403bf380c9f86aceb8",
+      "after_sha256": "16d83cfb9fa13e55088ab3891738b6ae35a60746333d3f24fdb4cf29952d2964"
+    },
+    "src/scraper/company_careers/adapters/sap_successfactors.py": {
+      "before_exists": true,
+      "before_sha256": "4f243405f425c5cdb0bd513017605419f2f4bdd07a2612fbcde4e876002f867d",
+      "after_sha256": "4e5aec4f19af1b4906b768c807cfb8fce61a099dba8c609fa8f01db1fbf09db4"
+    },
+    "src/scraper/company_careers/scanner.py": {
+      "before_exists": true,
+      "before_sha256": "ef2697daa025382a5a96f2fa7eda03e0e21d9428c5d7f510bdca48895e3113d9",
+      "after_sha256": "48f0e5374c30a81fa1c5d0c260ae9c55ad221fc9c660e8cca786e0e36dea5e3f"
+    },
+    "src/scraper/company_careers/canary_diagnostics.py": {
+      "before_exists": false,
+      "before_sha256": null,
+      "after_sha256": "a9ae775588dc4a6d433aa8ef2ad92b31844f2470a7fcee841a7cd9b057cc4364"
+    },
+    "src/scraper/company_careers/adapters/sap_successfactors_baseline_84b1655.py": {
+      "before_exists": false,
+      "before_sha256": null,
+      "after_sha256": "4f243405f425c5cdb0bd513017605419f2f4bdd07a2612fbcde4e876002f867d"
+    },
+    "src/scraper/company_careers/adapters/successfactors_recovery_routing.py": {
+      "before_exists": false,
+      "before_sha256": null,
+      "after_sha256": "c7e7a21733d463d55c1eb40d64b37603769b6c4de2ce542bd3221eacbbf19933"
+    },
+    "src/scraper/company_careers/adapters/successfactors_recovery_profiles.json": {
+      "before_exists": false,
+      "before_sha256": null,
+      "after_sha256": "3f36b2a78341294a6f03e051399028ed12c12e3a251635efad87497bd7e00e4a"
+    }
+  },
+  "base_commit": "84b16555e089a1d7f28bf5b547a3490917e42c78",
+  "registry_rows": 10,
+  "actual_changed_rows": 8,
+  "historical_rollback_modified": false,
+  "requires_after_fingerprints": true
+}

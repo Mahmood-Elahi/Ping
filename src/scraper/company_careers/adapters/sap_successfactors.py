@@ -15,7 +15,7 @@ from datetime import date, datetime
 from html import unescape
 from html.parser import HTMLParser
 from typing import Any, Iterable, List, Mapping, Optional
-from urllib.parse import parse_qsl, quote, unquote, urljoin, urlparse, urlunparse
+from urllib.parse import urlencode, parse_qsl, quote, unquote, urljoin, urlparse, urlunparse
 
 import requests
 
@@ -45,6 +45,7 @@ from src.scraper.company_careers.mutable_collection import (
     record_total_observation,
 )
 from src.scraper.company_careers.student_roles import student_job_signals
+from src.scraper.company_careers.canary_diagnostics import contract_error
 
 
 PAGE_SIZE = 25
@@ -212,7 +213,17 @@ class _RequestBudget:
 
 
 @explicit_adapter_result
-def fetch_jobs(
+def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 20) -> AdapterResult:
+    """Use recovery code only for exact reviewed source contracts."""
+    from src.scraper.company_careers.adapters.successfactors_recovery_routing import mode
+    if mode(target) == "baseline":
+        from src.scraper.company_careers.adapters import sap_successfactors_baseline_84b1655 as baseline
+        return baseline.fetch_jobs(session, target, timeout)
+    return _fetch_reviewed_jobs(session, target, timeout)
+
+
+@explicit_adapter_result
+def _fetch_reviewed_jobs(
     session: requests.Session,
     target: CompanyTarget,
     timeout: int = 20,
@@ -264,6 +275,7 @@ def _new_scan_metadata(target: CompanyTarget) -> SourceScanMetadata:
         else min(MAX_RESULTS, max(1, int(target.max_pages)) * page_size)
     )
     return SourceScanMetadata(
+        identity_required=target.endpoint_variant == TABLE_VARIANT,
         endpoint_variant=target.endpoint_variant,
         request_method="POST" if target.endpoint_variant == COLUMNIZED_VARIANT else "GET",
         page_size=page_size,
@@ -285,7 +297,10 @@ def _record_adapter_failure(
     if metadata["stop_reason"] != "not_started":
         return
     message = str(exc).casefold()
-    if "total" in message or "result metadata" in message:
+    if "destination identity did not match" in message:
+        metadata["source_identity_status"] = "failed"
+        reason = "identity_failure"
+    elif "total" in message or "result metadata" in message:
         reason = "malformed_total"
     elif "http " in message:
         reason = "http_error"
@@ -616,8 +631,9 @@ def _validate_html_identity(
             scan_completeness_reason="identity_failure",
             stop_reason="identity_failure",
         )
-        raise AdapterError(
-            "SAP SuccessFactors recruiting surface identity did not match identity_regex"
+        raise contract_error(
+            "SAP SuccessFactors recruiting surface identity did not match identity_regex",
+            code="sf_employer_marker_mismatch",stage="employer_identity"
         )
     metadata.update(
         source_identity_status="validated",
@@ -1561,6 +1577,8 @@ def _get_page(
     budget: _RequestBudget,
     category: str,
 ) -> Any:
+    if target.endpoint_variant == TABLE_VARIANT:
+        _validate_table_destination(url, str(target.search_url), offset, diagnostic_stage="request_destination")
     for attempt in range(MAX_ATTEMPTS):
         try:
             budget.consume(category if attempt == 0 else "retry")
@@ -1582,6 +1600,9 @@ def _get_page(
             raise AdapterError(
                 f"SAP SuccessFactors HTTP {response.status_code} for {target.name} offset={offset}"
             )
+        if target.endpoint_variant == TABLE_VARIANT:
+            _validate_table_destination(str(getattr(response, "url", None) or url),
+                                        str(target.search_url), offset, diagnostic_stage="response_destination")
         content_type = str(getattr(response, "headers", {}).get("content-type", ""))
         if content_type and "html" not in content_type.casefold():
             raise AdapterError("SAP SuccessFactors response was not HTML")
@@ -1634,10 +1655,23 @@ def _parse_table_page(
     explicit_zero = bool(re.search(r"\b0\s+most\s+recent\s+jobs\b", _node_text(root), re.I))
     if not tables:
         if explicit_zero:
-            return _ParsedPage([], 0, PAGE_SIZE, None)
+            result_range = _table_result_range(root)
+            if result_range != (0, 0, 0) or any("jobtitle-link" in n.classes for n in _walk(root)):
+                raise AdapterError("SAP SuccessFactors zero-job response has contradictory result metadata")
+            next_request = _table_next_request(root, search_url, offset, PAGE_SIZE, 0, 0)
+            return _ParsedPage([], 0, PAGE_SIZE, next_request)
         raise AdapterError("SAP SuccessFactors table response is missing searchresults")
 
+    if len(tables) != 1:
+        raise AdapterError("SAP SuccessFactors table response has duplicate searchresults")
     table = tables[0]
+    header_rows = [n for n in _walk(table) if n.tag == "tr" and any(c.tag == "th" for c in n.children)]
+    if len(header_rows) != 1:
+        raise AdapterError("SAP SuccessFactors table response has malformed header rows")
+    header_cells = [c for c in header_rows[0].children if c.tag in {"td", "th"}]
+    has_layout = bool(header_cells and _empty_table_layout_cell(header_cells[-1]))
+    if any(c.tag != "th" for c in (header_cells[:-1] if has_layout else header_cells)):
+        raise AdapterError("SAP SuccessFactors table response has malformed layout header")
     header_nodes = [node for node in _walk(table) if node.tag == "th"]
     header_ids = [node.attrs.get("id", "").casefold() for node in header_nodes]
     header_labels = [_clean_text(_node_text(node)) for node in header_nodes]
@@ -1653,7 +1687,7 @@ def _parse_table_page(
         )
     headers = dict(zip(header_ids, header_labels))
     row_nodes = [node for node in _walk(table) if "data-row" in node.classes]
-    items = [_table_item(row, headers) for row in row_nodes]
+    items = [_table_item(row, headers, has_layout=has_layout) for row in row_nodes]
     items = [item for item in items if item]
     result_range = _table_result_range(root)
     if result_range is None:
@@ -1679,17 +1713,85 @@ def _parse_table_page(
     if len(items) > page_size:
         raise AdapterError("SAP SuccessFactors table page exceeded the observed page size")
 
+    next_request = _table_next_request(root, search_url, offset, page_size, result_end, total)
+    return _ParsedPage(items, total, page_size, next_request)
+
+
+# Observed first-party rejected CURRENT-OFFSET anchors only. This does not
+# authorize locale-bearing requests or a locale-specific inventory scope.
+_REVIEWED_SELF_LOCALE_ANCHORS = {
+    "https://careers.pcl.com/search/": frozenset({"en_US"}),
+    "https://jobs.exxonmobil.com/search/": frozenset({"de_DE"}),
+}
+
+
+def _ignored_current_locale_anchor(node: _Node, candidate: str, search_url: str,
+                                   current_offset: int, explicit_next: bool) -> bool:
+    approved = _REVIEWED_SELF_LOCALE_ANCHORS.get(search_url)
+    if not approved or explicit_next:
+        return False
+    # A language-like hint must never conceal an explicit continuation control.
+    descendants = (node, *tuple(_walk(node)))
+    # Indirect labels/event handlers are not evidenced language controls. Do
+    # not let an ignored anchor conceal navigation expressed outside its text.
+    if any(key in {"aria-labelledby", "aria-describedby"} or key.startswith("on")
+           for child in descendants for key in child.attrs):
+        return False
+    labels = " ".join([_node_text(node)] + [
+        child.attrs.get(key, "") for child in descendants
+        for key in ("aria-label", "title", "alt", "class", "id", "rel")
+    ])
+    if re.search(r"next|[›»→▶⏭]", labels, re.I) or _node_text(node).strip() in {">", ">>"}:
+        return False
+    try:
+        parts = urlparse(candidate)
+        pairs = parse_qsl(parts.query, keep_blank_values=True)
+        values = dict(pairs)
+        if (len(values) != len(pairs) or values.get("locale") not in approved
+                or values.get("startrow") != str(current_offset)):
+            return False
+        clean = urlunparse(parts._replace(query=urlencode([(k,v) for k,v in pairs if k != "locale"])))
+        _validate_table_destination(clean, search_url, current_offset)
+        return True
+    except (ValueError, AdapterError):
+        return False
+
+
+def _table_next_request(root: _Node, search_url: str, offset: int, page_size: int,
+                        result_end: int, total: int) -> Optional[tuple[str, None]]:
     next_request = None
     wanted_offset = offset + page_size
     for node in _walk(root):
-        if node.tag != "a" or not node.attrs.get("href"):
+        if node.tag != "a":
+            continue
+        explicit_next = ("next" in node.attrs.get("rel", "").casefold().split()
+                         or _node_text(node).casefold() in {"next", "next page"}
+                         or node.attrs.get("aria-label", "").casefold() in {"next", "next page"})
+        if not node.attrs.get("href"):
+            if explicit_next and node.attrs.get("aria-disabled") != "true":
+                raise AdapterError("SAP SuccessFactors pagination has an unreviewed next-page continuation")
             continue
         candidate = urljoin(search_url, unescape(node.attrs["href"]))
-        values = dict(parse_qsl(urlparse(candidate).query, keep_blank_values=True))
+        pairs = parse_qsl(urlparse(candidate).query, keep_blank_values=True)
+        values = dict(pairs)
+        if "startrow" not in values:
+            if explicit_next:
+                raise AdapterError("SAP SuccessFactors pagination has an unreviewed next-page continuation")
+            continue
+        if len(pairs) != len(values) or not re.fullmatch(r"0|[1-9][0-9]*", values["startrow"]):
+            raise AdapterError("SAP SuccessFactors pagination has malformed or duplicate startrow")
+        if _ignored_current_locale_anchor(node, candidate, search_url, offset, explicit_next):
+            continue
+        _validate_table_destination(candidate, search_url, int(values["startrow"]), diagnostic_stage="pagination_anchor")
+        if result_end >= total and (int(values["startrow"]) > offset
+                                    or explicit_next):
+            raise AdapterError("SAP SuccessFactors terminal total contradicts next-page continuation")
         if values.get("startrow") == str(wanted_offset):
+            _validate_table_destination(candidate, search_url, wanted_offset, diagnostic_stage="pagination_anchor")
+            if next_request is not None and next_request[0] != candidate:
+                raise AdapterError("SAP SuccessFactors pagination has conflicting next destinations")
             next_request = (candidate, None)
-            break
-    return _ParsedPage(items, total, page_size, next_request)
+    return next_request
 
 
 def _parse_tile_page(
@@ -1743,11 +1845,42 @@ def _parse_tile_page(
     return _ParsedPage(items, total, page_size, next_request)
 
 
-def _table_item(row: _Node, headers: Mapping[str, str]) -> Optional[dict[str, Any]]:
+def _empty_table_layout_cell(cell: _Node) -> bool:
+    """Only the observed trailing, empty hidden-phone TD is a layout cell."""
+    return (cell.tag == "td" and cell.attrs == {"class": "hidden-phone"}
+            and not cell.children and not _node_text(cell))
+
+
+def _validate_table_destination(url: str, search_url: str, offset: int, *, diagnostic_stage: str = "destination_validation") -> None:
+    search, destination = urlparse(search_url), urlparse(url)
+    pairs = parse_qsl(destination.query, keep_blank_values=True)
+    values = dict(pairs)
+    if (destination.scheme != "https" or destination.hostname != search.hostname
+            or destination.netloc != search.netloc or destination.path != search.path
+            or destination.fragment or destination.username or destination.password
+            or len(pairs) != len(values)
+            or set(values) - {"startrow", "q", "locationsearch", "sortColumn", "sortDirection"}
+            or values.get("q", "") or values.get("locationsearch", "")
+            or values.get("startrow", str(offset)) != str(offset)
+            or (offset and "startrow" not in values)):
+        raise contract_error("SAP SuccessFactors table destination identity did not match reviewed search_url",
+                             code="sf_table_destination_rejected",stage=diagnostic_stage,
+                             url=url,reviewed_url=search_url,offset=offset)
+
+
+def _table_item(row: _Node, headers: Mapping[str, str], *, has_layout: bool = False) -> Optional[dict[str, Any]]:
     link = _first_descendant(row, lambda node: node.tag == "a" and "jobtitle-link" in node.classes)
     if link is None:
         raise AdapterError("SAP SuccessFactors table row is missing its title link")
     cells = [cell for cell in row.children if cell.tag == "td"]
+    if has_layout:
+        if len(cells) != len(headers) + 1 or not _empty_table_layout_cell(cells[-1]):
+            raise AdapterError("SAP SuccessFactors table row length does not match its schema: malformed layout cell")
+        cells = cells[:-1]
+    links = [n for n in _walk(row) if n.tag == "a" and "jobtitle-link" in n.classes]
+    if any(n.attrs.get("href", "") != link.attrs.get("href", "") for n in links):
+        raise contract_error("SAP SuccessFactors repeated stable title links did not match",
+                             code="sf_title_link_disagreement",stage="record_identity")
     if len(cells) != len(headers):
         raise AdapterError("SAP SuccessFactors table row length does not match its schema")
     fields: dict[str, list[str]] = {}
@@ -1874,7 +2007,8 @@ def _official_apply_url(search_url: str, href: Any) -> str:
         or "/job/" not in parsed.path
         or not _identifier_from_url(url)
     ):
-        raise AdapterError("SAP SuccessFactors job has no official stable apply URL")
+        raise contract_error("SAP SuccessFactors job has no official stable apply URL",
+                             code="sf_apply_url_rejected",stage="apply_identity",url=url,reviewed_url=search_url)
     return urlunparse(parsed._replace(fragment=""))
 
 
@@ -1884,19 +2018,25 @@ def _identifier_from_url(url: str) -> str:
 
 
 def _table_result_range(root: _Node) -> Optional[tuple[int, int, int]]:
+    ranges = []
     for node in _walk(root):
         if "paginationlabel" not in node.classes:
             continue
         match = re.search(
             r"Results\s+([0-9][0-9,]*)\s*[–-]\s*([0-9][0-9,]*)\s+of\s+([0-9][0-9,]*)",
-            _node_text(node),
-            re.I,
+            _node_text(node), re.I,
         )
-        if match:
-            return tuple(int(value.replace(",", "")) for value in match.groups())
-    if re.search(r"\b0\s+most\s+recent\s+jobs\b", _node_text(root), re.I):
-        return (0, 0, 0)
-    return None
+        if not match:
+            raise AdapterError("SAP SuccessFactors table response has malformed total-result metadata")
+        ranges.append(tuple(int(value.replace(",", "")) for value in match.groups()))
+    if len(set(ranges)) > 1:
+        raise AdapterError("SAP SuccessFactors table response has contradictory total-result metadata")
+    explicit_zero = bool(re.search(r"\b0\s+most\s+recent\s+jobs\b", _node_text(root), re.I))
+    if ranges:
+        if explicit_zero and ranges[0] != (0, 0, 0):
+            raise AdapterError("SAP SuccessFactors table response has contradictory zero-result metadata")
+        return ranges[0]
+    return (0, 0, 0) if explicit_zero else None
 
 
 def _first_field(fields: Mapping[str, list[str]], names: Iterable[str]) -> str:
