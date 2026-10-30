@@ -95,6 +95,21 @@ def restored_registry(production, proposal):
     return data
 
 
+
+def production_before_successfactors(root=ROOT):
+    """Historical projection of a separately validated later activation.
+
+    Old Workday artifacts and their exact whole-registry hashes stay immutable.
+    Unknown changes still fail the complete newer activation or the old hashes.
+    """
+    production = read(root / 'config/target_companies.yaml')
+    package = root / 'reports/successfactors-ten-activation-2026-10-30'
+    if package.exists():
+        from scripts import validate_successfactors_ten_activation as successfactors
+        production = successfactors.registry_before_activation(production, root)
+    return production
+
+
 def historical_registry_sha256():
     """Pin a historical check without rejecting this separately approved change."""
     validate_package()
@@ -104,7 +119,7 @@ def historical_registry_sha256():
 def registry_before_recovery():
     """Historical view only after the entire superseding activation validates."""
     validate_package()
-    return restored_registry(read(ROOT / 'config/target_companies.yaml'),
+    return restored_registry(production_before_successfactors(),
                              read(ROOT / PACKAGE / 'activation_proposal.yaml'))
 
 
@@ -133,7 +148,7 @@ def validate_package(root=ROOT):
     for field in ('protected_files_unchanged', 'working_tree_unchanged_during_execution',
                   'historical_rollback_evidence_unchanged', 'proposal_exactly_matches_independently_eligible_sources'):
         require(postflight[field] is True, f'Failed historical postflight: {field}')
-    production = read(root / 'config/target_companies.yaml')
+    production = production_before_successfactors(root)
     rows = production['target_companies']
     require(len(rows) == 533, 'Production source count changed')
     raw = {r['name']: r for r in rows}

@@ -1,0 +1,1247 @@
+{
+  "company": "Hyundai",
+  "source_scope": "default",
+  "source_scope_key": "hyundai::default",
+  "source_config_key": "sap_successfactors:hyundai:a397945b1b30da1e",
+  "platform": "sap_successfactors",
+  "sanitized_error": null,
+  "canary_outcome": "PASS_COMPLETE",
+  "failure_category": null,
+  "scan_complete": true,
+  "scan_state": "complete",
+  "source_health_code": "healthy",
+  "inventory_authority": "authoritative",
+  "result_authority": "authoritative_inventory",
+  "authoritative_for_absence": true,
+  "can_reconcile_absence": true,
+  "inventory_complete": true,
+  "inventory_items_collected": 262,
+  "jobs_collected": 262,
+  "total_available": 262,
+  "unreadable_items": 0,
+  "rejected_items": 0,
+  "rejected_record_count": 0,
+  "source_identity_status": "validated",
+  "terminal_evidence_valid": true,
+  "hidden_continuation_absent": true,
+  "terminal_evidence_type": "authoritative_total",
+  "stable_ids_unique": true,
+  "canonical_urls_unique": true,
+  "normalized_jobs_attributable": true,
+  "apply_urls_contract_valid": true,
+  "collection_changed_during_scan": false,
+  "safety_limit_reached": false,
+  "stop_reason": "reported_total_reached",
+  "requests_started": 11,
+  "request_budget": 30,
+  "request_count_unit": "physical_http_attempts",
+  "adapter_request_counts": {
+    "identity": 1,
+    "listing": 10,
+    "detail": 0,
+    "retry": 0
+  },
+  "collection_restart_count": 0,
+  "minimum_total_observed": 262,
+  "maximum_total_observed": 262,
+  "final_total_observed": 262,
+  "sanitized_transport": {
+    "schema_version": 1,
+    "events": [
+      {
+        "event": "physical_request",
+        "physical_attempt": 1,
+        "destination": {
+          "scheme": "https",
+          "host_is_reviewed": true,
+          "hostname": "careers-americas.hyundai.com",
+          "port_is_default_https": true,
+          "userinfo_present": false,
+          "path_kind": "reviewed_search",
+          "reviewed_path": "/search/",
+          "fragment_present": false,
+          "query_field_count": 0,
+          "query_keys": [],
+          "unknown_query_key_count": 0,
+          "unreviewed_query_keys": [],
+          "duplicate_query_keys": false,
+          "startrow": null,
+          "startrow_count": 0,
+          "startrow_valid": true,
+          "q_nonempty": false,
+          "locationsearch_nonempty": false
+        }
+      },
+      {
+        "event": "response_headers",
+        "physical_attempt": 1,
+        "response": {
+          "destination": {
+            "scheme": "https",
+            "host_is_reviewed": true,
+            "hostname": "careers-americas.hyundai.com",
+            "port_is_default_https": true,
+            "userinfo_present": false,
+            "path_kind": "reviewed_search",
+            "reviewed_path": "/search/",
+            "fragment_present": false,
+            "query_field_count": 0,
+            "query_keys": [],
+            "unknown_query_key_count": 0,
+            "unreviewed_query_keys": [],
+            "duplicate_query_keys": false,
+            "startrow": null,
+            "startrow_count": 0,
+            "startrow_valid": true,
+            "q_nonempty": false,
+            "locationsearch_nonempty": false
+          },
+          "status_code": 200,
+          "content_type": "text/html",
+          "body_available": false
+        }
+      },
+      {
+        "event": "response_body",
+        "physical_attempt": 1,
+        "response": {
+          "destination": {
+            "scheme": "https",
+            "host_is_reviewed": true,
+            "hostname": "careers-americas.hyundai.com",
+            "port_is_default_https": true,
+            "userinfo_present": false,
+            "path_kind": "reviewed_search",
+            "reviewed_path": "/search/",
+            "fragment_present": false,
+            "query_field_count": 0,
+            "query_keys": [],
+            "unknown_query_key_count": 0,
+            "unreviewed_query_keys": [],
+            "duplicate_query_keys": false,
+            "startrow": null,
+            "startrow_count": 0,
+            "startrow_valid": true,
+            "q_nonempty": false,
+            "locationsearch_nonempty": false
+          },
+          "status_code": 200,
+          "content_type": "text/html",
+          "body_available": true,
+          "response_bytes": 90806,
+          "response_sha256": "c6720711f2293dae429a7e578b34023ae270ebdc6e579788ed9b258e561c1959",
+          "html_shape": {
+            "searchresults_tables": 1,
+            "headers": 12,
+            "data_rows": 25,
+            "layout_cells": 27,
+            "title_links": 50,
+            "pagination_labels": 2
+          },
+          "shape_prefix_bytes": 90806,
+          "shape_truncated": false
+        }
+      },
+      {
+        "event": "physical_request",
+        "physical_attempt": 2,
+        "destination": {
+          "scheme": "https",
+          "host_is_reviewed": true,
+          "hostname": "careers-americas.hyundai.com",
+          "port_is_default_https": true,
+          "userinfo_present": false,
+          "path_kind": "reviewed_search",
+          "reviewed_path": "/search/",
+          "fragment_present": false,
+          "query_field_count": 4,
+          "query_keys": [
+            "q",
+            "sortColumn",
+            "sortDirection",
+            "startrow"
+          ],
+          "unknown_query_key_count": 0,
+          "unreviewed_query_keys": [],
+          "duplicate_query_keys": false,
+          "startrow": 25,
+          "startrow_count": 1,
+          "startrow_valid": true,
+          "q_nonempty": false,
+          "locationsearch_nonempty": false
+        }
+      },
+      {
+        "event": "response_headers",
+        "physical_attempt": 2,
+        "response": {
+          "destination": {
+            "scheme": "https",
+            "host_is_reviewed": true,
+            "hostname": "careers-americas.hyundai.com",
+            "port_is_default_https": true,
+            "userinfo_present": false,
+            "path_kind": "reviewed_search",
+            "reviewed_path": "/search/",
+            "fragment_present": false,
+            "query_field_count": 4,
+            "query_keys": [
+              "q",
+              "sortColumn",
+              "sortDirection",
+              "startrow"
+            ],
+            "unknown_query_key_count": 0,
+            "unreviewed_query_keys": [],
+            "duplicate_query_keys": false,
+            "startrow": 25,
+            "startrow_count": 1,
+            "startrow_valid": true,
+            "q_nonempty": false,
+            "locationsearch_nonempty": false
+          },
+          "status_code": 200,
+          "content_type": "text/html",
+          "body_available": false
+        }
+      },
+      {
+        "event": "response_body",
+        "physical_attempt": 2,
+        "response": {
+          "destination": {
+            "scheme": "https",
+            "host_is_reviewed": true,
+            "hostname": "careers-americas.hyundai.com",
+            "port_is_default_https": true,
+            "userinfo_present": false,
+            "path_kind": "reviewed_search",
+            "reviewed_path": "/search/",
+            "fragment_present": false,
+            "query_field_count": 4,
+            "query_keys": [
+              "q",
+              "sortColumn",
+              "sortDirection",
+              "startrow"
+            ],
+            "unknown_query_key_count": 0,
+            "unreviewed_query_keys": [],
+            "duplicate_query_keys": false,
+            "startrow": 25,
+            "startrow_count": 1,
+            "startrow_valid": true,
+            "q_nonempty": false,
+            "locationsearch_nonempty": false
+          },
+          "status_code": 200,
+          "content_type": "text/html",
+          "body_available": true,
+          "response_bytes": 90529,
+          "response_sha256": "b29d56eee391332cf3d2f8fd54f809a3af11aa7104665e8ae74511b5d56c7901",
+          "html_shape": {
+            "searchresults_tables": 1,
+            "headers": 12,
+            "data_rows": 25,
+            "layout_cells": 27,
+            "title_links": 50,
+            "pagination_labels": 2
+          },
+          "shape_prefix_bytes": 90529,
+          "shape_truncated": false
+        }
+      },
+      {
+        "event": "physical_request",
+        "physical_attempt": 3,
+        "destination": {
+          "scheme": "https",
+          "host_is_reviewed": true,
+          "hostname": "careers-americas.hyundai.com",
+          "port_is_default_https": true,
+          "userinfo_present": false,
+          "path_kind": "reviewed_search",
+          "reviewed_path": "/search/",
+          "fragment_present": false,
+          "query_field_count": 4,
+          "query_keys": [
+            "q",
+            "sortColumn",
+            "sortDirection",
+            "startrow"
+          ],
+          "unknown_query_key_count": 0,
+          "unreviewed_query_keys": [],
+          "duplicate_query_keys": false,
+          "startrow": 50,
+          "startrow_count": 1,
+          "startrow_valid": true,
+          "q_nonempty": false,
+          "locationsearch_nonempty": false
+        }
+      },
+      {
+        "event": "response_headers",
+        "physical_attempt": 3,
+        "response": {
+          "destination": {
+            "scheme": "https",
+            "host_is_reviewed": true,
+            "hostname": "careers-americas.hyundai.com",
+            "port_is_default_https": true,
+            "userinfo_present": false,
+            "path_kind": "reviewed_search",
+            "reviewed_path": "/search/",
+            "fragment_present": false,
+            "query_field_count": 4,
+            "query_keys": [
+              "q",
+              "sortColumn",
+              "sortDirection",
+              "startrow"
+            ],
+            "unknown_query_key_count": 0,
+            "unreviewed_query_keys": [],
+            "duplicate_query_keys": false,
+            "startrow": 50,
+            "startrow_count": 1,
+            "startrow_valid": true,
+            "q_nonempty": false,
+            "locationsearch_nonempty": false
+          },
+          "status_code": 200,
+          "content_type": "text/html",
+          "body_available": false
+        }
+      },
+      {
+        "event": "response_body",
+        "physical_attempt": 3,
+        "response": {
+          "destination": {
+            "scheme": "https",
+            "host_is_reviewed": true,
+            "hostname": "careers-americas.hyundai.com",
+            "port_is_default_https": true,
+            "userinfo_present": false,
+            "path_kind": "reviewed_search",
+            "reviewed_path": "/search/",
+            "fragment_present": false,
+            "query_field_count": 4,
+            "query_keys": [
+              "q",
+              "sortColumn",
+              "sortDirection",
+              "startrow"
+            ],
+            "unknown_query_key_count": 0,
+            "unreviewed_query_keys": [],
+            "duplicate_query_keys": false,
+            "startrow": 50,
+            "startrow_count": 1,
+            "startrow_valid": true,
+            "q_nonempty": false,
+            "locationsearch_nonempty": false
+          },
+          "status_code": 200,
+          "content_type": "text/html",
+          "body_available": true,
+          "response_bytes": 89857,
+          "response_sha256": "c91ef626d84149e32b4ce81264ab53499fd8eec2368e0c774bf21e7a6f69b9b1",
+          "html_shape": {
+            "searchresults_tables": 1,
+            "headers": 12,
+            "data_rows": 25,
+            "layout_cells": 27,
+            "title_links": 50,
+            "pagination_labels": 2
+          },
+          "shape_prefix_bytes": 89857,
+          "shape_truncated": false
+        }
+      },
+      {
+        "event": "physical_request",
+        "physical_attempt": 4,
+        "destination": {
+          "scheme": "https",
+          "host_is_reviewed": true,
+          "hostname": "careers-americas.hyundai.com",
+          "port_is_default_https": true,
+          "userinfo_present": false,
+          "path_kind": "reviewed_search",
+          "reviewed_path": "/search/",
+          "fragment_present": false,
+          "query_field_count": 4,
+          "query_keys": [
+            "q",
+            "sortColumn",
+            "sortDirection",
+            "startrow"
+          ],
+          "unknown_query_key_count": 0,
+          "unreviewed_query_keys": [],
+          "duplicate_query_keys": false,
+          "startrow": 75,
+          "startrow_count": 1,
+          "startrow_valid": true,
+          "q_nonempty": false,
+          "locationsearch_nonempty": false
+        }
+      },
+      {
+        "event": "response_headers",
+        "physical_attempt": 4,
+        "response": {
+          "destination": {
+            "scheme": "https",
+            "host_is_reviewed": true,
+            "hostname": "careers-americas.hyundai.com",
+            "port_is_default_https": true,
+            "userinfo_present": false,
+            "path_kind": "reviewed_search",
+            "reviewed_path": "/search/",
+            "fragment_present": false,
+            "query_field_count": 4,
+            "query_keys": [
+              "q",
+              "sortColumn",
+              "sortDirection",
+              "startrow"
+            ],
+            "unknown_query_key_count": 0,
+            "unreviewed_query_keys": [],
+            "duplicate_query_keys": false,
+            "startrow": 75,
+            "startrow_count": 1,
+            "startrow_valid": true,
+            "q_nonempty": false,
+            "locationsearch_nonempty": false
+          },
+          "status_code": 200,
+          "content_type": "text/html",
+          "body_available": false
+        }
+      },
+      {
+        "event": "response_body",
+        "physical_attempt": 4,
+        "response": {
+          "destination": {
+            "scheme": "https",
+            "host_is_reviewed": true,
+            "hostname": "careers-americas.hyundai.com",
+            "port_is_default_https": true,
+            "userinfo_present": false,
+            "path_kind": "reviewed_search",
+            "reviewed_path": "/search/",
+            "fragment_present": false,
+            "query_field_count": 4,
+            "query_keys": [
+              "q",
+              "sortColumn",
+              "sortDirection",
+              "startrow"
+            ],
+            "unknown_query_key_count": 0,
+            "unreviewed_query_keys": [],
+            "duplicate_query_keys": false,
+            "startrow": 75,
+            "startrow_count": 1,
+            "startrow_valid": true,
+            "q_nonempty": false,
+            "locationsearch_nonempty": false
+          },
+          "status_code": 200,
+          "content_type": "text/html",
+          "body_available": true,
+          "response_bytes": 90784,
+          "response_sha256": "f9a6c826cb7e48e4be94cb615cbfeb8e5242bb1f9cd69f49a6d40f3d4f981682",
+          "html_shape": {
+            "searchresults_tables": 1,
+            "headers": 12,
+            "data_rows": 25,
+            "layout_cells": 27,
+            "title_links": 50,
+            "pagination_labels": 2
+          },
+          "shape_prefix_bytes": 90784,
+          "shape_truncated": false
+        }
+      },
+      {
+        "event": "physical_request",
+        "physical_attempt": 5,
+        "destination": {
+          "scheme": "https",
+          "host_is_reviewed": true,
+          "hostname": "careers-americas.hyundai.com",
+          "port_is_default_https": true,
+          "userinfo_present": false,
+          "path_kind": "reviewed_search",
+          "reviewed_path": "/search/",
+          "fragment_present": false,
+          "query_field_count": 4,
+          "query_keys": [
+            "q",
+            "sortColumn",
+            "sortDirection",
+            "startrow"
+          ],
+          "unknown_query_key_count": 0,
+          "unreviewed_query_keys": [],
+          "duplicate_query_keys": false,
+          "startrow": 100,
+          "startrow_count": 1,
+          "startrow_valid": true,
+          "q_nonempty": false,
+          "locationsearch_nonempty": false
+        }
+      },
+      {
+        "event": "response_headers",
+        "physical_attempt": 5,
+        "response": {
+          "destination": {
+            "scheme": "https",
+            "host_is_reviewed": true,
+            "hostname": "careers-americas.hyundai.com",
+            "port_is_default_https": true,
+            "userinfo_present": false,
+            "path_kind": "reviewed_search",
+            "reviewed_path": "/search/",
+            "fragment_present": false,
+            "query_field_count": 4,
+            "query_keys": [
+              "q",
+              "sortColumn",
+              "sortDirection",
+              "startrow"
+            ],
+            "unknown_query_key_count": 0,
+            "unreviewed_query_keys": [],
+            "duplicate_query_keys": false,
+            "startrow": 100,
+            "startrow_count": 1,
+            "startrow_valid": true,
+            "q_nonempty": false,
+            "locationsearch_nonempty": false
+          },
+          "status_code": 200,
+          "content_type": "text/html",
+          "body_available": false
+        }
+      },
+      {
+        "event": "response_body",
+        "physical_attempt": 5,
+        "response": {
+          "destination": {
+            "scheme": "https",
+            "host_is_reviewed": true,
+            "hostname": "careers-americas.hyundai.com",
+            "port_is_default_https": true,
+            "userinfo_present": false,
+            "path_kind": "reviewed_search",
+            "reviewed_path": "/search/",
+            "fragment_present": false,
+            "query_field_count": 4,
+            "query_keys": [
+              "q",
+              "sortColumn",
+              "sortDirection",
+              "startrow"
+            ],
+            "unknown_query_key_count": 0,
+            "unreviewed_query_keys": [],
+            "duplicate_query_keys": false,
+            "startrow": 100,
+            "startrow_count": 1,
+            "startrow_valid": true,
+            "q_nonempty": false,
+            "locationsearch_nonempty": false
+          },
+          "status_code": 200,
+          "content_type": "text/html",
+          "body_available": true,
+          "response_bytes": 90347,
+          "response_sha256": "f303ad668c0c2113ba1dfae270417a2639db68b6a50058e80660f66a8469d098",
+          "html_shape": {
+            "searchresults_tables": 1,
+            "headers": 12,
+            "data_rows": 25,
+            "layout_cells": 27,
+            "title_links": 50,
+            "pagination_labels": 2
+          },
+          "shape_prefix_bytes": 90347,
+          "shape_truncated": false
+        }
+      },
+      {
+        "event": "physical_request",
+        "physical_attempt": 6,
+        "destination": {
+          "scheme": "https",
+          "host_is_reviewed": true,
+          "hostname": "careers-americas.hyundai.com",
+          "port_is_default_https": true,
+          "userinfo_present": false,
+          "path_kind": "reviewed_search",
+          "reviewed_path": "/search/",
+          "fragment_present": false,
+          "query_field_count": 4,
+          "query_keys": [
+            "q",
+            "sortColumn",
+            "sortDirection",
+            "startrow"
+          ],
+          "unknown_query_key_count": 0,
+          "unreviewed_query_keys": [],
+          "duplicate_query_keys": false,
+          "startrow": 125,
+          "startrow_count": 1,
+          "startrow_valid": true,
+          "q_nonempty": false,
+          "locationsearch_nonempty": false
+        }
+      },
+      {
+        "event": "response_headers",
+        "physical_attempt": 6,
+        "response": {
+          "destination": {
+            "scheme": "https",
+            "host_is_reviewed": true,
+            "hostname": "careers-americas.hyundai.com",
+            "port_is_default_https": true,
+            "userinfo_present": false,
+            "path_kind": "reviewed_search",
+            "reviewed_path": "/search/",
+            "fragment_present": false,
+            "query_field_count": 4,
+            "query_keys": [
+              "q",
+              "sortColumn",
+              "sortDirection",
+              "startrow"
+            ],
+            "unknown_query_key_count": 0,
+            "unreviewed_query_keys": [],
+            "duplicate_query_keys": false,
+            "startrow": 125,
+            "startrow_count": 1,
+            "startrow_valid": true,
+            "q_nonempty": false,
+            "locationsearch_nonempty": false
+          },
+          "status_code": 200,
+          "content_type": "text/html",
+          "body_available": false
+        }
+      },
+      {
+        "event": "response_body",
+        "physical_attempt": 6,
+        "response": {
+          "destination": {
+            "scheme": "https",
+            "host_is_reviewed": true,
+            "hostname": "careers-americas.hyundai.com",
+            "port_is_default_https": true,
+            "userinfo_present": false,
+            "path_kind": "reviewed_search",
+            "reviewed_path": "/search/",
+            "fragment_present": false,
+            "query_field_count": 4,
+            "query_keys": [
+              "q",
+              "sortColumn",
+              "sortDirection",
+              "startrow"
+            ],
+            "unknown_query_key_count": 0,
+            "unreviewed_query_keys": [],
+            "duplicate_query_keys": false,
+            "startrow": 125,
+            "startrow_count": 1,
+            "startrow_valid": true,
+            "q_nonempty": false,
+            "locationsearch_nonempty": false
+          },
+          "status_code": 200,
+          "content_type": "text/html",
+          "body_available": true,
+          "response_bytes": 90523,
+          "response_sha256": "ef496876557a827680bbb984840cf33f6728051eb1ab4a3c089f61a5c593dc5e",
+          "html_shape": {
+            "searchresults_tables": 1,
+            "headers": 12,
+            "data_rows": 25,
+            "layout_cells": 27,
+            "title_links": 50,
+            "pagination_labels": 2
+          },
+          "shape_prefix_bytes": 90523,
+          "shape_truncated": false
+        }
+      },
+      {
+        "event": "physical_request",
+        "physical_attempt": 7,
+        "destination": {
+          "scheme": "https",
+          "host_is_reviewed": true,
+          "hostname": "careers-americas.hyundai.com",
+          "port_is_default_https": true,
+          "userinfo_present": false,
+          "path_kind": "reviewed_search",
+          "reviewed_path": "/search/",
+          "fragment_present": false,
+          "query_field_count": 4,
+          "query_keys": [
+            "q",
+            "sortColumn",
+            "sortDirection",
+            "startrow"
+          ],
+          "unknown_query_key_count": 0,
+          "unreviewed_query_keys": [],
+          "duplicate_query_keys": false,
+          "startrow": 150,
+          "startrow_count": 1,
+          "startrow_valid": true,
+          "q_nonempty": false,
+          "locationsearch_nonempty": false
+        }
+      },
+      {
+        "event": "response_headers",
+        "physical_attempt": 7,
+        "response": {
+          "destination": {
+            "scheme": "https",
+            "host_is_reviewed": true,
+            "hostname": "careers-americas.hyundai.com",
+            "port_is_default_https": true,
+            "userinfo_present": false,
+            "path_kind": "reviewed_search",
+            "reviewed_path": "/search/",
+            "fragment_present": false,
+            "query_field_count": 4,
+            "query_keys": [
+              "q",
+              "sortColumn",
+              "sortDirection",
+              "startrow"
+            ],
+            "unknown_query_key_count": 0,
+            "unreviewed_query_keys": [],
+            "duplicate_query_keys": false,
+            "startrow": 150,
+            "startrow_count": 1,
+            "startrow_valid": true,
+            "q_nonempty": false,
+            "locationsearch_nonempty": false
+          },
+          "status_code": 200,
+          "content_type": "text/html",
+          "body_available": false
+        }
+      },
+      {
+        "event": "response_body",
+        "physical_attempt": 7,
+        "response": {
+          "destination": {
+            "scheme": "https",
+            "host_is_reviewed": true,
+            "hostname": "careers-americas.hyundai.com",
+            "port_is_default_https": true,
+            "userinfo_present": false,
+            "path_kind": "reviewed_search",
+            "reviewed_path": "/search/",
+            "fragment_present": false,
+            "query_field_count": 4,
+            "query_keys": [
+              "q",
+              "sortColumn",
+              "sortDirection",
+              "startrow"
+            ],
+            "unknown_query_key_count": 0,
+            "unreviewed_query_keys": [],
+            "duplicate_query_keys": false,
+            "startrow": 150,
+            "startrow_count": 1,
+            "startrow_valid": true,
+            "q_nonempty": false,
+            "locationsearch_nonempty": false
+          },
+          "status_code": 200,
+          "content_type": "text/html",
+          "body_available": true,
+          "response_bytes": 90311,
+          "response_sha256": "9a1a0d2f42a3a73c1c63d3f8c70b41aadd9a5d7f991cafb322cb0b3db0c15451",
+          "html_shape": {
+            "searchresults_tables": 1,
+            "headers": 12,
+            "data_rows": 25,
+            "layout_cells": 27,
+            "title_links": 50,
+            "pagination_labels": 2
+          },
+          "shape_prefix_bytes": 90311,
+          "shape_truncated": false
+        }
+      },
+      {
+        "event": "physical_request",
+        "physical_attempt": 8,
+        "destination": {
+          "scheme": "https",
+          "host_is_reviewed": true,
+          "hostname": "careers-americas.hyundai.com",
+          "port_is_default_https": true,
+          "userinfo_present": false,
+          "path_kind": "reviewed_search",
+          "reviewed_path": "/search/",
+          "fragment_present": false,
+          "query_field_count": 4,
+          "query_keys": [
+            "q",
+            "sortColumn",
+            "sortDirection",
+            "startrow"
+          ],
+          "unknown_query_key_count": 0,
+          "unreviewed_query_keys": [],
+          "duplicate_query_keys": false,
+          "startrow": 175,
+          "startrow_count": 1,
+          "startrow_valid": true,
+          "q_nonempty": false,
+          "locationsearch_nonempty": false
+        }
+      },
+      {
+        "event": "response_headers",
+        "physical_attempt": 8,
+        "response": {
+          "destination": {
+            "scheme": "https",
+            "host_is_reviewed": true,
+            "hostname": "careers-americas.hyundai.com",
+            "port_is_default_https": true,
+            "userinfo_present": false,
+            "path_kind": "reviewed_search",
+            "reviewed_path": "/search/",
+            "fragment_present": false,
+            "query_field_count": 4,
+            "query_keys": [
+              "q",
+              "sortColumn",
+              "sortDirection",
+              "startrow"
+            ],
+            "unknown_query_key_count": 0,
+            "unreviewed_query_keys": [],
+            "duplicate_query_keys": false,
+            "startrow": 175,
+            "startrow_count": 1,
+            "startrow_valid": true,
+            "q_nonempty": false,
+            "locationsearch_nonempty": false
+          },
+          "status_code": 200,
+          "content_type": "text/html",
+          "body_available": false
+        }
+      },
+      {
+        "event": "response_body",
+        "physical_attempt": 8,
+        "response": {
+          "destination": {
+            "scheme": "https",
+            "host_is_reviewed": true,
+            "hostname": "careers-americas.hyundai.com",
+            "port_is_default_https": true,
+            "userinfo_present": false,
+            "path_kind": "reviewed_search",
+            "reviewed_path": "/search/",
+            "fragment_present": false,
+            "query_field_count": 4,
+            "query_keys": [
+              "q",
+              "sortColumn",
+              "sortDirection",
+              "startrow"
+            ],
+            "unknown_query_key_count": 0,
+            "unreviewed_query_keys": [],
+            "duplicate_query_keys": false,
+            "startrow": 175,
+            "startrow_count": 1,
+            "startrow_valid": true,
+            "q_nonempty": false,
+            "locationsearch_nonempty": false
+          },
+          "status_code": 200,
+          "content_type": "text/html",
+          "body_available": true,
+          "response_bytes": 89441,
+          "response_sha256": "9e7ae705d74b84fb0b100ff81ef22b87735b45546596ebc6775822bfb8c9a107",
+          "html_shape": {
+            "searchresults_tables": 1,
+            "headers": 12,
+            "data_rows": 25,
+            "layout_cells": 27,
+            "title_links": 50,
+            "pagination_labels": 2
+          },
+          "shape_prefix_bytes": 89441,
+          "shape_truncated": false
+        }
+      },
+      {
+        "event": "physical_request",
+        "physical_attempt": 9,
+        "destination": {
+          "scheme": "https",
+          "host_is_reviewed": true,
+          "hostname": "careers-americas.hyundai.com",
+          "port_is_default_https": true,
+          "userinfo_present": false,
+          "path_kind": "reviewed_search",
+          "reviewed_path": "/search/",
+          "fragment_present": false,
+          "query_field_count": 4,
+          "query_keys": [
+            "q",
+            "sortColumn",
+            "sortDirection",
+            "startrow"
+          ],
+          "unknown_query_key_count": 0,
+          "unreviewed_query_keys": [],
+          "duplicate_query_keys": false,
+          "startrow": 200,
+          "startrow_count": 1,
+          "startrow_valid": true,
+          "q_nonempty": false,
+          "locationsearch_nonempty": false
+        }
+      },
+      {
+        "event": "response_headers",
+        "physical_attempt": 9,
+        "response": {
+          "destination": {
+            "scheme": "https",
+            "host_is_reviewed": true,
+            "hostname": "careers-americas.hyundai.com",
+            "port_is_default_https": true,
+            "userinfo_present": false,
+            "path_kind": "reviewed_search",
+            "reviewed_path": "/search/",
+            "fragment_present": false,
+            "query_field_count": 4,
+            "query_keys": [
+              "q",
+              "sortColumn",
+              "sortDirection",
+              "startrow"
+            ],
+            "unknown_query_key_count": 0,
+            "unreviewed_query_keys": [],
+            "duplicate_query_keys": false,
+            "startrow": 200,
+            "startrow_count": 1,
+            "startrow_valid": true,
+            "q_nonempty": false,
+            "locationsearch_nonempty": false
+          },
+          "status_code": 200,
+          "content_type": "text/html",
+          "body_available": false
+        }
+      },
+      {
+        "event": "response_body",
+        "physical_attempt": 9,
+        "response": {
+          "destination": {
+            "scheme": "https",
+            "host_is_reviewed": true,
+            "hostname": "careers-americas.hyundai.com",
+            "port_is_default_https": true,
+            "userinfo_present": false,
+            "path_kind": "reviewed_search",
+            "reviewed_path": "/search/",
+            "fragment_present": false,
+            "query_field_count": 4,
+            "query_keys": [
+              "q",
+              "sortColumn",
+              "sortDirection",
+              "startrow"
+            ],
+            "unknown_query_key_count": 0,
+            "unreviewed_query_keys": [],
+            "duplicate_query_keys": false,
+            "startrow": 200,
+            "startrow_count": 1,
+            "startrow_valid": true,
+            "q_nonempty": false,
+            "locationsearch_nonempty": false
+          },
+          "status_code": 200,
+          "content_type": "text/html",
+          "body_available": true,
+          "response_bytes": 90985,
+          "response_sha256": "78d16b98742e57c265e666ddee6d2b4c6108842c540d690714ffd202b5782267",
+          "html_shape": {
+            "searchresults_tables": 1,
+            "headers": 12,
+            "data_rows": 25,
+            "layout_cells": 27,
+            "title_links": 50,
+            "pagination_labels": 2
+          },
+          "shape_prefix_bytes": 90985,
+          "shape_truncated": false
+        }
+      },
+      {
+        "event": "physical_request",
+        "physical_attempt": 10,
+        "destination": {
+          "scheme": "https",
+          "host_is_reviewed": true,
+          "hostname": "careers-americas.hyundai.com",
+          "port_is_default_https": true,
+          "userinfo_present": false,
+          "path_kind": "reviewed_search",
+          "reviewed_path": "/search/",
+          "fragment_present": false,
+          "query_field_count": 4,
+          "query_keys": [
+            "q",
+            "sortColumn",
+            "sortDirection",
+            "startrow"
+          ],
+          "unknown_query_key_count": 0,
+          "unreviewed_query_keys": [],
+          "duplicate_query_keys": false,
+          "startrow": 225,
+          "startrow_count": 1,
+          "startrow_valid": true,
+          "q_nonempty": false,
+          "locationsearch_nonempty": false
+        }
+      },
+      {
+        "event": "response_headers",
+        "physical_attempt": 10,
+        "response": {
+          "destination": {
+            "scheme": "https",
+            "host_is_reviewed": true,
+            "hostname": "careers-americas.hyundai.com",
+            "port_is_default_https": true,
+            "userinfo_present": false,
+            "path_kind": "reviewed_search",
+            "reviewed_path": "/search/",
+            "fragment_present": false,
+            "query_field_count": 4,
+            "query_keys": [
+              "q",
+              "sortColumn",
+              "sortDirection",
+              "startrow"
+            ],
+            "unknown_query_key_count": 0,
+            "unreviewed_query_keys": [],
+            "duplicate_query_keys": false,
+            "startrow": 225,
+            "startrow_count": 1,
+            "startrow_valid": true,
+            "q_nonempty": false,
+            "locationsearch_nonempty": false
+          },
+          "status_code": 200,
+          "content_type": "text/html",
+          "body_available": false
+        }
+      },
+      {
+        "event": "response_body",
+        "physical_attempt": 10,
+        "response": {
+          "destination": {
+            "scheme": "https",
+            "host_is_reviewed": true,
+            "hostname": "careers-americas.hyundai.com",
+            "port_is_default_https": true,
+            "userinfo_present": false,
+            "path_kind": "reviewed_search",
+            "reviewed_path": "/search/",
+            "fragment_present": false,
+            "query_field_count": 4,
+            "query_keys": [
+              "q",
+              "sortColumn",
+              "sortDirection",
+              "startrow"
+            ],
+            "unknown_query_key_count": 0,
+            "unreviewed_query_keys": [],
+            "duplicate_query_keys": false,
+            "startrow": 225,
+            "startrow_count": 1,
+            "startrow_valid": true,
+            "q_nonempty": false,
+            "locationsearch_nonempty": false
+          },
+          "status_code": 200,
+          "content_type": "text/html",
+          "body_available": true,
+          "response_bytes": 90022,
+          "response_sha256": "e2cf23c8b40de58e21fb508f0ab1b5041849594cef133cb42a01c4ad2d0d1533",
+          "html_shape": {
+            "searchresults_tables": 1,
+            "headers": 12,
+            "data_rows": 25,
+            "layout_cells": 27,
+            "title_links": 50,
+            "pagination_labels": 2
+          },
+          "shape_prefix_bytes": 90022,
+          "shape_truncated": false
+        }
+      },
+      {
+        "event": "physical_request",
+        "physical_attempt": 11,
+        "destination": {
+          "scheme": "https",
+          "host_is_reviewed": true,
+          "hostname": "careers-americas.hyundai.com",
+          "port_is_default_https": true,
+          "userinfo_present": false,
+          "path_kind": "reviewed_search",
+          "reviewed_path": "/search/",
+          "fragment_present": false,
+          "query_field_count": 4,
+          "query_keys": [
+            "q",
+            "sortColumn",
+            "sortDirection",
+            "startrow"
+          ],
+          "unknown_query_key_count": 0,
+          "unreviewed_query_keys": [],
+          "duplicate_query_keys": false,
+          "startrow": 250,
+          "startrow_count": 1,
+          "startrow_valid": true,
+          "q_nonempty": false,
+          "locationsearch_nonempty": false
+        }
+      },
+      {
+        "event": "response_headers",
+        "physical_attempt": 11,
+        "response": {
+          "destination": {
+            "scheme": "https",
+            "host_is_reviewed": true,
+            "hostname": "careers-americas.hyundai.com",
+            "port_is_default_https": true,
+            "userinfo_present": false,
+            "path_kind": "reviewed_search",
+            "reviewed_path": "/search/",
+            "fragment_present": false,
+            "query_field_count": 4,
+            "query_keys": [
+              "q",
+              "sortColumn",
+              "sortDirection",
+              "startrow"
+            ],
+            "unknown_query_key_count": 0,
+            "unreviewed_query_keys": [],
+            "duplicate_query_keys": false,
+            "startrow": 250,
+            "startrow_count": 1,
+            "startrow_valid": true,
+            "q_nonempty": false,
+            "locationsearch_nonempty": false
+          },
+          "status_code": 200,
+          "content_type": "text/html",
+          "body_available": false
+        }
+      },
+      {
+        "event": "response_body",
+        "physical_attempt": 11,
+        "response": {
+          "destination": {
+            "scheme": "https",
+            "host_is_reviewed": true,
+            "hostname": "careers-americas.hyundai.com",
+            "port_is_default_https": true,
+            "userinfo_present": false,
+            "path_kind": "reviewed_search",
+            "reviewed_path": "/search/",
+            "fragment_present": false,
+            "query_field_count": 4,
+            "query_keys": [
+              "q",
+              "sortColumn",
+              "sortDirection",
+              "startrow"
+            ],
+            "unknown_query_key_count": 0,
+            "unreviewed_query_keys": [],
+            "duplicate_query_keys": false,
+            "startrow": 250,
+            "startrow_count": 1,
+            "startrow_valid": true,
+            "q_nonempty": false,
+            "locationsearch_nonempty": false
+          },
+          "status_code": 200,
+          "content_type": "text/html",
+          "body_available": true,
+          "response_bytes": 64320,
+          "response_sha256": "f477c7477bfabf468a2105de0337aee07b7123abbba0ab76a93c9ab82b224ab7",
+          "html_shape": {
+            "searchresults_tables": 1,
+            "headers": 12,
+            "data_rows": 12,
+            "layout_cells": 14,
+            "title_links": 24,
+            "pagination_labels": 1
+          },
+          "shape_prefix_bytes": 64320,
+          "shape_truncated": false
+        }
+      }
+    ],
+    "event_limit": 106,
+    "dropped_events": 0,
+    "observer_errors": 0,
+    "raw_bodies_urls_headers_or_messages_retained": false
+  },
+  "raw_canary_outcome": "PASS_COMPLETE",
+  "batch_access_stopped": false,
+  "physical_requests_accounted": 11,
+  "physical_count_is_upper_bound": false,
+  "source_worker_elapsed_seconds": 28.621,
+  "activation_proposal_eligible": true
+}

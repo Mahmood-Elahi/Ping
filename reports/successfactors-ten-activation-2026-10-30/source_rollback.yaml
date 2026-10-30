@@ -1,0 +1,129 @@
+target_companies:
+- name: Keyence
+  platform: sap_successfactors
+  careers_url: https://careers.keyence.com/
+  source_identity_regex: Keyence
+  allowed_apply_hosts:
+  - careers.keyence.com
+  original_workbook_rank: 103
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  search_url: https://careers.keyence.com/search/
+  endpoint_variant: rmk_table
+- name: TransAlta
+  platform: sap_successfactors
+  careers_url: https://transalta.com/careers/
+  source_identity_regex: TransAlta
+  allowed_apply_hosts:
+  - jobs.transalta.com
+  original_workbook_rank: null
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  identity_url: https://jobs.transalta.com/search/
+  search_url: https://jobs.transalta.com/search/
+  endpoint_variant: rmk_table
+- name: Spartan Controls
+  platform: sap_successfactors
+  careers_url: https://www.spartancontrols.com/careers/
+  source_identity_regex: Spartan Controls
+  allowed_apply_hosts:
+  - careers.spartancontrols.com
+  original_workbook_rank: null
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  identity_url: https://careers.spartancontrols.com/search/
+  search_url: https://careers.spartancontrols.com/search/
+  endpoint_variant: rmk_table
+- name: ARC Resources
+  platform: sap_successfactors
+  careers_url: https://www.arcresources.com/join-our-team/
+  source_identity_regex: ARC Resources
+  allowed_apply_hosts:
+  - careers.arcresources.com
+  original_workbook_rank: 182
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  identity_url: https://careers.arcresources.com/search/
+  search_url: https://careers.arcresources.com/search/
+  endpoint_variant: rmk_table
+- name: Gibson Energy
+  platform: sap_successfactors
+  careers_url: https://www.gibsonenergy.com/careers/
+  source_identity_regex: Gibson Energy Jobs|Gibson Energy
+  identity_regex: Gibson Energy Jobs|Gibson Energy
+  allowed_apply_hosts:
+  - careers.gibsonenergy.com
+  original_workbook_rank: null
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  identity_url: https://careers.gibsonenergy.com/search/
+  search_url: https://careers.gibsonenergy.com/search/
+  endpoint_variant: rmk_table
+- name: SaskPower
+  platform: sap_successfactors
+  careers_url: https://www.saskpower.com/careers
+  search_url: https://jobs.saskpower.com/search/
+  endpoint_variant: rmk_table
+  allowed_apply_hosts:
+  - jobs.saskpower.com
+  max_pages: 1
+  max_jobs: 20
+- name: Hydro One
+  platform: sap_successfactors
+  careers_url: https://jobs.hydroone.com/
+  source_identity_regex: Hydro One
+  identity_regex: Hydro One
+  allowed_apply_hosts:
+  - jobs.hydroone.com
+  original_workbook_rank: null
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  identity_url: https://jobs.hydroone.com/search/
+  search_url: https://jobs.hydroone.com/search/
+  endpoint_variant: rmk_table
+- name: Omron
+  platform: sap_successfactors
+  careers_url: https://careers.omron.com/
+  source_identity_regex: OMRON
+  allowed_apply_hosts:
+  - careers.omron.com
+  original_workbook_rank: 101
+  max_pages: 1
+  max_jobs: 20
+  max_response_bytes: 3000000
+  search_url: https://careers.omron.com/search/
+  endpoint_variant: rmk_table
+- name: Canada Life
+  platform: sap_successfactors
+  careers_url: https://www.canadalife.com/about-us/careers.html
+  search_url: https://jobs.canadalife.com/search/
+  endpoint_variant: rmk_table
+  allowed_apply_hosts:
+  - jobs.canadalife.com
+  max_pages: 1
+  max_jobs: 20
+- name: Hyundai
+  platform: sap_successfactors
+  careers_url: https://www.hyundai.com/worldwide/en/company/careers
+  search_url: https://careers-americas.hyundai.com/search/
+  endpoint_variant: rmk_table
+  max_pages: 2
+prior_reliability_overlay_rows:
+  Keyence: null
+  TransAlta: null
+  Spartan Controls: null
+  ARC Resources: null
+  Gibson Energy: null
+  SaskPower: null
+  Hydro One: null
+  Omron: null
+  Canada Life: null
+  Hyundai: null
+runtime_rollback: production_runtime_rollback.patch
+activation_approved: false

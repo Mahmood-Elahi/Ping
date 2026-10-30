@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "network_requests": 0,
+  "registry": "config/target_companies.yaml",
+  "retained_coverage": null,
+  "company_filter": null,
+  "summary": {
+    "sources": 533,
+    "OK": 533,
+    "REVIEW_CONFIG": 0,
+    "TERMINAL_UNPROVEN": 0,
+    "SOURCE_STALE": 0,
+    "MIGRATION_REQUIRED": 0,
+    "ARCHITECTURAL": 0
+  },
+  "full_report_sha256": "80c0125690fd795302170dc8dcc1f686ee15c96eac8cc7c55c36e0af07f0932c",
+  "reproduce_full_report": "python scripts/validate_source_integrity.py --strict-onboarding --json"
+}

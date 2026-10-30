@@ -1,0 +1,279 @@
+{
+  "status": "PASS_OFFLINE",
+  "production_commit": "84b16555e089a1d7f28bf5b547a3490917e42c78",
+  "production_rows_modified": 0,
+  "effective_configurations_verified": 533,
+  "proposed_parser_counts": {
+    "baseline": 523,
+    "reviewed": 10
+  },
+  "current_parser_counts": {
+    "baseline": 531,
+    "reviewed": 2
+  },
+  "preserved_historical_files": 188,
+  "preserved_PASS_COMPLETE": 10,
+  "preserved_complete_jobs": 520,
+  "identity_impact_gates": {
+    "Festo": "RESOLVED_BY_EXACT_BASELINE_DISPATCH",
+    "Volkswagen Group": "RESOLVED_BY_EXACT_BASELINE_DISPATCH",
+    "TELUS": "RESOLVED_BY_EXACT_BASELINE_DISPATCH",
+    "Hatch": "RESOLVED_BY_EXACT_BASELINE_DISPATCH",
+    "VIA Rail": "RESOLVED_BY_EXACT_BASELINE_DISPATCH"
+  },
+  "sealed_adapter_sha256": "4f243405f425c5cdb0bd513017605419f2f4bdd07a2612fbcde4e876002f867d",
+  "certificates": [
+    {
+      "company": "Keyence",
+      "jobs": 11,
+      "certificate": "output/ping_batch2_canaries/20261028T060124Z-37d0c4d3/01.result.json",
+      "certificate_sha256": "6e625bf3f3bf6379079f844102dae77ede2ac275b62b117347be9a3cdf041b6f",
+      "worker_seconds": 9.536,
+      "source_config_key": "sap_successfactors:keyence:4ffe51674919efe1"
+    },
+    {
+      "company": "TransAlta",
+      "jobs": 10,
+      "certificate": "output/ping_batch2_canaries/20261028T060124Z-37d0c4d3/02.result.json",
+      "certificate_sha256": "4d314eca659314d27ff0da6c54a4d8801ce91aaa53accd67d65671c02c7a3a50",
+      "worker_seconds": 9.013,
+      "source_config_key": "sap_successfactors:transalta:95c8092017b11422"
+    },
+    {
+      "company": "Spartan Controls",
+      "jobs": 16,
+      "certificate": "output/ping_batch2_canaries/20261028T060124Z-37d0c4d3/03.result.json",
+      "certificate_sha256": "8df49063c245ebb9417a75c37b8399dd6fba2123cafc3059b90b854736706ead",
+      "worker_seconds": 8.974,
+      "source_config_key": "sap_successfactors:spartan controls:d3d7933c7164c917"
+    },
+    {
+      "company": "ARC Resources",
+      "jobs": 22,
+      "certificate": "output/ping_batch2_canaries/20261028T060124Z-37d0c4d3/04.result.json",
+      "certificate_sha256": "b2d70cf250298394c4d7869454cb78e9b59b4e87ef0d6961797f45f96d5b8b34",
+      "worker_seconds": 8.925,
+      "source_config_key": "sap_successfactors:arc resources:96b3057c625da55f"
+    },
+    {
+      "company": "Gibson Energy",
+      "jobs": 12,
+      "certificate": "output/ping_batch2_canaries/20261028T060124Z-37d0c4d3/05.result.json",
+      "certificate_sha256": "78ef68639682c66c1a75b5a838cc44fcab138208e3879ba27c435a89c7333b36",
+      "worker_seconds": 9.985,
+      "source_config_key": "sap_successfactors:gibson energy:fb873809a295a309"
+    },
+    {
+      "company": "SaskPower",
+      "jobs": 26,
+      "certificate": "output/ping_batch2_canaries/20261028T060124Z-37d0c4d3/06.result.json",
+      "certificate_sha256": "6451b6109280707aa38f16f22cafc1f69641d2b837634f42026a616ad1e56e88",
+      "worker_seconds": 10.512,
+      "source_config_key": "sap_successfactors:saskpower:096fc4b67df918ad"
+    },
+    {
+      "company": "Hydro One",
+      "jobs": 13,
+      "certificate": "output/ping_batch2_canaries/20261028T060124Z-37d0c4d3/07.result.json",
+      "certificate_sha256": "ac5deefd76c782ad271a61cbf58b26a3726feea84633f35fbeb3bb93692da07c",
+      "worker_seconds": 9.289,
+      "source_config_key": "sap_successfactors:hydro one:6faac9b4e78dfcc8"
+    },
+    {
+      "company": "Omron",
+      "jobs": 62,
+      "certificate": "output/ping_batch2_canaries/20261028T060124Z-37d0c4d3/08.result.json",
+      "certificate_sha256": "6e6c22682b78687e5588b04872c485ff4a0e5cef1e0fa72165c5062dd170c1df",
+      "worker_seconds": 12.827,
+      "source_config_key": "sap_successfactors:omron:c862036e8dd52967"
+    },
+    {
+      "company": "Canada Life",
+      "jobs": 86,
+      "certificate": "output/ping_batch2_canaries/20261028T060124Z-37d0c4d3/09.result.json",
+      "certificate_sha256": "847a1985f9a00d7a8c43fbfd8d70587129d268210c0b661450b59786e0f8a6fc",
+      "worker_seconds": 14.663,
+      "source_config_key": "sap_successfactors:canada life:91f88e525fbd20c7"
+    },
+    {
+      "company": "Hyundai",
+      "jobs": 262,
+      "certificate": "output/ping_batch2_remaining10_canaries/20261028T070211Z-595b2cd9/01.result.json",
+      "certificate_sha256": "e7ba1607a91559933938a311d497e972f62750985bc69672bc7fafd5261b13bc",
+      "worker_seconds": 28.621,
+      "source_config_key": "sap_successfactors:hyundai:a397945b1b30da1e"
+    }
+  ],
+  "all533": [
+    {
+      "company": "Festo",
+      "platform": "sap_successfactors",
+      "source_scope": "default",
+      "source_config_key_before": "sap_successfactors:festo:95ab849328b0acb1",
+      "source_config_key_after": "sap_successfactors:festo:95ab849328b0acb1",
+      "current_parser": "baseline",
+      "proposed_parser": "baseline",
+      "changed_fields": []
+    },
+    {
+      "company": "Hyundai",
+      "platform": "sap_successfactors",
+      "source_scope": "default",
+      "source_config_key_before": "sap_successfactors:hyundai:e89c7f8256554f52",
+      "source_config_key_after": "sap_successfactors:hyundai:a397945b1b30da1e",
+      "current_parser": "baseline",
+      "proposed_parser": "reviewed",
+      "changed_fields": [
+        "identity_regex",
+        "allowed_apply_hosts"
+      ]
+    },
+    {
+      "company": "Volkswagen Group",
+      "platform": "sap_successfactors",
+      "source_scope": "default",
+      "source_config_key_before": "sap_successfactors:volkswagen group:670fb4dee74557c5",
+      "source_config_key_after": "sap_successfactors:volkswagen group:670fb4dee74557c5",
+      "current_parser": "baseline",
+      "proposed_parser": "baseline",
+      "changed_fields": []
+    },
+    {
+      "company": "Omron",
+      "platform": "sap_successfactors",
+      "source_scope": "default",
+      "source_config_key_before": "sap_successfactors:omron:e026517b576a7c5e",
+      "source_config_key_after": "sap_successfactors:omron:c862036e8dd52967",
+      "current_parser": "baseline",
+      "proposed_parser": "reviewed",
+      "changed_fields": [
+        "identity_regex"
+      ]
+    },
+    {
+      "company": "Keyence",
+      "platform": "sap_successfactors",
+      "source_scope": "default",
+      "source_config_key_before": "sap_successfactors:keyence:33ef9b49e1c52a6c",
+      "source_config_key_after": "sap_successfactors:keyence:4ffe51674919efe1",
+      "current_parser": "baseline",
+      "proposed_parser": "reviewed",
+      "changed_fields": [
+        "identity_regex"
+      ]
+    },
+    {
+      "company": "Spartan Controls",
+      "platform": "sap_successfactors",
+      "source_scope": "default",
+      "source_config_key_before": "sap_successfactors:spartan controls:49c18fe4ab15c0d8",
+      "source_config_key_after": "sap_successfactors:spartan controls:d3d7933c7164c917",
+      "current_parser": "baseline",
+      "proposed_parser": "reviewed",
+      "changed_fields": [
+        "identity_regex"
+      ]
+    },
+    {
+      "company": "TransAlta",
+      "platform": "sap_successfactors",
+      "source_scope": "default",
+      "source_config_key_before": "sap_successfactors:transalta:de11d70915dedaec",
+      "source_config_key_after": "sap_successfactors:transalta:95c8092017b11422",
+      "current_parser": "baseline",
+      "proposed_parser": "reviewed",
+      "changed_fields": [
+        "identity_regex"
+      ]
+    },
+    {
+      "company": "ARC Resources",
+      "platform": "sap_successfactors",
+      "source_scope": "default",
+      "source_config_key_before": "sap_successfactors:arc resources:58220c2f17d08809",
+      "source_config_key_after": "sap_successfactors:arc resources:96b3057c625da55f",
+      "current_parser": "baseline",
+      "proposed_parser": "reviewed",
+      "changed_fields": [
+        "identity_regex"
+      ]
+    },
+    {
+      "company": "TELUS",
+      "platform": "sap_successfactors",
+      "source_scope": "default",
+      "source_config_key_before": "sap_successfactors:telus:fb0b7288a2b4e0e1",
+      "source_config_key_after": "sap_successfactors:telus:fb0b7288a2b4e0e1",
+      "current_parser": "baseline",
+      "proposed_parser": "baseline",
+      "changed_fields": []
+    },
+    {
+      "company": "Gibson Energy",
+      "platform": "sap_successfactors",
+      "source_scope": "default",
+      "source_config_key_before": "sap_successfactors:gibson energy:fb873809a295a309",
+      "source_config_key_after": "sap_successfactors:gibson energy:fb873809a295a309",
+      "current_parser": "reviewed",
+      "proposed_parser": "reviewed",
+      "changed_fields": []
+    },
+    {
+      "company": "Hydro One",
+      "platform": "sap_successfactors",
+      "source_scope": "default",
+      "source_config_key_before": "sap_successfactors:hydro one:6faac9b4e78dfcc8",
+      "source_config_key_after": "sap_successfactors:hydro one:6faac9b4e78dfcc8",
+      "current_parser": "reviewed",
+      "proposed_parser": "reviewed",
+      "changed_fields": []
+    },
+    {
+      "company": "Hatch",
+      "platform": "sap_successfactors",
+      "source_scope": "default",
+      "source_config_key_before": "sap_successfactors:hatch:a9d63c5bcaf99b53",
+      "source_config_key_after": "sap_successfactors:hatch:a9d63c5bcaf99b53",
+      "current_parser": "baseline",
+      "proposed_parser": "baseline",
+      "changed_fields": []
+    },
+    {
+      "company": "SaskPower",
+      "platform": "sap_successfactors",
+      "source_scope": "default",
+      "source_config_key_before": "sap_successfactors:saskpower:ed3467832ac25c35",
+      "source_config_key_after": "sap_successfactors:saskpower:096fc4b67df918ad",
+      "current_parser": "baseline",
+      "proposed_parser": "reviewed",
+      "changed_fields": [
+        "identity_regex"
+      ]
+    },
+    {
+      "company": "VIA Rail",
+      "platform": "sap_successfactors",
+      "source_scope": "default",
+      "source_config_key_before": "sap_successfactors:via rail:2925bbbde9cbbeea",
+      "source_config_key_after": "sap_successfactors:via rail:2925bbbde9cbbeea",
+      "current_parser": "baseline",
+      "proposed_parser": "baseline",
+      "changed_fields": []
+    },
+    {
+      "company": "Canada Life",
+      "platform": "sap_successfactors",
+      "source_scope": "default",
+      "source_config_key_before": "sap_successfactors:canada life:090f1f12774ac244",
+      "source_config_key_after": "sap_successfactors:canada life:91f88e525fbd20c7",
+      "current_parser": "baseline",
+      "proposed_parser": "reviewed",
+      "changed_fields": [
+        "identity_regex"
+      ]
+    }
+  ],
+  "live_requests": 0,
+  "external_writes": 0,
+  "extract_note": "Targeted excerpt from preserved consolidation checkpoint; full533 comparison is independently reproduced by the activation validator against baseline_raw_rows.json. Current/proposed columns are historical consolidation counterfactuals, not current production results."
+}

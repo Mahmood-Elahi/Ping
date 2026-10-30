@@ -1,0 +1,112 @@
+[
+  {
+    "company": "Keyence",
+    "jobs": 11,
+    "certificate": "certificates/20261028T060124Z-37d0c4d3/01.result.json",
+    "certificate_sha256": "6e625bf3f3bf6379079f844102dae77ede2ac275b62b117347be9a3cdf041b6f",
+    "worker_seconds": 9.536,
+    "source_config_key": "sap_successfactors:keyence:4ffe51674919efe1",
+    "original_reference": "output/ping_batch2_canaries/20261028T060124Z-37d0c4d3/01.result.json",
+    "original_manifest_sha256": "76338c4992983c371e7aab2479f4c2535f6eb0315e39afdf8e9c4ca58e8d6732",
+    "source_spec_sha256": "87996db281ab649ac8d721bb978e88a51f2049770e2f39991e717075a117f467"
+  },
+  {
+    "company": "TransAlta",
+    "jobs": 10,
+    "certificate": "certificates/20261028T060124Z-37d0c4d3/02.result.json",
+    "certificate_sha256": "4d314eca659314d27ff0da6c54a4d8801ce91aaa53accd67d65671c02c7a3a50",
+    "worker_seconds": 9.013,
+    "source_config_key": "sap_successfactors:transalta:95c8092017b11422",
+    "original_reference": "output/ping_batch2_canaries/20261028T060124Z-37d0c4d3/02.result.json",
+    "original_manifest_sha256": "76338c4992983c371e7aab2479f4c2535f6eb0315e39afdf8e9c4ca58e8d6732",
+    "source_spec_sha256": "6934112935997aed439ca6f51cbc67dee009353e5f263db7462b584086c7acb2"
+  },
+  {
+    "company": "Spartan Controls",
+    "jobs": 16,
+    "certificate": "certificates/20261028T060124Z-37d0c4d3/03.result.json",
+    "certificate_sha256": "8df49063c245ebb9417a75c37b8399dd6fba2123cafc3059b90b854736706ead",
+    "worker_seconds": 8.974,
+    "source_config_key": "sap_successfactors:spartan controls:d3d7933c7164c917",
+    "original_reference": "output/ping_batch2_canaries/20261028T060124Z-37d0c4d3/03.result.json",
+    "original_manifest_sha256": "76338c4992983c371e7aab2479f4c2535f6eb0315e39afdf8e9c4ca58e8d6732",
+    "source_spec_sha256": "9fcd90fed7b4fd1b57ee62bca0be74f024793b9e232ec039560cdfe325578888"
+  },
+  {
+    "company": "ARC Resources",
+    "jobs": 22,
+    "certificate": "certificates/20261028T060124Z-37d0c4d3/04.result.json",
+    "certificate_sha256": "b2d70cf250298394c4d7869454cb78e9b59b4e87ef0d6961797f45f96d5b8b34",
+    "worker_seconds": 8.925,
+    "source_config_key": "sap_successfactors:arc resources:96b3057c625da55f",
+    "original_reference": "output/ping_batch2_canaries/20261028T060124Z-37d0c4d3/04.result.json",
+    "original_manifest_sha256": "76338c4992983c371e7aab2479f4c2535f6eb0315e39afdf8e9c4ca58e8d6732",
+    "source_spec_sha256": "3580adb74724d04937d06478032faf307be98a038b9405dbaba177eef2aaaf26"
+  },
+  {
+    "company": "Gibson Energy",
+    "jobs": 12,
+    "certificate": "certificates/20261028T060124Z-37d0c4d3/05.result.json",
+    "certificate_sha256": "78ef68639682c66c1a75b5a838cc44fcab138208e3879ba27c435a89c7333b36",
+    "worker_seconds": 9.985,
+    "source_config_key": "sap_successfactors:gibson energy:fb873809a295a309",
+    "original_reference": "output/ping_batch2_canaries/20261028T060124Z-37d0c4d3/05.result.json",
+    "original_manifest_sha256": "76338c4992983c371e7aab2479f4c2535f6eb0315e39afdf8e9c4ca58e8d6732",
+    "source_spec_sha256": "e1cc035adb72b89920c6836b7df38982f63ad58db250a2372d6954d882e5e15f"
+  },
+  {
+    "company": "SaskPower",
+    "jobs": 26,
+    "certificate": "certificates/20261028T060124Z-37d0c4d3/06.result.json",
+    "certificate_sha256": "6451b6109280707aa38f16f22cafc1f69641d2b837634f42026a616ad1e56e88",
+    "worker_seconds": 10.512,
+    "source_config_key": "sap_successfactors:saskpower:096fc4b67df918ad",
+    "original_reference": "output/ping_batch2_canaries/20261028T060124Z-37d0c4d3/06.result.json",
+    "original_manifest_sha256": "76338c4992983c371e7aab2479f4c2535f6eb0315e39afdf8e9c4ca58e8d6732",
+    "source_spec_sha256": "4c8f6b470247c9b9653ea0de84a59ae3787bdb33faad2a33b062737f14dc6a53"
+  },
+  {
+    "company": "Hydro One",
+    "jobs": 13,
+    "certificate": "certificates/20261028T060124Z-37d0c4d3/07.result.json",
+    "certificate_sha256": "ac5deefd76c782ad271a61cbf58b26a3726feea84633f35fbeb3bb93692da07c",
+    "worker_seconds": 9.289,
+    "source_config_key": "sap_successfactors:hydro one:6faac9b4e78dfcc8",
+    "original_reference": "output/ping_batch2_canaries/20261028T060124Z-37d0c4d3/07.result.json",
+    "original_manifest_sha256": "76338c4992983c371e7aab2479f4c2535f6eb0315e39afdf8e9c4ca58e8d6732",
+    "source_spec_sha256": "0810a68a837bc38167c90dcf3d1de3ef591c3b220176aeb040e5ac612969d474"
+  },
+  {
+    "company": "Omron",
+    "jobs": 62,
+    "certificate": "certificates/20261028T060124Z-37d0c4d3/08.result.json",
+    "certificate_sha256": "6e6c22682b78687e5588b04872c485ff4a0e5cef1e0fa72165c5062dd170c1df",
+    "worker_seconds": 12.827,
+    "source_config_key": "sap_successfactors:omron:c862036e8dd52967",
+    "original_reference": "output/ping_batch2_canaries/20261028T060124Z-37d0c4d3/08.result.json",
+    "original_manifest_sha256": "76338c4992983c371e7aab2479f4c2535f6eb0315e39afdf8e9c4ca58e8d6732",
+    "source_spec_sha256": "aa3b021602fcf69ee1e4b493ce4aae57a7d99c5496cbb7d9267418bdadabcfb1"
+  },
+  {
+    "company": "Canada Life",
+    "jobs": 86,
+    "certificate": "certificates/20261028T060124Z-37d0c4d3/09.result.json",
+    "certificate_sha256": "847a1985f9a00d7a8c43fbfd8d70587129d268210c0b661450b59786e0f8a6fc",
+    "worker_seconds": 14.663,
+    "source_config_key": "sap_successfactors:canada life:91f88e525fbd20c7",
+    "original_reference": "output/ping_batch2_canaries/20261028T060124Z-37d0c4d3/09.result.json",
+    "original_manifest_sha256": "76338c4992983c371e7aab2479f4c2535f6eb0315e39afdf8e9c4ca58e8d6732",
+    "source_spec_sha256": "ad8afebe745945032f96663d37b89ba35c37b0a4a183843b15f238c0dd73affd"
+  },
+  {
+    "company": "Hyundai",
+    "jobs": 262,
+    "certificate": "certificates/20261028T070211Z-595b2cd9/01.result.json",
+    "certificate_sha256": "e7ba1607a91559933938a311d497e972f62750985bc69672bc7fafd5261b13bc",
+    "worker_seconds": 28.621,
+    "source_config_key": "sap_successfactors:hyundai:a397945b1b30da1e",
+    "original_reference": "output/ping_batch2_remaining10_canaries/20261028T070211Z-595b2cd9/01.result.json",
+    "original_manifest_sha256": "7b23b6bf67995702a68ca498e6790b680afd3a13e981e776f3226a79513a5855",
+    "source_spec_sha256": "a2533de7d570d82768cb3503a6017f85db37b7c061a741b4452dfaf14f97ad99"
+  }
+]

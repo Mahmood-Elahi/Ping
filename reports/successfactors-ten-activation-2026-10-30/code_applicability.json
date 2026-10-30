@@ -1,0 +1,17 @@
+{
+  "production_base": "84b16555e089a1d7f28bf5b547a3490917e42c78",
+  "reviewed_runtime": {
+    "src/scraper/company_careers/adapters/sap_successfactors.py": "4e5aec4f19af1b4906b768c807cfb8fce61a099dba8c609fa8f01db1fbf09db4",
+    "src/scraper/company_careers/scanner.py": "48f0e5374c30a81fa1c5d0c260ae9c55ad221fc9c660e8cca786e0e36dea5e3f",
+    "src/scraper/company_careers/canary_diagnostics.py": "a9ae775588dc4a6d433aa8ef2ad92b31844f2470a7fcee841a7cd9b057cc4364",
+    "src/scraper/company_careers/adapters/sap_successfactors_baseline_84b1655.py": "4f243405f425c5cdb0bd513017605419f2f4bdd07a2612fbcde4e876002f867d",
+    "src/scraper/company_careers/adapters/successfactors_recovery_routing.py": "c7e7a21733d463d55c1eb40d64b37603769b6c4de2ce542bd3221eacbbf19933",
+    "src/scraper/company_careers/adapters/successfactors_recovery_profiles.json": "3f36b2a78341294a6f03e051399028ed12c12e3a251635efad87497bd7e00e4a"
+  },
+  "sealed_production_adapter_sha256": "4f243405f425c5cdb0bd513017605419f2f4bdd07a2612fbcde4e876002f867d",
+  "last_live_validated_adapter_sha256": "a738e8abce48d8c66b28815ea5c1ef095e0a90e3721c248602d5e230d67dddf6",
+  "consolidation_reviewed_manifest_sha256": "5f95bb6e27100d8eaa750a99a8ec82307617700a081542133067c2c5179c2e24",
+  "certificate_count": 10,
+  "future_candidates_activated": false,
+  "new_live_requests": 0
+}

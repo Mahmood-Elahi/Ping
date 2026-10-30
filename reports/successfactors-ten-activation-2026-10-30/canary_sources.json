@@ -1,0 +1,915 @@
+[
+  {
+    "company": "Keyence",
+    "source_scope": "default",
+    "source_config_key": "sap_successfactors:keyence:4ffe51674919efe1",
+    "candidate_row_sha256": "42fe0314c0cb314f8f5f4d73583f77d461db169483a826997c46bf0cd6155f79",
+    "candidate_row": {
+      "name": "Keyence",
+      "platform": "sap_successfactors",
+      "careers_url": "https://careers.keyence.com/",
+      "source_identity_regex": "Keyence",
+      "allowed_apply_hosts": [
+        "careers.keyence.com"
+      ],
+      "original_workbook_rank": 103,
+      "max_pages": 20,
+      "max_jobs": 500,
+      "max_response_bytes": 3000000,
+      "search_url": "https://careers.keyence.com/search/",
+      "endpoint_variant": "rmk_table",
+      "identity_regex": "<title>\\s*KEYENCE\\ Jobs\\s*</title>",
+      "source_scope": "default",
+      "evidence_source": "reports/ping-coverage-recovery-2026-10-25/evidence/sap_identity_candidates.json#keyence"
+    },
+    "reviewed_identity": {
+      "company": "Keyence",
+      "official_corporate_url": "https://careers.keyence.com/",
+      "observed_first_party_search": "https://careers.keyence.com/search/",
+      "observed_public_page_title": "KEYENCE Jobs",
+      "prior_identity_regex": null,
+      "prior_source_identity_regex": "Keyence",
+      "proposed_identity_regex": "<title>\\s*KEYENCE\\ Jobs\\s*</title>",
+      "configured_field": "identity_regex",
+      "offline_proposed_identity_status": "validated",
+      "proof_basis": "Employer-owned recruiting subdomain and exact current page identity; retain exact host and configured regional scope. This is not third-party ATS slug inference.",
+      "review_date": "2026-10-25",
+      "activation_status": "NOT_ELIGIBLE_NO_CANARY"
+    },
+    "allowed_hosts": [
+      "careers.keyence.com"
+    ],
+    "allowed_methods": [
+      "GET"
+    ],
+    "allowed_path": "/search/",
+    "allowed_query_fields": {
+      "startrow": "one canonical nonnegative integer",
+      "q": "empty only",
+      "locationsearch": "empty only",
+      "sortColumn": "presentation only",
+      "sortDirection": "presentation only"
+    },
+    "physical_request_cap": 12,
+    "source_deadline_seconds": 120,
+    "observed_total": 11,
+    "observed_page_size": 11,
+    "expected_clean_listing_requests": 1,
+    "maximum_response_bytes": 3000000,
+    "maximum_adapter_attempts_per_request": 2,
+    "maximum_collection_restarts": 1,
+    "completion_profile": "successfactors_rmk_table_exact_inventory",
+    "acceptance": {
+      "required_outcome": "PASS_COMPLETE",
+      "identity": "Exact reviewed employer/title marker/first-party host/default scope/apply-host binding",
+      "inventory": "Reported total = unique stable inventory = normalized jobs; zero must be explicit",
+      "terminal": "Authoritative total reached exactly; no hidden continuation or safety stop",
+      "large_inventory": "Existing adaptive listing traversal only; unchanged absolute 1000-request/20000-job ceilings remain nonterminal",
+      "mutation": "No unresolved mutation; existing one-restart collection policy discards the first traversal",
+      "authority": "Central finalizer complete, authoritative inventory, can_reconcile_absence=true",
+      "rejections": "Zero unreadable/rejected records and duplicate IDs/URLs",
+      "scope": "Exact first-party search route; no keyword, location or country filter narrowing"
+    },
+    "failure_policy": "Independent incomplete excluded; destination/access rejection stops batch; three consecutive transport failures stop batch",
+    "rollback": {
+      "prior_production_row": {
+        "name": "Keyence",
+        "platform": "sap_successfactors",
+        "careers_url": "https://careers.keyence.com/",
+        "source_identity_regex": "Keyence",
+        "allowed_apply_hosts": [
+          "careers.keyence.com"
+        ],
+        "original_workbook_rank": 103,
+        "max_pages": 1,
+        "max_jobs": 20,
+        "max_response_bytes": 3000000,
+        "search_url": "https://careers.keyence.com/search/",
+        "endpoint_variant": "rmk_table"
+      },
+      "prior_overlay_row": null,
+      "record": "reports/successfactors-recovery-batch2-2026-10-27/rollback.yaml#Keyence"
+    }
+  },
+  {
+    "company": "TransAlta",
+    "source_scope": "default",
+    "source_config_key": "sap_successfactors:transalta:95c8092017b11422",
+    "candidate_row_sha256": "8ea41270058c395819dabda20e62aacffd59b379f3c8b06482cb095dc47da4a6",
+    "candidate_row": {
+      "name": "TransAlta",
+      "platform": "sap_successfactors",
+      "careers_url": "https://transalta.com/careers/",
+      "source_identity_regex": "TransAlta",
+      "allowed_apply_hosts": [
+        "jobs.transalta.com"
+      ],
+      "original_workbook_rank": null,
+      "max_pages": 20,
+      "max_jobs": 500,
+      "max_response_bytes": 3000000,
+      "identity_url": "https://jobs.transalta.com/search/",
+      "search_url": "https://jobs.transalta.com/search/",
+      "endpoint_variant": "rmk_table",
+      "identity_regex": "<title>\\s*TransAlta\\ Jobs\\s*</title>",
+      "source_scope": "default",
+      "evidence_source": "reports/ping-coverage-recovery-2026-10-25/evidence/sap_identity_candidates.json#transalta"
+    },
+    "reviewed_identity": {
+      "company": "TransAlta",
+      "official_corporate_url": "https://transalta.com/careers/",
+      "observed_first_party_search": "https://jobs.transalta.com/search/",
+      "observed_public_page_title": "TransAlta Jobs",
+      "prior_identity_regex": null,
+      "prior_source_identity_regex": "TransAlta",
+      "proposed_identity_regex": "<title>\\s*TransAlta\\ Jobs\\s*</title>",
+      "configured_field": "identity_regex",
+      "offline_proposed_identity_status": "validated",
+      "proof_basis": "Employer-owned recruiting subdomain and exact current page identity; retain exact host and configured regional scope. This is not third-party ATS slug inference.",
+      "review_date": "2026-10-25",
+      "activation_status": "NOT_ELIGIBLE_NO_CANARY"
+    },
+    "allowed_hosts": [
+      "jobs.transalta.com"
+    ],
+    "allowed_methods": [
+      "GET"
+    ],
+    "allowed_path": "/search/",
+    "allowed_query_fields": {
+      "startrow": "one canonical nonnegative integer",
+      "q": "empty only",
+      "locationsearch": "empty only",
+      "sortColumn": "presentation only",
+      "sortDirection": "presentation only"
+    },
+    "physical_request_cap": 12,
+    "source_deadline_seconds": 120,
+    "observed_total": 8,
+    "observed_page_size": 8,
+    "expected_clean_listing_requests": 1,
+    "maximum_response_bytes": 3000000,
+    "maximum_adapter_attempts_per_request": 2,
+    "maximum_collection_restarts": 1,
+    "completion_profile": "successfactors_rmk_table_exact_inventory",
+    "acceptance": {
+      "required_outcome": "PASS_COMPLETE",
+      "identity": "Exact reviewed employer/title marker/first-party host/default scope/apply-host binding",
+      "inventory": "Reported total = unique stable inventory = normalized jobs; zero must be explicit",
+      "terminal": "Authoritative total reached exactly; no hidden continuation or safety stop",
+      "large_inventory": "Existing adaptive listing traversal only; unchanged absolute 1000-request/20000-job ceilings remain nonterminal",
+      "mutation": "No unresolved mutation; existing one-restart collection policy discards the first traversal",
+      "authority": "Central finalizer complete, authoritative inventory, can_reconcile_absence=true",
+      "rejections": "Zero unreadable/rejected records and duplicate IDs/URLs",
+      "scope": "Exact first-party search route; no keyword, location or country filter narrowing"
+    },
+    "failure_policy": "Independent incomplete excluded; destination/access rejection stops batch; three consecutive transport failures stop batch",
+    "rollback": {
+      "prior_production_row": {
+        "name": "TransAlta",
+        "platform": "sap_successfactors",
+        "careers_url": "https://transalta.com/careers/",
+        "source_identity_regex": "TransAlta",
+        "allowed_apply_hosts": [
+          "jobs.transalta.com"
+        ],
+        "original_workbook_rank": null,
+        "max_pages": 1,
+        "max_jobs": 20,
+        "max_response_bytes": 3000000,
+        "identity_url": "https://jobs.transalta.com/search/",
+        "search_url": "https://jobs.transalta.com/search/",
+        "endpoint_variant": "rmk_table"
+      },
+      "prior_overlay_row": null,
+      "record": "reports/successfactors-recovery-batch2-2026-10-27/rollback.yaml#TransAlta"
+    }
+  },
+  {
+    "company": "Spartan Controls",
+    "source_scope": "default",
+    "source_config_key": "sap_successfactors:spartan controls:d3d7933c7164c917",
+    "candidate_row_sha256": "bfd6b14510cc853e7471b9325b173a655532a764d3a44fc562961feb436136c9",
+    "candidate_row": {
+      "name": "Spartan Controls",
+      "platform": "sap_successfactors",
+      "careers_url": "https://www.spartancontrols.com/careers/",
+      "source_identity_regex": "Spartan Controls",
+      "allowed_apply_hosts": [
+        "careers.spartancontrols.com"
+      ],
+      "original_workbook_rank": null,
+      "max_pages": 20,
+      "max_jobs": 500,
+      "max_response_bytes": 3000000,
+      "identity_url": "https://careers.spartancontrols.com/search/",
+      "search_url": "https://careers.spartancontrols.com/search/",
+      "endpoint_variant": "rmk_table",
+      "identity_regex": "<title>\\s*Spartan\\ Controls\\ Ltd\\.\\ Jobs\\s*</title>",
+      "source_scope": "default",
+      "evidence_source": "reports/ping-coverage-recovery-2026-10-25/evidence/sap_identity_candidates.json#spartan-controls"
+    },
+    "reviewed_identity": {
+      "company": "Spartan Controls",
+      "official_corporate_url": "https://www.spartancontrols.com/careers/",
+      "observed_first_party_search": "https://careers.spartancontrols.com/search/",
+      "observed_public_page_title": "Spartan Controls Ltd. Jobs",
+      "prior_identity_regex": null,
+      "prior_source_identity_regex": "Spartan Controls",
+      "proposed_identity_regex": "<title>\\s*Spartan\\ Controls\\ Ltd\\.\\ Jobs\\s*</title>",
+      "configured_field": "identity_regex",
+      "offline_proposed_identity_status": "validated",
+      "proof_basis": "Employer-owned recruiting subdomain and exact current page identity; retain exact host and configured regional scope. This is not third-party ATS slug inference.",
+      "review_date": "2026-10-25",
+      "activation_status": "NOT_ELIGIBLE_NO_CANARY"
+    },
+    "allowed_hosts": [
+      "careers.spartancontrols.com"
+    ],
+    "allowed_methods": [
+      "GET"
+    ],
+    "allowed_path": "/search/",
+    "allowed_query_fields": {
+      "startrow": "one canonical nonnegative integer",
+      "q": "empty only",
+      "locationsearch": "empty only",
+      "sortColumn": "presentation only",
+      "sortDirection": "presentation only"
+    },
+    "physical_request_cap": 12,
+    "source_deadline_seconds": 120,
+    "observed_total": 12,
+    "observed_page_size": 12,
+    "expected_clean_listing_requests": 1,
+    "maximum_response_bytes": 3000000,
+    "maximum_adapter_attempts_per_request": 2,
+    "maximum_collection_restarts": 1,
+    "completion_profile": "successfactors_rmk_table_exact_inventory",
+    "acceptance": {
+      "required_outcome": "PASS_COMPLETE",
+      "identity": "Exact reviewed employer/title marker/first-party host/default scope/apply-host binding",
+      "inventory": "Reported total = unique stable inventory = normalized jobs; zero must be explicit",
+      "terminal": "Authoritative total reached exactly; no hidden continuation or safety stop",
+      "large_inventory": "Existing adaptive listing traversal only; unchanged absolute 1000-request/20000-job ceilings remain nonterminal",
+      "mutation": "No unresolved mutation; existing one-restart collection policy discards the first traversal",
+      "authority": "Central finalizer complete, authoritative inventory, can_reconcile_absence=true",
+      "rejections": "Zero unreadable/rejected records and duplicate IDs/URLs",
+      "scope": "Exact first-party search route; no keyword, location or country filter narrowing"
+    },
+    "failure_policy": "Independent incomplete excluded; destination/access rejection stops batch; three consecutive transport failures stop batch",
+    "rollback": {
+      "prior_production_row": {
+        "name": "Spartan Controls",
+        "platform": "sap_successfactors",
+        "careers_url": "https://www.spartancontrols.com/careers/",
+        "source_identity_regex": "Spartan Controls",
+        "allowed_apply_hosts": [
+          "careers.spartancontrols.com"
+        ],
+        "original_workbook_rank": null,
+        "max_pages": 1,
+        "max_jobs": 20,
+        "max_response_bytes": 3000000,
+        "identity_url": "https://careers.spartancontrols.com/search/",
+        "search_url": "https://careers.spartancontrols.com/search/",
+        "endpoint_variant": "rmk_table"
+      },
+      "prior_overlay_row": null,
+      "record": "reports/successfactors-recovery-batch2-2026-10-27/rollback.yaml#Spartan Controls"
+    }
+  },
+  {
+    "company": "ARC Resources",
+    "source_scope": "default",
+    "source_config_key": "sap_successfactors:arc resources:96b3057c625da55f",
+    "candidate_row_sha256": "f6cb06fb3584021df3c0353465337893e129ce8a540c4c94f56b0711d8cc7226",
+    "candidate_row": {
+      "name": "ARC Resources",
+      "platform": "sap_successfactors",
+      "careers_url": "https://www.arcresources.com/join-our-team/",
+      "source_identity_regex": "ARC Resources",
+      "allowed_apply_hosts": [
+        "careers.arcresources.com"
+      ],
+      "original_workbook_rank": 182,
+      "max_pages": 20,
+      "max_jobs": 500,
+      "max_response_bytes": 3000000,
+      "identity_url": "https://careers.arcresources.com/search/",
+      "search_url": "https://careers.arcresources.com/search/",
+      "endpoint_variant": "rmk_table",
+      "identity_regex": "<title>\\s*ARC\\ Resources\\ Ltd\\.\\ Jobs\\s*</title>",
+      "source_scope": "default",
+      "evidence_source": "reports/ping-coverage-recovery-2026-10-25/evidence/sap_identity_candidates.json#arc-resources"
+    },
+    "reviewed_identity": {
+      "company": "ARC Resources",
+      "official_corporate_url": "https://www.arcresources.com/join-our-team/",
+      "observed_first_party_search": "https://careers.arcresources.com/search/?createNewAlert=false&q=",
+      "observed_public_page_title": "ARC Resources Ltd. Jobs",
+      "prior_identity_regex": null,
+      "prior_source_identity_regex": "ARC Resources",
+      "proposed_identity_regex": "<title>\\s*ARC\\ Resources\\ Ltd\\.\\ Jobs\\s*</title>",
+      "configured_field": "identity_regex",
+      "offline_proposed_identity_status": "validated",
+      "proof_basis": "Employer-owned recruiting subdomain and exact current page identity; retain exact host and configured regional scope. This is not third-party ATS slug inference.",
+      "review_date": "2026-10-25",
+      "activation_status": "NOT_ELIGIBLE_NO_CANARY"
+    },
+    "allowed_hosts": [
+      "careers.arcresources.com"
+    ],
+    "allowed_methods": [
+      "GET"
+    ],
+    "allowed_path": "/search/",
+    "allowed_query_fields": {
+      "startrow": "one canonical nonnegative integer",
+      "q": "empty only",
+      "locationsearch": "empty only",
+      "sortColumn": "presentation only",
+      "sortDirection": "presentation only"
+    },
+    "physical_request_cap": 12,
+    "source_deadline_seconds": 120,
+    "observed_total": 22,
+    "observed_page_size": 22,
+    "expected_clean_listing_requests": 1,
+    "maximum_response_bytes": 3000000,
+    "maximum_adapter_attempts_per_request": 2,
+    "maximum_collection_restarts": 1,
+    "completion_profile": "successfactors_rmk_table_exact_inventory",
+    "acceptance": {
+      "required_outcome": "PASS_COMPLETE",
+      "identity": "Exact reviewed employer/title marker/first-party host/default scope/apply-host binding",
+      "inventory": "Reported total = unique stable inventory = normalized jobs; zero must be explicit",
+      "terminal": "Authoritative total reached exactly; no hidden continuation or safety stop",
+      "large_inventory": "Existing adaptive listing traversal only; unchanged absolute 1000-request/20000-job ceilings remain nonterminal",
+      "mutation": "No unresolved mutation; existing one-restart collection policy discards the first traversal",
+      "authority": "Central finalizer complete, authoritative inventory, can_reconcile_absence=true",
+      "rejections": "Zero unreadable/rejected records and duplicate IDs/URLs",
+      "scope": "Exact first-party search route; no keyword, location or country filter narrowing"
+    },
+    "failure_policy": "Independent incomplete excluded; destination/access rejection stops batch; three consecutive transport failures stop batch",
+    "rollback": {
+      "prior_production_row": {
+        "name": "ARC Resources",
+        "platform": "sap_successfactors",
+        "careers_url": "https://www.arcresources.com/join-our-team/",
+        "source_identity_regex": "ARC Resources",
+        "allowed_apply_hosts": [
+          "careers.arcresources.com"
+        ],
+        "original_workbook_rank": 182,
+        "max_pages": 1,
+        "max_jobs": 20,
+        "max_response_bytes": 3000000,
+        "identity_url": "https://careers.arcresources.com/search/",
+        "search_url": "https://careers.arcresources.com/search/",
+        "endpoint_variant": "rmk_table"
+      },
+      "prior_overlay_row": null,
+      "record": "reports/successfactors-recovery-batch2-2026-10-27/rollback.yaml#ARC Resources"
+    }
+  },
+  {
+    "company": "Gibson Energy",
+    "source_scope": "default",
+    "source_config_key": "sap_successfactors:gibson energy:fb873809a295a309",
+    "candidate_row_sha256": "9afde9cfe8870a216a14bbf1bafc64164536a79c97f7bc80cd0fb4e9f714fa25",
+    "candidate_row": {
+      "name": "Gibson Energy",
+      "platform": "sap_successfactors",
+      "careers_url": "https://www.gibsonenergy.com/careers/",
+      "source_identity_regex": "Gibson Energy Jobs|Gibson Energy",
+      "identity_regex": "Gibson Energy Jobs|Gibson Energy",
+      "allowed_apply_hosts": [
+        "careers.gibsonenergy.com"
+      ],
+      "original_workbook_rank": null,
+      "max_pages": 20,
+      "max_jobs": 500,
+      "max_response_bytes": 3000000,
+      "identity_url": "https://careers.gibsonenergy.com/search/",
+      "search_url": "https://careers.gibsonenergy.com/search/",
+      "endpoint_variant": "rmk_table",
+      "source_scope": "default",
+      "evidence_source": "reports/ping-coverage-recovery-2026-10-25/evidence/sap_identity_candidates.json#gibson-energy"
+    },
+    "reviewed_identity": {
+      "company": "Gibson Energy",
+      "official_corporate_url": "https://www.gibsonenergy.com/careers/",
+      "observed_first_party_search": "https://careers.gibsonenergy.com/search/",
+      "observed_public_page_title": "Gibson Energy Jobs",
+      "prior_identity_regex": "Gibson Energy Jobs|Gibson Energy",
+      "prior_source_identity_regex": "Gibson Energy Jobs|Gibson Energy",
+      "proposed_identity_regex": "Gibson Energy Jobs|Gibson Energy",
+      "configured_field": "identity_regex",
+      "offline_proposed_identity_status": "validated",
+      "proof_basis": "Employer-owned recruiting subdomain and exact current page identity; retain exact host and configured regional scope. This is not third-party ATS slug inference.",
+      "review_date": "2026-10-25",
+      "activation_status": "NOT_ELIGIBLE_NO_CANARY"
+    },
+    "allowed_hosts": [
+      "careers.gibsonenergy.com"
+    ],
+    "allowed_methods": [
+      "GET"
+    ],
+    "allowed_path": "/search/",
+    "allowed_query_fields": {
+      "startrow": "one canonical nonnegative integer",
+      "q": "empty only",
+      "locationsearch": "empty only",
+      "sortColumn": "presentation only",
+      "sortDirection": "presentation only"
+    },
+    "physical_request_cap": 12,
+    "source_deadline_seconds": 120,
+    "observed_total": 11,
+    "observed_page_size": 10,
+    "expected_clean_listing_requests": 2,
+    "maximum_response_bytes": 3000000,
+    "maximum_adapter_attempts_per_request": 2,
+    "maximum_collection_restarts": 1,
+    "completion_profile": "successfactors_rmk_table_exact_inventory",
+    "acceptance": {
+      "required_outcome": "PASS_COMPLETE",
+      "identity": "Exact reviewed employer/title marker/first-party host/default scope/apply-host binding",
+      "inventory": "Reported total = unique stable inventory = normalized jobs; zero must be explicit",
+      "terminal": "Authoritative total reached exactly; no hidden continuation or safety stop",
+      "large_inventory": "Existing adaptive listing traversal only; unchanged absolute 1000-request/20000-job ceilings remain nonterminal",
+      "mutation": "No unresolved mutation; existing one-restart collection policy discards the first traversal",
+      "authority": "Central finalizer complete, authoritative inventory, can_reconcile_absence=true",
+      "rejections": "Zero unreadable/rejected records and duplicate IDs/URLs",
+      "scope": "Exact first-party search route; no keyword, location or country filter narrowing"
+    },
+    "failure_policy": "Independent incomplete excluded; destination/access rejection stops batch; three consecutive transport failures stop batch",
+    "rollback": {
+      "prior_production_row": {
+        "name": "Gibson Energy",
+        "platform": "sap_successfactors",
+        "careers_url": "https://www.gibsonenergy.com/careers/",
+        "source_identity_regex": "Gibson Energy Jobs|Gibson Energy",
+        "identity_regex": "Gibson Energy Jobs|Gibson Energy",
+        "allowed_apply_hosts": [
+          "careers.gibsonenergy.com"
+        ],
+        "original_workbook_rank": null,
+        "max_pages": 1,
+        "max_jobs": 20,
+        "max_response_bytes": 3000000,
+        "identity_url": "https://careers.gibsonenergy.com/search/",
+        "search_url": "https://careers.gibsonenergy.com/search/",
+        "endpoint_variant": "rmk_table"
+      },
+      "prior_overlay_row": null,
+      "record": "reports/successfactors-recovery-batch2-2026-10-27/rollback.yaml#Gibson Energy"
+    }
+  },
+  {
+    "company": "SaskPower",
+    "source_scope": "default",
+    "source_config_key": "sap_successfactors:saskpower:096fc4b67df918ad",
+    "candidate_row_sha256": "c6b775cec554f642035a9e8db776d83bb5874b9a457ef4811f96d5bdcd04d131",
+    "candidate_row": {
+      "name": "SaskPower",
+      "platform": "sap_successfactors",
+      "careers_url": "https://www.saskpower.com/careers",
+      "search_url": "https://jobs.saskpower.com/search/",
+      "endpoint_variant": "rmk_table",
+      "allowed_apply_hosts": [
+        "jobs.saskpower.com"
+      ],
+      "max_pages": 20,
+      "max_jobs": 500,
+      "identity_regex": "<title>\\s*SaskPower\\ Jobs\\s*</title>",
+      "source_scope": "default",
+      "evidence_source": "reports/ping-coverage-recovery-2026-10-25/evidence/sap_identity_candidates.json#saskpower",
+      "max_response_bytes": 3000000
+    },
+    "reviewed_identity": {
+      "company": "SaskPower",
+      "official_corporate_url": "https://www.saskpower.com/careers",
+      "observed_first_party_search": "https://jobs.saskpower.com/search/",
+      "observed_public_page_title": "SaskPower Jobs",
+      "prior_identity_regex": null,
+      "prior_source_identity_regex": null,
+      "proposed_identity_regex": "<title>\\s*SaskPower\\ Jobs\\s*</title>",
+      "configured_field": "identity_regex",
+      "offline_proposed_identity_status": "validated",
+      "proof_basis": "Employer-owned recruiting subdomain and exact current page identity; retain exact host and configured regional scope. This is not third-party ATS slug inference.",
+      "review_date": "2026-10-25",
+      "activation_status": "NOT_ELIGIBLE_NO_CANARY"
+    },
+    "allowed_hosts": [
+      "jobs.saskpower.com"
+    ],
+    "allowed_methods": [
+      "GET"
+    ],
+    "allowed_path": "/search/",
+    "allowed_query_fields": {
+      "startrow": "one canonical nonnegative integer",
+      "q": "empty only",
+      "locationsearch": "empty only",
+      "sortColumn": "presentation only",
+      "sortDirection": "presentation only"
+    },
+    "physical_request_cap": 12,
+    "source_deadline_seconds": 120,
+    "observed_total": 21,
+    "observed_page_size": 21,
+    "expected_clean_listing_requests": 1,
+    "maximum_response_bytes": 3000000,
+    "maximum_adapter_attempts_per_request": 2,
+    "maximum_collection_restarts": 1,
+    "completion_profile": "successfactors_rmk_table_exact_inventory",
+    "acceptance": {
+      "required_outcome": "PASS_COMPLETE",
+      "identity": "Exact reviewed employer/title marker/first-party host/default scope/apply-host binding",
+      "inventory": "Reported total = unique stable inventory = normalized jobs; zero must be explicit",
+      "terminal": "Authoritative total reached exactly; no hidden continuation or safety stop",
+      "large_inventory": "Existing adaptive listing traversal only; unchanged absolute 1000-request/20000-job ceilings remain nonterminal",
+      "mutation": "No unresolved mutation; existing one-restart collection policy discards the first traversal",
+      "authority": "Central finalizer complete, authoritative inventory, can_reconcile_absence=true",
+      "rejections": "Zero unreadable/rejected records and duplicate IDs/URLs",
+      "scope": "Exact first-party search route; no keyword, location or country filter narrowing"
+    },
+    "failure_policy": "Independent incomplete excluded; destination/access rejection stops batch; three consecutive transport failures stop batch",
+    "rollback": {
+      "prior_production_row": {
+        "name": "SaskPower",
+        "platform": "sap_successfactors",
+        "careers_url": "https://www.saskpower.com/careers",
+        "search_url": "https://jobs.saskpower.com/search/",
+        "endpoint_variant": "rmk_table",
+        "allowed_apply_hosts": [
+          "jobs.saskpower.com"
+        ],
+        "max_pages": 1,
+        "max_jobs": 20
+      },
+      "prior_overlay_row": null,
+      "record": "reports/successfactors-recovery-batch2-2026-10-27/rollback.yaml#SaskPower"
+    }
+  },
+  {
+    "company": "Hydro One",
+    "source_scope": "default",
+    "source_config_key": "sap_successfactors:hydro one:6faac9b4e78dfcc8",
+    "candidate_row_sha256": "3fbaf4d34713adefa9b9246c52f51355bd588539091c777149f0b92d793bd05e",
+    "candidate_row": {
+      "name": "Hydro One",
+      "platform": "sap_successfactors",
+      "careers_url": "https://jobs.hydroone.com/",
+      "source_identity_regex": "Hydro One",
+      "identity_regex": "Hydro One",
+      "allowed_apply_hosts": [
+        "jobs.hydroone.com"
+      ],
+      "original_workbook_rank": null,
+      "max_pages": 20,
+      "max_jobs": 500,
+      "max_response_bytes": 3000000,
+      "identity_url": "https://jobs.hydroone.com/search/",
+      "search_url": "https://jobs.hydroone.com/search/",
+      "endpoint_variant": "rmk_table",
+      "source_scope": "default",
+      "evidence_source": "reports/ping-coverage-recovery-2026-10-25/evidence/sap_identity_candidates.json#hydro-one"
+    },
+    "reviewed_identity": {
+      "company": "Hydro One",
+      "official_corporate_url": "https://jobs.hydroone.com/",
+      "observed_first_party_search": "https://jobs.hydroone.com/search/",
+      "observed_public_page_title": "Hydro One Networks Inc Jobs",
+      "prior_identity_regex": "Hydro One",
+      "prior_source_identity_regex": "Hydro One",
+      "proposed_identity_regex": "Hydro One",
+      "configured_field": "identity_regex",
+      "offline_proposed_identity_status": "validated",
+      "proof_basis": "Employer-owned recruiting subdomain and exact current page identity; retain exact host and configured regional scope. This is not third-party ATS slug inference.",
+      "review_date": "2026-10-25",
+      "activation_status": "NOT_ELIGIBLE_NO_CANARY"
+    },
+    "allowed_hosts": [
+      "jobs.hydroone.com"
+    ],
+    "allowed_methods": [
+      "GET"
+    ],
+    "allowed_path": "/search/",
+    "allowed_query_fields": {
+      "startrow": "one canonical nonnegative integer",
+      "q": "empty only",
+      "locationsearch": "empty only",
+      "sortColumn": "presentation only",
+      "sortDirection": "presentation only"
+    },
+    "physical_request_cap": 12,
+    "source_deadline_seconds": 120,
+    "observed_total": 35,
+    "observed_page_size": 25,
+    "expected_clean_listing_requests": 2,
+    "maximum_response_bytes": 3000000,
+    "maximum_adapter_attempts_per_request": 2,
+    "maximum_collection_restarts": 1,
+    "completion_profile": "successfactors_rmk_table_exact_inventory",
+    "acceptance": {
+      "required_outcome": "PASS_COMPLETE",
+      "identity": "Exact reviewed employer/title marker/first-party host/default scope/apply-host binding",
+      "inventory": "Reported total = unique stable inventory = normalized jobs; zero must be explicit",
+      "terminal": "Authoritative total reached exactly; no hidden continuation or safety stop",
+      "large_inventory": "Existing adaptive listing traversal only; unchanged absolute 1000-request/20000-job ceilings remain nonterminal",
+      "mutation": "No unresolved mutation; existing one-restart collection policy discards the first traversal",
+      "authority": "Central finalizer complete, authoritative inventory, can_reconcile_absence=true",
+      "rejections": "Zero unreadable/rejected records and duplicate IDs/URLs",
+      "scope": "Exact first-party search route; no keyword, location or country filter narrowing"
+    },
+    "failure_policy": "Independent incomplete excluded; destination/access rejection stops batch; three consecutive transport failures stop batch",
+    "rollback": {
+      "prior_production_row": {
+        "name": "Hydro One",
+        "platform": "sap_successfactors",
+        "careers_url": "https://jobs.hydroone.com/",
+        "source_identity_regex": "Hydro One",
+        "identity_regex": "Hydro One",
+        "allowed_apply_hosts": [
+          "jobs.hydroone.com"
+        ],
+        "original_workbook_rank": null,
+        "max_pages": 1,
+        "max_jobs": 20,
+        "max_response_bytes": 3000000,
+        "identity_url": "https://jobs.hydroone.com/search/",
+        "search_url": "https://jobs.hydroone.com/search/",
+        "endpoint_variant": "rmk_table"
+      },
+      "prior_overlay_row": null,
+      "record": "reports/successfactors-recovery-batch2-2026-10-27/rollback.yaml#Hydro One"
+    }
+  },
+  {
+    "company": "Omron",
+    "source_scope": "default",
+    "source_config_key": "sap_successfactors:omron:c862036e8dd52967",
+    "candidate_row_sha256": "10e71904affeb83c578b8e0157328076f89f492f5fb6ae194435357558c71b8d",
+    "candidate_row": {
+      "name": "Omron",
+      "platform": "sap_successfactors",
+      "careers_url": "https://careers.omron.com/",
+      "source_identity_regex": "OMRON",
+      "allowed_apply_hosts": [
+        "careers.omron.com"
+      ],
+      "original_workbook_rank": 101,
+      "max_pages": 20,
+      "max_jobs": 500,
+      "max_response_bytes": 3000000,
+      "search_url": "https://careers.omron.com/search/",
+      "endpoint_variant": "rmk_table",
+      "identity_regex": "<title>\\s*omroncorpo\\ Jobs\\s*</title>",
+      "source_scope": "default",
+      "evidence_source": "reports/ping-coverage-recovery-2026-10-25/evidence/sap_identity_candidates.json#omron"
+    },
+    "reviewed_identity": {
+      "company": "Omron",
+      "official_corporate_url": "https://careers.omron.com/",
+      "observed_first_party_search": "https://careers.omron.com/search/",
+      "observed_public_page_title": "omroncorpo Jobs",
+      "prior_identity_regex": null,
+      "prior_source_identity_regex": "OMRON",
+      "proposed_identity_regex": "<title>\\s*omroncorpo\\ Jobs\\s*</title>",
+      "configured_field": "identity_regex",
+      "offline_proposed_identity_status": "validated",
+      "proof_basis": "Employer-owned recruiting subdomain and exact current page identity; retain exact host and configured regional scope. This is not third-party ATS slug inference.",
+      "review_date": "2026-10-25",
+      "activation_status": "NOT_ELIGIBLE_NO_CANARY"
+    },
+    "allowed_hosts": [
+      "careers.omron.com"
+    ],
+    "allowed_methods": [
+      "GET"
+    ],
+    "allowed_path": "/search/",
+    "allowed_query_fields": {
+      "startrow": "one canonical nonnegative integer",
+      "q": "empty only",
+      "locationsearch": "empty only",
+      "sortColumn": "presentation only",
+      "sortDirection": "presentation only"
+    },
+    "physical_request_cap": 14,
+    "source_deadline_seconds": 120,
+    "observed_total": 57,
+    "observed_page_size": 25,
+    "expected_clean_listing_requests": 3,
+    "maximum_response_bytes": 3000000,
+    "maximum_adapter_attempts_per_request": 2,
+    "maximum_collection_restarts": 1,
+    "completion_profile": "successfactors_rmk_table_exact_inventory",
+    "acceptance": {
+      "required_outcome": "PASS_COMPLETE",
+      "identity": "Exact reviewed employer/title marker/first-party host/default scope/apply-host binding",
+      "inventory": "Reported total = unique stable inventory = normalized jobs; zero must be explicit",
+      "terminal": "Authoritative total reached exactly; no hidden continuation or safety stop",
+      "large_inventory": "Existing adaptive listing traversal only; unchanged absolute 1000-request/20000-job ceilings remain nonterminal",
+      "mutation": "No unresolved mutation; existing one-restart collection policy discards the first traversal",
+      "authority": "Central finalizer complete, authoritative inventory, can_reconcile_absence=true",
+      "rejections": "Zero unreadable/rejected records and duplicate IDs/URLs",
+      "scope": "Exact first-party search route; no keyword, location or country filter narrowing"
+    },
+    "failure_policy": "Independent incomplete excluded; destination/access rejection stops batch; three consecutive transport failures stop batch",
+    "rollback": {
+      "prior_production_row": {
+        "name": "Omron",
+        "platform": "sap_successfactors",
+        "careers_url": "https://careers.omron.com/",
+        "source_identity_regex": "OMRON",
+        "allowed_apply_hosts": [
+          "careers.omron.com"
+        ],
+        "original_workbook_rank": 101,
+        "max_pages": 1,
+        "max_jobs": 20,
+        "max_response_bytes": 3000000,
+        "search_url": "https://careers.omron.com/search/",
+        "endpoint_variant": "rmk_table"
+      },
+      "prior_overlay_row": null,
+      "record": "reports/successfactors-recovery-batch2-2026-10-27/rollback.yaml#Omron"
+    }
+  },
+  {
+    "company": "Canada Life",
+    "source_scope": "default",
+    "source_config_key": "sap_successfactors:canada life:91f88e525fbd20c7",
+    "candidate_row_sha256": "8dfde31e828dd004a22f1900fec7e9d6a85d2fe2b59cb3e898f208f4f3adb2d4",
+    "candidate_row": {
+      "name": "Canada Life",
+      "platform": "sap_successfactors",
+      "careers_url": "https://www.canadalife.com/about-us/careers.html",
+      "search_url": "https://jobs.canadalife.com/search/",
+      "endpoint_variant": "rmk_table",
+      "allowed_apply_hosts": [
+        "jobs.canadalife.com"
+      ],
+      "max_pages": 20,
+      "max_jobs": 500,
+      "identity_regex": "<title>\\s*The\\ Canada\\ Life\\ Assurance\\ Company\\ Jobs\\s*</title>",
+      "source_scope": "default",
+      "evidence_source": "reports/ping-coverage-recovery-2026-10-25/evidence/sap_identity_candidates.json#canada-life",
+      "max_response_bytes": 3000000
+    },
+    "reviewed_identity": {
+      "company": "Canada Life",
+      "official_corporate_url": "https://www.canadalife.com/about-us/careers.html",
+      "observed_first_party_search": "https://jobs.canadalife.com/search/",
+      "observed_public_page_title": "The Canada Life Assurance Company Jobs",
+      "prior_identity_regex": null,
+      "prior_source_identity_regex": null,
+      "proposed_identity_regex": "<title>\\s*The\\ Canada\\ Life\\ Assurance\\ Company\\ Jobs\\s*</title>",
+      "configured_field": "identity_regex",
+      "offline_proposed_identity_status": "validated",
+      "proof_basis": "Employer-owned recruiting subdomain and exact current page identity; retain exact host and configured regional scope. This is not third-party ATS slug inference.",
+      "review_date": "2026-10-25",
+      "activation_status": "NOT_ELIGIBLE_NO_CANARY"
+    },
+    "allowed_hosts": [
+      "jobs.canadalife.com"
+    ],
+    "allowed_methods": [
+      "GET"
+    ],
+    "allowed_path": "/search/",
+    "allowed_query_fields": {
+      "startrow": "one canonical nonnegative integer",
+      "q": "empty only",
+      "locationsearch": "empty only",
+      "sortColumn": "presentation only",
+      "sortDirection": "presentation only"
+    },
+    "physical_request_cap": 14,
+    "source_deadline_seconds": 120,
+    "observed_total": 74,
+    "observed_page_size": 25,
+    "expected_clean_listing_requests": 3,
+    "maximum_response_bytes": 3000000,
+    "maximum_adapter_attempts_per_request": 2,
+    "maximum_collection_restarts": 1,
+    "completion_profile": "successfactors_rmk_table_exact_inventory",
+    "acceptance": {
+      "required_outcome": "PASS_COMPLETE",
+      "identity": "Exact reviewed employer/title marker/first-party host/default scope/apply-host binding",
+      "inventory": "Reported total = unique stable inventory = normalized jobs; zero must be explicit",
+      "terminal": "Authoritative total reached exactly; no hidden continuation or safety stop",
+      "large_inventory": "Existing adaptive listing traversal only; unchanged absolute 1000-request/20000-job ceilings remain nonterminal",
+      "mutation": "No unresolved mutation; existing one-restart collection policy discards the first traversal",
+      "authority": "Central finalizer complete, authoritative inventory, can_reconcile_absence=true",
+      "rejections": "Zero unreadable/rejected records and duplicate IDs/URLs",
+      "scope": "Exact first-party search route; no keyword, location or country filter narrowing"
+    },
+    "failure_policy": "Independent incomplete excluded; destination/access rejection stops batch; three consecutive transport failures stop batch",
+    "rollback": {
+      "prior_production_row": {
+        "name": "Canada Life",
+        "platform": "sap_successfactors",
+        "careers_url": "https://www.canadalife.com/about-us/careers.html",
+        "search_url": "https://jobs.canadalife.com/search/",
+        "endpoint_variant": "rmk_table",
+        "allowed_apply_hosts": [
+          "jobs.canadalife.com"
+        ],
+        "max_pages": 1,
+        "max_jobs": 20
+      },
+      "prior_overlay_row": null,
+      "record": "reports/successfactors-recovery-batch2-2026-10-27/rollback.yaml#Canada Life"
+    }
+  },
+  {
+    "company": "Hyundai",
+    "source_scope": "default",
+    "source_config_key": "sap_successfactors:hyundai:a397945b1b30da1e",
+    "candidate_row_sha256": "5fc4dde7ee77223d8e6564e5c0db53ee2f80737ffd368158ba46e7803378face",
+    "candidate_row": {
+      "name": "Hyundai",
+      "platform": "sap_successfactors",
+      "careers_url": "https://www.hyundai.com/worldwide/en/company/careers",
+      "search_url": "https://careers-americas.hyundai.com/search/",
+      "endpoint_variant": "rmk_table",
+      "max_pages": 20,
+      "identity_regex": "<title>\\s*Hyundai\\ Motor\\ Company\\ Jobs\\s*</title>",
+      "source_scope": "default",
+      "max_jobs": 500,
+      "allowed_apply_hosts": [
+        "careers-americas.hyundai.com"
+      ],
+      "evidence_source": "reports/ping-coverage-recovery-2026-10-25/evidence/sap_identity_candidates.json#hyundai",
+      "max_response_bytes": 3000000
+    },
+    "reviewed_identity": {
+      "company": "Hyundai",
+      "official_corporate_url": "https://www.hyundai.com/worldwide/en/company/careers",
+      "observed_first_party_search": "https://careers-americas.hyundai.com/search/",
+      "observed_public_page_title": "Hyundai Motor Company Jobs",
+      "prior_identity_regex": null,
+      "prior_source_identity_regex": null,
+      "proposed_identity_regex": "<title>\\s*Hyundai\\ Motor\\ Company\\ Jobs\\s*</title>",
+      "configured_field": "identity_regex",
+      "offline_proposed_identity_status": "validated",
+      "proof_basis": "Employer-owned recruiting subdomain and exact current page identity; retain exact host and configured regional scope. This is not third-party ATS slug inference.",
+      "review_date": "2026-10-25",
+      "activation_status": "NOT_ELIGIBLE_NO_CANARY"
+    },
+    "allowed_hosts": [
+      "careers-americas.hyundai.com"
+    ],
+    "allowed_methods": [
+      "GET"
+    ],
+    "allowed_path": "/search/",
+    "allowed_query_fields": {
+      "startrow": "one canonical nonnegative integer",
+      "q": "empty only",
+      "locationsearch": "empty only",
+      "sortColumn": "presentation only",
+      "sortDirection": "presentation only"
+    },
+    "physical_request_cap": 30,
+    "source_deadline_seconds": 120,
+    "observed_total": 271,
+    "observed_page_size": 25,
+    "expected_clean_listing_requests": 11,
+    "maximum_response_bytes": 3000000,
+    "maximum_adapter_attempts_per_request": 2,
+    "maximum_collection_restarts": 1,
+    "completion_profile": "successfactors_rmk_table_exact_inventory",
+    "acceptance": {
+      "required_outcome": "PASS_COMPLETE",
+      "identity": "Exact reviewed employer/title marker/first-party host/default scope/apply-host binding",
+      "inventory": "Reported total = unique stable inventory = normalized jobs; zero must be explicit",
+      "terminal": "Authoritative total reached exactly; no hidden continuation or safety stop",
+      "large_inventory": "Existing adaptive listing traversal only; unchanged absolute 1000-request/20000-job ceilings remain nonterminal",
+      "mutation": "No unresolved mutation; existing one-restart collection policy discards the first traversal",
+      "authority": "Central finalizer complete, authoritative inventory, can_reconcile_absence=true",
+      "rejections": "Zero unreadable/rejected records and duplicate IDs/URLs",
+      "scope": "Exact first-party search route; no keyword, location or country filter narrowing"
+    },
+    "failure_policy": "Independent incomplete excluded; destination/access rejection stops batch; three consecutive transport failures stop batch",
+    "rollback": {
+      "prior_production_row": {
+        "name": "Hyundai",
+        "platform": "sap_successfactors",
+        "careers_url": "https://www.hyundai.com/worldwide/en/company/careers",
+        "search_url": "https://careers-americas.hyundai.com/search/",
+        "endpoint_variant": "rmk_table",
+        "max_pages": 2
+      },
+      "prior_overlay_row": null,
+      "record": "reports/successfactors-recovery-batch2-2026-10-27/rollback.yaml#Hyundai"
+    }
+  }
+]
