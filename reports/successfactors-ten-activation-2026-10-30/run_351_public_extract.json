@@ -1,0 +1,2249 @@
+{
+  "run_id": 40594320629,
+  "job_id": 122506236649,
+  "commit": "84b16555e089a1d7f28bf5b547a3490917e42c78",
+  "source_url": "https://github.com/Mahmood-Elahi/Ping/actions/runs/40594320629",
+  "extraction": "Allowlisted public company and aggregate lines only; no raw logs",
+  "lines": [
+    {
+      "line": 1136,
+      "text": "2026-10-27T22:23:39.9504190Z Ping report: Total execution time before exit: 9.247s."
+    },
+    {
+      "line": 1154,
+      "text": "2026-10-27T22:51:08.2981745Z Ping report: Stage Configuration: started."
+    },
+    {
+      "line": 1155,
+      "text": "2026-10-27T22:51:08.2982268Z Ping report: Stage Configuration: succeeded (0.508s)."
+    },
+    {
+      "line": 1156,
+      "text": "2026-10-27T22:51:08.2982772Z Ping report: Configured companies: 533."
+    },
+    {
+      "line": 1157,
+      "text": "2026-10-27T22:51:08.2983193Z Ping report: Stage Supabase initialization: started."
+    },
+    {
+      "line": 1158,
+      "text": "2026-10-27T22:51:08.2983798Z Ping report: Stage Supabase initialization: succeeded (2.218s)."
+    },
+    {
+      "line": 1159,
+      "text": "2026-10-27T22:51:08.2984248Z Ping report: Stage Lifecycle-state retrieval: started."
+    },
+    {
+      "line": 1160,
+      "text": "2026-10-27T22:51:08.2984701Z Ping report: Stage Lifecycle-state retrieval: succeeded (59.765s)."
+    },
+    {
+      "line": 1161,
+      "text": "2026-10-27T22:51:08.2985166Z Ping report: Stage Google Sheets initialization: started."
+    },
+    {
+      "line": 1162,
+      "text": "2026-10-27T22:51:08.2985644Z Ping report: Stage Google Sheets initialization: succeeded (1.269s)."
+    },
+    {
+      "line": 1163,
+      "text": "2026-10-27T22:51:08.2986080Z Ping report: Stage Company scanning: started."
+    },
+    {
+      "line": 1164,
+      "text": "2026-10-27T22:51:08.2986693Z Ping report: Company MongoDB: status=complete, jobs_fetched=363, jobs_retained=3, reason=authoritative completion established."
+    },
+    {
+      "line": 1165,
+      "text": "2026-10-27T22:51:08.2987532Z Ping report: Company Datadog: status=complete, jobs_fetched=424, jobs_retained=5, reason=authoritative completion established."
+    },
+    {
+      "line": 1166,
+      "text": "2026-10-27T22:51:08.2988363Z Ping report: Company Goldman Sachs: status=incomplete, jobs_fetched=20, jobs_retained=0, reason=missing terminal evidence."
+    },
+    {
+      "line": 1167,
+      "text": "2026-10-27T22:51:08.2989188Z Ping report: Company Airbnb: status=complete, jobs_fetched=194, jobs_retained=1, reason=authoritative completion established."
+    },
+    {
+      "line": 1168,
+      "text": "2026-10-27T22:51:08.2990026Z Ping report: Company Databricks: status=complete, jobs_fetched=899, jobs_retained=12, reason=authoritative completion established."
+    },
+    {
+      "line": 1169,
+      "text": "2026-10-27T22:51:08.2990892Z Ping report: Company Cloudflare: status=complete, jobs_fetched=460, jobs_retained=3, reason=authoritative completion established."
+    },
+    {
+      "line": 1170,
+      "text": "2026-10-27T22:51:08.2991729Z Ping report: Company Stripe: status=complete, jobs_fetched=711, jobs_retained=12, reason=authoritative completion established."
+    },
+    {
+      "line": 1171,
+      "text": "2026-10-27T22:51:08.2992542Z Ping report: Company Twilio: status=complete, jobs_fetched=134, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1172,
+      "text": "2026-10-27T22:51:08.2993336Z Ping report: Company GitLab: status=complete, jobs_fetched=236, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1173,
+      "text": "2026-10-27T22:51:08.2994259Z Ping report: Company Elastic: status=complete, jobs_fetched=404, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1174,
+      "text": "2026-10-27T22:51:08.2994989Z Ping report: Company Coinbase: status=complete, jobs_fetched=227, jobs_retained=27, reason=authoritative completion established."
+    },
+    {
+      "line": 1175,
+      "text": "2026-10-27T22:51:08.2995817Z Ping report: Company Anthropic: status=complete, jobs_fetched=681, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1176,
+      "text": "2026-10-27T22:51:08.2997196Z Ping report: Company Zscaler: status=complete, jobs_fetched=356, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1177,
+      "text": "2026-10-27T22:51:08.2998040Z Ping report: Company MediaTek: status=complete, jobs_fetched=6, jobs_retained=2, reason=authoritative completion established."
+    },
+    {
+      "line": 1178,
+      "text": "2026-10-27T22:51:08.2998906Z Ping report: Company Nutrien: status=incomplete, jobs_fetched=0, jobs_retained=0, reason=discovery-only source; no absence authority."
+    },
+    {
+      "line": 1179,
+      "text": "2026-10-27T22:51:08.2999750Z Ping report: Company OpenAI: status=complete, jobs_fetched=795, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1180,
+      "text": "2026-10-27T22:51:08.3000721Z Ping report: Company Atlassian: status=failed, jobs_fetched=0, jobs_retained=0, reason=source identity validation failed."
+    },
+    {
+      "line": 1181,
+      "text": "2026-10-27T22:51:08.3001511Z Ping report: Company Stantec: status=incomplete, jobs_fetched=50, jobs_retained=2, reason=missing terminal evidence."
+    },
+    {
+      "line": 1182,
+      "text": "2026-10-27T22:51:08.3002306Z Ping report: Company Adobe: status=incomplete, jobs_fetched=281, jobs_retained=18, reason=source identity validation failed."
+    },
+    {
+      "line": 1183,
+      "text": "2026-10-27T22:51:08.3003151Z Ping report: Company CrowdStrike: status=complete, jobs_fetched=374, jobs_retained=7, reason=authoritative completion established."
+    },
+    {
+      "line": 1184,
+      "text": "2026-10-27T22:51:08.3005304Z Ping report: Company PayPal: status=incomplete, jobs_fetched=327, jobs_retained=0, reason=source identity validation failed."
+    },
+    {
+      "line": 1185,
+      "text": "2026-10-27T22:51:08.3006134Z Ping report: Company HashiCorp: status=complete, jobs_fetched=7, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1186,
+      "text": "2026-10-27T22:51:08.3006975Z Ping report: Company Confluent: status=complete, jobs_fetched=0, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1187,
+      "text": "2026-10-27T22:51:08.3007803Z Ping report: Company Shopify: status=complete, jobs_fetched=123, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1188,
+      "text": "2026-10-27T22:51:08.3008630Z Ping report: Company Snowflake: status=complete, jobs_fetched=359, jobs_retained=5, reason=authoritative completion established."
+    },
+    {
+      "line": 1189,
+      "text": "2026-10-27T22:51:08.3009360Z Ping report: Company Uber: status=incomplete, jobs_fetched=279, jobs_retained=8, reason=collection changed during scan."
+    },
+    {
+      "line": 1190,
+      "text": "2026-10-27T22:51:08.3010090Z Ping report: Company Google: status=failed, jobs_fetched=0, jobs_retained=0, reason=source identity validation failed."
+    },
+    {
+      "line": 1191,
+      "text": "2026-10-27T22:51:08.3010840Z Ping report: Company xAI: status=complete, jobs_fetched=308, jobs_retained=4, reason=authoritative completion established."
+    },
+    {
+      "line": 1192,
+      "text": "2026-10-27T22:51:08.3011545Z Ping report: Company Meta: status=failed, jobs_fetched=20, jobs_retained=0, reason=pagination safety limit reached."
+    },
+    {
+      "line": 1193,
+      "text": "2026-10-27T22:51:08.3012243Z Ping report: Company Figma: status=complete, jobs_fetched=142, jobs_retained=7, reason=authoritative completion established."
+    },
+    {
+      "line": 1194,
+      "text": "2026-10-27T22:51:08.3012750Z Ping report: Company Boston Dynamics: status=complete, jobs_fetched=83, jobs_retained=2, reason=authoritative completion established."
+    },
+    {
+      "line": 1195,
+      "text": "2026-10-27T22:51:08.3013410Z Ping report: Company Chime: status=complete, jobs_fetched=72, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1196,
+      "text": "2026-10-27T22:51:08.3014075Z Ping report: Company Brex: status=complete, jobs_fetched=261, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1197,
+      "text": "2026-10-27T22:51:08.3014676Z Ping report: Company Robinhood: status=complete, jobs_fetched=158, jobs_retained=1, reason=authoritative completion established."
+    },
+    {
+      "line": 1198,
+      "text": "2026-10-27T22:51:08.3015139Z Ping report: Company Magic Leap: status=failed, jobs_fetched=0, jobs_retained=0, reason=source unreachable."
+    },
+    {
+      "line": 1199,
+      "text": "2026-10-27T22:51:08.3015689Z Ping report: Company Ramp: status=complete, jobs_fetched=172, jobs_retained=5, reason=authoritative completion established."
+    },
+    {
+      "line": 1200,
+      "text": "2026-10-27T22:51:08.3016182Z Ping report: Company Amazon: status=complete, jobs_fetched=3003, jobs_retained=381, reason=authoritative completion established."
+    },
+    {
+      "line": 1201,
+      "text": "2026-10-27T22:51:08.3016773Z Ping report: Company ANYbotics: status=complete, jobs_fetched=21, jobs_retained=1, reason=authoritative completion established."
+    },
+    {
+      "line": 1202,
+      "text": "2026-10-27T22:51:08.3017267Z Ping report: Company Rocket Lab: status=complete, jobs_fetched=555, jobs_retained=63, reason=authoritative completion established."
+    },
+    {
+      "line": 1203,
+      "text": "2026-10-27T22:51:08.3018008Z Ping report: Company Vast: status=complete, jobs_fetched=184, jobs_retained=3, reason=authoritative completion established."
+    },
+    {
+      "line": 1204,
+      "text": "2026-10-27T22:51:08.3018526Z Ping report: Company Reddit: status=complete, jobs_fetched=160, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1205,
+      "text": "2026-10-27T22:51:08.3019072Z Ping report: Company DoorDash: status=complete, jobs_fetched=446, jobs_retained=5, reason=authoritative completion established."
+    },
+    {
+      "line": 1206,
+      "text": "2026-10-27T22:51:08.3019754Z Ping report: Company Discord: status=complete, jobs_fetched=46, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1207,
+      "text": "2026-10-27T22:51:08.3020238Z Ping report: Company Pinterest: status=complete, jobs_fetched=160, jobs_retained=8, reason=authoritative completion established."
+    },
+    {
+      "line": 1208,
+      "text": "2026-10-27T22:51:08.3020817Z Ping report: Company Enbridge: status=complete, jobs_fetched=50, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1209,
+      "text": "2026-10-27T22:51:08.3021300Z Ping report: Company Spotify: status=complete, jobs_fetched=89, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1210,
+      "text": "2026-10-27T22:51:08.3021919Z Ping report: Company Cadence Design Systems: status=complete, jobs_fetched=674, jobs_retained=27, reason=authoritative completion established."
+    },
+    {
+      "line": 1211,
+      "text": "2026-10-27T22:51:08.3022434Z Ping report: Company Shell: status=incomplete, jobs_fetched=142, jobs_retained=9, reason=source identity validation failed."
+    },
+    {
+      "line": 1212,
+      "text": "2026-10-27T22:51:08.3022927Z Ping report: Company Salesforce: status=complete, jobs_fetched=1582, jobs_retained=20, reason=authoritative completion established."
+    },
+    {
+      "line": 1213,
+      "text": "2026-10-27T22:51:08.3023740Z Ping report: Company Texas Instruments: status=complete, jobs_fetched=881, jobs_retained=117, reason=authoritative completion established."
+    },
+    {
+      "line": 1214,
+      "text": "2026-10-27T22:51:08.3024264Z Ping report: Company Blue Origin: status=complete, jobs_fetched=1821, jobs_retained=48, reason=authoritative completion established."
+    },
+    {
+      "line": 1215,
+      "text": "2026-10-27T22:51:08.3024869Z Ping report: Company Emerson: status=failed, jobs_fetched=1122, jobs_retained=0, reason=source identity validation failed."
+    },
+    {
+      "line": 1216,
+      "text": "2026-10-27T22:51:08.3025324Z Ping report: Company Lam Research: status=failed, jobs_fetched=0, jobs_retained=0, reason=source unreachable."
+    },
+    {
+      "line": 1217,
+      "text": "2026-10-27T22:51:08.3025775Z Ping report: Company KUKA: status=complete, jobs_fetched=227, jobs_retained=8, reason=authoritative completion established."
+    },
+    {
+      "line": 1218,
+      "text": "2026-10-27T22:51:08.3026339Z Ping report: Company Festo: status=complete, jobs_fetched=137, jobs_retained=2, reason=authoritative completion established."
+    },
+    {
+      "line": 1219,
+      "text": "2026-10-27T22:51:08.3026817Z Ping report: Company Hyundai: status=failed, jobs_fetched=0, jobs_retained=0, reason=source unreachable."
+    },
+    {
+      "line": 1220,
+      "text": "2026-10-27T22:51:08.3027367Z Ping report: Company Honeywell: status=failed, jobs_fetched=1325, jobs_retained=0, reason=source identity validation failed."
+    },
+    {
+      "line": 1221,
+      "text": "2026-10-27T22:51:08.3027842Z Ping report: Company Volvo Cars: status=failed, jobs_fetched=0, jobs_retained=0, reason=source identity validation failed."
+    },
+    {
+      "line": 1222,
+      "text": "2026-10-27T22:51:08.3028410Z Ping report: Company Ferrari: status=complete, jobs_fetched=12, jobs_retained=1, reason=authoritative completion established."
+    },
+    {
+      "line": 1223,
+      "text": "2026-10-27T22:51:08.3028883Z Ping report: Company ZF Friedrichshafen: status=failed, jobs_fetched=0, jobs_retained=0, reason=source unreachable."
+    },
+    {
+      "line": 1224,
+      "text": "2026-10-27T22:51:08.3029432Z Ping report: Company Halliburton: status=failed, jobs_fetched=0, jobs_retained=0, reason=source unreachable."
+    },
+    {
+      "line": 1225,
+      "text": "2026-10-27T22:51:08.3030197Z Ping report: Company Volkswagen Group: status=complete, jobs_fetched=175, jobs_retained=16, reason=authoritative completion established."
+    },
+    {
+      "line": 1226,
+      "text": "2026-10-27T22:51:08.3030957Z Ping report: Company John Deere: status=failed, jobs_fetched=0, jobs_retained=0, reason=source unreachable."
+    },
+    {
+      "line": 1227,
+      "text": "2026-10-27T22:51:08.3031705Z Ping report: Company Pembina Pipeline: status=complete, jobs_fetched=10, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1228,
+      "text": "2026-10-27T22:51:08.3032581Z Ping report: Company Qualcomm: status=incomplete, jobs_fetched=20, jobs_retained=0, reason=discovery-only source; no absence authority."
+    },
+    {
+      "line": 1229,
+      "text": "2026-10-27T22:51:08.3033702Z Ping report: Company Micron: status=incomplete, jobs_fetched=20, jobs_retained=0, reason=discovery-only source; no absence authority."
+    },
+    {
+      "line": 1230,
+      "text": "2026-10-27T22:51:08.3034532Z Ping report: Company Medtronic: status=complete, jobs_fetched=1085, jobs_retained=36, reason=authoritative completion established."
+    },
+    {
+      "line": 1231,
+      "text": "2026-10-27T22:51:08.3035310Z Ping report: Company Morgan Stanley: status=incomplete, jobs_fetched=29, jobs_retained=0, reason=collection changed during scan."
+    },
+    {
+      "line": 1232,
+      "text": "2026-10-27T22:51:08.3036042Z Ping report: Company Ford: status=complete, jobs_fetched=913, jobs_retained=17, reason=authoritative completion established."
+    },
+    {
+      "line": 1233,
+      "text": "2026-10-27T22:51:08.3036901Z Ping report: Company Mastercard: status=complete, jobs_fetched=1151, jobs_retained=18, reason=authoritative completion established."
+    },
+    {
+      "line": 1234,
+      "text": "2026-10-27T22:51:08.3037738Z Ping report: Company Toyota: status=complete, jobs_fetched=109, jobs_retained=3, reason=authoritative completion established."
+    },
+    {
+      "line": 1235,
+      "text": "2026-10-27T22:51:08.3053704Z Ping report: Company Microsoft: status=incomplete, jobs_fetched=2450, jobs_retained=72, reason=discovery-only source; no absence authority."
+    },
+    {
+      "line": 1236,
+      "text": "2026-10-27T22:51:08.3054747Z Ping report: Company NASA Jet Propulsion Laboratory: status=complete, jobs_fetched=124, jobs_retained=8, reason=authoritative completion established."
+    },
+    {
+      "line": 1237,
+      "text": "2026-10-27T22:51:08.3055597Z Ping report: Company Honda: status=complete, jobs_fetched=304, jobs_retained=12, reason=authoritative completion established."
+    },
+    {
+      "line": 1238,
+      "text": "2026-10-27T22:51:08.3056366Z Ping report: Company eBay: status=complete, jobs_fetched=271, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1239,
+      "text": "2026-10-27T22:51:08.3057135Z Ping report: Company Nvidia: status=incomplete, jobs_fetched=1527, jobs_retained=140, reason=collection changed during scan."
+    },
+    {
+      "line": 1240,
+      "text": "2026-10-27T22:51:08.3057960Z Ping report: Company Plaid: status=complete, jobs_fetched=130, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1241,
+      "text": "2026-10-27T22:51:08.3058723Z Ping report: Company Kraken: status=complete, jobs_fetched=86, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1242,
+      "text": "2026-10-27T22:51:08.3059526Z Ping report: Company Hudson River Trading: status=complete, jobs_fetched=3, jobs_retained=1, reason=authoritative completion established."
+    },
+    {
+      "line": 1243,
+      "text": "2026-10-27T22:51:08.3060400Z Ping report: Company Samsung Electronics: status=incomplete, jobs_fetched=662, jobs_retained=5, reason=source identity validation failed."
+    },
+    {
+      "line": 1244,
+      "text": "2026-10-27T22:51:08.3061264Z Ping report: Company Eaton: status=incomplete, jobs_fetched=2393, jobs_retained=49, reason=discovery-only source; no absence authority."
+    },
+    {
+      "line": 1245,
+      "text": "2026-10-27T22:51:08.3062470Z Ping report: Company GE Vernova: status=incomplete, jobs_fetched=20, jobs_retained=0, reason=pagination safety limit reached."
+    },
+    {
+      "line": 1246,
+      "text": "2026-10-27T22:51:08.3063300Z Ping report: Company Phoenix Contact: status=complete, jobs_fetched=52, jobs_retained=2, reason=authoritative completion established."
+    },
+    {
+      "line": 1247,
+      "text": "2026-10-27T22:51:08.3064181Z Ping report: Company PTC: status=complete, jobs_fetched=173, jobs_retained=7, reason=authoritative completion established."
+    },
+    {
+      "line": 1248,
+      "text": "2026-10-27T22:51:08.3064935Z Ping report: Company ABB: status=complete, jobs_fetched=2174, jobs_retained=127, reason=authoritative completion established."
+    },
+    {
+      "line": 1249,
+      "text": "2026-10-27T22:51:08.3065791Z Ping report: Company Agility Robotics: status=complete, jobs_fetched=70, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1250,
+      "text": "2026-10-27T22:51:08.3066606Z Ping report: Company ConocoPhillips: status=complete, jobs_fetched=41, jobs_retained=12, reason=authoritative completion established."
+    },
+    {
+      "line": 1251,
+      "text": "2026-10-27T22:51:08.3067389Z Ping report: Company Ovintiv: status=complete, jobs_fetched=3, jobs_retained=2, reason=authoritative completion established."
+    },
+    {
+      "line": 1252,
+      "text": "2026-10-27T22:51:08.3068144Z Ping report: Company Keyera: status=complete, jobs_fetched=8, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1253,
+      "text": "2026-10-27T22:51:08.3068927Z Ping report: Company TC Energy: status=complete, jobs_fetched=83, jobs_retained=19, reason=authoritative completion established."
+    },
+    {
+      "line": 1254,
+      "text": "2026-10-27T22:51:08.3069700Z Ping report: Company Sierra Space: status=incomplete, jobs_fetched=0, jobs_retained=0, reason=source identity validation failed."
+    },
+    {
+      "line": 1255,
+      "text": "2026-10-27T22:51:08.3070601Z Ping report: Company Teradyne: status=failed, jobs_fetched=0, jobs_retained=0, reason=source unreachable."
+    },
+    {
+      "line": 1256,
+      "text": "2026-10-27T22:51:08.3071349Z Ping report: Company Rockwell Automation: status=incomplete, jobs_fetched=456, jobs_retained=38, reason=source identity validation failed."
+    },
+    {
+      "line": 1257,
+      "text": "2026-10-27T22:51:08.3072143Z Ping report: Company ispace: status=complete, jobs_fetched=64, jobs_retained=4, reason=authoritative completion established."
+    },
+    {
+      "line": 1258,
+      "text": "2026-10-27T22:51:08.3072894Z Ping report: Company ARM: status=incomplete, jobs_fetched=31, jobs_retained=0, reason=collection changed during scan."
+    },
+    {
+      "line": 1259,
+      "text": "2026-10-27T22:51:08.3073856Z Ping report: Company Visa: status=complete, jobs_fetched=867, jobs_retained=21, reason=authoritative completion established."
+    },
+    {
+      "line": 1260,
+      "text": "2026-10-27T22:51:08.3074661Z Ping report: Company Lattice Semiconductor: status=complete, jobs_fetched=138, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1261,
+      "text": "2026-10-27T22:51:08.3075416Z Ping report: Company GitHub: status=failed, jobs_fetched=50, jobs_retained=0, reason=access blocked."
+    },
+    {
+      "line": 1262,
+      "text": "2026-10-27T22:51:08.3076111Z Ping report: Company Valeo: status=incomplete, jobs_fetched=1027, jobs_retained=34, reason=source identity validation failed."
+    },
+    {
+      "line": 1263,
+      "text": "2026-10-27T22:51:08.3076864Z Ping report: Company Two Sigma: status=complete, jobs_fetched=4, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1264,
+      "text": "2026-10-27T22:51:08.3077635Z Ping report: Company SIG: status=complete, jobs_fetched=292, jobs_retained=66, reason=authoritative completion established."
+    },
+    {
+      "line": 1265,
+      "text": "2026-10-27T22:51:08.3078404Z Ping report: Company AMD: status=complete, jobs_fetched=1267, jobs_retained=68, reason=authoritative completion established."
+    },
+    {
+      "line": 1266,
+      "text": "2026-10-27T22:51:08.3079212Z Ping report: Company Bank of America: status=complete, jobs_fetched=20, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1267,
+      "text": "2026-10-27T22:51:08.3079998Z Ping report: Company Intuit: status=complete, jobs_fetched=601, jobs_retained=16, reason=authoritative completion established."
+    },
+    {
+      "line": 1268,
+      "text": "2026-10-27T22:51:08.3080868Z Ping report: Company Synopsys: status=complete, jobs_fetched=679, jobs_retained=13, reason=authoritative completion established."
+    },
+    {
+      "line": 1269,
+      "text": "2026-10-27T22:51:08.3081645Z Ping report: Company Waymo: status=complete, jobs_fetched=369, jobs_retained=6, reason=authoritative completion established."
+    },
+    {
+      "line": 1270,
+      "text": "2026-10-27T22:51:08.3082438Z Ping report: Company Ripple: status=complete, jobs_fetched=104, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1271,
+      "text": "2026-10-27T22:51:08.3083213Z Ping report: Company DRW: status=complete, jobs_fetched=161, jobs_retained=12, reason=authoritative completion established."
+    },
+    {
+      "line": 1272,
+      "text": "2026-10-27T22:51:08.3084119Z Ping report: Company Applied Materials: status=incomplete, jobs_fetched=30, jobs_retained=0, reason=missing terminal evidence."
+    },
+    {
+      "line": 1273,
+      "text": "2026-10-27T22:51:08.3084889Z Ping report: Company General Motors: status=incomplete, jobs_fetched=20, jobs_retained=2, reason=missing terminal evidence."
+    },
+    {
+      "line": 1274,
+      "text": "2026-10-27T22:51:08.3085662Z Ping report: Company Mobileye: status=complete, jobs_fetched=184, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1275,
+      "text": "2026-10-27T22:51:08.3086453Z Ping report: Company Caterpillar: status=incomplete, jobs_fetched=20, jobs_retained=0, reason=missing terminal evidence."
+    },
+    {
+      "line": 1276,
+      "text": "2026-10-27T22:51:08.3087243Z Ping report: Company JPMorgan Chase: status=incomplete, jobs_fetched=3624, jobs_retained=9, reason=collection changed during scan."
+    },
+    {
+      "line": 1277,
+      "text": "2026-10-27T22:51:08.3088025Z Ping report: Company Skydio: status=complete, jobs_fetched=174, jobs_retained=11, reason=authoritative completion established."
+    },
+    {
+      "line": 1278,
+      "text": "2026-10-27T22:51:08.3088788Z Ping report: Company Coupang: status=incomplete, jobs_fetched=20, jobs_retained=0, reason=completion not established."
+    },
+    {
+      "line": 1279,
+      "text": "2026-10-27T22:51:08.3089539Z Ping report: Company Etsy: status=incomplete, jobs_fetched=60, jobs_retained=0, reason=missing terminal evidence."
+    },
+    {
+      "line": 1280,
+      "text": "2026-10-27T22:51:08.3090273Z Ping report: Company Zalando: status=incomplete, jobs_fetched=15, jobs_retained=1, reason=missing terminal evidence."
+    },
+    {
+      "line": 1281,
+      "text": "2026-10-27T22:51:08.3091195Z Ping report: Company Bluesky: status=complete, jobs_fetched=6, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1282,
+      "text": "2026-10-27T22:51:08.3091974Z Ping report: Company Flexport: status=complete, jobs_fetched=191, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1283,
+      "text": "2026-10-27T22:51:08.3092787Z Ping report: Company Jump Trading: status=complete, jobs_fetched=95, jobs_retained=28, reason=authoritative completion established."
+    },
+    {
+      "line": 1284,
+      "text": "2026-10-27T22:51:08.3093699Z Ping report: Company Wise: status=complete, jobs_fetched=410, jobs_retained=1, reason=authoritative completion established."
+    },
+    {
+      "line": 1285,
+      "text": "2026-10-27T22:51:08.3094619Z Ping report: Company Intuitive Surgical: status=complete, jobs_fetched=776, jobs_retained=8, reason=authoritative completion established."
+    },
+    {
+      "line": 1286,
+      "text": "2026-10-27T22:51:08.3095307Z Ping report: Company Snap: status=failed, jobs_fetched=0, jobs_retained=0, reason=source unreachable."
+    },
+    {
+      "line": 1287,
+      "text": "2026-10-27T22:51:08.3095965Z Ping report: Company Optiver: status=complete, jobs_fetched=160, jobs_retained=17, reason=authoritative completion established."
+    },
+    {
+      "line": 1288,
+      "text": "2026-10-27T22:51:08.3096686Z Ping report: Company BlackRock: status=incomplete, jobs_fetched=30, jobs_retained=3, reason=missing terminal evidence."
+    },
+    {
+      "line": 1289,
+      "text": "2026-10-27T22:51:08.3097432Z Ping report: Company Relativity Space: status=complete, jobs_fetched=402, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1290,
+      "text": "2026-10-27T22:51:08.3098256Z Ping report: Company Canadian Natural Resources: status=complete, jobs_fetched=74, jobs_retained=49, reason=authoritative completion established."
+    },
+    {
+      "line": 1291,
+      "text": "2026-10-27T22:51:08.3099018Z Ping report: Company Rivian: status=failed, jobs_fetched=274, jobs_retained=0, reason=collection changed during scan."
+    },
+    {
+      "line": 1292,
+      "text": "2026-10-27T22:51:08.3099730Z Ping report: Company bp: status=incomplete, jobs_fetched=273, jobs_retained=5, reason=source identity validation failed."
+    },
+    {
+      "line": 1293,
+      "text": "2026-10-27T22:51:08.3100436Z Ping report: Company Capital One: status=incomplete, jobs_fetched=20, jobs_retained=0, reason=pagination safety limit reached."
+    },
+    {
+      "line": 1294,
+      "text": "2026-10-27T22:51:08.3101170Z Ping report: Company Unity: status=complete, jobs_fetched=129, jobs_retained=1, reason=authoritative completion established."
+    },
+    {
+      "line": 1295,
+      "text": "2026-10-27T22:51:08.3101944Z Ping report: Company Loft Orbital: status=complete, jobs_fetched=67, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1296,
+      "text": "2026-10-27T22:51:08.3102795Z Ping report: Company NXP Semiconductors: status=complete, jobs_fetched=816, jobs_retained=76, reason=authoritative completion established."
+    },
+    {
+      "line": 1297,
+      "text": "2026-10-27T22:51:08.3103769Z Ping report: Company Intel: status=complete, jobs_fetched=790, jobs_retained=72, reason=authoritative completion established."
+    },
+    {
+      "line": 1298,
+      "text": "2026-10-27T22:51:08.3104525Z Ping report: Company Schneider Electric: status=failed, jobs_fetched=0, jobs_retained=0, reason=source unreachable."
+    },
+    {
+      "line": 1299,
+      "text": "2026-10-27T22:51:08.3105238Z Ping report: Company Chevron: status=incomplete, jobs_fetched=45, jobs_retained=0, reason=missing terminal evidence."
+    },
+    {
+      "line": 1300,
+      "text": "2026-10-27T22:51:08.3105954Z Ping report: Company KLA: status=complete, jobs_fetched=1117, jobs_retained=44, reason=authoritative completion established."
+    },
+    {
+      "line": 1301,
+      "text": "2026-10-27T22:51:08.3106600Z Ping report: Company Siemens: status=incomplete, jobs_fetched=18, jobs_retained=1, reason=missing terminal evidence."
+    },
+    {
+      "line": 1302,
+      "text": "2026-10-27T22:51:08.3107074Z Ping report: Company IMC Trading: status=complete, jobs_fetched=160, jobs_retained=17, reason=authoritative completion established."
+    },
+    {
+      "line": 1303,
+      "text": "2026-10-27T22:51:08.3107558Z Ping report: Company Bolt: status=complete, jobs_fetched=192, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1304,
+      "text": "2026-10-27T22:51:08.3108027Z Ping report: Company Valve: status=complete, jobs_fetched=25, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1305,
+      "text": "2026-10-27T22:51:08.3108502Z Ping report: Company onsemi: status=complete, jobs_fetched=696, jobs_retained=34, reason=authoritative completion established."
+    },
+    {
+      "line": 1306,
+      "text": "2026-10-27T22:51:08.3109025Z Ping report: Company Roblox: status=complete, jobs_fetched=269, jobs_retained=3, reason=authoritative completion established."
+    },
+    {
+      "line": 1307,
+      "text": "2026-10-27T22:51:08.3109849Z Ping report: Company Unitree Robotics: status=incomplete, jobs_fetched=26, jobs_retained=0, reason=missing terminal evidence."
+    },
+    {
+      "line": 1308,
+      "text": "2026-10-27T22:51:08.3110710Z Ping report: Company Mercado Libre: status=incomplete, jobs_fetched=21, jobs_retained=0, reason=collection changed during scan."
+    },
+    {
+      "line": 1309,
+      "text": "2026-10-27T22:51:08.3111405Z Ping report: Company Apple: status=failed, jobs_fetched=60, jobs_retained=0, reason=source unreachable."
+    },
+    {
+      "line": 1310,
+      "text": "2026-10-27T22:51:08.3111906Z Ping report: Company Figure AI: status=complete, jobs_fetched=99, jobs_retained=12, reason=authoritative completion established."
+    },
+    {
+      "line": 1311,
+      "text": "2026-10-27T22:51:08.3112385Z Ping report: Company LINE: status=complete, jobs_fetched=73, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1312,
+      "text": "2026-10-27T22:51:08.3112938Z Ping report: Company SpaceX: status=complete, jobs_fetched=2832, jobs_retained=38, reason=authoritative completion established."
+    },
+    {
+      "line": 1313,
+      "text": "2026-10-27T22:51:08.3113414Z Ping report: Company ASML: status=complete, jobs_fetched=17, jobs_retained=2, reason=authoritative completion established."
+    },
+    {
+      "line": 1314,
+      "text": "2026-10-27T22:51:08.3114055Z Ping report: Company Adyen: status=complete, jobs_fetched=245, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1315,
+      "text": "2026-10-27T22:51:08.3114542Z Ping report: Company Match Group: status=complete, jobs_fetched=26, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1316,
+      "text": "2026-10-27T22:51:08.3115051Z Ping report: Company Aurora Innovation: status=complete, jobs_fetched=104, jobs_retained=8, reason=authoritative completion established."
+    },
+    {
+      "line": 1317,
+      "text": "2026-10-27T22:51:08.3115565Z Ping report: Company Jane Street: status=complete, jobs_fetched=220, jobs_retained=41, reason=authoritative completion established."
+    },
+    {
+      "line": 1318,
+      "text": "2026-10-27T22:51:08.3116063Z Ping report: Company Broadcom: status=incomplete, jobs_fetched=374, jobs_retained=0, reason=source identity validation failed."
+    },
+    {
+      "line": 1319,
+      "text": "2026-10-27T22:51:08.3116555Z Ping report: Company Tourmaline Oil: status=complete, jobs_fetched=25, jobs_retained=8, reason=authoritative completion established."
+    },
+    {
+      "line": 1320,
+      "text": "2026-10-27T22:51:08.3117041Z Ping report: Company JD.com: status=incomplete, jobs_fetched=80, jobs_retained=43, reason=source identity validation failed."
+    },
+    {
+      "line": 1321,
+      "text": "2026-10-27T22:51:08.3117526Z Ping report: Company MDA Space: status=complete, jobs_fetched=205, jobs_retained=22, reason=authoritative completion established."
+    },
+    {
+      "line": 1322,
+      "text": "2026-10-27T22:51:08.3118010Z Ping report: Company Patreon: status=complete, jobs_fetched=21, jobs_retained=4, reason=authoritative completion established."
+    },
+    {
+      "line": 1323,
+      "text": "2026-10-27T22:51:08.3119061Z Ping report: Company Dassault Systèmes: status=complete, jobs_fetched=705, jobs_retained=24, reason=authoritative completion established."
+    },
+    {
+      "line": 1324,
+      "text": "2026-10-27T22:51:08.3119594Z Ping report: Company TSMC: status=complete, jobs_fetched=794, jobs_retained=24, reason=authoritative completion established."
+    },
+    {
+      "line": 1325,
+      "text": "2026-10-27T22:51:08.3120107Z Ping report: Company Beckhoff Automation: status=complete, jobs_fetched=13, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1326,
+      "text": "2026-10-27T22:51:08.3120618Z Ping report: Company Lucid Motors: status=complete, jobs_fetched=442, jobs_retained=1, reason=authoritative completion established."
+    },
+    {
+      "line": 1327,
+      "text": "2026-10-27T22:51:08.3121120Z Ping report: Company Sanctuary AI: status=complete, jobs_fetched=9, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1328,
+      "text": "2026-10-27T22:51:08.3121609Z Ping report: Company Instacart: status=complete, jobs_fetched=94, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1329,
+      "text": "2026-10-27T22:51:08.3122090Z Ping report: Company Faire: status=complete, jobs_fetched=67, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1330,
+      "text": "2026-10-27T22:51:08.3122563Z Ping report: Company Zoox: status=complete, jobs_fetched=229, jobs_retained=12, reason=authoritative completion established."
+    },
+    {
+      "line": 1331,
+      "text": "2026-10-27T22:51:08.3123036Z Ping report: Company Deliveroo: status=incomplete, jobs_fetched=0, jobs_retained=0, reason=completion not established."
+    },
+    {
+      "line": 1332,
+      "text": "2026-10-27T22:51:08.3123681Z Ping report: Company GlobalFoundries: status=incomplete, jobs_fetched=81, jobs_retained=18, reason=discovery-only source; no absence authority."
+    },
+    {
+      "line": 1333,
+      "text": "2026-10-27T22:51:08.3124198Z Ping report: Company Substack: status=complete, jobs_fetched=17, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1334,
+      "text": "2026-10-27T22:51:08.3124744Z Ping report: Company Omron: status=failed, jobs_fetched=0, jobs_retained=0, reason=source unreachable."
+    },
+    {
+      "line": 1335,
+      "text": "2026-10-27T22:51:08.3125155Z Ping report: Company Keyence: status=failed, jobs_fetched=0, jobs_retained=0, reason=source unreachable."
+    },
+    {
+      "line": 1336,
+      "text": "2026-10-27T22:51:08.3125630Z Ping report: Company Microchip Technology: status=complete, jobs_fetched=522, jobs_retained=8, reason=authoritative completion established."
+    },
+    {
+      "line": 1337,
+      "text": "2026-10-27T22:51:08.3126152Z Ping report: Company ByteDance: status=complete, jobs_fetched=1439, jobs_retained=219, reason=authoritative completion established."
+    },
+    {
+      "line": 1338,
+      "text": "2026-10-27T22:51:08.3126719Z Ping report: Company Quora: status=complete, jobs_fetched=9, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1339,
+      "text": "2026-10-27T22:51:08.3127193Z Ping report: Company Autodesk: status=incomplete, jobs_fetched=177, jobs_retained=0, reason=source identity validation failed."
+    },
+    {
+      "line": 1340,
+      "text": "2026-10-27T22:51:08.3127690Z Ping report: Company Analog Devices: status=complete, jobs_fetched=830, jobs_retained=59, reason=authoritative completion established."
+    },
+    {
+      "line": 1341,
+      "text": "2026-10-27T22:51:08.3128185Z Ping report: Company Bumble: status=complete, jobs_fetched=0, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1342,
+      "text": "2026-10-27T22:51:08.3128659Z Ping report: Company Medium: status=complete, jobs_fetched=2, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1343,
+      "text": "2026-10-27T22:51:08.3129131Z Ping report: Company Block: status=complete, jobs_fetched=202, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1344,
+      "text": "2026-10-27T22:51:08.3129611Z Ping report: Company Sony: status=incomplete, jobs_fetched=126, jobs_retained=13, reason=source identity validation failed."
+    },
+    {
+      "line": 1345,
+      "text": "2026-10-27T22:51:08.3130100Z Ping report: Company Suncor Energy: status=complete, jobs_fetched=33, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1346,
+      "text": "2026-10-27T22:51:08.3130612Z Ping report: Company Firefly Aerospace: status=complete, jobs_fetched=70, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1347,
+      "text": "2026-10-27T22:51:08.3131097Z Ping report: Company Spartan Controls: status=failed, jobs_fetched=0, jobs_retained=0, reason=source unreachable."
+    },
+    {
+      "line": 1348,
+      "text": "2026-10-27T22:51:08.3131566Z Ping report: Company Garmin Canada: status=complete, jobs_fetched=3, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1349,
+      "text": "2026-10-27T22:51:08.3132051Z Ping report: Company ENMAX: status=incomplete, jobs_fetched=4, jobs_retained=0, reason=source identity validation failed."
+    },
+    {
+      "line": 1350,
+      "text": "2026-10-27T22:51:08.3132546Z Ping report: Company Marvell Technology: status=complete, jobs_fetched=342, jobs_retained=74, reason=authoritative completion established."
+    },
+    {
+      "line": 1351,
+      "text": "2026-10-27T22:51:08.3133106Z Ping report: Company AESO (Alberta Electric System Operator): status=complete, jobs_fetched=7, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1352,
+      "text": "2026-10-27T22:51:08.3133787Z Ping report: Company TransAlta: status=failed, jobs_fetched=0, jobs_retained=0, reason=source unreachable."
+    },
+    {
+      "line": 1353,
+      "text": "2026-10-27T22:51:08.3134239Z Ping report: Company ATCO: status=complete, jobs_fetched=76, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1354,
+      "text": "2026-10-27T22:51:08.3134709Z Ping report: Company Imperial Oil: status=incomplete, jobs_fetched=15, jobs_retained=1, reason=missing terminal evidence."
+    },
+    {
+      "line": 1355,
+      "text": "2026-10-27T22:51:08.3135197Z Ping report: Company Cenovus Energy: status=complete, jobs_fetched=41, jobs_retained=11, reason=authoritative completion established."
+    },
+    {
+      "line": 1356,
+      "text": "2026-10-27T22:51:08.3135670Z Ping report: Company ARC Resources: status=failed, jobs_fetched=0, jobs_retained=0, reason=source unreachable."
+    },
+    {
+      "line": 1357,
+      "text": "2026-10-27T22:51:08.3136153Z Ping report: Company YYC Calgary Airport Authority: status=incomplete, jobs_fetched=9, jobs_retained=2, reason=missing terminal evidence."
+    },
+    {
+      "line": 1358,
+      "text": "2026-10-27T22:51:08.3136679Z Ping report: Company Precision Drilling: status=complete, jobs_fetched=30, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1359,
+      "text": "2026-10-27T22:51:08.3137198Z Ping report: Company Whitecap Resources: status=complete, jobs_fetched=8, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1360,
+      "text": "2026-10-27T22:51:08.3137792Z Ping report: Company AltaGas: status=incomplete, jobs_fetched=43, jobs_retained=4, reason=source identity validation failed."
+    },
+    {
+      "line": 1361,
+      "text": "2026-10-27T22:51:08.3138284Z Ping report: Company Vermilion Energy: status=complete, jobs_fetched=4, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1362,
+      "text": "2026-10-27T22:51:08.3138751Z Ping report: Company ExxonMobil: status=failed, jobs_fetched=0, jobs_retained=0, reason=source unreachable."
+    },
+    {
+      "line": 1363,
+      "text": "2026-10-27T22:51:08.3139231Z Ping report: Company SECURE Energy Services: status=complete, jobs_fetched=59, jobs_retained=3, reason=authoritative completion established."
+    },
+    {
+      "line": 1364,
+      "text": "2026-10-27T22:51:08.3139827Z Ping report: Company BlackBerry/QNX: status=incomplete, jobs_fetched=24, jobs_retained=0, reason=source identity validation failed."
+    },
+    {
+      "line": 1365,
+      "text": "2026-10-27T22:51:08.3140323Z Ping report: Company Lenovo: status=complete, jobs_fetched=1126, jobs_retained=20, reason=authoritative completion established."
+    },
+    {
+      "line": 1366,
+      "text": "2026-10-27T22:51:08.3140832Z Ping report: Company Magna International: status=complete, jobs_fetched=1431, jobs_retained=52, reason=authoritative completion established."
+    },
+    {
+      "line": 1367,
+      "text": "2026-10-27T22:51:08.3141341Z Ping report: Company Cohere: status=complete, jobs_fetched=117, jobs_retained=3, reason=authoritative completion established."
+    },
+    {
+      "line": 1368,
+      "text": "2026-10-27T22:51:08.3141823Z Ping report: Company CAE Inc.: status=complete, jobs_fetched=387, jobs_retained=7, reason=authoritative completion established."
+    },
+    {
+      "line": 1369,
+      "text": "2026-10-27T22:51:08.3142273Z Ping report: Company Celestica: status=failed, jobs_fetched=0, jobs_retained=0, reason=source unreachable."
+    },
+    {
+      "line": 1370,
+      "text": "2026-10-27T22:51:08.3142725Z Ping report: Company Kinaxis: status=complete, jobs_fetched=111, jobs_retained=15, reason=authoritative completion established."
+    },
+    {
+      "line": 1371,
+      "text": "2026-10-27T22:51:08.3143239Z Ping report: Company Descartes Systems Group: status=complete, jobs_fetched=26, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1372,
+      "text": "2026-10-27T22:51:08.3143917Z Ping report: Company TELUS: status=complete, jobs_fetched=150, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1373,
+      "text": "2026-10-27T22:51:08.3144433Z Ping report: Company Infineon Technologies: status=complete, jobs_fetched=1277, jobs_retained=184, reason=authoritative completion established."
+    },
+    {
+      "line": 1374,
+      "text": "2026-10-27T22:51:08.3144964Z Ping report: Company Absolute Software: status=complete, jobs_fetched=19, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1375,
+      "text": "2026-10-27T22:51:08.3145459Z Ping report: Company BCE / Bell: status=complete, jobs_fetched=62, jobs_retained=3, reason=authoritative completion established."
+    },
+    {
+      "line": 1376,
+      "text": "2026-10-27T22:51:08.3145933Z Ping report: Company Clio: status=incomplete, jobs_fetched=128, jobs_retained=1, reason=source identity validation failed."
+    },
+    {
+      "line": 1377,
+      "text": "2026-10-27T22:51:08.3146467Z Ping report: Company Hexagon Autonomy & Positioning / NovAtel: status=complete, jobs_fetched=34, jobs_retained=5, reason=authoritative completion established."
+    },
+    {
+      "line": 1378,
+      "text": "2026-10-27T22:51:08.3147005Z Ping report: Company Geotab: status=complete, jobs_fetched=67, jobs_retained=1, reason=authoritative completion established."
+    },
+    {
+      "line": 1379,
+      "text": "2026-10-27T22:51:08.3147491Z Ping report: Company OpenText: status=complete, jobs_fetched=384, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1380,
+      "text": "2026-10-27T22:51:08.3147972Z Ping report: Company Benevity: status=complete, jobs_fetched=22, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1381,
+      "text": "2026-10-27T22:51:08.3148454Z Ping report: Company Miovision: status=complete, jobs_fetched=20, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1382,
+      "text": "2026-10-27T22:51:08.3148932Z Ping report: Company Waabi: status=complete, jobs_fetched=94, jobs_retained=2, reason=authoritative completion established."
+    },
+    {
+      "line": 1383,
+      "text": "2026-10-27T22:51:08.3149428Z Ping report: Company ATS Corporation: status=complete, jobs_fetched=146, jobs_retained=2, reason=authoritative completion established."
+    },
+    {
+      "line": 1384,
+      "text": "2026-10-27T22:51:08.3149928Z Ping report: Company Hootsuite: status=complete, jobs_fetched=2, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1385,
+      "text": "2026-10-27T22:51:08.3150412Z Ping report: Company 1Password: status=complete, jobs_fetched=88, jobs_retained=11, reason=authoritative completion established."
+    },
+    {
+      "line": 1386,
+      "text": "2026-10-27T22:51:08.3150985Z Ping report: Company D2L: status=complete, jobs_fetched=14, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1387,
+      "text": "2026-10-27T22:51:08.3151469Z Ping report: Company CoolIT Systems: status=complete, jobs_fetched=0, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1388,
+      "text": "2026-10-27T22:51:08.3151958Z Ping report: Company Linamar: status=complete, jobs_fetched=237, jobs_retained=2, reason=authoritative completion established."
+    },
+    {
+      "line": 1389,
+      "text": "2026-10-27T22:51:08.3152462Z Ping report: Company Ballard Power Systems: status=complete, jobs_fetched=8, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1390,
+      "text": "2026-10-27T22:51:08.3153022Z Ping report: Company City of Calgary: status=failed, jobs_fetched=0, jobs_retained=0, reason=source unreachable."
+    },
+    {
+      "line": 1391,
+      "text": "2026-10-27T22:51:08.3153474Z Ping report: Company IBM: status=complete, jobs_fetched=201, jobs_retained=188, reason=authoritative completion established."
+    },
+    {
+      "line": 1392,
+      "text": "2026-10-27T22:51:08.3154125Z Ping report: Company PointClickCare: status=complete, jobs_fetched=72, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1393,
+      "text": "2026-10-27T22:51:08.3154626Z Ping report: Company Apptronik: status=complete, jobs_fetched=86, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1394,
+      "text": "2026-10-27T22:51:08.3155130Z Ping report: Company Applied Intuition: status=complete, jobs_fetched=329, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1395,
+      "text": "2026-10-27T22:51:08.3155622Z Ping report: Company Nuro: status=complete, jobs_fetched=97, jobs_retained=2, reason=authoritative completion established."
+    },
+    {
+      "line": 1396,
+      "text": "2026-10-27T22:51:08.3156108Z Ping report: Company Kodiak Robotics: status=complete, jobs_fetched=67, jobs_retained=2, reason=authoritative completion established."
+    },
+    {
+      "line": 1397,
+      "text": "2026-10-27T22:51:08.3156620Z Ping report: Company 1X Technologies: status=complete, jobs_fetched=104, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1398,
+      "text": "2026-10-27T22:51:08.3157111Z Ping report: Company Gatik: status=complete, jobs_fetched=67, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1399,
+      "text": "2026-10-27T22:51:08.3157591Z Ping report: Company Scale AI: status=complete, jobs_fetched=169, jobs_retained=4, reason=authoritative completion established."
+    },
+    {
+      "line": 1400,
+      "text": "2026-10-27T22:51:08.3158099Z Ping report: Company Physical Intelligence: status=complete, jobs_fetched=44, jobs_retained=2, reason=authoritative completion established."
+    },
+    {
+      "line": 1401,
+      "text": "2026-10-27T22:51:08.3158631Z Ping report: Company TEKTELIC Communications: status=complete, jobs_fetched=2, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1402,
+      "text": "2026-10-27T22:51:08.3159152Z Ping report: Company Serve Robotics: status=complete, jobs_fetched=29, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1403,
+      "text": "2026-10-27T22:51:08.3159622Z Ping report: Company Gibson Energy: status=failed, jobs_fetched=0, jobs_retained=0, reason=source unreachable."
+    },
+    {
+      "line": 1404,
+      "text": "2026-10-27T22:51:08.3160098Z Ping report: Company Strathcona Resources: status=complete, jobs_fetched=19, jobs_retained=6, reason=authoritative completion established."
+    },
+    {
+      "line": 1405,
+      "text": "2026-10-27T22:51:08.3160605Z Ping report: Company SensorUp: status=complete, jobs_fetched=0, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1406,
+      "text": "2026-10-27T22:51:08.3161105Z Ping report: Company Renesas Electronics: status=incomplete, jobs_fetched=200, jobs_retained=7, reason=collection changed during scan."
+    },
+    {
+      "line": 1407,
+      "text": "2026-10-27T22:51:08.3161609Z Ping report: Company Silicon Labs: status=complete, jobs_fetched=80, jobs_retained=3, reason=authoritative completion established."
+    },
+    {
+      "line": 1408,
+      "text": "2026-10-27T22:51:08.3162108Z Ping report: Company Pason Systems: status=complete, jobs_fetched=8, jobs_retained=1, reason=authoritative completion established."
+    },
+    {
+      "line": 1409,
+      "text": "2026-10-27T22:51:08.3162632Z Ping report: Company Trican Well Service: status=complete, jobs_fetched=35, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1410,
+      "text": "2026-10-27T22:51:08.3163141Z Ping report: Company Espressif Systems: status=failed, jobs_fetched=15, jobs_retained=0, reason=source identity validation failed."
+    },
+    {
+      "line": 1411,
+      "text": "2026-10-27T22:51:08.3163749Z Ping report: Company iRobot: status=complete, jobs_fetched=4, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1412,
+      "text": "2026-10-27T22:51:08.3164319Z Ping report: Company SLB: status=complete, jobs_fetched=683, jobs_retained=89, reason=authoritative completion established."
+    },
+    {
+      "line": 1413,
+      "text": "2026-10-27T22:51:08.3164802Z Ping report: Company SharkNinja: status=complete, jobs_fetched=143, jobs_retained=23, reason=authoritative completion established."
+    },
+    {
+      "line": 1414,
+      "text": "2026-10-27T22:51:08.3165318Z Ping report: Company Semtech: status=incomplete, jobs_fetched=118, jobs_retained=17, reason=source identity validation failed."
+    },
+    {
+      "line": 1415,
+      "text": "2026-10-27T22:51:08.3165883Z Ping report: Company Mistral AI: status=complete, jobs_fetched=226, jobs_retained=3, reason=authoritative completion established."
+    },
+    {
+      "line": 1416,
+      "text": "2026-10-27T22:51:08.3166379Z Ping report: Company Perplexity AI: status=complete, jobs_fetched=132, jobs_retained=4, reason=authoritative completion established."
+    },
+    {
+      "line": 1417,
+      "text": "2026-10-27T22:51:08.3166872Z Ping report: Company PETRONAS: status=complete, jobs_fetched=39, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1418,
+      "text": "2026-10-27T22:51:08.3167380Z Ping report: Company Tower Research Capital: status=complete, jobs_fetched=2, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1419,
+      "text": "2026-10-27T22:51:08.3167875Z Ping report: Company Mitsubishi Electric: status=failed, jobs_fetched=0, jobs_retained=0, reason=unsupported source."
+    },
+    {
+      "line": 1420,
+      "text": "2026-10-27T22:51:08.3168359Z Ping report: Company Yaskawa Electric: status=complete, jobs_fetched=29, jobs_retained=1, reason=authoritative completion established."
+    },
+    {
+      "line": 1421,
+      "text": "2026-10-27T22:51:08.3168864Z Ping report: Company NOVA Chemicals: status=complete, jobs_fetched=0, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1422,
+      "text": "2026-10-27T22:51:08.3169369Z Ping report: Company Trans Mountain: status=complete, jobs_fetched=56, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1423,
+      "text": "2026-10-27T22:51:08.3169897Z Ping report: Company Computer Modelling Group (CMG): status=complete, jobs_fetched=3, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1424,
+      "text": "2026-10-27T22:51:08.3170411Z Ping report: Company Nubank: status=complete, jobs_fetched=97, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1425,
+      "text": "2026-10-27T22:51:08.3170885Z Ping report: Company MNP: status=complete, jobs_fetched=75, jobs_retained=38, reason=authoritative completion established."
+    },
+    {
+      "line": 1426,
+      "text": "2026-10-27T22:51:08.3171370Z Ping report: Company Neo Financial: status=complete, jobs_fetched=63, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1427,
+      "text": "2026-10-27T22:51:08.3171867Z Ping report: Company PurposeMed: status=complete, jobs_fetched=10, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1428,
+      "text": "2026-10-27T22:51:08.3172358Z Ping report: Company Astrobotic: status=complete, jobs_fetched=0, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1429,
+      "text": "2026-10-27T22:51:08.3172860Z Ping report: Company Absorb Software: status=complete, jobs_fetched=18, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1430,
+      "text": "2026-10-27T22:51:08.3173350Z Ping report: Company Dyson: status=complete, jobs_fetched=479, jobs_retained=1, reason=authoritative completion established."
+    },
+    {
+      "line": 1431,
+      "text": "2026-10-27T22:51:08.3173953Z Ping report: Company Helcim: status=complete, jobs_fetched=9, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1432,
+      "text": "2026-10-27T22:51:08.3174425Z Ping report: Company FANUC: status=complete, jobs_fetched=54, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1433,
+      "text": "2026-10-27T22:51:08.3174864Z Ping report: Company CPKC: status=failed, jobs_fetched=57, jobs_retained=0, reason=source unreachable."
+    },
+    {
+      "line": 1434,
+      "text": "2026-10-27T22:51:08.3175326Z Ping report: Company Intuitive Machines: status=complete, jobs_fetched=83, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1435,
+      "text": "2026-10-27T22:51:08.3175825Z Ping report: Company Aptiv: status=incomplete, jobs_fetched=825, jobs_retained=59, reason=source identity validation failed."
+    },
+    {
+      "line": 1436,
+      "text": "2026-10-27T22:51:08.3176306Z Ping report: Company Bosch: status=incomplete, jobs_fetched=5000, jobs_retained=466, reason=completion not established."
+    },
+    {
+      "line": 1437,
+      "text": "2026-10-27T22:51:08.3176772Z Ping report: Company CIBC: status=incomplete, jobs_fetched=44, jobs_retained=38, reason=source identity validation failed."
+    },
+    {
+      "line": 1438,
+      "text": "2026-10-27T22:51:08.3177379Z Ping report: Company Wealthsimple: status=complete, jobs_fetched=39, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1439,
+      "text": "2026-10-27T22:51:08.3177867Z Ping report: Company Scotiabank: status=failed, jobs_fetched=1501, jobs_retained=0, reason=source identity validation failed."
+    },
+    {
+      "line": 1440,
+      "text": "2026-10-27T22:51:08.3178355Z Ping report: Company Thomson Reuters: status=incomplete, jobs_fetched=497, jobs_retained=7, reason=source identity validation failed."
+    },
+    {
+      "line": 1441,
+      "text": "2026-10-27T22:51:08.3178923Z Ping report: Company Sun Life: status=incomplete, jobs_fetched=14, jobs_retained=14, reason=source identity validation failed."
+    },
+    {
+      "line": 1442,
+      "text": "2026-10-27T22:51:08.3179400Z Ping report: Company Ciena: status=complete, jobs_fetched=146, jobs_retained=12, reason=authoritative completion established."
+    },
+    {
+      "line": 1443,
+      "text": "2026-10-27T22:51:08.3179873Z Ping report: Company BMO: status=complete, jobs_fetched=981, jobs_retained=5, reason=authoritative completion established."
+    },
+    {
+      "line": 1444,
+      "text": "2026-10-27T22:51:08.3180348Z Ping report: Company Manulife: status=complete, jobs_fetched=615, jobs_retained=27, reason=authoritative completion established."
+    },
+    {
+      "line": 1445,
+      "text": "2026-10-27T22:51:08.3180827Z Ping report: Company Xanadu: status=complete, jobs_fetched=88, jobs_retained=1, reason=authoritative completion established."
+    },
+    {
+      "line": 1446,
+      "text": "2026-10-27T22:51:08.3181307Z Ping report: Company ApplyBoard: status=complete, jobs_fetched=66, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1447,
+      "text": "2026-10-27T22:51:08.3181801Z Ping report: Company Tenstorrent: status=complete, jobs_fetched=120, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1448,
+      "text": "2026-10-27T22:51:08.3182306Z Ping report: Company Magnet Forensics: status=complete, jobs_fetched=42, jobs_retained=2, reason=authoritative completion established."
+    },
+    {
+      "line": 1449,
+      "text": "2026-10-27T22:51:08.3182814Z Ping report: Company Nokia Canada: status=complete, jobs_fetched=574, jobs_retained=44, reason=authoritative completion established."
+    },
+    {
+      "line": 1450,
+      "text": "2026-10-27T22:51:08.3183308Z Ping report: Company Arctic Wolf: status=complete, jobs_fetched=108, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1451,
+      "text": "2026-10-27T22:51:08.3183974Z Ping report: Company OMERS: status=incomplete, jobs_fetched=71, jobs_retained=5, reason=source identity validation failed."
+    },
+    {
+      "line": 1452,
+      "text": "2026-10-27T22:51:08.3184421Z Ping report: Company Hydro One: status=failed, jobs_fetched=0, jobs_retained=0, reason=source unreachable."
+    },
+    {
+      "line": 1453,
+      "text": "2026-10-27T22:51:08.3184872Z Ping report: Company Bruce Power: status=complete, jobs_fetched=20, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1454,
+      "text": "2026-10-27T22:51:08.3185367Z Ping report: Company Canadian Tire: status=incomplete, jobs_fetched=128, jobs_retained=2, reason=source identity validation failed."
+    },
+    {
+      "line": 1455,
+      "text": "2026-10-27T22:51:08.3185874Z Ping report: Company Vector Institute: status=complete, jobs_fetched=5, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1456,
+      "text": "2026-10-27T22:51:08.3186374Z Ping report: Company Deep Genomics: status=complete, jobs_fetched=4, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1457,
+      "text": "2026-10-27T22:51:08.3186866Z Ping report: Company Enerflex: status=complete, jobs_fetched=116, jobs_retained=3, reason=authoritative completion established."
+    },
+    {
+      "line": 1458,
+      "text": "2026-10-27T22:51:08.3187347Z Ping report: Company Symend: status=complete, jobs_fetched=2, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1459,
+      "text": "2026-10-27T22:51:08.3187833Z Ping report: Company Multimatic: status=complete, jobs_fetched=118, jobs_retained=9, reason=authoritative completion established."
+    },
+    {
+      "line": 1460,
+      "text": "2026-10-27T22:51:08.3188327Z Ping report: Company ATB Financial: status=complete, jobs_fetched=50, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1461,
+      "text": "2026-10-27T22:51:08.3188812Z Ping report: Company ecobee: status=failed, jobs_fetched=5, jobs_retained=0, reason=source identity validation failed."
+    },
+    {
+      "line": 1462,
+      "text": "2026-10-27T22:51:08.3189321Z Ping report: Company Circle Cardiovascular Imaging: status=complete, jobs_fetched=7, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1463,
+      "text": "2026-10-27T22:51:08.3189837Z Ping report: Company Jobber: status=complete, jobs_fetched=41, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1464,
+      "text": "2026-10-27T22:51:08.3190398Z Ping report: Company TD Bank: status=incomplete, jobs_fetched=1713, jobs_retained=12, reason=collection changed during scan."
+    },
+    {
+      "line": 1465,
+      "text": "2026-10-27T22:51:08.3190886Z Ping report: Company Cerebras Systems: status=complete, jobs_fetched=118, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1466,
+      "text": "2026-10-27T22:51:08.3191396Z Ping report: Company Ericsson Canada: status=complete, jobs_fetched=531, jobs_retained=51, reason=authoritative completion established."
+    },
+    {
+      "line": 1467,
+      "text": "2026-10-27T22:51:08.3192107Z Ping report: Company GE Aerospace: status=complete, jobs_fetched=624, jobs_retained=85, reason=authoritative completion established."
+    },
+    {
+      "line": 1468,
+      "text": "2026-10-27T22:51:08.3192616Z Ping report: Company Zebra Technologies: status=incomplete, jobs_fetched=263, jobs_retained=21, reason=source identity validation failed."
+    },
+    {
+      "line": 1469,
+      "text": "2026-10-27T22:51:08.3193081Z Ping report: Company SAP: status=failed, jobs_fetched=0, jobs_retained=0, reason=source unreachable."
+    },
+    {
+      "line": 1470,
+      "text": "2026-10-27T22:51:08.3193701Z Ping report: Company Bombardier: status=incomplete, jobs_fetched=180, jobs_retained=32, reason=discovery-only source; no absence authority."
+    },
+    {
+      "line": 1471,
+      "text": "2026-10-27T22:51:08.3194217Z Ping report: Company ServiceNow: status=complete, jobs_fetched=724, jobs_retained=6, reason=authoritative completion established."
+    },
+    {
+      "line": 1472,
+      "text": "2026-10-27T22:51:08.3194703Z Ping report: Company Affirm: status=complete, jobs_fetched=242, jobs_retained=3, reason=authoritative completion established."
+    },
+    {
+      "line": 1473,
+      "text": "2026-10-27T22:51:08.3195225Z Ping report: Company Nordic Semiconductor: status=incomplete, jobs_fetched=20, jobs_retained=0, reason=discovery-only source; no absence authority."
+    },
+    {
+      "line": 1474,
+      "text": "2026-10-27T22:51:08.3195767Z Ping report: Company Palo Alto Networks: status=complete, jobs_fetched=31, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1475,
+      "text": "2026-10-27T22:51:08.3196261Z Ping report: Company Ouster: status=complete, jobs_fetched=27, jobs_retained=1, reason=authoritative completion established."
+    },
+    {
+      "line": 1476,
+      "text": "2026-10-27T22:51:08.3196736Z Ping report: Company Motional: status=complete, jobs_fetched=83, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1477,
+      "text": "2026-10-27T22:51:08.3197236Z Ping report: Company Aeva Technologies: status=complete, jobs_fetched=44, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1478,
+      "text": "2026-10-27T22:51:08.3197731Z Ping report: Company Plus AI: status=complete, jobs_fetched=46, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1479,
+      "text": "2026-10-27T22:51:08.3198217Z Ping report: Company Locus Robotics: status=complete, jobs_fetched=3, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1480,
+      "text": "2026-10-27T22:51:08.3198720Z Ping report: Company Gecko Robotics: status=complete, jobs_fetched=21, jobs_retained=4, reason=authoritative completion established."
+    },
+    {
+      "line": 1481,
+      "text": "2026-10-27T22:51:08.3199236Z Ping report: Company Diodes Incorporated: status=complete, jobs_fetched=18, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1482,
+      "text": "2026-10-27T22:51:08.3199734Z Ping report: Company Qorvo: status=complete, jobs_fetched=235, jobs_retained=92, reason=authoritative completion established."
+    },
+    {
+      "line": 1483,
+      "text": "2026-10-27T22:51:08.3200235Z Ping report: Company indie Semiconductor: status=complete, jobs_fetched=24, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1484,
+      "text": "2026-10-27T22:51:08.3200761Z Ping report: Company Allegro MicroSystems: status=complete, jobs_fetched=88, jobs_retained=3, reason=authoritative completion established."
+    },
+    {
+      "line": 1485,
+      "text": "2026-10-27T22:51:08.3201261Z Ping report: Company Fortinet: status=failed, jobs_fetched=1053, jobs_retained=0, reason=collection changed during scan."
+    },
+    {
+      "line": 1486,
+      "text": "2026-10-27T22:51:08.3201721Z Ping report: Company Oracle: status=failed, jobs_fetched=2687, jobs_retained=0, reason=collection changed during scan."
+    },
+    {
+      "line": 1487,
+      "text": "2026-10-27T22:51:08.3202194Z Ping report: Company Porsche: status=complete, jobs_fetched=763, jobs_retained=27, reason=authoritative completion established."
+    },
+    {
+      "line": 1488,
+      "text": "2026-10-27T22:51:08.3202678Z Ping report: Company Cisco: status=complete, jobs_fetched=1502, jobs_retained=40, reason=authoritative completion established."
+    },
+    {
+      "line": 1489,
+      "text": "2026-10-27T22:51:08.3203151Z Ping report: Company CATL: status=complete, jobs_fetched=15, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1490,
+      "text": "2026-10-27T22:51:08.3203836Z Ping report: Company HTC Vive: status=complete, jobs_fetched=0, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1491,
+      "text": "2026-10-27T22:51:08.3204327Z Ping report: Company Stellantis: status=complete, jobs_fetched=716, jobs_retained=78, reason=authoritative completion established."
+    },
+    {
+      "line": 1492,
+      "text": "2026-10-27T22:51:08.3204831Z Ping report: Company Continental: status=complete, jobs_fetched=449, jobs_retained=38, reason=authoritative completion established."
+    },
+    {
+      "line": 1493,
+      "text": "2026-10-27T22:51:08.3205393Z Ping report: Company DJI: status=complete, jobs_fetched=15, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1494,
+      "text": "2026-10-27T22:51:08.3205861Z Ping report: Company Rakuten: status=complete, jobs_fetched=27, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1495,
+      "text": "2026-10-27T22:51:08.3206335Z Ping report: Company Twitch: status=complete, jobs_fetched=62, jobs_retained=2, reason=authoritative completion established."
+    },
+    {
+      "line": 1496,
+      "text": "2026-10-27T22:51:08.3206810Z Ping report: Company CN Rail: status=complete, jobs_fetched=55, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1497,
+      "text": "2026-10-27T22:51:08.3207299Z Ping report: Company Carbon Upcycling: status=complete, jobs_fetched=0, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1498,
+      "text": "2026-10-27T22:51:08.3207790Z Ping report: Company Athabasca Oil: status=failed, jobs_fetched=2, jobs_retained=0, reason=source identity validation failed."
+    },
+    {
+      "line": 1499,
+      "text": "2026-10-27T22:51:08.3208271Z Ping report: Company Bloomberg: status=complete, jobs_fetched=342, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1500,
+      "text": "2026-10-27T22:51:08.3208904Z Ping report: Company Paramount Resources: status=complete, jobs_fetched=6, jobs_retained=4, reason=authoritative completion established."
+    },
+    {
+      "line": 1501,
+      "text": "2026-10-27T22:51:08.3209435Z Ping report: Company STEP Energy Services: status=complete, jobs_fetched=11, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1502,
+      "text": "2026-10-27T22:51:08.3209943Z Ping report: Company Target Tech: status=incomplete, jobs_fetched=101, jobs_retained=0, reason=source identity validation failed."
+    },
+    {
+      "line": 1503,
+      "text": "2026-10-27T22:51:08.3210428Z Ping report: Company Weir Group: status=incomplete, jobs_fetched=54, jobs_retained=0, reason=source identity validation failed."
+    },
+    {
+      "line": 1504,
+      "text": "2026-10-27T22:51:08.3210908Z Ping report: Company OHB SE: status=complete, jobs_fetched=243, jobs_retained=14, reason=authoritative completion established."
+    },
+    {
+      "line": 1505,
+      "text": "2026-10-27T22:51:08.3211409Z Ping report: Company Lightspeed Commerce: status=complete, jobs_fetched=93, jobs_retained=3, reason=authoritative completion established."
+    },
+    {
+      "line": 1506,
+      "text": "2026-10-27T22:51:08.3211944Z Ping report: Company Calfrac Well Services: status=complete, jobs_fetched=23, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1507,
+      "text": "2026-10-27T22:51:08.3212482Z Ping report: Company Rogers Communications: status=complete, jobs_fetched=170, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1508,
+      "text": "2026-10-27T22:51:08.3213000Z Ping report: Company Helm Operations: status=incomplete, jobs_fetched=2, jobs_retained=0, reason=source identity validation failed."
+    },
+    {
+      "line": 1509,
+      "text": "2026-10-27T22:51:08.3213623Z Ping report: Company Solera Holdings: status=complete, jobs_fetched=3, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1510,
+      "text": "2026-10-27T22:51:08.3214124Z Ping report: Company Trulioo: status=complete, jobs_fetched=27, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1511,
+      "text": "2026-10-27T22:51:08.3214601Z Ping report: Company Showbie: status=complete, jobs_fetched=0, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1512,
+      "text": "2026-10-27T22:51:08.3215095Z Ping report: Company Coconut Software: status=complete, jobs_fetched=3, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1513,
+      "text": "2026-10-27T22:51:08.3215583Z Ping report: Company RBC: status=incomplete, jobs_fetched=872, jobs_retained=30, reason=source identity validation failed."
+    },
+    {
+      "line": 1514,
+      "text": "2026-10-27T22:51:08.3216061Z Ping report: Company Air Canada: status=complete, jobs_fetched=77, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1515,
+      "text": "2026-10-27T22:51:08.3216646Z Ping report: Company Cineplex: status=complete, jobs_fetched=213, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1516,
+      "text": "2026-10-27T22:51:08.3217152Z Ping report: Company Western Digital: status=complete, jobs_fetched=341, jobs_retained=24, reason=authoritative completion established."
+    },
+    {
+      "line": 1517,
+      "text": "2026-10-27T22:51:08.3217667Z Ping report: Company Credo Technology: status=complete, jobs_fetched=36, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1518,
+      "text": "2026-10-27T22:51:08.3218169Z Ping report: Company Astera Labs: status=complete, jobs_fetched=178, jobs_retained=2, reason=authoritative completion established."
+    },
+    {
+      "line": 1519,
+      "text": "2026-10-27T22:51:08.3218738Z Ping report: Company SK hynix: status=complete, jobs_fetched=51, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1520,
+      "text": "2026-10-27T22:51:08.3219207Z Ping report: Company Kioxia: status=incomplete, jobs_fetched=20, jobs_retained=0, reason=completion not established."
+    },
+    {
+      "line": 1521,
+      "text": "2026-10-27T22:51:08.3219691Z Ping report: Company Mercedes-Benz: status=complete, jobs_fetched=2660, jobs_retained=162, reason=authoritative completion established."
+    },
+    {
+      "line": 1522,
+      "text": "2026-10-27T22:51:08.3220202Z Ping report: Company Coherent Corp: status=complete, jobs_fetched=331, jobs_retained=1, reason=authoritative completion established."
+    },
+    {
+      "line": 1523,
+      "text": "2026-10-27T22:51:08.3220700Z Ping report: Company Logitech: status=complete, jobs_fetched=218, jobs_retained=22, reason=authoritative completion established."
+    },
+    {
+      "line": 1524,
+      "text": "2026-10-27T22:51:08.3221185Z Ping report: Company Bose: status=incomplete, jobs_fetched=87, jobs_retained=11, reason=source identity validation failed."
+    },
+    {
+      "line": 1525,
+      "text": "2026-10-27T22:51:08.3221664Z Ping report: Company MaxLinear: status=complete, jobs_fetched=33, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1526,
+      "text": "2026-10-27T22:51:08.3222141Z Ping report: Company Roku: status=complete, jobs_fetched=84, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1527,
+      "text": "2026-10-27T22:51:08.3222611Z Ping report: Company Sonos: status=incomplete, jobs_fetched=58, jobs_retained=5, reason=source identity validation failed."
+    },
+    {
+      "line": 1528,
+      "text": "2026-10-27T22:51:08.3223088Z Ping report: Company Ambiq: status=complete, jobs_fetched=45, jobs_retained=2, reason=authoritative completion established."
+    },
+    {
+      "line": 1529,
+      "text": "2026-10-27T22:51:08.3223692Z Ping report: Company u-blox: status=incomplete, jobs_fetched=10, jobs_retained=2, reason=missing terminal evidence."
+    },
+    {
+      "line": 1530,
+      "text": "2026-10-27T22:51:08.3224177Z Ping report: Company Diligent Robotics: status=complete, jobs_fetched=10, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1531,
+      "text": "2026-10-27T22:51:08.3224673Z Ping report: Company Corsair: status=complete, jobs_fetched=82, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1532,
+      "text": "2026-10-27T22:51:08.3225156Z Ping report: Company Cobalt AI: status=complete, jobs_fetched=7, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1533,
+      "text": "2026-10-27T22:51:08.3225651Z Ping report: Company Bright Machines: status=complete, jobs_fetched=17, jobs_retained=1, reason=authoritative completion established."
+    },
+    {
+      "line": 1534,
+      "text": "2026-10-27T22:51:08.3226149Z Ping report: Company Zipline: status=complete, jobs_fetched=347, jobs_retained=74, reason=authoritative completion established."
+    },
+    {
+      "line": 1535,
+      "text": "2026-10-27T22:51:08.3226647Z Ping report: Company Berkshire Grey: status=complete, jobs_fetched=20, jobs_retained=1, reason=authoritative completion established."
+    },
+    {
+      "line": 1536,
+      "text": "2026-10-27T22:51:08.3227143Z Ping report: Company Dexterity: status=complete, jobs_fetched=11, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1537,
+      "text": "2026-10-27T22:51:08.3227642Z Ping report: Company Plus One Robotics: status=complete, jobs_fetched=3, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1538,
+      "text": "2026-10-27T22:51:08.3228146Z Ping report: Company Chef Robotics: status=complete, jobs_fetched=11, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1539,
+      "text": "2026-10-27T22:51:08.3228638Z Ping report: Company Symbotic: status=complete, jobs_fetched=127, jobs_retained=17, reason=authoritative completion established."
+    },
+    {
+      "line": 1540,
+      "text": "2026-10-27T22:51:08.3229133Z Ping report: Company Built Robotics: status=complete, jobs_fetched=7, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1541,
+      "text": "2026-10-27T22:51:08.3229714Z Ping report: Company HubSpot: status=complete, jobs_fetched=66, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1542,
+      "text": "2026-10-27T22:51:08.3230211Z Ping report: Company Novarc Technologies: status=incomplete, jobs_fetched=23, jobs_retained=0, reason=invalid or malformed response."
+    },
+    {
+      "line": 1543,
+      "text": "2026-10-27T22:51:08.3230705Z Ping report: Company Avidbots: status=complete, jobs_fetched=11, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1544,
+      "text": "2026-10-27T22:51:08.3231185Z Ping report: Company Dropbox: status=complete, jobs_fetched=22, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1545,
+      "text": "2026-10-27T22:51:08.3231705Z Ping report: Company Zoom: status=failed, jobs_fetched=0, jobs_retained=0, reason=source unreachable."
+    },
+    {
+      "line": 1546,
+      "text": "2026-10-27T22:51:08.3232141Z Ping report: Company Okta: status=complete, jobs_fetched=388, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1547,
+      "text": "2026-10-27T22:51:08.3232609Z Ping report: Company Box: status=complete, jobs_fetched=117, jobs_retained=1, reason=authoritative completion established."
+    },
+    {
+      "line": 1548,
+      "text": "2026-10-27T22:51:08.3233082Z Ping report: Company Asana: status=complete, jobs_fetched=113, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1549,
+      "text": "2026-10-27T22:51:08.3233722Z Ping report: Company Canva: status=complete, jobs_fetched=78, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1550,
+      "text": "2026-10-27T22:51:08.3234197Z Ping report: Company Vercel: status=complete, jobs_fetched=94, jobs_retained=2, reason=authoritative completion established."
+    },
+    {
+      "line": 1551,
+      "text": "2026-10-27T22:51:08.3234677Z Ping report: Company Airtable: status=complete, jobs_fetched=4, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1552,
+      "text": "2026-10-27T22:51:08.3235159Z Ping report: Company AppLovin: status=complete, jobs_fetched=43, jobs_retained=1, reason=authoritative completion established."
+    },
+    {
+      "line": 1553,
+      "text": "2026-10-27T22:51:08.3235640Z Ping report: Company Notion: status=complete, jobs_fetched=139, jobs_retained=3, reason=authoritative completion established."
+    },
+    {
+      "line": 1554,
+      "text": "2026-10-27T22:51:08.3236115Z Ping report: Company Replit: status=complete, jobs_fetched=35, jobs_retained=2, reason=authoritative completion established."
+    },
+    {
+      "line": 1555,
+      "text": "2026-10-27T22:51:08.3236593Z Ping report: Company Appian: status=complete, jobs_fetched=165, jobs_retained=4, reason=authoritative completion established."
+    },
+    {
+      "line": 1556,
+      "text": "2026-10-27T22:51:08.3237075Z Ping report: Company Samsara: status=complete, jobs_fetched=321, jobs_retained=10, reason=authoritative completion established."
+    },
+    {
+      "line": 1557,
+      "text": "2026-10-27T22:51:08.3237561Z Ping report: Company PagerDuty: status=complete, jobs_fetched=48, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1558,
+      "text": "2026-10-27T22:51:08.3238037Z Ping report: Company Miro: status=complete, jobs_fetched=18, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1559,
+      "text": "2026-10-27T22:51:08.3238508Z Ping report: Company CarGurus: status=complete, jobs_fetched=40, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1560,
+      "text": "2026-10-27T22:51:08.3238987Z Ping report: Company Fivetran: status=complete, jobs_fetched=160, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1561,
+      "text": "2026-10-27T22:51:08.3239485Z Ping report: Company DigitalOcean: status=complete, jobs_fetched=174, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1562,
+      "text": "2026-10-27T22:51:08.3239971Z Ping report: Company Braze: status=complete, jobs_fetched=340, jobs_retained=1, reason=authoritative completion established."
+    },
+    {
+      "line": 1563,
+      "text": "2026-10-27T22:51:08.3240444Z Ping report: Company Fastly: status=complete, jobs_fetched=53, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1564,
+      "text": "2026-10-27T22:51:08.3240923Z Ping report: Company CoreWeave: status=complete, jobs_fetched=23, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1565,
+      "text": "2026-10-27T22:51:08.3241403Z Ping report: Company Crusoe: status=complete, jobs_fetched=354, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1566,
+      "text": "2026-10-27T22:51:08.3241891Z Ping report: Company Cockroach Labs: status=complete, jobs_fetched=15, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1567,
+      "text": "2026-10-27T22:51:08.3242396Z Ping report: Company HP Inc.: status=incomplete, jobs_fetched=842, jobs_retained=85, reason=discovery-only source; no absence authority."
+    },
+    {
+      "line": 1568,
+      "text": "2026-10-27T22:51:08.3242979Z Ping report: Company Lambda: status=complete, jobs_fetched=98, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1569,
+      "text": "2026-10-27T22:51:08.3243463Z Ping report: Company Grafana Labs: status=complete, jobs_fetched=133, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1570,
+      "text": "2026-10-27T22:51:08.3244050Z Ping report: Company Pulumi: status=complete, jobs_fetched=4, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1571,
+      "text": "2026-10-27T22:51:08.3244606Z Ping report: Company Temporal: status=complete, jobs_fetched=73, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1572,
+      "text": "2026-10-27T22:51:08.3245081Z Ping report: Company Akamai: status=complete, jobs_fetched=276, jobs_retained=3, reason=authoritative completion established."
+    },
+    {
+      "line": 1573,
+      "text": "2026-10-27T22:51:08.3245554Z Ping report: Company Netlify: status=complete, jobs_fetched=4, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1574,
+      "text": "2026-10-27T22:51:08.3246037Z Ping report: Company Tailscale: status=complete, jobs_fetched=53, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1575,
+      "text": "2026-10-27T22:51:08.3246516Z Ping report: Company Seagate: status=incomplete, jobs_fetched=191, jobs_retained=84, reason=collection changed during scan."
+    },
+    {
+      "line": 1576,
+      "text": "2026-10-27T22:51:08.3246989Z Ping report: Company Sentry: status=complete, jobs_fetched=42, jobs_retained=1, reason=authoritative completion established."
+    },
+    {
+      "line": 1577,
+      "text": "2026-10-27T22:51:08.3247477Z Ping report: Company PlanetScale: status=complete, jobs_fetched=11, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1578,
+      "text": "2026-10-27T22:51:08.3247968Z Ping report: Company Together AI: status=complete, jobs_fetched=87, jobs_retained=9, reason=authoritative completion established."
+    },
+    {
+      "line": 1579,
+      "text": "2026-10-27T22:51:08.3248471Z Ping report: Company SambaNova Systems: status=complete, jobs_fetched=69, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1580,
+      "text": "2026-10-27T22:51:08.3248964Z Ping report: Company Render: status=complete, jobs_fetched=35, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1581,
+      "text": "2026-10-27T22:51:08.3249441Z Ping report: Company Supabase: status=complete, jobs_fetched=64, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1582,
+      "text": "2026-10-27T22:51:08.3249928Z Ping report: Company Anysphere: status=complete, jobs_fetched=122, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1583,
+      "text": "2026-10-27T22:51:08.3250407Z Ping report: Company Glean: status=complete, jobs_fetched=133, jobs_retained=1, reason=authoritative completion established."
+    },
+    {
+      "line": 1584,
+      "text": "2026-10-27T22:51:08.3250888Z Ping report: Company Etched: status=complete, jobs_fetched=116, jobs_retained=14, reason=authoritative completion established."
+    },
+    {
+      "line": 1585,
+      "text": "2026-10-27T22:51:08.3251364Z Ping report: Company Vanta: status=complete, jobs_fetched=79, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1586,
+      "text": "2026-10-27T22:51:08.3251847Z Ping report: Company Cognition: status=complete, jobs_fetched=105, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1587,
+      "text": "2026-10-27T22:51:08.3252336Z Ping report: Company d-Matrix: status=complete, jobs_fetched=41, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1588,
+      "text": "2026-10-27T22:51:08.3252813Z Ping report: Company Runway: status=complete, jobs_fetched=47, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1589,
+      "text": "2026-10-27T22:51:08.3253287Z Ping report: Company Harvey: status=complete, jobs_fetched=365, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1590,
+      "text": "2026-10-27T22:51:08.3253848Z Ping report: Company ElevenLabs: status=complete, jobs_fetched=156, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1591,
+      "text": "2026-10-27T22:51:08.3254331Z Ping report: Company Writer: status=complete, jobs_fetched=46, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1592,
+      "text": "2026-10-27T22:51:08.3254808Z Ping report: Company Synthesia: status=complete, jobs_fetched=38, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1593,
+      "text": "2026-10-27T22:51:08.3255289Z Ping report: Company Pinecone: status=complete, jobs_fetched=8, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1594,
+      "text": "2026-10-27T22:51:08.3255859Z Ping report: Company Abridge: status=complete, jobs_fetched=39, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1595,
+      "text": "2026-10-27T22:51:08.3256338Z Ping report: Company Sierra: status=complete, jobs_fetched=214, jobs_retained=3, reason=authoritative completion established."
+    },
+    {
+      "line": 1596,
+      "text": "2026-10-27T22:51:08.3256813Z Ping report: Company Hebbia: status=complete, jobs_fetched=22, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1597,
+      "text": "2026-10-27T22:51:08.3257282Z Ping report: Company Modal: status=complete, jobs_fetched=43, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1598,
+      "text": "2026-10-27T22:51:08.3257834Z Ping report: Company Arize AI: status=complete, jobs_fetched=27, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1599,
+      "text": "2026-10-27T22:51:08.3258318Z Ping report: Company LangChain: status=complete, jobs_fetched=101, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1600,
+      "text": "2026-10-27T22:51:08.3258805Z Ping report: Company Baseten: status=complete, jobs_fetched=106, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1601,
+      "text": "2026-10-27T22:51:08.3259285Z Ping report: Company Anyscale: status=complete, jobs_fetched=22, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1602,
+      "text": "2026-10-27T22:51:08.3259766Z Ping report: Company Labelbox: status=complete, jobs_fetched=9, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1603,
+      "text": "2026-10-27T22:51:08.3260251Z Ping report: Company Fireworks AI: status=complete, jobs_fetched=90, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1604,
+      "text": "2026-10-27T22:51:08.3260741Z Ping report: Company Snorkel AI: status=complete, jobs_fetched=43, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1605,
+      "text": "2026-10-27T22:51:08.3261223Z Ping report: Company Weaviate: status=complete, jobs_fetched=2, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1606,
+      "text": "2026-10-27T22:51:08.3261700Z Ping report: Company Zilliz: status=complete, jobs_fetched=12, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1607,
+      "text": "2026-10-27T22:51:08.3262175Z Ping report: Company Qdrant: status=complete, jobs_fetched=7, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1608,
+      "text": "2026-10-27T22:51:08.3262656Z Ping report: Company SingleStore: status=complete, jobs_fetched=41, jobs_retained=2, reason=authoritative completion established."
+    },
+    {
+      "line": 1609,
+      "text": "2026-10-27T22:51:08.3263148Z Ping report: Company MotherDuck: status=complete, jobs_fetched=3, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1610,
+      "text": "2026-10-27T22:51:08.3263786Z Ping report: Company H2O.ai: status=complete, jobs_fetched=11, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1611,
+      "text": "2026-10-27T22:51:08.3264267Z Ping report: Company Ada: status=complete, jobs_fetched=7, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1612,
+      "text": "2026-10-27T22:51:08.3264735Z Ping report: Company Prefect: status=complete, jobs_fetched=8, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1613,
+      "text": "2026-10-27T22:51:08.3265210Z Ping report: Company League: status=complete, jobs_fetched=5, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1614,
+      "text": "2026-10-27T22:51:08.3265719Z Ping report: Company Auvik Networks: status=complete, jobs_fetched=14, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1615,
+      "text": "2026-10-27T22:51:08.3266220Z Ping report: Company ClickHouse: status=complete, jobs_fetched=207, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1616,
+      "text": "2026-10-27T22:51:08.3266716Z Ping report: Company StackAdapt: status=complete, jobs_fetched=75, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1617,
+      "text": "2026-10-27T22:51:08.3267198Z Ping report: Company Redis: status=complete, jobs_fetched=27, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1618,
+      "text": "2026-10-27T22:51:08.3267692Z Ping report: Company Aspect Biosystems: status=complete, jobs_fetched=11, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1619,
+      "text": "2026-10-27T22:51:08.3268203Z Ping report: Company Apply Digital: status=complete, jobs_fetched=13, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1620,
+      "text": "2026-10-27T22:51:08.3268796Z Ping report: Company Astronomer: status=complete, jobs_fetched=19, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1621,
+      "text": "2026-10-27T22:51:08.3269288Z Ping report: Company Fullscript: status=complete, jobs_fetched=18, jobs_retained=1, reason=authoritative completion established."
+    },
+    {
+      "line": 1622,
+      "text": "2026-10-27T22:51:08.3269768Z Ping report: Company AltaML: status=complete, jobs_fetched=7, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1623,
+      "text": "2026-10-27T22:51:08.3270253Z Ping report: Company AbCellera: status=complete, jobs_fetched=37, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1624,
+      "text": "2026-10-27T22:51:08.3270845Z Ping report: Company BenchSci: status=complete, jobs_fetched=0, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1625,
+      "text": "2026-10-27T22:51:08.3271367Z Ping report: Company Later: status=complete, jobs_fetched=40, jobs_retained=8, reason=authoritative completion established."
+    },
+    {
+      "line": 1626,
+      "text": "2026-10-27T22:51:08.3272065Z Ping report: Company Caseware: status=complete, jobs_fetched=44, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1627,
+      "text": "2026-10-27T22:51:08.3272713Z Ping report: Company Achievers: status=complete, jobs_fetched=17, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1628,
+      "text": "2026-10-27T22:51:08.3273380Z Ping report: Company ZayZoon: status=complete, jobs_fetched=2, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1629,
+      "text": "2026-10-27T22:51:08.3274073Z Ping report: Company Rewind: status=complete, jobs_fetched=3, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1630,
+      "text": "2026-10-27T22:51:08.3283685Z Ping report: Company KOHO: status=complete, jobs_fetched=9, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1631,
+      "text": "2026-10-27T22:51:08.3284206Z Ping report: Company Clearco: status=complete, jobs_fetched=5, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1632,
+      "text": "2026-10-27T22:51:08.3284683Z Ping report: Company BlueDot: status=complete, jobs_fetched=1, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1633,
+      "text": "2026-10-27T22:51:08.3285160Z Ping report: Company Hopper: status=complete, jobs_fetched=18, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1634,
+      "text": "2026-10-27T22:51:08.3285629Z Ping report: Company Float: status=complete, jobs_fetched=21, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1635,
+      "text": "2026-10-27T22:51:08.3286097Z Ping report: Company Solace: status=complete, jobs_fetched=23, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1636,
+      "text": "2026-10-27T22:51:08.3286569Z Ping report: Company Ubisoft: status=complete, jobs_fetched=336, jobs_retained=8, reason=authoritative completion established."
+    },
+    {
+      "line": 1637,
+      "text": "2026-10-27T22:51:08.3287047Z Ping report: Company Genetec: status=complete, jobs_fetched=1, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1638,
+      "text": "2026-10-27T22:51:08.3287519Z Ping report: Company Gameloft: status=complete, jobs_fetched=61, jobs_retained=6, reason=authoritative completion established."
+    },
+    {
+      "line": 1639,
+      "text": "2026-10-27T22:51:08.3288001Z Ping report: Company SurveyMonkey: status=complete, jobs_fetched=19, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1640,
+      "text": "2026-10-27T22:51:08.3288486Z Ping report: Company Assent: status=complete, jobs_fetched=16, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1641,
+      "text": "2026-10-27T22:51:08.3288975Z Ping report: Company Avery Dennison: status=complete, jobs_fetched=485, jobs_retained=18, reason=authoritative completion established."
+    },
+    {
+      "line": 1642,
+      "text": "2026-10-27T22:51:08.3289481Z Ping report: Company Arista Networks: status=complete, jobs_fetched=244, jobs_retained=4, reason=authoritative completion established."
+    },
+    {
+      "line": 1643,
+      "text": "2026-10-27T22:51:08.3289981Z Ping report: Company Allstate Canada: status=incomplete, jobs_fetched=429, jobs_retained=0, reason=source identity validation failed."
+    },
+    {
+      "line": 1644,
+      "text": "2026-10-27T22:51:08.3290482Z Ping report: Company Hydro Ottawa: status=complete, jobs_fetched=10, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1645,
+      "text": "2026-10-27T22:51:08.3290971Z Ping report: Company NAV CANADA: status=complete, jobs_fetched=30, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1646,
+      "text": "2026-10-27T22:51:08.3292034Z Ping report: Company Lumentum: status=complete, jobs_fetched=274, jobs_retained=14, reason=authoritative completion established."
+    },
+    {
+      "line": 1647,
+      "text": "2026-10-27T22:51:08.3292829Z Ping report: Company Intact Financial: status=incomplete, jobs_fetched=157, jobs_retained=2, reason=source identity validation failed."
+    },
+    {
+      "line": 1648,
+      "text": "2026-10-27T22:51:08.3293315Z Ping report: Company Interac: status=incomplete, jobs_fetched=51, jobs_retained=2, reason=source identity validation failed."
+    },
+    {
+      "line": 1649,
+      "text": "2026-10-27T22:51:08.3293892Z Ping report: Company Dell Technologies: status=complete, jobs_fetched=510, jobs_retained=18, reason=authoritative completion established."
+    },
+    {
+      "line": 1650,
+      "text": "2026-10-27T22:51:08.3294471Z Ping report: Company Finning: status=incomplete, jobs_fetched=83, jobs_retained=0, reason=source identity validation failed."
+    },
+    {
+      "line": 1651,
+      "text": "2026-10-27T22:51:08.3294942Z Ping report: Company HPE: status=complete, jobs_fetched=1699, jobs_retained=157, reason=authoritative completion established."
+    },
+    {
+      "line": 1652,
+      "text": "2026-10-27T22:51:08.3295424Z Ping report: Company Proofpoint: status=complete, jobs_fetched=129, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1653,
+      "text": "2026-10-27T22:51:08.3295910Z Ping report: Company Trimble: status=incomplete, jobs_fetched=217, jobs_retained=14, reason=source identity validation failed."
+    },
+    {
+      "line": 1654,
+      "text": "2026-10-27T22:51:08.3296382Z Ping report: Company SGS: status=complete, jobs_fetched=4639, jobs_retained=32, reason=authoritative completion established."
+    },
+    {
+      "line": 1655,
+      "text": "2026-10-27T22:51:08.3296846Z Ping report: Company Calix: status=incomplete, jobs_fetched=9, jobs_retained=0, reason=source identity validation failed."
+    },
+    {
+      "line": 1656,
+      "text": "2026-10-27T22:51:08.3297368Z Ping report: Company Schweitzer Engineering Laboratories: status=incomplete, jobs_fetched=337, jobs_retained=36, reason=source identity validation failed."
+    },
+    {
+      "line": 1657,
+      "text": "2026-10-27T22:51:08.3297891Z Ping report: Company IKO: status=incomplete, jobs_fetched=232, jobs_retained=20, reason=source identity validation failed."
+    },
+    {
+      "line": 1658,
+      "text": "2026-10-27T22:51:08.3298374Z Ping report: Company Johnson Electric: status=incomplete, jobs_fetched=286, jobs_retained=12, reason=source identity validation failed."
+    },
+    {
+      "line": 1659,
+      "text": "2026-10-27T22:51:08.3298859Z Ping report: Company Dow: status=incomplete, jobs_fetched=183, jobs_retained=10, reason=source identity validation failed."
+    },
+    {
+      "line": 1660,
+      "text": "2026-10-27T22:51:08.3299325Z Ping report: Company CSA Group: status=incomplete, jobs_fetched=93, jobs_retained=1, reason=source identity validation failed."
+    },
+    {
+      "line": 1661,
+      "text": "2026-10-27T22:51:08.3299819Z Ping report: Company Bird Construction: status=incomplete, jobs_fetched=139, jobs_retained=29, reason=source identity validation failed."
+    },
+    {
+      "line": 1662,
+      "text": "2026-10-27T22:51:08.3300309Z Ping report: Company Workday: status=incomplete, jobs_fetched=378, jobs_retained=2, reason=source identity validation failed."
+    },
+    {
+      "line": 1663,
+      "text": "2026-10-27T22:51:08.3300797Z Ping report: Company Johnson & Johnson: status=incomplete, jobs_fetched=740, jobs_retained=36, reason=collection changed during scan."
+    },
+    {
+      "line": 1664,
+      "text": "2026-10-27T22:51:08.3301280Z Ping report: Company Ledcor: status=incomplete, jobs_fetched=353, jobs_retained=2, reason=source identity validation failed."
+    },
+    {
+      "line": 1665,
+      "text": "2026-10-27T22:51:08.3301757Z Ping report: Company Dragonfly: status=incomplete, jobs_fetched=115, jobs_retained=0, reason=source identity validation failed."
+    },
+    {
+      "line": 1666,
+      "text": "2026-10-27T22:51:08.3302230Z Ping report: Company HOOPP: status=incomplete, jobs_fetched=0, jobs_retained=0, reason=source identity validation failed."
+    },
+    {
+      "line": 1667,
+      "text": "2026-10-27T22:51:08.3302688Z Ping report: Company SOTI: status=incomplete, jobs_fetched=15, jobs_retained=15, reason=source identity validation failed."
+    },
+    {
+      "line": 1668,
+      "text": "2026-10-27T22:51:08.3303145Z Ping report: Company BCI: status=complete, jobs_fetched=10, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1669,
+      "text": "2026-10-27T22:51:08.3303891Z Ping report: Company Ontario Teachers' Pension Plan: status=incomplete, jobs_fetched=37, jobs_retained=1, reason=source identity validation failed."
+    },
+    {
+      "line": 1670,
+      "text": "2026-10-27T22:51:08.3304425Z Ping report: Company PSP Investments: status=incomplete, jobs_fetched=49, jobs_retained=3, reason=source identity validation failed."
+    },
+    {
+      "line": 1671,
+      "text": "2026-10-27T22:51:08.3304904Z Ping report: Company AIMCo: status=incomplete, jobs_fetched=10, jobs_retained=4, reason=source identity validation failed."
+    },
+    {
+      "line": 1672,
+      "text": "2026-10-27T22:51:08.3305479Z Ping report: Company McKesson: status=incomplete, jobs_fetched=694, jobs_retained=27, reason=source identity validation failed."
+    },
+    {
+      "line": 1673,
+      "text": "2026-10-27T22:51:08.3305948Z Ping report: Company EXFO: status=incomplete, jobs_fetched=68, jobs_retained=1, reason=source identity validation failed."
+    },
+    {
+      "line": 1674,
+      "text": "2026-10-27T22:51:08.3306407Z Ping report: Company Roche: status=incomplete, jobs_fetched=1275, jobs_retained=64, reason=source identity validation failed."
+    },
+    {
+      "line": 1675,
+      "text": "2026-10-27T22:51:08.3306876Z Ping report: Company EllisDon: status=incomplete, jobs_fetched=232, jobs_retained=0, reason=source identity validation failed."
+    },
+    {
+      "line": 1676,
+      "text": "2026-10-27T22:51:08.3307418Z Ping report: Company PCL Construction: status=failed, jobs_fetched=0, jobs_retained=0, reason=source unreachable."
+    },
+    {
+      "line": 1677,
+      "text": "2026-10-27T22:51:08.3307851Z Ping report: Company SaskPower: status=failed, jobs_fetched=0, jobs_retained=0, reason=source unreachable."
+    },
+    {
+      "line": 1678,
+      "text": "2026-10-27T22:51:08.3308267Z Ping report: Company FortisBC: status=failed, jobs_fetched=0, jobs_retained=0, reason=source unreachable."
+    },
+    {
+      "line": 1679,
+      "text": "2026-10-27T22:51:08.3308712Z Ping report: Company VIA Rail: status=complete, jobs_fetched=14, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1680,
+      "text": "2026-10-27T22:51:08.3309216Z Ping report: Company Siemens Healthineers: status=incomplete, jobs_fetched=511, jobs_retained=13, reason=source identity validation failed."
+    },
+    {
+      "line": 1681,
+      "text": "2026-10-27T22:51:08.3309694Z Ping report: Company Canada Life: status=failed, jobs_fetched=0, jobs_retained=0, reason=source unreachable."
+    },
+    {
+      "line": 1682,
+      "text": "2026-10-27T22:51:08.3310102Z Ping report: Company Aecon: status=failed, jobs_fetched=0, jobs_retained=0, reason=source unreachable."
+    },
+    {
+      "line": 1683,
+      "text": "2026-10-27T22:51:08.3310539Z Ping report: Company EPCOR: status=complete, jobs_fetched=19, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1684,
+      "text": "2026-10-27T22:51:08.3310976Z Ping report: Company Parkland: status=failed, jobs_fetched=0, jobs_retained=0, reason=access blocked."
+    },
+    {
+      "line": 1685,
+      "text": "2026-10-27T22:51:08.3311392Z Ping report: Company Cameco: status=incomplete, jobs_fetched=3, jobs_retained=0, reason=missing terminal evidence."
+    },
+    {
+      "line": 1686,
+      "text": "2026-10-27T22:51:08.3311854Z Ping report: Company WestJet: status=complete, jobs_fetched=33, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1687,
+      "text": "2026-10-27T22:51:08.3312338Z Ping report: Company AstraZeneca: status=incomplete, jobs_fetched=1333, jobs_retained=8, reason=source identity validation failed."
+    },
+    {
+      "line": 1688,
+      "text": "2026-10-27T22:51:08.3312840Z Ping report: Company SMART Technologies: status=complete, jobs_fetched=16, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1689,
+      "text": "2026-10-27T22:51:08.3313338Z Ping report: Company Ross Video: status=complete, jobs_fetched=5, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1690,
+      "text": "2026-10-27T22:51:08.3314032Z Ping report: Company Payments Canada: status=complete, jobs_fetched=4, jobs_retained=0, reason=authoritative completion established."
+    },
+    {
+      "line": 1691,
+      "text": "2026-10-27T22:51:08.3314514Z Ping report: Company Chemelex: status=incomplete, jobs_fetched=62, jobs_retained=0, reason=source identity validation failed."
+    },
+    {
+      "line": 1692,
+      "text": "2026-10-27T22:51:08.3314981Z Ping report: Company Hatch: status=complete, jobs_fetched=740, jobs_retained=41, reason=authoritative completion established."
+    },
+    {
+      "line": 1693,
+      "text": "2026-10-27T22:51:08.3315455Z Ping report: Company Sanofi: status=incomplete, jobs_fetched=1025, jobs_retained=78, reason=source identity validation failed."
+    },
+    {
+      "line": 1694,
+      "text": "2026-10-27T22:51:08.3315929Z Ping report: Company Kinross Gold: status=incomplete, jobs_fetched=87, jobs_retained=13, reason=collection changed during scan."
+    },
+    {
+      "line": 1695,
+      "text": "2026-10-27T22:51:08.3316414Z Ping report: Company Veeva Systems: status=complete, jobs_fetched=906, jobs_retained=4, reason=authoritative completion established."
+    },
+    {
+      "line": 1696,
+      "text": "2026-10-27T22:51:08.3316896Z Ping report: Company Hitachi: status=incomplete, jobs_fetched=4186, jobs_retained=129, reason=completion not established."
+    },
+    {
+      "line": 1697,
+      "text": "2026-10-27T22:51:08.3317272Z Ping report: Stage Company scanning: succeeded (1140.695s)."
+    },
+    {
+      "line": 1698,
+      "text": "2026-10-27T22:51:08.3317644Z Ping report: Scan summary: configured=533, attempted=533, complete=388, incomplete=101, failed=44, coverage_health=degraded."
+    },
+    {
+      "line": 1699,
+      "text": "2026-10-27T22:51:08.3318082Z Ping report: Job totals: fetched=127434, normalized=127434, retained=5996; scan_runtime_seconds=1140.486."
+    },
+    {
+      "line": 1700,
+      "text": "2026-10-27T22:51:08.3318525Z Ping report: Stage Job ranking: started."
+    },
+    {
+      "line": 1701,
+      "text": "2026-10-27T22:51:08.3318760Z Ping report: Stage Job ranking: succeeded (10.700s)."
+    },
+    {
+      "line": 1703,
+      "text": "2026-10-27T22:51:08.3319220Z Ping report: Stage Supabase synchronization: started."
+    },
+    {
+      "line": 1704,
+      "text": "2026-10-27T22:51:08.3319491Z Ping report: Stage Supabase synchronization: succeeded (391.429s)."
+    },
+    {
+      "line": 1706,
+      "text": "2026-10-27T22:51:08.3320305Z Ping report: Stage Source health persistence: started."
+    },
+    {
+      "line": 1707,
+      "text": "2026-10-27T22:51:08.3320571Z Ping report: Stage Source health persistence: succeeded (0.276s)."
+    },
+    {
+      "line": 1708,
+      "text": "2026-10-27T22:51:08.3320841Z Ping report: Stage Dashboard-data retrieval: started."
+    },
+    {
+      "line": 1709,
+      "text": "2026-10-27T22:51:08.3321103Z Ping report: Stage Dashboard-data retrieval: succeeded (21.400s)."
+    },
+    {
+      "line": 1710,
+      "text": "2026-10-27T22:51:08.3321367Z Ping report: Stage Google Sheets publication: started."
+    },
+    {
+      "line": 1711,
+      "text": "2026-10-27T22:51:08.3321633Z Ping report: Stage Google Sheets publication: succeeded (11.120s)."
+    },
+    {
+      "line": 1713,
+      "text": "2026-10-27T22:51:08.3322245Z Ping report: Stage Publication-status persistence: started."
+    },
+    {
+      "line": 1714,
+      "text": "2026-10-27T22:51:08.3322531Z Ping report: Stage Publication-status persistence: succeeded (0.461s)."
+    },
+    {
+      "line": 1715,
+      "text": "2026-10-27T22:51:08.3322796Z Ping report: Total execution time: 1639.856s."
+    }
+  ]
+}

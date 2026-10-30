@@ -474,7 +474,7 @@ class CompanyCareersScanner:
             adapter = _browser_adapter
         if target.platform == "browser_rendered_html" and browser_batch_error is not None:
             message = f"{browser_batch_error.__class__.__name__}: {browser_batch_error}"
-            error_type, remediation = self._adapter_failure_details(message)
+            error_type, remediation = self._adapter_failure_details(message, target)
             return CompanyScanResult(
                 target=target,
                 status=CoverageStatus.FAILED_TECHNICAL,
@@ -675,7 +675,7 @@ class CompanyCareersScanner:
             )
             clear_source_scan_metadata(adapter_session)
             scan_metadata["original_configured_url"] = _configured_source_url(target)
-            error_type, remediation = self._adapter_failure_details(str(exc))
+            error_type, remediation = self._adapter_failure_details(str(exc), target)
             finalize_source_scan(
                 scan_metadata,
                 jobs_collected=int(scan_metadata.get("jobs_normalized") or 0),
@@ -764,7 +764,7 @@ class CompanyCareersScanner:
         return counts
 
     @staticmethod
-    def _adapter_failure_details(error: str) -> tuple[str, str]:
+    def _adapter_failure_details(error: str, target: Optional[CompanyTarget] = None) -> tuple[str, str]:
         """Classify adapter failures without changing their fail-closed contract."""
         lowered = error.casefold()
         static_diagnostics = {
@@ -846,6 +846,12 @@ class CompanyCareersScanner:
             return (
                 "browser_rendering_failure",
                 "Verify the reviewed selector or migrate to a public structured source.",
+            )
+        from src.scraper.company_careers.adapters.successfactors_recovery_routing import is_reviewed
+        if is_reviewed(target) and "sap successfactors table row length does not match its schema" in lowered:
+            return (
+                "adapter_schema_mismatch",
+                "Inspect the observed SuccessFactors table columns and layout contract; preserve one-to-one header attribution.",
             )
         if "did not match" in lowered or "repeated stable" in lowered or "duplicate stable" in lowered:
             return (

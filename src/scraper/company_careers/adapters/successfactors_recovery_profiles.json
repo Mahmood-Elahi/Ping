@@ -1,0 +1,246 @@
+{
+  "schema_version": 1,
+  "baseline_commit": "84b16555e089a1d7f28bf5b547a3490917e42c78",
+  "sources": [
+    {
+      "company": "Keyence",
+      "profile": "rmk_table_recovery_v1",
+      "baseline": {
+        "contract_sha256": "b0bfe94cfcd48219a3ffec154181c2ad9d52319d7274e96f8d08a56e55cc4900",
+        "source_config_key": "sap_successfactors:keyence:33ef9b49e1c52a6c"
+      },
+      "reviewed": {
+        "contract_sha256": "a99f73de4654529335f09d17ed2f89a09f6ef83c3365e68cfd7bc72b865981d6",
+        "source_config_key": "sap_successfactors:keyence:4ffe51674919efe1"
+      }
+    },
+    {
+      "company": "TransAlta",
+      "profile": "rmk_table_recovery_v1",
+      "baseline": {
+        "contract_sha256": "3dd408630b746da50b4422a4b5e24ad1694ace111f217d774fef62a9e02935d2",
+        "source_config_key": "sap_successfactors:transalta:de11d70915dedaec"
+      },
+      "reviewed": {
+        "contract_sha256": "d1035ce63075a17980345f0a7e33601a1f08c3f333de3166dda81e3341e8e1fc",
+        "source_config_key": "sap_successfactors:transalta:95c8092017b11422"
+      }
+    },
+    {
+      "company": "Spartan Controls",
+      "profile": "rmk_table_recovery_v1",
+      "baseline": {
+        "contract_sha256": "a671844a176a94315d1a98a347911ada8038ae1d222b5116ae02e7d0826edee5",
+        "source_config_key": "sap_successfactors:spartan controls:49c18fe4ab15c0d8"
+      },
+      "reviewed": {
+        "contract_sha256": "7eae17f0f7c2e33457edaeadf396b6db4a69380be00e0aecdada32443c5412f4",
+        "source_config_key": "sap_successfactors:spartan controls:d3d7933c7164c917"
+      }
+    },
+    {
+      "company": "ARC Resources",
+      "profile": "rmk_table_recovery_v1",
+      "baseline": {
+        "contract_sha256": "dce1fc20febd2a5fbef78a542a068988c8ad64f101f55d90b7da16db846d75d6",
+        "source_config_key": "sap_successfactors:arc resources:58220c2f17d08809"
+      },
+      "reviewed": {
+        "contract_sha256": "cdd13850713a92e846f3a17cfaf208ceed210b30e56bfec2393f8c9c70f83b0d",
+        "source_config_key": "sap_successfactors:arc resources:96b3057c625da55f"
+      }
+    },
+    {
+      "company": "Gibson Energy",
+      "profile": "rmk_table_recovery_v1",
+      "baseline": {
+        "contract_sha256": "2ec98a159db2a4f167a51d492c87a1d27f58d7497600931db507e1e2c70e9e94",
+        "source_config_key": "sap_successfactors:gibson energy:fb873809a295a309"
+      },
+      "reviewed": {
+        "contract_sha256": "2ec98a159db2a4f167a51d492c87a1d27f58d7497600931db507e1e2c70e9e94",
+        "source_config_key": "sap_successfactors:gibson energy:fb873809a295a309"
+      }
+    },
+    {
+      "company": "SaskPower",
+      "profile": "rmk_table_recovery_v1",
+      "baseline": {
+        "contract_sha256": "df90ffaeb819f8846fe4559f68f60ed826412943d9b429ab35596ad379abbe2b",
+        "source_config_key": "sap_successfactors:saskpower:ed3467832ac25c35"
+      },
+      "reviewed": {
+        "contract_sha256": "1c864d94a24aa9ff81011ae90d1a5ee17b43c7e79b295e822ebf14455840ef2a",
+        "source_config_key": "sap_successfactors:saskpower:096fc4b67df918ad"
+      }
+    },
+    {
+      "company": "Hydro One",
+      "profile": "rmk_table_recovery_v1",
+      "baseline": {
+        "contract_sha256": "d7369e20d8ad8a226dcc9ecb6dd45a3a5bf1ee41dff85a152fbe2986ccf8bd7e",
+        "source_config_key": "sap_successfactors:hydro one:6faac9b4e78dfcc8"
+      },
+      "reviewed": {
+        "contract_sha256": "d7369e20d8ad8a226dcc9ecb6dd45a3a5bf1ee41dff85a152fbe2986ccf8bd7e",
+        "source_config_key": "sap_successfactors:hydro one:6faac9b4e78dfcc8"
+      }
+    },
+    {
+      "company": "Omron",
+      "profile": "rmk_table_recovery_v1",
+      "baseline": {
+        "contract_sha256": "520e8154fddb15c0eda3875481b86c5c2375872b0c67f7671717d71ad2e65ec9",
+        "source_config_key": "sap_successfactors:omron:e026517b576a7c5e"
+      },
+      "reviewed": {
+        "contract_sha256": "2455cedcf519356516912a20b24f96f2f892fc2aca7742fdf251d3e7287bc1f5",
+        "source_config_key": "sap_successfactors:omron:c862036e8dd52967"
+      }
+    },
+    {
+      "company": "Canada Life",
+      "profile": "rmk_table_recovery_v1",
+      "baseline": {
+        "contract_sha256": "c63dc30c7a1f91d7c4697ecf141ac348b279819756713bee2e89b2b0fdaf35a3",
+        "source_config_key": "sap_successfactors:canada life:090f1f12774ac244"
+      },
+      "reviewed": {
+        "contract_sha256": "e33bbadefcaf3c8585f591d7c2e04719b50033f613ec87a79ec158181e64eaa0",
+        "source_config_key": "sap_successfactors:canada life:91f88e525fbd20c7"
+      }
+    },
+    {
+      "company": "FortisBC",
+      "profile": "rmk_table_recovery_v1",
+      "baseline": {
+        "contract_sha256": "ad0500f140a29165857765d813d6e293ad3c70d0b5e4dcff883b8c642d05c5aa",
+        "source_config_key": "sap_successfactors:fortisbc:66bb2f6491989a28"
+      },
+      "reviewed": {
+        "contract_sha256": "df36e97a48cf0447f808fc5e4b1f2765701ad58067f628cf89be06b7b17661a6",
+        "source_config_key": "sap_successfactors:fortisbc:2763aa25700b1d12"
+      }
+    },
+    {
+      "company": "Hyundai",
+      "profile": "rmk_table_recovery_v1",
+      "baseline": {
+        "contract_sha256": "e3fbb8bf568edb79d9e8626a475160fda9ba17f94034985cf1527ff672d8a9fc",
+        "source_config_key": "sap_successfactors:hyundai:e89c7f8256554f52"
+      },
+      "reviewed": {
+        "contract_sha256": "01c59e4e5280b98a3d7b17f0230d10815537be412c6255b44c426fbfbef2bb92",
+        "source_config_key": "sap_successfactors:hyundai:a397945b1b30da1e"
+      }
+    },
+    {
+      "company": "John Deere",
+      "profile": "rmk_table_recovery_v1",
+      "baseline": {
+        "contract_sha256": "8580f6405d6bf3ae40fab5be671c8f591b05c13d6d30d70ec6d34284017c3308",
+        "source_config_key": "sap_successfactors:john deere:a33e392c6f8bedb5"
+      },
+      "reviewed": {
+        "contract_sha256": "4ef6f5741ac78727892bbc438465499bb1f0a2502d48df20706d50901f7f82d4",
+        "source_config_key": "sap_successfactors:john deere:7c873c2afdcb268d"
+      }
+    },
+    {
+      "company": "PCL Construction",
+      "profile": "rmk_table_recovery_v1",
+      "baseline": {
+        "contract_sha256": "1b23391e0629e3fa86db1b6b6368b290496eaba1cc58401367cde2f903816e0d",
+        "source_config_key": "sap_successfactors:pcl construction:b17d6df20bbded3d"
+      },
+      "reviewed": {
+        "contract_sha256": "0854a45d8a540a012cc87230cd2d6467c9dc73fb7afb593d2f45066d0eba9c0b",
+        "source_config_key": "sap_successfactors:pcl construction:c0db96fc69a697a6"
+      }
+    },
+    {
+      "company": "ExxonMobil",
+      "profile": "rmk_table_recovery_v1",
+      "baseline": {
+        "contract_sha256": "39cd5d290e7a03aa2ce8570a70a2a12fac479dbea8e254e69833bdb246293819",
+        "source_config_key": "sap_successfactors:exxonmobil:511739d1b3af45fb"
+      },
+      "reviewed": {
+        "contract_sha256": "e910d1e8e9cc1604a34495ce1fbf1ed10c2316713b2074a4a675b7f093e3ba76",
+        "source_config_key": "sap_successfactors:exxonmobil:837c2088390693ad"
+      }
+    },
+    {
+      "company": "Halliburton",
+      "profile": "rmk_table_recovery_v1",
+      "baseline": {
+        "contract_sha256": "d83b6832c249d1340983c4a14b35bb512c16ed3e28195867b644dc762a309deb",
+        "source_config_key": "sap_successfactors:halliburton:e82d66af3555ef1b"
+      },
+      "reviewed": {
+        "contract_sha256": "71806cc9199207a8f4d7622d50ed37313907fb68f8618f1700e589d7621ece76",
+        "source_config_key": "sap_successfactors:halliburton:7d989328164c4998"
+      }
+    },
+    {
+      "company": "Teradyne",
+      "profile": "rmk_table_recovery_v1",
+      "baseline": {
+        "contract_sha256": "f5798464003144657faa32ef5001abe13b9913e35a510f2cf590501570b838ae",
+        "source_config_key": "sap_successfactors:teradyne:241e0fd4e15e6304"
+      },
+      "reviewed": {
+        "contract_sha256": "d1e895ba22ddbd78b1139249a699372e95c9d5bb8900ebdd9bc0d07d3075ed01",
+        "source_config_key": "sap_successfactors:teradyne:6b60ccbac5e32573"
+      }
+    },
+    {
+      "company": "Aecon",
+      "profile": "rmk_table_recovery_v1",
+      "baseline": {
+        "contract_sha256": "60bcfe4da456166306ddab9339d3a94540ce9b0a2ba69a25e8b4ff01adc7fdff",
+        "source_config_key": "sap_successfactors:aecon:b1f3a9883d229eb2"
+      },
+      "reviewed": {
+        "contract_sha256": "e51a33a21d820cac5ecf17d43974a8c260c0bdff835bf9f6a33ef693e5e750ba",
+        "source_config_key": "sap_successfactors:aecon:cbf4430f7a05cc5f"
+      }
+    },
+    {
+      "company": "ZF Friedrichshafen",
+      "profile": "rmk_table_recovery_v1",
+      "baseline": {
+        "contract_sha256": "76d72b0a9dcea0ac265a8d5809b857730fd1f44853962c396899a4caaf4418ff",
+        "source_config_key": "sap_successfactors:zf friedrichshafen:5fd1447a3fe9651b"
+      },
+      "reviewed": {
+        "contract_sha256": "859fe098cd9c8f5d2f07b57356bd65a313b4bf41f1af38217fb798a4604592ee",
+        "source_config_key": "sap_successfactors:zf friedrichshafen:28a3fde9a9bd8665"
+      }
+    },
+    {
+      "company": "Celestica",
+      "profile": "rmk_table_recovery_v1",
+      "baseline": {
+        "contract_sha256": "3972318c317b7968551442fb5897b1bc0cd4cd83ccd936e01a022de618907afc",
+        "source_config_key": "sap_successfactors:celestica:9d51ca0b4de3a1a8"
+      },
+      "reviewed": {
+        "contract_sha256": "31ca6978cc30aad975835776862a006287c53e9f3a8d575f17808d8ee6a38e19",
+        "source_config_key": "sap_successfactors:celestica:3ada867d8ec8f940"
+      }
+    },
+    {
+      "company": "Lam Research",
+      "profile": "rmk_table_recovery_v1",
+      "baseline": {
+        "contract_sha256": "397c94f2ac343fafb7cc5de1f10165edfc8722d9d3b5b9bd4816218368a62f03",
+        "source_config_key": "sap_successfactors:lam research:8bd6e0207cbbedc7"
+      },
+      "reviewed": {
+        "contract_sha256": "c1ccf40d7f49ae754be5829b458df1220dc90f7eaa5c39ae41720cd19da8e632",
+        "source_config_key": "sap_successfactors:lam research:2685181f9e6f2bf9"
+      }
+    }
+  ]
+}
