@@ -1899,7 +1899,7 @@ class CompanyCareersTests(unittest.TestCase):
 
         self.assertIn("python scripts/update_student_dashboard.py", workflow)
         self.assertNotIn("update_student_dashboard.py --max-jobs 20", workflow)
-        self.assertIn("timeout-minutes: 45", workflow)
+        self.assertIn("timeout-minutes: 60", workflow)
 
     def test_scanner_reports_not_implemented_with_remediation(self):
         target = CompanyTarget(name="UnknownCo", platform="unknown_platform")
