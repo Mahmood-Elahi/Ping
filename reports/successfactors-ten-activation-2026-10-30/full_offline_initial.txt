@@ -1,0 +1,500 @@
+
+==================================== ERRORS ====================================
+____ ERROR collecting tests/test_adapter_extensions_v4a_bulk_activation.py _____
+tests/test_adapter_extensions_v4a_bulk_activation.py:18: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+____ ERROR collecting tests/test_adapter_extensions_v4b_bulk_activation.py _____
+tests/test_adapter_extensions_v4b_bulk_activation.py:21: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+__________ ERROR collecting tests/test_ai_ml_expansion_v1_batch_a.py ___________
+tests/test_ai_ml_expansion_v1_batch_a.py:13: in <module>
+    from tests.company_careers_reliability_assertions import assert_historical_prefix
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+_ ERROR collecting tests/test_alberta_canada_employer_expansion_v1_batch_a.py __
+tests/test_alberta_canada_employer_expansion_v1_batch_a.py:10: in <module>
+    from tests.company_careers_reliability_assertions import assert_historical_prefix
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+______ ERROR collecting tests/test_alberta_energy_expansion_v1_batch_a.py ______
+tests/test_alberta_energy_expansion_v1_batch_a.py:8: in <module>
+    from tests.company_careers_reliability_assertions import assert_historical_prefix
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+_______ ERROR collecting tests/test_ats_adapter_expansion_v2_batch_a.py ________
+tests/test_ats_adapter_expansion_v2_batch_a.py:12: in <module>
+    from tests.company_careers_reliability_assertions import with_reliability_repairs
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+_______ ERROR collecting tests/test_ats_adapter_expansion_v2_batch_b.py ________
+tests/test_ats_adapter_expansion_v2_batch_b.py:11: in <module>
+    from tests.company_careers_reliability_assertions import with_reliability_repairs
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+_________ ERROR collecting tests/test_avature_icims_bulk_activation.py _________
+tests/test_avature_icims_bulk_activation.py:11: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+_____ ERROR collecting tests/test_browser_expansion_v1a_bulk_activation.py _____
+tests/test_browser_expansion_v1a_bulk_activation.py:21: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+_____ ERROR collecting tests/test_browser_expansion_v1b_bulk_activation.py _____
+tests/test_browser_expansion_v1b_bulk_activation.py:20: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+_______ ERROR collecting tests/test_browser_pilot_v1_bulk_activation.py ________
+tests/test_browser_pilot_v1_bulk_activation.py:16: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+_____ ERROR collecting tests/test_calgary_alberta_expansion_v2_batch_b.py ______
+tests/test_calgary_alberta_expansion_v2_batch_b.py:23: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+______ ERROR collecting tests/test_calgary_canada_expansion_v2_batch_a.py ______
+tests/test_calgary_canada_expansion_v2_batch_a.py:22: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+_____ ERROR collecting tests/test_calgary_student_employers_v1_batch_a.py ______
+tests/test_calgary_student_employers_v1_batch_a.py:23: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+_____ ERROR collecting tests/test_canada_high_fit_expansion_v1_batch_a.py ______
+tests/test_canada_high_fit_expansion_v1_batch_a.py:23: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+_________ ERROR collecting tests/test_canadian_expansion_v3_batch_c.py _________
+tests/test_canadian_expansion_v3_batch_c.py:23: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+_ ERROR collecting tests/test_company_careers_adapter_expansion_v1_batch_a.py __
+tests/test_company_careers_adapter_expansion_v1_batch_a.py:12: in <module>
+    from tests.company_careers_reliability_assertions import assert_historical_prefix
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+_ ERROR collecting tests/test_company_careers_adapter_expansion_v1_batch_b.py __
+tests/test_company_careers_adapter_expansion_v1_batch_b.py:11: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+_ ERROR collecting tests/test_company_careers_adapter_expansion_v1_batch_c.py __
+tests/test_company_careers_adapter_expansion_v1_batch_c.py:11: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+______ ERROR collecting tests/test_existing_adapter_v4_bulk_activation.py ______
+tests/test_existing_adapter_v4_bulk_activation.py:21: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+__ ERROR collecting tests/test_hardware_semiconductor_expansion_v1_batch_a.py __
+tests/test_hardware_semiconductor_expansion_v1_batch_a.py:14: in <module>
+    from tests.company_careers_reliability_assertions import assert_historical_prefix
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+______ ERROR collecting tests/test_infrastructure_expansion_v1_batch_a.py ______
+tests/test_infrastructure_expansion_v1_batch_a.py:13: in <module>
+    from tests.company_careers_reliability_assertions import assert_historical_prefix
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+_ ERROR collecting tests/test_ml_infrastructure_data_systems_expansion_v1_batch_a.py _
+tests/test_ml_infrastructure_data_systems_expansion_v1_batch_a.py:13: in <module>
+    from tests.company_careers_reliability_assertions import assert_historical_prefix
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+______ ERROR collecting tests/test_ontario_canada_expansion_v1_batch_a.py ______
+tests/test_ontario_canada_expansion_v1_batch_a.py:23: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+______ ERROR collecting tests/test_ontario_canada_expansion_v1_batch_b.py ______
+tests/test_ontario_canada_expansion_v1_batch_b.py:23: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+_______ ERROR collecting tests/test_original_master_recovery_batch_g.py ________
+tests/test_original_master_recovery_batch_g.py:17: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+_______ ERROR collecting tests/test_original_master_recovery_batch_h.py ________
+tests/test_original_master_recovery_batch_h.py:14: in <module>
+    from tests.company_careers_reliability_assertions import with_reliability_repairs
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+___________ ERROR collecting tests/test_parent_source_integration.py ___________
+tests/test_parent_source_integration.py:38: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+_____________ ERROR collecting tests/test_phase1_ats_candidates.py _____________
+tests/test_phase1_ats_candidates.py:9: in <module>
+    from tests.company_careers_reliability_assertions import with_reliability_repairs
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+__________ ERROR collecting tests/test_phase4_adp_browser_protocol.py __________
+tests/test_phase4_adp_browser_protocol.py:12: in <module>
+    from tests.test_company_careers_adapter_expansion_v1_batch_c import (
+<frozen importlib._bootstrap>:1176: in _find_and_load
+    ???
+<frozen importlib._bootstrap>:1147: in _find_and_load_unlocked
+    ???
+<frozen importlib._bootstrap>:690: in _load_unlocked
+    ???
+.venv/lib/python3.11/site-packages/_pytest/assertion/rewrite.py:188: in exec_module
+    exec(co, module.__dict__)
+tests/test_company_careers_adapter_expansion_v1_batch_c.py:11: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+_____________ ERROR collecting tests/test_quick_wins_validation.py _____________
+tests/test_quick_wins_validation.py:21: in <module>
+    from tests.company_careers_reliability_assertions import assert_historical_prefix
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+________ ERROR collecting tests/test_requested_expansion_v3_batch_a.py _________
+tests/test_requested_expansion_v3_batch_a.py:23: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+________ ERROR collecting tests/test_requested_expansion_v3_batch_b.py _________
+tests/test_requested_expansion_v3_batch_b.py:23: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+________ ERROR collecting tests/test_requested_expansion_v3_batch_d.py _________
+tests/test_requested_expansion_v3_batch_d.py:23: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+________ ERROR collecting tests/test_requested_expansion_v3_batch_e.py _________
+tests/test_requested_expansion_v3_batch_e.py:22: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+________ ERROR collecting tests/test_requested_expansion_v3_batch_f.py _________
+tests/test_requested_expansion_v3_batch_f.py:22: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+_________ ERROR collecting tests/test_robotics_expansion_v1_batch_a.py _________
+tests/test_robotics_expansion_v1_batch_a.py:12: in <module>
+    from tests.company_careers_reliability_assertions import assert_historical_prefix
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+_________ ERROR collecting tests/test_shared_source_bulk_activation.py _________
+tests/test_shared_source_bulk_activation.py:13: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+_________ ERROR collecting tests/test_software_expansion_v1_batch_a.py _________
+tests/test_software_expansion_v1_batch_a.py:12: in <module>
+    from tests.company_careers_reliability_assertions import assert_historical_prefix
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+__________ ERROR collecting tests/test_source_expansion_v2_batch_a.py __________
+tests/test_source_expansion_v2_batch_a.py:20: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+__________ ERROR collecting tests/test_source_expansion_v2_batch_b.py __________
+tests/test_source_expansion_v2_batch_b.py:19: in <module>
+    from tests.company_careers_reliability_assertions import assert_historical_prefix
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+__________ ERROR collecting tests/test_source_expansion_v2_batch_c.py __________
+tests/test_source_expansion_v2_batch_c.py:19: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+________ ERROR collecting tests/test_static_embedded_bulk_activation.py ________
+tests/test_static_embedded_bulk_activation.py:11: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+_____________ ERROR collecting tests/test_tsmc_source_recovery.py ______________
+tests/test_tsmc_source_recovery.py:13: in <module>
+    from tests.company_careers_reliability_assertions import (
+tests/company_careers_reliability_assertions.py:214: in <module>
+    workday_recovery.validate_package()
+scripts/validate_workday_recovery_activation.py:144: in validate_package
+    require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
+scripts/validate_workday_recovery_activation.py:43: in require
+    raise ValueError(message)
+E   ValueError: Rollback cannot reconstruct historical registry
+=========================== short test summary info ============================
+ERROR tests/test_adapter_extensions_v4a_bulk_activation.py - ValueError: Roll...
+ERROR tests/test_adapter_extensions_v4b_bulk_activation.py - ValueError: Roll...
+ERROR tests/test_ai_ml_expansion_v1_batch_a.py - ValueError: Rollback cannot ...
+ERROR tests/test_alberta_canada_employer_expansion_v1_batch_a.py - ValueError...
+ERROR tests/test_alberta_energy_expansion_v1_batch_a.py - ValueError: Rollbac...
+ERROR tests/test_ats_adapter_expansion_v2_batch_a.py - ValueError: Rollback c...
+ERROR tests/test_ats_adapter_expansion_v2_batch_b.py - ValueError: Rollback c...
+ERROR tests/test_avature_icims_bulk_activation.py - ValueError: Rollback cann...
+ERROR tests/test_browser_expansion_v1a_bulk_activation.py - ValueError: Rollb...
+ERROR tests/test_browser_expansion_v1b_bulk_activation.py - ValueError: Rollb...
+ERROR tests/test_browser_pilot_v1_bulk_activation.py - ValueError: Rollback c...
+ERROR tests/test_calgary_alberta_expansion_v2_batch_b.py - ValueError: Rollba...
+ERROR tests/test_calgary_canada_expansion_v2_batch_a.py - ValueError: Rollbac...
+ERROR tests/test_calgary_student_employers_v1_batch_a.py - ValueError: Rollba...
+ERROR tests/test_canada_high_fit_expansion_v1_batch_a.py - ValueError: Rollba...
+ERROR tests/test_canadian_expansion_v3_batch_c.py - ValueError: Rollback cann...
+ERROR tests/test_company_careers_adapter_expansion_v1_batch_a.py - ValueError...
+ERROR tests/test_company_careers_adapter_expansion_v1_batch_b.py - ValueError...
+ERROR tests/test_company_careers_adapter_expansion_v1_batch_c.py - ValueError...
+ERROR tests/test_existing_adapter_v4_bulk_activation.py - ValueError: Rollbac...
+ERROR tests/test_hardware_semiconductor_expansion_v1_batch_a.py - ValueError:...
+ERROR tests/test_infrastructure_expansion_v1_batch_a.py - ValueError: Rollbac...
+ERROR tests/test_ml_infrastructure_data_systems_expansion_v1_batch_a.py - Val...
+ERROR tests/test_ontario_canada_expansion_v1_batch_a.py - ValueError: Rollbac...
+ERROR tests/test_ontario_canada_expansion_v1_batch_b.py - ValueError: Rollbac...
+ERROR tests/test_original_master_recovery_batch_g.py - ValueError: Rollback c...
+ERROR tests/test_original_master_recovery_batch_h.py - ValueError: Rollback c...
+ERROR tests/test_parent_source_integration.py - ValueError: Rollback cannot r...
+ERROR tests/test_phase1_ats_candidates.py - ValueError: Rollback cannot recon...
+ERROR tests/test_phase4_adp_browser_protocol.py - ValueError: Rollback cannot...
+ERROR tests/test_quick_wins_validation.py - ValueError: Rollback cannot recon...
+ERROR tests/test_requested_expansion_v3_batch_a.py - ValueError: Rollback can...
+ERROR tests/test_requested_expansion_v3_batch_b.py - ValueError: Rollback can...ERROR: Private-evidence manifest selectors matched no collected tests: tests/test_adapter_extensions_v4b_bulk_activation.py::AdapterExtensionsV4BArtifactTests, tests/test_ai_ml_expansion_v1_batch_a.py::AiMlExpansionV1BatchAArtifactTests, tests/test_alberta_canada_employer_expansion_v1_batch_a.py::AlbertaCanadaEmployerExpansionV1BatchATests, tests/test_alberta_energy_expansion_v1_batch_a.py::AlbertaEnergyExpansionV1BatchATests::test_report_and_csv_preserve_validation_milestone, tests/test_ats_adapter_expansion_v2_batch_a.py::BatchArtifactTests, tests/test_ats_adapter_expansion_v2_batch_b.py::BatchArtifactsTests, tests/test_browser_expansion_v1a_bulk_activation.py::BrowserExpansionV1AArtifactTests, tests/test_browser_expansion_v1a_bulk_activation.py::BrowserExpansionV1AContractTests::test_21_one_browser_process_and_fresh_context_contract, tests/test_browser_expansion_v1b_bulk_activation.py::BrowserExpansionV1BArtifactTests, tests/test_browser_expansion_v1b_bulk_activation.py::BrowserExpansionV1BContractTests::test_21_one_browser_process_fresh_context_and_lazy_import_contract, tests/test_browser_pilot_v1_bulk_activation.py::BrowserPilotBulkActivationTests::test_03_validated_registry_only_contains_two_pass_successes, tests/test_browser_pilot_v1_bulk_activation.py::BrowserPilotBulkActivationTests::test_06_production_and_parent_mappings_unchanged, tests/test_browser_pilot_v1_bulk_activation.py::BrowserPilotBulkActivationTests::test_07_no_persistence_or_dashboard_publication_imports, tests/test_browser_pilot_v1_bulk_activation.py::BrowserPilotBulkActivationTests::test_10_projected_coverage_uses_only_validated_sources, tests/test_calgary_alberta_expansion_v2_batch_b.py::CalgaryAlbertaExpansionV2BatchBArtifactTests, tests/test_calgary_canada_expansion_v2_batch_a.py::CalgaryCanadaExpansionV2BatchAArtifactTests, tests/test_calgary_student_employers_v1_batch_a.py::CalgaryStudentEmployersBatchAArtifactTests, tests/test_canada_high_fit_expansion_v1_batch_a.py::CanadaHighFitExpansionV1BatchAArtifactTests, tests/test_canadian_expansion_v3_batch_c.py::CanadianExpansionV3BatchCArtifactTests, tests/test_existing_adapter_v4_bulk_activation.py::ExistingAdapterV4ArtifactTests::test_09_validated_registry_contains_only_safe_candidates, tests/test_hardware_semiconductor_expansion_v1_batch_a.py::HardwareSemiconductorExpansionV1BatchATests, tests/test_infrastructure_expansion_v1_batch_a.py::InfrastructureExpansionV1BatchAArtifactTests, tests/test_ml_infrastructure_data_systems_expansion_v1_batch_a.py::MlInfrastructureDataSystemsExpansionV1BatchAArtifactTests, tests/test_ontario_canada_expansion_v1_batch_a.py::OntarioCanadaExpansionV1BatchAArtifactTests, tests/test_ontario_canada_expansion_v1_batch_b.py::OntarioCanadaExpansionV1BatchBArtifactTests, tests/test_original_master_recovery_batch_g.py::OriginalMasterRecoveryBatchGArtifactTests, tests/test_original_master_recovery_batch_h.py::OriginalMasterRecoveryBatchHArtifactTests, tests/test_quick_wins_validation.py::QuickWinsIsolationTests::test_20_historical_config_matches_report_and_current_production_prefix, tests/test_quick_wins_validation.py::QuickWinsRegistryTests::test_03_validated_registry_contains_only_safe_registry_candidates, tests/test_requested_expansion_v3_batch_a.py::RequestedExpansionV3BatchAArtifactTests, tests/test_requested_expansion_v3_batch_b.py::RequestedExpansionV3BatchBArtifactTests, tests/test_requested_expansion_v3_batch_d.py::RequestedExpansionV3BatchDArtifactTests, tests/test_requested_expansion_v3_batch_e.py::RequestedExpansionV3BatchEArtifactTests, tests/test_requested_expansion_v3_batch_f.py::RequestedExpansionV3BatchFArtifactTests, tests/test_robotics_expansion_v1_batch_a.py::RoboticsExpansionV1BatchAArtifactTests, tests/test_shared_source_bulk_activation.py::SharedSourceBulkActivationTests, tests/test_software_expansion_v1_batch_a.py::SoftwareExpansionV1BatchAArtifactTests, tests/test_source_expansion_v2_batch_a.py::SourceExpansionV2BatchAArtifactTests, tests/test_source_expansion_v2_batch_b.py::SourceExpansionV2BatchBArtifactTests, tests/test_source_expansion_v2_batch_c.py::SourceExpansionV2BatchCArtifactTests, tests/test_static_embedded_bulk_activation.py::StaticEmbeddedBulkActivationTests::test_19_inventory_order_and_report_schema
+
+
+ERROR tests/test_requested_expansion_v3_batch_d.py - ValueError: Rollback can...
+ERROR tests/test_requested_expansion_v3_batch_e.py - ValueError: Rollback can...
+ERROR tests/test_requested_expansion_v3_batch_f.py - ValueError: Rollback can...
+ERROR tests/test_robotics_expansion_v1_batch_a.py - ValueError: Rollback cann...
+ERROR tests/test_shared_source_bulk_activation.py - ValueError: Rollback cann...
+ERROR tests/test_software_expansion_v1_batch_a.py - ValueError: Rollback cann...
+ERROR tests/test_source_expansion_v2_batch_a.py - ValueError: Rollback cannot...
+ERROR tests/test_source_expansion_v2_batch_b.py - ValueError: Rollback cannot...
+ERROR tests/test_source_expansion_v2_batch_c.py - ValueError: Rollback cannot...
+ERROR tests/test_static_embedded_bulk_activation.py - ValueError: Rollback ca...
+ERROR tests/test_tsmc_source_recovery.py - ValueError: Rollback cannot recons...
+44 errors in 33.21s

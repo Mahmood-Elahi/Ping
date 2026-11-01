@@ -1,0 +1,40 @@
+{
+  "normal": {
+    "jobs": 520,
+    "description_chars": 1500,
+    "elapsed_cpu_orchestration_seconds": 0.4244947860006505,
+    "rpc_calls": {
+      "begin_student_job_source_sync": 10,
+      "stage_student_job_source_chunk": 11,
+      "finalize_student_job_source_sync": 10
+    },
+    "rpc_total": 31,
+    "table_operations": 0,
+    "rpc_payload_bytes": 604810,
+    "in_memory_tracked_rows": 520,
+    "external_requests": 0,
+    "external_writes": 0,
+    "client": "tests.test_supabase_job_store.FakeSupabaseClient",
+    "network_denied": true,
+    "limitation": "Client CPU/serialization/protocol counts; server execution and external latency are not measured"
+  },
+  "large_description_stress": {
+    "jobs": 520,
+    "description_chars": 20000,
+    "elapsed_cpu_orchestration_seconds": 0.3750247850002779,
+    "rpc_calls": {
+      "begin_student_job_source_sync": 10,
+      "stage_student_job_source_chunk": 11,
+      "finalize_student_job_source_sync": 10
+    },
+    "rpc_total": 31,
+    "table_operations": 0,
+    "rpc_payload_bytes": 604810,
+    "in_memory_tracked_rows": 520,
+    "external_requests": 0,
+    "external_writes": 0,
+    "client": "tests.test_supabase_job_store.FakeSupabaseClient",
+    "network_denied": true,
+    "limitation": "Client CPU/serialization/protocol counts; server execution and external latency are not measured"
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "status": "PASS_OFFLINE_WITH_DISCLOSED_EXCLUSIONS",
+  "full_suite": {
+    "passed": 3190,
+    "subtests_passed": 854,
+    "skipped": 1,
+    "deselected": 430,
+    "duration_seconds": 179.08,
+    "skip_reason": "frozen ranked replay artifact unavailable",
+    "exclusion": "pyproject.toml default not private_evidence; no additional exclusions",
+    "unfiltered_suite_claimed": false
+  },
+  "focused": {
+    "passed": 550,
+    "subtests_passed": 29,
+    "deselected": 1
+  },
+  "historical_and_activation_checks": {
+    "passed": 873
+  },
+  "projection_negative_guards": {
+    "passed": 3
+  },
+  "strict_source_integrity": {
+    "sources": 533,
+    "OK": 533
+  },
+  "certificates_applicable": 10,
+  "retained_jobs": 520,
+  "new_live_requests": 0,
+  "external_writes": 0,
+  "historical_files_overwritten": 0,
+  "runtime_config_rollback": {
+    "files": 7,
+    "status": "PASS"
+  },
+  "complete_code_rollback": {
+    "files": 13,
+    "status": "PASS"
+  },
+  "initial_new_failures": {
+    "collection_errors": 44,
+    "cause": "Whole-registry historical Workday/prefix hashes encountered legitimate later SuccessFactors additions",
+    "resolution": "Fully validate the newer activation, enforce actual payload equality, project exact ten rollback rows, then retain original historical hashes/real Workday checks; no exclusions added"
+  },
+  "baseline_failures_observed_in_executed_scope": 0,
+  "merge_or_deployment_performed": false,
+  "final_package_sealing": {
+    "passed": 387,
+    "duration_seconds": 17.99,
+    "rollback_format": "zero-context patches require --unidiff-zero and exact after fingerprints",
+    "derived_complete_reverse_excluded_from_runtime_lock_to_avoid_self_reference": true,
+    "core_runtime_changed_after_consolidation_review": false
+  },
+  "independent_review": "PASS; REVIEW.md",
+  "git_diff_check": "PASS staged and unstaged",
+  "secret_scan": "PASS"
+}

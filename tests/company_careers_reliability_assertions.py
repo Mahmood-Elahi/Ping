@@ -219,6 +219,19 @@ for _change in _recovery_changes:
     APPROVED_SOURCE_MIGRATIONS[_change["company"].casefold()] = _change["after"]
 
 
+# Later SuccessFactors recovery is validated independently, then added only to
+# the historical assertion map. Production never reads this test helper.
+from scripts import validate_successfactors_ten_activation as successfactors_recovery
+
+successfactors_recovery.validate()
+_successfactors_changes = json.loads(
+    (ROOT / successfactors_recovery.PACKAGE / 'raw_comparison.json').read_text()
+)
+for _change in _successfactors_changes:
+    if _change['before'] != _change['after']:
+        APPROVED_SOURCE_MIGRATIONS[_change['company'].casefold()] = _change['after']
+
+
 APPROVED_DISCOVERY_ONLY_PROMOTIONS = {
     "athabasca oil",
     "bombardier",

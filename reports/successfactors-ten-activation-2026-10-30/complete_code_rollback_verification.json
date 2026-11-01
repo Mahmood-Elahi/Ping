@@ -1,0 +1,74 @@
+{
+  "status": "PASS",
+  "files": {
+    "config/target_companies.yaml": {
+      "after_sha256": "16d83cfb9fa13e55088ab3891738b6ae35a60746333d3f24fdb4cf29952d2964",
+      "before_exists": true,
+      "before_sha256": "9f11ed5e161c61ed487b856638eb3c5699525a6875cf87403bf380c9f86aceb8"
+    },
+    "src/scraper/company_careers/adapters/sap_successfactors.py": {
+      "after_sha256": "4e5aec4f19af1b4906b768c807cfb8fce61a099dba8c609fa8f01db1fbf09db4",
+      "before_exists": true,
+      "before_sha256": "4f243405f425c5cdb0bd513017605419f2f4bdd07a2612fbcde4e876002f867d"
+    },
+    "src/scraper/company_careers/scanner.py": {
+      "after_sha256": "48f0e5374c30a81fa1c5d0c260ae9c55ad221fc9c660e8cca786e0e36dea5e3f",
+      "before_exists": true,
+      "before_sha256": "ef2697daa025382a5a96f2fa7eda03e0e21d9428c5d7f510bdca48895e3113d9"
+    },
+    "src/scraper/company_careers/canary_diagnostics.py": {
+      "after_sha256": "a9ae775588dc4a6d433aa8ef2ad92b31844f2470a7fcee841a7cd9b057cc4364",
+      "before_exists": false,
+      "before_sha256": null
+    },
+    "src/scraper/company_careers/adapters/sap_successfactors_baseline_84b1655.py": {
+      "after_sha256": "4f243405f425c5cdb0bd513017605419f2f4bdd07a2612fbcde4e876002f867d",
+      "before_exists": false,
+      "before_sha256": null
+    },
+    "src/scraper/company_careers/adapters/successfactors_recovery_routing.py": {
+      "after_sha256": "c7e7a21733d463d55c1eb40d64b37603769b6c4de2ce542bd3221eacbbf19933",
+      "before_exists": false,
+      "before_sha256": null
+    },
+    "src/scraper/company_careers/adapters/successfactors_recovery_profiles.json": {
+      "after_sha256": "3f36b2a78341294a6f03e051399028ed12c12e3a251635efad87497bd7e00e4a",
+      "before_exists": false,
+      "before_sha256": null
+    },
+    "scripts/validate_successfactors_ten_activation.py": {
+      "after_sha256": "e5e008de4e16f908a0b0152a2b31dff59e62aa81d13ee91904d36283c95faab5",
+      "before_exists": false,
+      "before_sha256": null
+    },
+    "scripts/benchmark_successfactors_downstream.py": {
+      "after_sha256": "7cc291f2a8d2f987d41ca3b5e207d9ccf14e890d2ba9fffcd75c24d868969abc",
+      "before_exists": false,
+      "before_sha256": null
+    },
+    "scripts/validate_workday_recovery_activation.py": {
+      "after_sha256": "6901b0c348f0aec0c6468879639cd8d4a276877db1ac4db5bded5fadad583b7d",
+      "before_exists": true,
+      "before_sha256": "9021663792a9a374f633bf7763c2aadcfb82c9e6851c7c1582fa5273250717e6"
+    },
+    "tests/company_careers_reliability_assertions.py": {
+      "after_sha256": "4994015d9dc4a3f49e988143ceeaaaee2386bd40736395202b9fedecbfb2596d",
+      "before_exists": true,
+      "before_sha256": "7bd6da254a20c5fba997f092ff26e879b077802930d7be5fd5b6e1a84b325a22"
+    },
+    "tests/successfactors_activation_fixtures.py": {
+      "after_sha256": "b037e0ab4f653bfb4985ce07a5789f7b3b11f51ca43c93d3cda755795001ea01",
+      "before_exists": false,
+      "before_sha256": null
+    },
+    "tests/test_successfactors_ten_activation.py": {
+      "after_sha256": "b8f36a374843115584ad558beb1a6e7a7bbf7652499340e6a8fd7fb8524adf37",
+      "before_exists": false,
+      "before_sha256": null
+    }
+  },
+  "files_verified": 13,
+  "isolated_copy_only": true,
+  "source_overlay_unchanged": true,
+  "historical_artifacts_unchanged": true
+}
