@@ -25,6 +25,7 @@ from src.scraper.company_careers.adapters import sap_successfactors as sf
 from src.scraper.company_careers.adapters import successfactors_recovery_routing as routing
 from src.scraper.company_careers.models import CompanyTarget
 from src.scraper.company_careers.source_cooldown import source_health_key
+from src.scraper.company_careers.student_roles import configure_student_targets
 
 PACKAGE = Path('reports/successfactors-ten-activation-2026-10-30')
 NAMES = ('Keyence', 'TransAlta', 'Spartan Controls', 'ARC Resources', 'Gibson Energy',
@@ -38,6 +39,9 @@ LOCK_SHA256 = 'e868f7f0fcca66ca97d18abd93199d5139f2ddf11ad58891cf40e157f7bd03e5'
 TIMEOUT_WORKFLOW = '.github/workflows/hourly-job-radar.yml'
 TIMEOUT_BEFORE_SHA256 = '6e7883bb2c808c7666d7e4578901eea03fef27123a421e22d831294bd69ad0e4'
 TIMEOUT_60_SHA256 = '7a468eb1ba9480f51cf675c9ee41fd72c92fb725207cf4474653762f0f35ce2f'
+STUDENT_PREPROCESSING = 'src/scraper/company_careers/student_roles.py'
+STUDENT_BEFORE_SHA256 = '7c2162cd5ae9fbd8bf40aee8d4f3728f3a3a115489a7aed2b5d6044907340a76'
+STUDENT_FIXED_SHA256 = '5b9f85cf78eb0884ae5e32b00afda614376375e869b46a0db44f3b65abb8cea1'
 
 
 def _artifact_matches(name, raw, expected):
@@ -45,6 +49,9 @@ def _artifact_matches(name, raw, expected):
     return actual == expected or (
         name == TIMEOUT_WORKFLOW and expected == TIMEOUT_BEFORE_SHA256
         and actual == TIMEOUT_60_SHA256
+    ) or (
+        name == STUDENT_PREPROCESSING and expected == STUDENT_BEFORE_SHA256
+        and actual == STUDENT_FIXED_SHA256
     )
 
 
@@ -189,11 +196,33 @@ def validate(root=ROOT):
         raise ValueError('Existing identity-impact source left baseline engine')
     if len({effective[n].search_url for n in NAMES}) != 10 or jobs != 520 or requests != 27:
         raise ValueError('Recovery identity or retained accounting changed')
+    # The dashboard and student scan transform targets before adapter dispatch.
+    # Raw-registry parity alone does not establish production applicability.
+    production = {t.name: t for t in configure_student_targets(targets)}
+    baseline_production = {
+        t.name: t for t in configure_student_targets(list(baseline_targets.values()))
+    }
+    if len(production) != 533 or set(production) != set(effective):
+        raise ValueError('Production preprocessing changed registry membership')
+    for source in sources:
+        target = production[source['company']]
+        if (asdict(target) != asdict(CompanyTarget.from_dict(source['candidate_row']))
+                or source_health_key(target) != source['source_config_key']
+                or routing.mode(target) != 'reviewed'):
+            raise ValueError('Production-preprocessed target differs from certificate')
+    for name, target in production.items():
+        if name not in NAMES and (
+            asdict(target) != asdict(baseline_production[name])
+            or routing.mode(target) != 'baseline'
+        ):
+            raise ValueError('Nonactivation production preprocessing or dispatch changed')
     return {'status':'PASS', 'activation_companies':list(NAMES), 'raw_rows_changed':len(changed),
             'code_only_companies':['Gibson Energy','Hydro One'], 'unchanged_companies':523,
             'effective_sources':533, 'parser_counts':dict(Counter(routing.mode(t) for t in targets)),
             'certificates_applicable':10, 'retained_jobs':jobs, 'retained_success_physical_requests':requests,
             'canary_engine_ast_equivalent_for_certified_sources':True, 'baseline_identity_impacts_preserved':list(BASELINE_COMPANIES),
+            'production_preprocessing_verified':True, 'production_certificates_applicable':10,
+            'production_parser_counts':dict(Counter(routing.mode(t) for t in production.values())),
             'new_live_requests':0, 'external_writes':0, 'production_activation_executed':False}
 
 

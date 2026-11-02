@@ -286,7 +286,12 @@ def configure_student_targets(
         changes: dict[str, Any] = {}
         if target.platform in ROLE_QUERY_PLATFORMS:
             changes["search_terms"] = list(queries)
-        if target.platform in SELECTIVE_DETAIL_ENRICHMENT_PLATFORMS:
+        # Only columnized RMK reads this option. Changing unused table/tile
+        # fields would invalidate their exact reviewed source contracts.
+        if (
+            target.platform in SELECTIVE_DETAIL_ENRICHMENT_PLATFORMS
+            and target.endpoint_variant == "rmk_columnized"
+        ):
             changes["selective_detail_enrichment"] = True
         configured.append(replace(target, **changes) if changes else target)
     return configured

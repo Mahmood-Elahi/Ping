@@ -1,0 +1,40 @@
+{
+  "status": "PASS_REVERSE_FORWARD_AND_TAMPER_REJECTION",
+  "base_production_commit": "41221f57195182425322806c6506610ae964809e",
+  "files": {
+    "scripts/validate_successfactors_ten_activation.py": {
+      "before_exists": true,
+      "before_sha256": "112f6ab8f0a31ce0af0411eaf0ded45b674f916e8c5ebfc5482d7798a3f4a775",
+      "after_sha256": "3afa8fdf80630905a37665ac395d9f831acf798026e846174b8ce9156a778866"
+    },
+    "src/scraper/company_careers/student_roles.py": {
+      "before_exists": true,
+      "before_sha256": "7c2162cd5ae9fbd8bf40aee8d4f3728f3a3a115489a7aed2b5d6044907340a76",
+      "after_sha256": "5b9f85cf78eb0884ae5e32b00afda614376375e869b46a0db44f3b65abb8cea1"
+    },
+    "tests/test_search_scope_expansion_v1.py": {
+      "before_exists": true,
+      "before_sha256": "d4a9f9ab3297a01b046548e8e39cfce2637eeef2824f9e53b850d67aed38e9b7",
+      "after_sha256": "ebd05ca9f98091b8b0093cf64e65d477495887afa609ef9eec5d7494ab551f4b"
+    },
+    "tests/test_successfactors_production_configuration.py": {
+      "before_exists": false,
+      "before_sha256": null,
+      "after_sha256": "0e38b6aef1ee3f8737c8ff8be7e96138f78c8a43d4356a286e46ba482aef0bd6"
+    }
+  },
+  "protected_files": {
+    ".github/workflows/hourly-job-radar.yml": "7a468eb1ba9480f51cf675c9ee41fd72c92fb725207cf4474653762f0f35ce2f",
+    "config/target_companies.yaml": "16d83cfb9fa13e55088ab3891738b6ae35a60746333d3f24fdb4cf29952d2964",
+    "config/company_careers_reliability_repairs_v1.yaml": "8f485334b95efafdd0807be93e6687b9993884c2b2eb2b7a5fd6169f121e1f80",
+    "src/scraper/company_careers/adapters/successfactors_recovery_routing.py": "c7e7a21733d463d55c1eb40d64b37603769b6c4de2ce542bd3221eacbbf19933",
+    "src/scraper/company_careers/adapters/successfactors_recovery_profiles.json": "3f36b2a78341294a6f03e051399028ed12c12e3a251635efad87497bd7e00e4a",
+    "src/scraper/company_careers/adapters/sap_successfactors.py": "4e5aec4f19af1b4906b768c807cfb8fce61a099dba8c609fa8f01db1fbf09db4",
+    "src/scraper/company_careers/adapters/sap_successfactors_baseline_84b1655.py": "4f243405f425c5cdb0bd513017605419f2f4bdd07a2612fbcde4e876002f867d",
+    "src/scraper/company_careers/source_health.py": "0b3dcdde03fa7d52faf08323b17ea1c832b05fc66c3b905a0c5e074ae827fb6f",
+    "src/integrations/supabase_job_store.py": "adbac8341235db59829c6b63be6e871504da7db22ab315adbe06462e1b601381"
+  },
+  "rollback_files_verified": 4,
+  "production_modified": false,
+  "isolated_copy_only": true
+}
