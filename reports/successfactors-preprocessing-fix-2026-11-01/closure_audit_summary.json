@@ -1,0 +1,73 @@
+{
+  "status": "SOURCE_LEVEL_VERIFIED_JOB_LEVEL_UNVERIFIABLE",
+  "run_number": 366,
+  "github_run_id": 41355003540,
+  "reported_closed": 112,
+  "reported_metric_semantics": "Scope-associated closed-job stock, not a strict new-transition count",
+  "closed_reporting_sources": 39,
+  "source_level_authority_verified_count": 112,
+  "source_level_authority_violations": 0,
+  "individual_closures_verified": 0,
+  "individual_closures_unverifiable": 112,
+  "suspicious_source_attributions": 0,
+  "individual_closures_not_cleared": true,
+  "failed_ten": {
+    "companies": [
+      "Keyence",
+      "TransAlta",
+      "Spartan Controls",
+      "ARC Resources",
+      "Gibson Energy",
+      "SaskPower",
+      "Hydro One",
+      "Omron",
+      "Canada Life",
+      "Hyundai"
+    ],
+    "source_sync_sessions": 0,
+    "source_sync_results": 0,
+    "contributed_reported_closures": 0,
+    "provided_absence_authority": false
+  },
+  "retention_for_run366": {
+    "after": {
+      "selected_job_candidates_remaining": 0,
+      "selected_old_sync_sessions_remaining": 0,
+      "selected_old_scan_source_syncs_remaining": 0
+    },
+    "before": {
+      "stale": 0,
+      "over_60_days": 90,
+      "removed_closed": 112,
+      "old_sync_sessions": 485,
+      "current_tracked_jobs": null,
+      "total_jobs_deletable": 202,
+      "old_scan_source_syncs": 485,
+      "protected_by_application": 0,
+      "current_job_sync_sessions": null,
+      "current_scan_source_syncs": null,
+      "total_unique_job_candidates": 202,
+      "current_tracked_job_source_scope_rows": null,
+      "tracked_job_source_scope_rows_affected": 202
+    },
+    "deleted": {
+      "tracked_jobs": 202,
+      "job_sync_stage": 0,
+      "job_sync_chunks": 0,
+      "job_sync_sessions": 485,
+      "scan_source_syncs": 485,
+      "tracked_job_source_scope_rows": 202
+    },
+    "dry_run": false,
+    "batch_size": 1000,
+    "counts_complete": false
+  },
+  "evidence_limit": "Recorded retention execution deleted removed/closed canonical and ownership rows. No retained job identifiers or before/after per-job events permit reconstructing individual closures or proving each closure mechanism.",
+  "read_only_queries": true,
+  "production_mutations": 0,
+  "merge_disposition": "DRAFT_FOR_REVIEW_ONLY; no unconditional historical-closure clearance; separate approval must acknowledge the unresolved per-job audit limitation.",
+  "reporting_registry_scopes_active_and_authoritative": 39,
+  "public_source_diagnostics_match": 39,
+  "later_scan_exists": true,
+  "catalog_history_search_result": "No matching job history/event or retention/audit tables were found by the bounded catalog searches; this is not proof that no historical evidence exists elsewhere."
+}

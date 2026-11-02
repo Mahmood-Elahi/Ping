@@ -182,7 +182,7 @@ class SearchScopeExpansionV1Tests(unittest.TestCase):
         targets = [
             CompanyTarget(name="Google", platform="google", search_terms=["Staff"]),
             CompanyTarget(name="Board", platform="greenhouse", search_terms=["keep-me"]),
-            CompanyTarget(name="SAP", platform="sap_successfactors"),
+            CompanyTarget(name="SAP", platform="sap_successfactors", endpoint_variant="rmk_columnized"),
         ]
         configured = configure_student_targets(targets)
         self.assertEqual(configured[0].search_terms, expected)
