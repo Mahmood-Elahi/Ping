@@ -654,6 +654,17 @@ target_companies:
     - rockwellautomation.wd1.myworkdayjobs.com
     max_pages: 1
     max_jobs: 20
+    workday_identity:
+      evidence_source: reports/ping-coverage-recovery-2026-10-25/evidence/official_observations_02.json:entry-27
+      official_source_url: https://www.rockwellautomation.com/en-us/careers.html
+      official_binding_target_url: https://rockwellautomation.wd1.myworkdayjobs.com/External_Rockwell_Automation
+      official_binding_type: redirect
+      expected_employer_name: Rockwell Automation
+      expected_source_scope: default
+      expected_workday_tenant: rockwellautomation
+      expected_workday_site: External_Rockwell_Automation
+      expected_workday_hostname: rockwellautomation.wd1.myworkdayjobs.com
+      expected_apply_hostname: rockwellautomation.wd1.myworkdayjobs.com
   - name: Phoenix Contact
     platform: greenhouse
     slug: phoenixcontact
@@ -2608,7 +2619,18 @@ target_companies:
     tenant: enmax
     wd_subdomain: wd3
     site_id: ENMAXCareers
-    search_url: https://enmax.wd3.myworkdayjobs.com/ENMAXCareers/jobs
+    search_url: https://enmax.wd3.myworkdayjobs.com/ENMAXCareers
+    workday_identity:
+      evidence_source: reports/ping-coverage-recovery-2026-10-25/evidence/official_observations.json:entry-6
+      official_source_url: https://www.enmax.com/careers
+      official_binding_target_url: https://enmax.wd3.myworkdayjobs.com/ENMAXCareers
+      official_binding_type: direct_link
+      expected_employer_name: ENMAX
+      expected_source_scope: default
+      expected_workday_tenant: enmax
+      expected_workday_site: ENMAXCareers
+      expected_workday_hostname: enmax.wd3.myworkdayjobs.com
+      expected_apply_hostname: enmax.wd3.myworkdayjobs.com
   - name: ATCO
     platform: phenom
     careers_url: https://careers.atco.com/global/en
@@ -3959,6 +3981,17 @@ target_companies:
     tenant: rbc
     wd_subdomain: wd3
     site_id: RBCGLOBAL1
+    workday_identity:
+      evidence_source: config/workday_identity_recovery_batch1.yaml#rbc; config/workday_identity_batch1_activation_review.yaml#migration_audits.RBC
+      official_source_url: https://jobs.rbc.com/ca/en/search-results
+      official_binding_target_url: https://rbc.wd3.myworkdayjobs.com/RBCGLOBAL1
+      official_binding_type: embedded_config
+      expected_employer_name: RBC
+      expected_source_scope: default
+      expected_workday_tenant: rbc
+      expected_workday_site: RBCGLOBAL1
+      expected_workday_hostname: rbc.wd3.myworkdayjobs.com
+      expected_apply_hostname: rbc.wd3.myworkdayjobs.com
   - name: TD Bank
     platform: workday
     careers_url: https://careers.td.com/
@@ -4057,6 +4090,17 @@ target_companies:
     tenant: thomsonreuters
     wd_subdomain: wd5
     site_id: External_Career_Site
+    workday_identity:
+      evidence_source: reports/ping-coverage-recovery-2026-10-25/evidence/official_observations_03.json:entry-3
+      official_source_url: https://www.thomsonreuters.com/en/careers
+      official_binding_target_url: https://thomsonreuters.wd5.myworkdayjobs.com/External_Career_Site
+      official_binding_type: direct_link
+      expected_employer_name: Thomson Reuters
+      expected_source_scope: default
+      expected_workday_tenant: thomsonreuters
+      expected_workday_site: External_Career_Site
+      expected_workday_hostname: thomsonreuters.wd5.myworkdayjobs.com
+      expected_apply_hostname: thomsonreuters.wd5.myworkdayjobs.com
   - name: Manulife
     platform: phenom
     careers_url: https://careers.manulife.com/global/en
@@ -4258,6 +4302,17 @@ target_companies:
     tenant: canadiantirecorporation
     wd_subdomain: wd3
     site_id: Enterprise_External_Careers_Site
+    workday_identity:
+      evidence_source: reports/ping-coverage-recovery-2026-10-25/evidence/official_observations_03.json:entry-4
+      official_source_url: https://corp.canadiantire.ca/English/careers/corporate/default.aspxwelcome.asp
+      official_binding_target_url: https://canadiantirecorporation.wd3.myworkdayjobs.com/Enterprise_External_Careers_Site
+      official_binding_type: direct_link
+      expected_employer_name: Canadian Tire
+      expected_source_scope: default
+      expected_workday_tenant: canadiantirecorporation
+      expected_workday_site: Enterprise_External_Careers_Site
+      expected_workday_hostname: canadiantirecorporation.wd3.myworkdayjobs.com
+      expected_apply_hostname: canadiantirecorporation.wd3.myworkdayjobs.com
   - name: OMERS
     platform: workday
     careers_url: https://careers.omers.com/ca/en
@@ -5020,6 +5075,17 @@ target_companies:
     applied_facets:
       jobFamilyGroup:
       - daccab9f1d25018677ebcc363457460e
+    workday_identity:
+      evidence_source: config/company_original_master_recovery_batch_j_candidates.csv#Target Tech; scripts/validate_original_master_recovery_batch_j.py:86,156-166
+      official_source_url: https://corporate.target.com/careers/career-areas/corporate/target-tech
+      official_binding_target_url: https://target.wd5.myworkdayjobs.com/targetcareers
+      official_binding_type: retained_first_party_artifact
+      expected_employer_name: Target Tech
+      expected_source_scope: default
+      expected_workday_tenant: target
+      expected_workday_site: targetcareers
+      expected_workday_hostname: target.wd5.myworkdayjobs.com
+      expected_apply_hostname: target.wd5.myworkdayjobs.com
   - name: Twitch
     platform: greenhouse
     careers_url: https://careers.twitch.com/en/careers
@@ -7169,9 +7235,22 @@ target_companies:
     tenant: otppb
     wd_subdomain: wd3
     site_id: OntarioTeachers_Careers
-    allowed_apply_hosts: [otppb.wd3.myworkdayjobs.com]
+    allowed_apply_hosts:
+    - otppb.wd3.myworkdayjobs.com
     max_pages: 1
     max_jobs: 20
+    workday_identity:
+      evidence_source: reports/ping-coverage-recovery-2026-10-25/evidence/official_observations_02.json:entry-18
+      official_source_url: https://www.otpp.com/en-ca/careers/
+      official_binding_target_url: https://otppb.wd3.myworkdayjobs.com/OntarioTeachers_Careers
+      official_binding_type: direct_link
+      expected_employer_name: Ontario Teachers' Pension Plan
+      expected_source_scope: default
+      expected_workday_tenant: otppb
+      expected_workday_site: OntarioTeachers_Careers
+      expected_workday_hostname: otppb.wd3.myworkdayjobs.com
+      expected_apply_hostname: otppb.wd3.myworkdayjobs.com
+    search_url: https://otppb.wd3.myworkdayjobs.com/OntarioTeachers_Careers
   - name: PSP Investments
     platform: workday
     careers_url: https://www.investpsp.com/en/careers/
@@ -7205,9 +7284,22 @@ target_companies:
     tenant: exfo
     wd_subdomain: wd10
     site_id: EXFO_Careers
-    allowed_apply_hosts: [exfo.wd10.myworkdayjobs.com]
+    allowed_apply_hosts:
+    - exfo.wd10.myworkdayjobs.com
     max_pages: 1
     max_jobs: 20
+    workday_identity:
+      evidence_source: reports/ping-coverage-recovery-2026-10-25/evidence/official_observations_03.json:entry-2
+      official_source_url: https://careers.exfo.com/
+      official_binding_target_url: https://exfo.wd10.myworkdayjobs.com/EXFO_Careers
+      official_binding_type: direct_link
+      expected_employer_name: EXFO
+      expected_source_scope: default
+      expected_workday_tenant: exfo
+      expected_workday_site: EXFO_Careers
+      expected_workday_hostname: exfo.wd10.myworkdayjobs.com
+      expected_apply_hostname: exfo.wd10.myworkdayjobs.com
+    search_url: https://exfo.wd10.myworkdayjobs.com/EXFO_Careers
   - name: EllisDon
     platform: workday
     careers_url: https://www.ellisdon.com/careers

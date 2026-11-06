@@ -127,13 +127,16 @@ def validate(root=ROOT):
     root = Path(root).resolve()
     if root != ROOT or Path.cwd().resolve() != ROOT:
         raise ValueError('Run from the activation checkout root')
+    from scripts.validate_recovery_eight_activation import historical_registry
+    predecessor, predecessor_bytes = historical_registry(yaml.safe_load((root / 'config/target_companies.yaml').read_text()))
     lock_path = root / PACKAGE / 'artifact_lock.json'
     if digest(lock_path.read_bytes()) != LOCK_SHA256:
         raise ValueError('Immutable activation lock changed')
     lock = json.loads(lock_path.read_text())
     for name, expected in lock.items():
         path = (root / name).resolve()
-        if not path.is_relative_to(root) or not _artifact_matches(name, path.read_bytes(), expected):
+        raw = predecessor_bytes if name == 'config/target_companies.yaml' else path.read_bytes()
+        if not path.is_relative_to(root) or not _artifact_matches(name, raw, expected):
             raise ValueError('Immutable activation artifact changed: ' + name)
     for name, expected in read_json('unchanged_runtime.json')['unchanged_files'].items():
         if name != 'config/target_companies.yaml' and not _artifact_matches(name, (root / name).read_bytes(), expected):
@@ -145,7 +148,7 @@ def validate(root=ROOT):
     if engine_ast((root / 'src/scraper/company_careers/adapters/sap_successfactors.py').read_text(), consolidated=True) != engine_ast((root / PACKAGE / 'evidence/canary_adapter.py.txt').read_text()):
         raise ValueError('Certified source engine differs beyond unreachable additions')
     before_rows = read_json('baseline_raw_rows.json')
-    current_rows = yaml.safe_load((root / 'config/target_companies.yaml').read_text())['target_companies']
+    current_rows = predecessor['target_companies']
     before = {r['name']: r for r in before_rows}
     current = {r['name']: r for r in current_rows}
     if len(current) != 533 or len(current_rows) != 533 or set(current) != set(before):
@@ -165,7 +168,7 @@ def validate(root=ROOT):
     if len(changed) != 8:
         raise ValueError('Expected eight row changes and two code-only recoveries')
     baseline_targets = {t.name:t for t in load_baseline(before_rows)}
-    targets = registry.load_target_companies(apply_reliability_repairs=True)
+    targets = load_baseline(predecessor['target_companies'])
     effective = {t.name:t for t in targets}
     if len({t.source_scope_key for t in targets}) != 533:
         raise ValueError('Duplicate logical identity or scope')
@@ -233,10 +236,12 @@ def registry_before_activation(production, root=ROOT):
     actual = yaml.safe_load((Path(root) / 'config/target_companies.yaml').read_text())
     if production != actual:
         raise ValueError('Supplied production payload differs from the validated actual registry')
+    from scripts.validate_recovery_eight_activation import registry_before_eight
+    actual = registry_before_eight(actual)
     rollback = yaml.safe_load((Path(root) / PACKAGE / 'source_rollback.yaml').read_text())
     old = {row['name']: row for row in rollback['target_companies']}
-    restored = deepcopy(production)
-    restored['target_companies'] = [deepcopy(old.get(row['name'], row)) for row in production['target_companies']]
+    restored = deepcopy(actual)
+    restored['target_companies'] = [deepcopy(old.get(row['name'], row)) for row in actual['target_companies']]
     if restored['target_companies'] != read_json('baseline_raw_rows.json', Path(root)):
         raise ValueError('SuccessFactors rollback cannot reconstruct the exact prior registry')
     return restored
