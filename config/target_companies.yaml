@@ -46,6 +46,21 @@ target_companies:
     tenant: adobe
     wd_subdomain: wd5
     site_id: external_experienced
+    workday_identity:
+      evidence_source: reports/ping-coverage-recovery-2026-10-25/evidence/official_observations_02.json:entry-20
+      official_source_url: https://www.adobe.com/careers.html
+      official_binding_target_url: https://adobe.wd5.myworkdayjobs.com/external_experienced
+      official_binding_type: direct_link
+      expected_employer_name: Adobe
+      expected_source_scope: default
+      expected_workday_tenant: adobe
+      expected_workday_site: external_experienced
+      expected_workday_hostname: adobe.wd5.myworkdayjobs.com
+      expected_apply_hostname: adobe.wd5.myworkdayjobs.com
+    search_url: https://adobe.wd5.myworkdayjobs.com/external_experienced
+    careers_url: https://www.adobe.com/careers.html
+    allowed_apply_hosts:
+    - adobe.wd5.myworkdayjobs.com
   - name: CrowdStrike
     platform: workday
     tenant: crowdstrike
@@ -387,6 +402,10 @@ target_companies:
     search_url: https://opportunities.lamresearch.com/search/
     endpoint_variant: rmk_table
     max_pages: 2
+    identity_regex: <title>\s*Lam\ Research\ Corporation\ Jobs\s*</title>
+    allowed_apply_hosts:
+    - opportunities.lamresearch.com
+    selective_detail_enrichment: true
   - name: KUKA
     platform: sap_successfactors
     careers_url: https://www.kuka.com/en-us/company/careers
@@ -6922,13 +6941,26 @@ target_companies:
       expected_apply_hostname: lumentum.wd5.myworkdayjobs.com
   - name: Workday
     platform: workday
-    careers_url: https://www.workday.com/en-us/company/careers.html
+    careers_url: https://www.workday.com/en-us/company/careers/overview.html
     tenant: workday
     wd_subdomain: wd5
     site_id: Workday
-    allowed_apply_hosts: [workday.wd5.myworkdayjobs.com]
+    allowed_apply_hosts:
+    - workday.wd5.myworkdayjobs.com
     max_pages: 1
     max_jobs: 20
+    workday_identity:
+      evidence_source: reports/ping-coverage-recovery-2026-10-25/evidence/official_observations_02.json:entry-19
+      official_source_url: https://www.workday.com/en-us/company/careers/overview.html
+      official_binding_target_url: https://workday.wd5.myworkdayjobs.com/Workday
+      official_binding_type: direct_link
+      expected_employer_name: Workday
+      expected_source_scope: default
+      expected_workday_tenant: workday
+      expected_workday_site: Workday
+      expected_workday_hostname: workday.wd5.myworkdayjobs.com
+      expected_apply_hostname: workday.wd5.myworkdayjobs.com
+    search_url: https://workday.wd5.myworkdayjobs.com/Workday
   - name: Dell Technologies
     platform: oracle_recruiting
     careers_url: https://enterpriseplatform.dell.com/hcmUI/CandidateExperience/en/sites/careers/jobs

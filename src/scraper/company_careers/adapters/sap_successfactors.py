@@ -216,6 +216,9 @@ class _RequestBudget:
 def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 20) -> AdapterResult:
     """Use recovery code only for exact reviewed source contracts."""
     from src.scraper.company_careers.adapters.successfactors_recovery_routing import mode
+    from .successfactors_table_recovery import is_reviewed
+    if is_reviewed(target):
+        return _fetch_reviewed_jobs(session, target, timeout)
     if mode(target) == "baseline":
         from src.scraper.company_careers.adapters import sap_successfactors_baseline_84b1655 as baseline
         return baseline.fetch_jobs(session, target, timeout)
@@ -540,6 +543,14 @@ def _fetch_html_jobs(
         metadata["pages_completed"] += 1
         metadata["offsets"].append(offset)
         metadata["jobs_normalized"] = len(jobs)
+
+        # A proven mutation cannot become authoritative. Lam uses the exact
+        # live-tested single clean restart within the existing request budget.
+        from .successfactors_table_recovery import is_reviewed
+        if is_reviewed(target) and metadata["collection_changed_during_scan"]:
+            finish_changed(metadata, terminal_evidence="collection_mutation_detected")
+            budget.record(metadata)
+            return _successfactors_result(session, metadata, jobs)
 
         effective_total = metadata["total_available"]
         if effective_total and offset < effective_total and not page.items:
@@ -1577,7 +1588,12 @@ def _get_page(
     budget: _RequestBudget,
     category: str,
 ) -> Any:
-    if target.endpoint_variant == TABLE_VARIANT:
+    from .successfactors_table_recovery import is_reviewed, _validate_table_destination as reviewed_destination
+    reviewed = is_reviewed(target)
+    if reviewed:
+        prepared_url = requests.Request("GET", url, params=params).prepare().url
+        reviewed_destination(str(prepared_url), str(target.search_url), offset)
+    elif target.endpoint_variant == TABLE_VARIANT:
         _validate_table_destination(url, str(target.search_url), offset, diagnostic_stage="request_destination")
     for attempt in range(MAX_ATTEMPTS):
         try:
@@ -1600,7 +1616,9 @@ def _get_page(
             raise AdapterError(
                 f"SAP SuccessFactors HTTP {response.status_code} for {target.name} offset={offset}"
             )
-        if target.endpoint_variant == TABLE_VARIANT:
+        if reviewed:
+            reviewed_destination(str(getattr(response, "url", None) or url), str(target.search_url), offset)
+        elif target.endpoint_variant == TABLE_VARIANT:
             _validate_table_destination(str(getattr(response, "url", None) or url),
                                         str(target.search_url), offset, diagnostic_stage="response_destination")
         content_type = str(getattr(response, "headers", {}).get("content-type", ""))
@@ -1635,6 +1653,9 @@ def _parse_page(
         raise AdapterError(f"SAP SuccessFactors returned malformed HTML: {exc}") from exc
 
     if target.endpoint_variant == TABLE_VARIANT:
+        from .successfactors_table_recovery import is_reviewed, _parse_table_page as reviewed_page
+        if is_reviewed(target):
+            return reviewed_page(parser.root, str(target.search_url), offset, expected_page_size)
         return _parse_table_page(parser.root, str(target.search_url), offset, expected_page_size)
     return _parse_tile_page(
         parser.root,

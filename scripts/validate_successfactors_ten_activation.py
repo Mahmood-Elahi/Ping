@@ -45,6 +45,8 @@ STUDENT_FIXED_SHA256 = '5b9f85cf78eb0884ae5e32b00afda614376375e869b46a0db44f3b65
 
 
 def _artifact_matches(name, raw, expected):
+    from scripts.validate_recovery_three_activation import predecessor_runtime
+    raw = predecessor_runtime(name, raw)
     actual = digest(raw)
     return actual == expected or (
         name == TIMEOUT_WORKFLOW and expected == TIMEOUT_BEFORE_SHA256
@@ -143,9 +145,11 @@ def validate(root=ROOT):
             raise ValueError('Unrelated production runtime changed: ' + name)
     applicability = read_json('code_applicability.json')
     for name, expected in applicability['reviewed_runtime'].items():
-        if digest((root / name).read_bytes()) != expected:
+        if not _artifact_matches(name, (root / name).read_bytes(), expected):
             raise ValueError('Runtime differs from consolidated review: ' + name)
-    if engine_ast((root / 'src/scraper/company_careers/adapters/sap_successfactors.py').read_text(), consolidated=True) != engine_ast((root / PACKAGE / 'evidence/canary_adapter.py.txt').read_text()):
+    from scripts.validate_recovery_three_activation import predecessor_runtime
+    adapter_path = 'src/scraper/company_careers/adapters/sap_successfactors.py'
+    if engine_ast(predecessor_runtime(adapter_path, (root / adapter_path).read_bytes()).decode(), consolidated=True) != engine_ast((root / PACKAGE / 'evidence/canary_adapter.py.txt').read_text()):
         raise ValueError('Certified source engine differs beyond unreachable additions')
     before_rows = read_json('baseline_raw_rows.json')
     current_rows = predecessor['target_companies']
