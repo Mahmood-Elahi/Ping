@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   update-student-dashboard:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
 
     steps:
@@ -41,10 +41,22 @@ jobs:
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('requirements.txt') }}
+          key: ${{ runner.os }}-ubuntu-24.04-${{ runner.arch }}-playwright-chromium-${{ hashFiles('requirements.txt') }}
 
       - name: Install Playwright Chromium
         run: python -m playwright install --with-deps chromium
+
+      - name: Verify Chromium launches
+        run: |
+          python - <<'PYTHON'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as playwright:
+              browser = playwright.chromium.launch(headless=True)
+              page = browser.new_page()
+              page.set_content("<title>Ping browser preflight</title>")
+              assert page.title() == "Ping browser preflight"
+              browser.close()
+          PYTHON
 
       - name: Prepare production credentials
         shell: bash

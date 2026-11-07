@@ -38,6 +38,8 @@ def materialize(payload):
 def validate(payload=None):
     proof=evidence()
     if payload is None:payload=yaml.safe_load((ROOT/'config/target_companies.yaml').read_text())
+    from scripts.validate_recovery_three_activation import registry_before_three
+    payload=registry_before_three(payload)
     rows=payload['target_companies'];by_name={r['name']:r for r in rows}
     if len(rows)!=533 or len(by_name)!=533 or not set(NAMES).issubset(by_name):raise ValueError('Registry membership changed')
     if digest(canonical([r for r in rows if r['name'] not in NAMES]))!=proof['other_525_sha256']:raise ValueError('Unrelated source changed')
@@ -74,6 +76,8 @@ def validate(payload=None):
 
 def registry_before_eight(payload):
     """Validate the new activation before composing older immutable proofs."""
+    from scripts.validate_recovery_three_activation import registry_before_three
+    payload=registry_before_three(payload)
     validate(payload);proof=evidence();restored=deepcopy(payload)
     restored['target_companies']=[deepcopy(proof['rollback'][r['name']]['raw_row']) if r['name'] in NAMES else r for r in payload['target_companies']]
     return restored

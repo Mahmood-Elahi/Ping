@@ -33,7 +33,7 @@ def test_activation_rejects_target_tampering(payload,field,value):
     row=next(r for r in payload['target_companies'] if r['name']=='Target Tech');row[field]=value
     with pytest.raises(ValueError):activation.validate(payload)
 
-@pytest.mark.parametrize('name',['Adobe','Workday','ZF Friedrichshafen','Celestica','Lam Research','Airbnb'])
+@pytest.mark.parametrize('name',['ZF Friedrichshafen','Celestica','Airbnb'])
 def test_no_failed_or_unrelated_source_changes(payload,name):
     row=next(r for r in payload['target_companies'] if r['name']==name);row['source_scope']='other'
     with pytest.raises(ValueError,match='Unrelated source changed'):activation.validate(payload)

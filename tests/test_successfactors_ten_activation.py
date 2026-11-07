@@ -158,8 +158,15 @@ def test_code_applicability_ast_proof_rejects_unreviewed_engine_changes(change):
 
 def test_runtime_rollback_restores_exact_production_code_and_registry(tmp_path):
     record=activation.read_json('rollback_verification.json')
+    from scripts.validate_recovery_eight_activation import evidence
+    from scripts.validate_recovery_three_activation import predecessor_runtime
     for name,hashes in record['files'].items():
-        path=tmp_path/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes((ROOT/name).read_bytes())
+        raw=(ROOT/name).read_bytes()
+        if name=='config/target_companies.yaml':
+            raw=evidence()['predecessor_registry_utf8'].encode()
+        else:
+            raw=predecessor_runtime(name,raw)
+        path=tmp_path/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(raw)
         assert hashlib.sha256(path.read_bytes()).hexdigest()==hashes['after_sha256']
     patchfile=PACKAGE/'production_runtime_rollback.patch'
     subprocess.run(['git','apply','--unidiff-zero','--check',str(patchfile)],cwd=tmp_path,check=True)
