@@ -59,7 +59,7 @@ def validate(payload=None):
         if row['name'] not in NAMES and row != old:
             raise ValueError('Unrelated source changed: ' + row['name'])
     for path, expected in proof['engine_files'].items():
-        raw = (ROOT / path).read_bytes()
+        raw = bounds.followup.prior_adapter_bytes(path, (ROOT / path).read_bytes())
         if path == bounds.OVERLAY:
             raw = bounds.predecessor_bytes(path, raw)
         if digest(raw) != expected:
@@ -136,6 +136,7 @@ def registry_before_three(payload):
 def predecessor_runtime(name, raw):
     """Historical locks remain immutable; current exact applicability is checked first."""
     proof = evidence()
+    raw = bounds.followup.prior_adapter_bytes(name, raw)
     if name == bounds.OVERLAY:
         raw = bounds.predecessor_bytes(name, raw)
     old = proof['predecessor_runtime_utf8'].get(name)

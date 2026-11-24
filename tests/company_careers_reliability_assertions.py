@@ -264,6 +264,13 @@ for _cert in smartrecruiters_recovery.certificate()["certificates"]:
     APPROVED_SOURCE_MIGRATIONS[_cert["company"].casefold()] = _cert["proposed"]["target_companies.yaml"]
 
 
+from scripts import validate_followup_recovery as followup_recovery
+
+followup_recovery.validate()
+for _cert in followup_recovery.certificate()["certificates"]:
+    APPROVED_SOURCE_MIGRATIONS[_cert["company"].casefold()] = yaml.safe_load(_cert["raw_after"])[0]
+
+
 APPROVED_DISCOVERY_ONLY_PROMOTIONS = {
     "athabasca oil",
     "bombardier",

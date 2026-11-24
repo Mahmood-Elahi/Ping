@@ -110,7 +110,7 @@ def _fetch_jobs_once(
     page_size = (
         MAX_PAGE_SIZE if configured_page_size == 20 else configured_page_size
     )
-    requested_limit = min(MAX_RESULTS, max(1, int(target.max_jobs)))
+    requested_limit = int(target.max_jobs)  # Validated before the first traversal.
     endpoint = str(target.endpoint_url)
     identifier = str(target.slug)
     listings: list[tuple[str, Mapping[str, Any], str]] = []
@@ -472,6 +472,9 @@ def validate_target(target: CompanyTarget) -> None:
         raise AdapterError(
             f"SmartRecruiters page_size must be between 1 and {MAX_PAGE_SIZE}"
         )
+    from .smartrecruiters_profiles import extended_listing_bounds
+    if extended_listing_bounds(target, identifier):
+        return
     if not 1 <= int(target.max_pages) <= MAX_PAGES:
         raise AdapterError(f"SmartRecruiters max_pages cannot exceed {MAX_PAGES}")
     if not 1 <= int(target.max_jobs) <= MAX_RESULTS:

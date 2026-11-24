@@ -4,5 +4,17 @@
     "baseline": "23f124a8d2afd516c66e26cc9b026ddc00abcf503bd93a99d25bf6678321be45",
     "baseline_effective": "397c94f2ac343fafb7cc5de1f10165edfc8722d9d3b5b9bd4816218368a62f03",
     "reviewed": "ae58b1d572f8e4afa6dae3219be9d4c9735b8bb86b9c4f7bd60f8119153abba4"
+  },
+  "ZF Friedrichshafen": {
+    "search_url": "https://jobs.zf.com/search/",
+    "baseline": "021fd43b7974cfbb92493d57525580176c8e898e4d0fd192fa50009da34c2a78",
+    "baseline_effective": "76d72b0a9dcea0ac265a8d5809b857730fd1f44853962c396899a4caaf4418ff",
+    "reviewed": "7326b7dcfc172073d83c327db1a29a913113b14fdad9cb1a386689b8f73e721a"
+  },
+  "Celestica": {
+    "search_url": "https://careers.celestica.com/search/",
+    "baseline": "620e778184f40949cb959e1e055c35d6c06768d2c7d779a5379d635734840809",
+    "baseline_effective": "3972318c317b7968551442fb5897b1bc0cd4cd83ccd936e01a022de618907afc",
+    "reviewed": "f4e7b3b69cd39a145915edc0fc544e54ced91d40f69f73d37c45f43e818c1256"
   }
 }

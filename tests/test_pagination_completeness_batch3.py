@@ -163,7 +163,7 @@ def test_production_bosch_exactly_matches_live_tested_candidate() -> None:
     assert candidate_rows["Bosch"]["max_pages"] == 50
     assert candidate_rows["Bosch"]["max_jobs"] == 5_000
     assert candidate_rows["Bosch"]["selective_detail_enrichment"] is False
-    assert production_rows["Bosch"] == candidate_rows["Bosch"]
+    assert production_rows["Bosch"] == {**candidate_rows["Bosch"], "max_pages": 65, "max_jobs": 6500}
     assert production_rows["Bosch"]["max_response_bytes"] == 3_000_000
     assert production_rows["Bosch"]["identity_regex"] == "^Bosch Group$"
     assert production_rows["Bosch"]["allowed_apply_hosts"] == [

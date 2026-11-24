@@ -9,6 +9,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from scripts import validate_followup_recovery as followup
+
 PACKAGE = ROOT / 'reports/recovery-smartrecruiters-2026-11-23/certificates.json'
 BUNDLE_SHA256 = 'a2dead1d85ff2a108c16b280e8982afd7ffafae4dbd987c2a289de627daae21b'
 OVERLAY = 'config/company_careers_reliability_repairs_v1.yaml'
@@ -28,6 +30,8 @@ def certificate():
 def predecessor_bytes(name, raw):
     """Reconstruct exactly the old YAML bytes for earlier, immutable activation locks."""
     filename = Path(name).name
+    if filename == 'target_companies.yaml':
+        raw = followup.prior_registry_bytes(raw)
     proof = certificate()
     hashes = proof['files'][filename]
     if digest(raw) != hashes['new']:
@@ -56,7 +60,7 @@ def registry_before_bounds(payload):
     predecessor_bytes('config/target_companies.yaml', (ROOT / 'config/target_companies.yaml').read_bytes())
     proof = certificate()
     records = {r['company']: r for r in proof['certificates']}
-    rows = deepcopy(payload['target_companies'])
+    rows = deepcopy(followup.prior_registry(payload)['target_companies'])
     current = {r['name']: r for r in rows if r['name'] in records}
     for stage in ('proposed', 'rollback'):
         if all(current.get(n) == r[stage]['target_companies.yaml'] for n, r in records.items()):
@@ -72,7 +76,8 @@ def validate():
     proof = certificate()
     for filename in proof['files']:
         predecessor_bytes('config/' + filename, (ROOT / 'config' / filename).read_bytes())
-    if digest(Path(smartrecruiters.__file__).read_bytes()) != proof['engine_sha256']:
+    engine = followup.prior_adapter_bytes("src/scraper/company_careers/adapters/smartrecruiters.py", Path(smartrecruiters.__file__).read_bytes())
+    if digest(engine) != proof['engine_sha256']:
         raise ValueError('SmartRecruiters collection engine changed')
     targets = {t.name: t for t in configure_student_targets(load_target_companies(apply_reliability_repairs=True))}
     for record in proof['certificates']:

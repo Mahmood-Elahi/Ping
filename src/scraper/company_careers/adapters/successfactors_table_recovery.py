@@ -133,6 +133,49 @@ def _parse_table_page(
     return _ParsedPage(items, total, page_size, next_request)
 
 
+# Exact language-menu labels retained on these two candidate boards.
+_LANGUAGE_MENUS = {'https://careers.celestica.com/search/': {'bs-BS': 'Malay (Malaysia)',
+                                           'en-US': 'English (United States)',
+                                           'es-ES': 'Español (España)',
+                                           'es-MX': 'Español (México)',
+                                           'ja-JP': '日本語 (日本)',
+                                           'ro-RO': 'Limba Română (România)',
+                                           'th-TH': 'ภาษาไทย (ประเทศไทย)',
+                                           'zh-CN': '简体中文 (中国大陆)'},
+ 'https://jobs.zf.com/search/': {'cs-CZ': 'Ceština (Ceská republika)',
+                                 'de-DE': 'Deutsch (Deutschland)',
+                                 'en-US': 'English (United States)',
+                                 'es-ES': 'Español (España)',
+                                 'es-MX': 'Español (México)',
+                                 'fr-BE': 'Français (Belgique)',
+                                 'fr-FR': 'Français (France)',
+                                 'hu-HU': 'Magyar (Magyarország)',
+                                 'it-IT': 'Italiano (Italia)',
+                                 'nl-NL': 'Nederlands (Nederland)',
+                                 'pl-PL': 'Polski',
+                                 'pt-BR': 'Português (Brasil)',
+                                 'pt-PT': 'Português (Portugal)',
+                                 'sk-SK': 'Slovencina (Slovensko)',
+                                 'tr-TR': 'Türkçe (Türkiye)',
+                                 'zh-CN': '简体中文 (中国大陆)'}}
+
+
+def _language_menu(node, url, search_url, offset):
+    labels = _LANGUAGE_MENUS.get(search_url, {})
+    lang = node.attrs.get("lang", "")
+    if (lang not in labels or node.children or set(node.attrs) != {"role", "lang", "href"}
+            or node.attrs["role"].casefold() != "menuitem" or _node_text(node) != labels[lang]):
+        return False
+    parts = urlparse(url)
+    # Only ignore the exact language selector. Never send it or rewrite a next link.
+    if parts._replace(query="").geturl() != search_url:
+        return False
+    values = parse_qsl(parts.query, keep_blank_values=True)
+    expected = {"q": "", "sortColumn": "referencedate", "sortDirection": "desc",
+                "startrow": str(offset), "locale": lang.replace("-", "_")}
+    return len(values) == len(expected) and dict(values) == expected
+
+
 def _table_next_request(root: _Node, search_url: str, offset: int, page_size: int,
                         result_end: int, total: int) -> Optional[tuple[str, None]]:
     next_request = None
@@ -156,6 +199,8 @@ def _table_next_request(root: _Node, search_url: str, offset: int, page_size: in
             continue
         if len(pairs) != len(values) or not re.fullmatch(r"0|[1-9][0-9]*", values["startrow"]):
             raise AdapterError("SAP SuccessFactors pagination has malformed or duplicate startrow")
+        if not explicit_next and _language_menu(node, candidate, search_url, offset):
+            continue
         _validate_table_destination(candidate, search_url, int(values["startrow"]), diagnostic_stage="pagination_anchor")
         if explicit_next and int(values['startrow']) != wanted_offset:
             raise AdapterError('SAP SuccessFactors pagination has contradictory next offset')
