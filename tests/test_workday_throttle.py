@@ -43,7 +43,7 @@ def test_cross_tenant_slowdown_requires_two_recent_distinct_signals():
     policy.throttled('b', None)
     policy.admit('c')
     policy.admit('d')
-    assert now[0] == 102
+    assert now[0] == 106
     now[0] = 161
     policy.admit('e')
     assert now[0] == 161
@@ -59,3 +59,31 @@ def test_headers_and_unrelated_routes():
     with patch.object(requests.Session,'send',return_value='sent'):
         assert policy.session().get('https://x.wd1.myworkdayjobs.com/board')=='sent'
         assert policy.session().post('https://another.example/wday/cxs/x/Board/jobs')=='sent'
+
+
+def test_distinct_sessions_space_first_requests_before_throttling():
+    now = [0.0]
+    def wait(seconds):
+        now[0] += seconds
+    policy = WorkdayThrottle(clock=lambda: now[0], sleep=wait)
+    policy.admit("a")
+    policy.admit("b")
+    assert now[0] == 1
+
+
+def test_listing_redirect_never_sends_the_post_to_the_new_destination(monkeypatch):
+    calls = []
+    def redirect(adapter, request, **kwargs):
+        calls.append(request.url)
+        response = requests.Response()
+        response.url = request.url
+        response.status_code = 307
+        response.headers["Location"] = "https://different.example/jobs"
+        response._content, response._content_consumed = b"", True
+        return response
+    monkeypatch.setattr(requests.adapters.HTTPAdapter, "send", redirect)
+    url = "https://x.wd1.myworkdayjobs.com/wday/cxs/x/Board/jobs"
+    with pytest.raises(requests.HTTPError, match="redirect"):
+        WorkdayThrottle().session().post(url)
+    assert calls == [url]
+    assert retry_seconds("9" * 40, 0) == float("inf")
