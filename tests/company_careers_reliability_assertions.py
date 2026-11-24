@@ -232,6 +232,38 @@ for _change in _successfactors_changes:
         APPROVED_SOURCE_MIGRATIONS[_change['company'].casefold()] = _change['after']
 
 
+# Compose the eleven later activations from their independently sealed certificates.
+# Compare raw rows exactly, including whether a default-valued field was present.
+from scripts import validate_recovery_eight_activation as eight
+from scripts import validate_recovery_three_activation as three
+
+eight.validate()
+three.validate()
+_three_proof = three.evidence()
+_after_eight = yaml.safe_load(_three_proof["predecessor_registry_utf8"])["target_companies"]
+for _row in _after_eight:
+    if _row["name"] in eight.NAMES:
+        APPROVED_SOURCE_MIGRATIONS[_row["name"].casefold()] = _row
+_three_fields = {
+    "Adobe": ("workday_identity", "search_url", "careers_url", "allowed_apply_hosts"),
+    "Workday": ("workday_identity", "search_url", "careers_url"),
+    "Lam Research": ("identity_regex", "allowed_apply_hosts", "selective_detail_enrichment"),
+}
+for _cert in _three_proof["certificates"]:
+    _source = _cert["source"]
+    _name = _source["company"]
+    _row = deepcopy(_three_proof["rollback"][_name]["raw_row"])
+    _row.update({k: _source["exact_preprocessed_target"][k] for k in _three_fields[_name]})
+    APPROVED_SOURCE_MIGRATIONS[_name.casefold()] = _row
+
+
+from scripts import validate_smartrecruiters_recovery as smartrecruiters_recovery
+
+smartrecruiters_recovery.validate()
+for _cert in smartrecruiters_recovery.certificate()["certificates"]:
+    APPROVED_SOURCE_MIGRATIONS[_cert["company"].casefold()] = _cert["proposed"]["target_companies.yaml"]
+
+
 APPROVED_DISCOVERY_ONLY_PROMOTIONS = {
     "athabasca oil",
     "bombardier",

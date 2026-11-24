@@ -1,6 +1,5 @@
-from pathlib import Path
-from copy import deepcopy
 import pytest
+from scripts.validate_recovery_three_activation import predecessor_runtime
 from scripts import validate_successfactors_ten_activation as activation
 
 
@@ -9,12 +8,13 @@ def workflow():
 
 
 def test_only_job_timeout_changes_and_exact_preexisting_lock_still_applies():
-    proposed = workflow()
+    current = workflow()
+    proposed = predecessor_runtime(activation.TIMEOUT_WORKFLOW, current)
     assert proposed.count(b'timeout-minutes: 60') == 1
     original = proposed.replace(b'timeout-minutes: 60', b'timeout-minutes: 45')
     assert activation.digest(original) == activation.TIMEOUT_BEFORE_SHA256
     assert activation.digest(proposed) == activation.TIMEOUT_60_SHA256
-    assert activation._artifact_matches(activation.TIMEOUT_WORKFLOW, proposed, activation.TIMEOUT_BEFORE_SHA256)
+    assert activation._artifact_matches(activation.TIMEOUT_WORKFLOW, current, activation.TIMEOUT_BEFORE_SHA256)
     assert b'17 */6 * * *' in proposed
     assert b'cancel-in-progress: false' in proposed
     assert b'group: job-radar-hourly' in proposed
@@ -23,9 +23,12 @@ def test_only_job_timeout_changes_and_exact_preexisting_lock_still_applies():
 @pytest.mark.parametrize('old,new', [(b'60', b'75'), (b'60', b'90'), (b'*/6', b'*/1'),
                                     (b'cancel-in-progress: false', b'cancel-in-progress: true'),
                                     (b'contents: read', b'contents: write'),
-                                    (b'ubuntu-latest', b'windows-latest')])
+                                    (b'ubuntu-24.04', b'windows-latest')])
 def test_operational_timeout_exception_does_not_authorize_other_drift(old, new):
-    assert not activation._artifact_matches(activation.TIMEOUT_WORKFLOW, workflow().replace(old,new), activation.TIMEOUT_BEFORE_SHA256)
+    current = workflow()
+    assert old in current
+    with pytest.raises(ValueError, match='Runtime drift before historical composition'):
+        activation._artifact_matches(activation.TIMEOUT_WORKFLOW, current.replace(old,new), activation.TIMEOUT_BEFORE_SHA256)
 
 
 def test_timeout_exception_cannot_be_used_for_source_config_or_other_expected_hash():

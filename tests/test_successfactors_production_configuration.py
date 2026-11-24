@@ -10,6 +10,7 @@ from scripts.validate_source_integrity_canaries import CanaryBudgetReached
 from src.scraper.company_careers.adapters import sap_successfactors as sf
 from src.scraper.company_careers.adapters import sap_successfactors_baseline_84b1655 as baseline
 from src.scraper.company_careers.adapters import successfactors_recovery_routing as routing
+from src.scraper.company_careers.adapters import successfactors_table_recovery
 from src.scraper.company_careers.models import AdapterError, CompanyTarget
 from src.scraper.company_careers.registry import load_target_companies
 from src.scraper.company_careers.scanner import CompanyCareersScanner
@@ -130,7 +131,11 @@ def test_existing_sources_preserve_old_production_behavior_without_the_unused_fl
 
 def test_all533_production_routes_are_checked_by_the_activation_validator():
     configured = configure_student_targets(list(registry().values()))
-    modes = {t.name: routing.mode(t) for t in configured}
+    # The current dispatcher checks the later, separately sealed Lam table profile first.
+    assert len(configured) == 533
+    table_names = {t.name for t in configured if successfactors_table_recovery.is_reviewed(t)}
+    assert table_names == {"Lam Research"}
+    modes = {t.name: routing.mode(t) for t in configured if t.name not in table_names}
     assert sum(mode == "reviewed" for mode in modes.values()) == 10
     assert all(mode == ("reviewed" if name in activation.NAMES else "baseline") for name, mode in modes.items())
     result = activation.validate()

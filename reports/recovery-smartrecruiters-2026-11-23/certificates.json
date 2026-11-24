@@ -1,0 +1,246 @@
+{
+  "manifest_sha256": "75015de245918697c5186381910ad269b864adff119d19278d13bda7036df954",
+  "results_sha256": "ecf820ad2ffba1f9e21217ac0645bb7db08b4ff77fe04c9c1d82b0c14a954e9a",
+  "base": "02e882ed3f5f81e208324a03f3553674d5b1da21",
+  "certificates": [
+    {
+      "company": "ServiceNow",
+      "target_sha256": "bb17f022c12fda2a0d139e061922712e90118a44a6bd0f00c7bbde9fddce0bbc",
+      "source_scope_key": "servicenow::default",
+      "board": "https://api.smartrecruiters.com/v1/companies/ServiceNow/postings",
+      "jobs": 1005,
+      "physical_requests": 11,
+      "stable_id_url_pairs_sha256": "836397879e63368bbc5397e2966d0f1b53918cf6eaa1ad76a8f2d236dfc7df46",
+      "checkpoint_evidence_sha256": "25723add70209dbf910970fa581e75e2c7758253d0ef38c27c461139136b76ac",
+      "terminal": "authoritative_total",
+      "source_identity_status": "validated",
+      "gates": {
+        "scan_complete": true,
+        "inventory_complete": true,
+        "can_reconcile_absence": true,
+        "authoritative_for_absence": true,
+        "stable_ids_unique": true,
+        "terminal_evidence_valid": true,
+        "hidden_continuation_absent": true,
+        "normalized_jobs_attributable": true,
+        "apply_urls_contract_valid": true,
+        "canonical_urls_unique": true
+      },
+      "rollback": {
+        "target_companies.yaml": {
+          "name": "ServiceNow",
+          "platform": "smartrecruiters",
+          "slug": "ServiceNow",
+          "endpoint_variant": "companies_postings_v1",
+          "careers_url": "https://careers.servicenow.com/",
+          "endpoint_url": "https://api.smartrecruiters.com/v1/companies/ServiceNow/postings",
+          "identity_regex": "^ServiceNow$",
+          "allowed_apply_hosts": [
+            "jobs.smartrecruiters.com"
+          ],
+          "page_size": 100,
+          "max_pages": 8,
+          "max_jobs": 800,
+          "max_response_bytes": 3000000,
+          "selective_detail_enrichment": false
+        },
+        "company_careers_reliability_repairs_v1.yaml": null
+      },
+      "proposed": {
+        "target_companies.yaml": {
+          "name": "ServiceNow",
+          "platform": "smartrecruiters",
+          "slug": "ServiceNow",
+          "endpoint_variant": "companies_postings_v1",
+          "careers_url": "https://careers.servicenow.com/",
+          "endpoint_url": "https://api.smartrecruiters.com/v1/companies/ServiceNow/postings",
+          "identity_regex": "^ServiceNow$",
+          "allowed_apply_hosts": [
+            "jobs.smartrecruiters.com"
+          ],
+          "page_size": 100,
+          "max_pages": 16,
+          "max_jobs": 1600,
+          "max_response_bytes": 3000000,
+          "selective_detail_enrichment": false
+        },
+        "company_careers_reliability_repairs_v1.yaml": null
+      }
+    },
+    {
+      "company": "Intuitive Surgical",
+      "target_sha256": "c004032d900ed3e5e73a021f9f97a592db9709c950421b910c65e3c4c3c751da",
+      "source_scope_key": "intuitive surgical::default",
+      "board": "https://api.smartrecruiters.com/v1/companies/intuitive/postings",
+      "jobs": 858,
+      "physical_requests": 9,
+      "stable_id_url_pairs_sha256": "632de2da7ac5514a08e461ff590332bb274da71d0c52e043e4d653454e739608",
+      "checkpoint_evidence_sha256": "c6afad184caed93c1513e144d67822d743a6cdcb74b060323df4cfc8dd073b6f",
+      "terminal": "authoritative_total",
+      "source_identity_status": "validated",
+      "gates": {
+        "scan_complete": true,
+        "inventory_complete": true,
+        "can_reconcile_absence": true,
+        "authoritative_for_absence": true,
+        "stable_ids_unique": true,
+        "terminal_evidence_valid": true,
+        "hidden_continuation_absent": true,
+        "normalized_jobs_attributable": true,
+        "apply_urls_contract_valid": true,
+        "canonical_urls_unique": true
+      },
+      "rollback": {
+        "target_companies.yaml": {
+          "name": "Intuitive Surgical",
+          "platform": "smartrecruiters",
+          "slug": "intuitive",
+          "endpoint_variant": "companies_postings_v1",
+          "careers_url": "https://careers.intuitive.com/en/jobs/",
+          "endpoint_url": "https://api.smartrecruiters.com/v1/companies/intuitive/postings",
+          "identity_regex": "^Intuitive(?: Surgical)?$",
+          "allowed_apply_hosts": [
+            "jobs.smartrecruiters.com"
+          ],
+          "page_size": 100,
+          "max_pages": 8,
+          "max_jobs": 800,
+          "max_response_bytes": 3000000,
+          "selective_detail_enrichment": false
+        },
+        "company_careers_reliability_repairs_v1.yaml": {
+          "name": "Intuitive Surgical",
+          "platform": "smartrecruiters",
+          "slug": "intuitive",
+          "endpoint_variant": "companies_postings_v1",
+          "careers_url": "https://careers.intuitive.com/en/jobs/",
+          "endpoint_url": "https://api.smartrecruiters.com/v1/companies/intuitive/postings",
+          "identity_regex": "^Intuitive(?: Surgical)?$",
+          "allowed_apply_hosts": [
+            "jobs.smartrecruiters.com"
+          ],
+          "page_size": 100,
+          "max_pages": 8,
+          "max_jobs": 800,
+          "max_response_bytes": 3000000,
+          "selective_detail_enrichment": false
+        }
+      },
+      "proposed": {
+        "target_companies.yaml": {
+          "name": "Intuitive Surgical",
+          "platform": "smartrecruiters",
+          "slug": "intuitive",
+          "endpoint_variant": "companies_postings_v1",
+          "careers_url": "https://careers.intuitive.com/en/jobs/",
+          "endpoint_url": "https://api.smartrecruiters.com/v1/companies/intuitive/postings",
+          "identity_regex": "^Intuitive(?: Surgical)?$",
+          "allowed_apply_hosts": [
+            "jobs.smartrecruiters.com"
+          ],
+          "page_size": 100,
+          "max_pages": 16,
+          "max_jobs": 1600,
+          "max_response_bytes": 3000000,
+          "selective_detail_enrichment": false
+        },
+        "company_careers_reliability_repairs_v1.yaml": {
+          "name": "Intuitive Surgical",
+          "platform": "smartrecruiters",
+          "slug": "intuitive",
+          "endpoint_variant": "companies_postings_v1",
+          "careers_url": "https://careers.intuitive.com/en/jobs/",
+          "endpoint_url": "https://api.smartrecruiters.com/v1/companies/intuitive/postings",
+          "identity_regex": "^Intuitive(?: Surgical)?$",
+          "allowed_apply_hosts": [
+            "jobs.smartrecruiters.com"
+          ],
+          "page_size": 100,
+          "max_pages": 16,
+          "max_jobs": 1600,
+          "max_response_bytes": 3000000,
+          "selective_detail_enrichment": false
+        }
+      }
+    },
+    {
+      "company": "Kioxia",
+      "target_sha256": "bb73f22069e45b41934686ff405ea110e4579392bead2d0a2b1d292898d70f39",
+      "source_scope_key": "kioxia::default",
+      "board": "https://api.smartrecruiters.com/v1/companies/Kioxia/postings",
+      "jobs": 33,
+      "physical_requests": 1,
+      "stable_id_url_pairs_sha256": "67789b838869c2006982e3f7e05c818f1fd72766b0b0e4cf9626dcbc983fdb81",
+      "checkpoint_evidence_sha256": "05c055d33abe18e4360ef50bc234eaae6ee28a1567ce723f91ad3bf959834e36",
+      "terminal": "authoritative_total",
+      "source_identity_status": "validated",
+      "gates": {
+        "scan_complete": true,
+        "inventory_complete": true,
+        "can_reconcile_absence": true,
+        "authoritative_for_absence": true,
+        "stable_ids_unique": true,
+        "terminal_evidence_valid": true,
+        "hidden_continuation_absent": true,
+        "normalized_jobs_attributable": true,
+        "apply_urls_contract_valid": true,
+        "canonical_urls_unique": true
+      },
+      "rollback": {
+        "target_companies.yaml": {
+          "name": "Kioxia",
+          "platform": "smartrecruiters",
+          "careers_url": "https://americas.kioxia.com/en-us/careers.html",
+          "identity_url": "https://careers.smartrecruiters.com/Kioxia",
+          "source_identity_regex": "Kioxia",
+          "identity_regex": "Kioxia",
+          "allowed_apply_hosts": [
+            "jobs.smartrecruiters.com"
+          ],
+          "original_workbook_rank": null,
+          "max_pages": 1,
+          "max_jobs": 20,
+          "max_response_bytes": 3000000,
+          "slug": "Kioxia",
+          "endpoint_url": "https://api.smartrecruiters.com/v1/companies/Kioxia/postings",
+          "endpoint_variant": "companies_postings_v1",
+          "page_size": 20
+        },
+        "company_careers_reliability_repairs_v1.yaml": null
+      },
+      "proposed": {
+        "target_companies.yaml": {
+          "name": "Kioxia",
+          "platform": "smartrecruiters",
+          "careers_url": "https://americas.kioxia.com/en-us/careers.html",
+          "identity_url": "https://careers.smartrecruiters.com/Kioxia",
+          "source_identity_regex": "Kioxia",
+          "identity_regex": "Kioxia",
+          "allowed_apply_hosts": [
+            "jobs.smartrecruiters.com"
+          ],
+          "original_workbook_rank": null,
+          "max_pages": 4,
+          "max_jobs": 400,
+          "max_response_bytes": 3000000,
+          "slug": "Kioxia",
+          "endpoint_url": "https://api.smartrecruiters.com/v1/companies/Kioxia/postings",
+          "endpoint_variant": "companies_postings_v1",
+          "page_size": 20
+        },
+        "company_careers_reliability_repairs_v1.yaml": null
+      }
+    }
+  ],
+  "files": {
+    "target_companies.yaml": {
+      "old": "cc9df84f22cae75a64793b425b5bb35e6b783191def2e43c8633518414ff43ed",
+      "new": "66dbc2d16a79bd48bddfa634c2e087470bb4e7ed47f03755c7a4e87114ac87d0"
+    },
+    "company_careers_reliability_repairs_v1.yaml": {
+      "old": "8f485334b95efafdd0807be93e6687b9993884c2b2eb2b7a5fd6169f121e1f80",
+      "new": "e7efe3207275fa6ee0950e7eec9dce5e300dcfa92160e3416e8aefc3baf34983"
+    }
+  },
+  "engine_sha256": "e558bb7f8c6c008c9280208defa4d9ca2f671fb537edb6ab804c6b9e1555d63b"
+}

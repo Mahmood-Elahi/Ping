@@ -184,7 +184,7 @@ class AdditionalIncompleteSourceRecoveryTests(unittest.TestCase):
         intuitive = self.targets["Intuitive Surgical"]
         coupang = self.targets["Coupang"]
         self.assertEqual(intuitive.platform, "smartrecruiters")
-        self.assertEqual((intuitive.slug, intuitive.max_pages, intuitive.max_jobs), ("intuitive", 8, 800))
+        self.assertEqual((intuitive.slug, intuitive.max_pages, intuitive.max_jobs), ("intuitive", 16, 1600))
         self.assertIsNotNone(coupang.pagination_url_template)
         self.assertFalse(coupang.single_page_collection)
 
