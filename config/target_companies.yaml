@@ -468,6 +468,10 @@ target_companies:
     search_url: https://jobs.halliburton.com/search/
     endpoint_variant: rmk_table
     max_pages: 2
+    identity_regex: <title>\s*Halliburton\ Jobs\s*</title>
+    allowed_apply_hosts:
+    - jobs.halliburton.com
+    selective_detail_enrichment: true
   - name: John Deere
     platform: sap_successfactors
     careers_url: https://www.deere.com/en/our-company/john-deere-careers/
@@ -904,6 +908,8 @@ target_companies:
     - jobs.teradyne.com
     max_pages: 2
     max_jobs: 20
+    identity_regex: <title>\s*Teradyne\ Jobs\s*</title>
+    selective_detail_enrichment: true
   - name: AMD
     platform: icims
     tenant: amd
@@ -1158,8 +1164,8 @@ target_companies:
     original_workbook_rank: 27
     allowed_apply_hosts:
     - jobs.appliedmaterials.com
-    max_pages: 1
-    max_jobs: 20
+    max_pages: 160
+    max_jobs: 2400
     max_scripts: 20
     max_response_bytes: 4000000
     max_script_bytes: 1000000
@@ -1177,6 +1183,7 @@ target_companies:
     pagination_url_template: https://jobs.appliedmaterials.com/en/search-jobs?p={page}
     next_page_selector: null
     allow_url_id_fallback: false
+    pagination_contract: radancy_counted_pages
   - name: Ripple
     platform: greenhouse
     slug: ripple
@@ -1339,8 +1346,8 @@ target_companies:
     original_workbook_rank: 205
     allowed_apply_hosts:
     - careers.etsy.com
-    max_pages: 1
-    max_jobs: 20
+    max_pages: 12
+    max_jobs: 360
     max_scripts: 20
     max_response_bytes: 3000000
     max_script_bytes: 1000000
@@ -1476,8 +1483,8 @@ target_companies:
     platform: static_html
     careers_url: https://careers.blackrock.com/en/search-jobs
     original_workbook_rank: 88
-    max_pages: 2
-    max_jobs: 20
+    max_pages: 50
+    max_jobs: 1000
     max_response_bytes: 3000000
     evidence_source: bounded anonymous recheck
     evidence_confidence: high
@@ -1498,6 +1505,7 @@ target_companies:
     - careers.blackrock.com
     candidate_family: talentbrew_radancy
     prior_classification: talentbrew_radancy
+    pagination_contract: radancy_counted_pages
   - name: Snap
     platform: javascript_embedded_data
     careers_url: https://careers.snap.com/jobs
@@ -1782,9 +1790,10 @@ target_companies:
     allowed_apply_hosts:
     - careers.chevron.com
     original_workbook_rank: 171
-    max_pages: 2
-    max_jobs: 20
+    max_pages: 50
+    max_jobs: 1000
     max_response_bytes: 3000000
+    pagination_contract: radancy_counted_pages
   - name: Mercado Libre
     platform: eightfold
     careers_url: https://mercadolibre.eightfold.ai/careers
@@ -2619,6 +2628,7 @@ target_companies:
     search_url: https://careers.spartancontrols.com/search/
     endpoint_variant: rmk_table
     identity_regex: <title>\s*Spartan\ Controls\ Ltd\.\ Jobs\s*</title>
+    selective_detail_enrichment: true
   - name: Garmin Canada
     platform: icims
     careers_url: https://www.garmin.com/en-CA/careers/job-listings/
@@ -2964,6 +2974,8 @@ target_companies:
     identity_url: https://jobs.exxonmobil.com/search/
     search_url: https://jobs.exxonmobil.com/search/
     endpoint_variant: rmk_table
+    identity_regex: <title>\s*ExxonMobil\ Jobs\s*</title>
+    selective_detail_enrichment: true
   - name: SLB
     platform: eightfold
     careers_url: https://apply.slb.com/careers
@@ -3836,7 +3848,7 @@ target_companies:
     platform: sap_successfactors
     careers_url: https://jobs.novachem.com
     source_identity_regex: NOVA Chemicals
-    identity_regex: NOVA Chemicals
+    identity_regex: <title>\s*NOVA\ Chemicals\ Corporation\ Jobs\s*</title>
     allowed_apply_hosts:
     - jobs.novachem.com
     original_workbook_rank: null
@@ -3846,6 +3858,7 @@ target_companies:
     identity_url: https://jobs.novachem.com
     search_url: https://jobs.novachem.com/search/
     endpoint_variant: rmk_table
+    selective_detail_enrichment: true
   - name: Trans Mountain
     platform: sap_successfactors
     careers_url: https://careers.transmountain.com/?locale=en_US
@@ -7381,6 +7394,8 @@ target_companies:
     allowed_apply_hosts: [careers.pcl.com]
     max_pages: 1
     max_jobs: 20
+    identity_regex: <title>\s*PCL\ Construction\ Jobs\s*</title>
+    selective_detail_enrichment: true
   - name: SaskPower
     platform: sap_successfactors
     careers_url: https://www.saskpower.com/careers
@@ -7398,6 +7413,8 @@ target_companies:
     allowed_apply_hosts: [careers.fortisbc.com]
     max_pages: 1
     max_jobs: 20
+    identity_regex: <title>\s*FortisBC\ Jobs\s*</title>
+    selective_detail_enrichment: true
   - name: VIA Rail
     platform: sap_successfactors
     careers_url: https://www.viarail.ca/en/careers

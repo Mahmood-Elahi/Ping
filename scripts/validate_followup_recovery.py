@@ -9,6 +9,8 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from scripts import validate_closeout_recovery as closeout
+
 BUNDLE = ROOT / "reports/recovery-five-2026-11-24/certificates.json"
 CERTIFICATE_HASH = "7cc37ab61c8e18352d401f23f315b6798d3fa60d2710680cfbeae63643857677"
 REGISTRY = "config/target_companies.yaml"
@@ -26,6 +28,8 @@ def certificate():
 
 
 def prior_adapter_bytes(name, raw):
+    if name.startswith("src/scraper/company_careers/adapters/"):
+        raw = closeout.predecessor_bytes(name, raw)
     record = certificate()["adapters"].get(name)
     if record is None or digest(raw) == record["old"]:
         return raw
@@ -41,6 +45,7 @@ def prior_adapter_bytes(name, raw):
 
 
 def prior_registry_bytes(raw):
+    raw = closeout.predecessor_bytes(REGISTRY, raw)
     proof = certificate()
     if digest(raw) == proof["registry_old"]:
         return raw
@@ -57,6 +62,7 @@ def prior_registry_bytes(raw):
 
 
 def prior_registry(payload):
+    payload = closeout.prior_registry(payload)
     rows = {r["company"]:r for r in certificate()["certificates"]}
     current = [r for r in payload["target_companies"] if r["name"] in rows]
     for stage in ("raw_after","raw_before"):
@@ -71,14 +77,14 @@ def validate():
     from src.scraper.company_careers.student_roles import configure_student_targets
 
     proof = certificate()
-    raw = (ROOT / REGISTRY).read_bytes()
+    raw = closeout.predecessor_bytes(REGISTRY, (ROOT / REGISTRY).read_bytes())
     if digest(raw) != proof["registry_new"]:
         raise ValueError("Five-source registry is not activated")
     prior_registry_bytes(raw)
     if digest((ROOT / "src/scraper/company_careers/adapters/smartrecruiters_profiles.py").read_bytes()) != proof["profile_sha256"]:
         raise ValueError("Certified SmartRecruiters profile changed")
     for path, hashes in proof["adapters"].items():
-        if digest((ROOT / path).read_bytes()) != hashes["new"]:
+        if digest(closeout.predecessor_bytes(path, (ROOT / path).read_bytes())) != hashes["new"]:
             raise ValueError("Certified adapter changed: " + path)
     targets = {t.name:t for t in configure_student_targets(load_target_companies(apply_reliability_repairs=True))}
     for row in proof["certificates"]:

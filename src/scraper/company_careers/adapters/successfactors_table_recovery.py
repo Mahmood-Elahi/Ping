@@ -133,7 +133,7 @@ def _parse_table_page(
     return _ParsedPage(items, total, page_size, next_request)
 
 
-# Exact language-menu labels retained on these two candidate boards.
+# Exact language-menu labels from the reviewed employer boards.
 _LANGUAGE_MENUS = {'https://careers.celestica.com/search/': {'bs-BS': 'Malay (Malaysia)',
                                            'en-US': 'English (United States)',
                                            'es-ES': 'Español (España)',
@@ -160,8 +160,16 @@ _LANGUAGE_MENUS = {'https://careers.celestica.com/search/': {'bs-BS': 'Malay (Ma
                                  'zh-CN': '简体中文 (中国大陆)'}}
 
 
+@lru_cache(maxsize=1)
+def _reviewed_language_menus():
+    return {**_LANGUAGE_MENUS, **{
+        profile["search_url"]: profile["language_menu"]
+        for profile in profiles().values() if "language_menu" in profile
+    }}
+
+
 def _language_menu(node, url, search_url, offset):
-    labels = _LANGUAGE_MENUS.get(search_url, {})
+    labels = _reviewed_language_menus().get(search_url, {})
     lang = node.attrs.get("lang", "")
     if (lang not in labels or node.children or set(node.attrs) != {"role", "lang", "href"}
             or node.attrs["role"].casefold() != "menuitem" or _node_text(node) != labels[lang]):

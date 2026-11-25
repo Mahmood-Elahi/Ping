@@ -14,6 +14,8 @@ from urllib.parse import parse_qsl, unquote, urlencode, urljoin, urlparse, urlun
 import requests
 from lxml import html
 
+from .counted_html_profiles import counted_profile
+
 from src.scraper.company_careers.models import (
     AdapterError,
     CompanyTarget,
@@ -88,6 +90,9 @@ def _failure(code: str, message: str) -> AdapterError:
 def fetch_jobs(session: requests.Session, target: CompanyTarget, timeout: int = 60) -> list[JobRecord]:
     """Fetch a deterministic HTML listing without browser or session state."""
     validate_target(target)
+    profile = counted_profile(target)
+    if profile:
+        return profile.collect(session, target, min(max(int(timeout), 1), MAX_TIMEOUT_SECONDS))
     reviewed_pagination = _uses_reviewed_pagination(target)
     page_ceiling = REVIEWED_MAX_PAGES if reviewed_pagination else MAX_PAGES
     job_ceiling = REVIEWED_MAX_RESULTS if reviewed_pagination else MAX_RESULTS
@@ -614,6 +619,9 @@ def validate_target(target: CompanyTarget) -> None:
         )
     page_ceiling = REVIEWED_MAX_PAGES if reviewed_pagination else MAX_PAGES
     job_ceiling = REVIEWED_MAX_RESULTS if reviewed_pagination else MAX_RESULTS
+    profile = counted_profile(target)
+    if profile:
+        page_ceiling, job_ceiling = profile.max_pages, profile.max_jobs
     if (
         not 1 <= int(target.max_pages) <= page_ceiling
         or not 1 <= int(target.max_jobs) <= job_ceiling

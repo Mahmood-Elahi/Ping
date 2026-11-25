@@ -218,8 +218,8 @@ def test_request_cost_calculations_are_bounded_and_deterministic(production_targ
     assert workday.endpoint_variants == (("<default>", 91), ("wday_cxs_v1", 17))
 
     static = by_family["static_html"]
-    assert static.listing_page_ceiling_total == 28
-    assert static.listing_page_ceiling_max == 2
+    assert static.listing_page_ceiling_total == 294
+    assert static.listing_page_ceiling_max == 160
     assert static.endpoint_variants == (
         ("server_rendered_cards", 22),
         ("server_rendered_links", 3),

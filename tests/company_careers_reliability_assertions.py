@@ -271,6 +271,16 @@ for _cert in followup_recovery.certificate()["certificates"]:
     APPROVED_SOURCE_MIGRATIONS[_cert["company"].casefold()] = yaml.safe_load(_cert["raw_after"])[0]
 
 
+from scripts import validate_closeout_recovery as closeout_recovery
+
+closeout_recovery.validate()
+for _cert in closeout_recovery.certificate()["sources"]:
+    if "rows" in _cert:
+        APPROVED_SOURCE_MIGRATIONS[_cert["company"].casefold()] = yaml.safe_load(
+            _cert["rows"][closeout_recovery.REGISTRY]["after"]
+        )[0]
+
+
 APPROVED_DISCOVERY_ONLY_PROMOTIONS = {
     "athabasca oil",
     "bombardier",

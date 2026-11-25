@@ -32,6 +32,8 @@ def predecessor_bytes(name, raw):
     filename = Path(name).name
     if filename == 'target_companies.yaml':
         raw = followup.prior_registry_bytes(raw)
+    if name == OVERLAY:
+        raw = followup.closeout.predecessor_bytes(OVERLAY, raw)
     proof = certificate()
     hashes = proof['files'][filename]
     if digest(raw) != hashes['new']:
