@@ -33,6 +33,7 @@ from src.scraper.company_careers.candidate_profile import (
     load_candidate_profile,
 )
 from src.scraper.company_careers.scanner import CompanyCareersScanner
+from src.scraper.company_careers.workday_throttle import WorkdayThrottle
 from src.scraper.company_careers.source_cooldown import reconcile_source_health
 from src.scraper.company_careers.student_roles import (
     build_student_job_filter,
@@ -186,6 +187,7 @@ def build_pipeline(
     result_observer: Any = None,
 ) -> JobSearchPipeline:
     scanner = CompanyCareersScanner(
+        session_factory=WorkdayThrottle().session,
         targets=targets,
         cooldown_states=source_health,
         as_of=as_of,

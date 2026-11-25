@@ -27,6 +27,7 @@ from src.scraper.company_careers.freshness import (
     parse_reference_time,
 )
 from src.scraper.company_careers.scanner import CompanyCareersScanner
+from src.scraper.company_careers.workday_throttle import WorkdayThrottle
 from src.scraper.company_careers.source_cooldown import reconcile_source_health
 from src.scraper.company_careers.student_roles import (
     build_student_job_filter,
@@ -232,6 +233,7 @@ def main(argv: list[str] | None = None) -> int:
         if freshness_config is not None else None
     )
     scanner = CompanyCareersScanner(
+        session_factory=WorkdayThrottle().session,
         targets=targets,
         cooldown_states=source_health,
         as_of=started_at,
