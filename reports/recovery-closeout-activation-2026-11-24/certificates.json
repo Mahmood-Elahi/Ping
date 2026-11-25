@@ -1,0 +1,653 @@
+{
+  "baseline_revision": "02e882ed3f5f81e208324a03f3553674d5b1da21",
+  "baseline_run": "45062843756",
+  "campaigns": [
+    {
+      "campaign": 1,
+      "manifest_sha256": "75015de245918697c5186381910ad269b864adff119d19278d13bda7036df954",
+      "checkpoint_sha256": "3a621a9f98ff1baabc28ec0aa529f04be1df7dc0ea10902d1cc6e25c4e2ef9c0",
+      "results_sha256": "ecf820ad2ffba1f9e21217ac0645bb7db08b4ff77fe04c9c1d82b0c14a954e9a",
+      "engine_sha256": "ce91e5faaab647b161eb65d38af89da166bd59b1759774b012faa90ebf23c573"
+    },
+    {
+      "campaign": 2,
+      "manifest_sha256": "f46d450a36e27daf1df53969938077307791326ff7db5bdb0fb05b91b7e4978e",
+      "checkpoint_sha256": "006d082359a8ff78b42946ba0a0e619b6f9d0a28a8f3c65c023b4f4558bf94c3",
+      "results_sha256": "56bb7a9a115f66e3e920d705acc20a4ba681bf99c541ba1c4be5c94312754080",
+      "engine_sha256": "5f921bc7629704151e06fc2fdb195e3863314de9de0e4ac207fe942c72a520cd"
+    },
+    {
+      "campaign": 3,
+      "manifest_sha256": "d251370dbca548900927bfb5b8383594c281afd734f4822e034548285b8236f7",
+      "checkpoint_sha256": "57d4dddc7934e3b3b537b4c2028b02164a99d3d40176ca93d228cfd07c97bfc4",
+      "results_sha256": "afbe028567473aa3099dcecc3fedcc1fc147d92bbc4ce84dff1c7f655b8b0d49",
+      "engine_sha256": "aa520fd831f7c27370d15e9ee32499ce30fadc395c10a109bb044a2cadee2b83"
+    }
+  ],
+  "sources": [
+    {
+      "campaign": 1,
+      "company": "ENMAX",
+      "platform": "workday",
+      "scope": "enmax::default",
+      "host": "enmax.wd3.myworkdayjobs.com",
+      "jobs": 5,
+      "requests": 1,
+      "terminal": "authoritative_total",
+      "target_sha256": "77e7e43254dd50333217c526ed22bc9e73135be5612b28fa402ae9f43264511c",
+      "checkpoint_evidence_sha256": "28df13abc6a8c05e2053a3136b3c518326cb4838ba59e7d25049b47f67915c99",
+      "inventory_sha256": "f5fd0d27571a2ce1d8c5a68ead365982b2a2aa14535b17a16bc457f19b093cbe",
+      "receipts_sha256": "cb993e1571ff2461e47d14554ebd32e44bd59ae6ec0ab6aecf443d38d381dba2",
+      "baseline": "FAILED",
+      "release": "configured"
+    },
+    {
+      "campaign": 1,
+      "company": "Solera Holdings",
+      "platform": "workday",
+      "scope": "solera holdings::default",
+      "host": "solera.wd5.myworkdayjobs.com",
+      "jobs": 3,
+      "requests": 1,
+      "terminal": "authoritative_total",
+      "target_sha256": "ccdbdcb2ab0e8793f1115226cea9b0c3cc0be016c9e68d8cd8fb7bf7bd43f0e5",
+      "checkpoint_evidence_sha256": "4d7062365f9982cc5ab29aab9fb0898d973c5b5e056dc5e0b7667673326a203d",
+      "inventory_sha256": "3e98ef8acee8bde2f757f55342f08fee6713830ec4bc8ae19d125262e03edb58",
+      "receipts_sha256": "f687e80921473a28743d22229c41f03178f4f95b8791a7db36c061f6588f565e",
+      "baseline": "FAILED",
+      "release": "configured"
+    },
+    {
+      "campaign": 1,
+      "company": "Arctic Wolf",
+      "platform": "workday",
+      "scope": "arctic wolf::default",
+      "host": "arcticwolf.wd1.myworkdayjobs.com",
+      "jobs": 95,
+      "requests": 5,
+      "terminal": "authoritative_total",
+      "target_sha256": "ae56fecf75a75dacc1f63ed3e7a7b6cc4283f0968cd99312c03a265d3286ecbc",
+      "checkpoint_evidence_sha256": "2a034ab832e22bbc8ced9d08ef6677b76b171269ffcd7db864c6a66f30f193a6",
+      "inventory_sha256": "346a04ac48ec3b5837747c87af6c6da6eb67fe0045d1674b2450e1c397581f0f",
+      "receipts_sha256": "4fb14f2ce2ce318edcb04ec422a09a4e686637e0e8a0dece19e7b2589e4898db",
+      "baseline": "FAILED",
+      "release": "configured"
+    },
+    {
+      "campaign": 1,
+      "company": "Ovintiv",
+      "platform": "workday",
+      "scope": "ovintiv::default",
+      "host": "ovintiv.wd3.myworkdayjobs.com",
+      "jobs": 2,
+      "requests": 1,
+      "terminal": "authoritative_total",
+      "target_sha256": "17ef91ee6c5e32dc08f9d0c70cbf220804b366d61bc1ca36314cdd68d676785e",
+      "checkpoint_evidence_sha256": "b23555ffe32727ecd93ac29de4767b913716c27563872cd84488e5ca7e6438f6",
+      "inventory_sha256": "ec8d95eb0c2e76127123f662fb6560a1eb966845e4f5bf39077dcdd2ede35c56",
+      "receipts_sha256": "b96f0d4665a847edc44233927baaae1311bc4ac83b8aa9c2b7d51ccb09224300",
+      "baseline": "FAILED",
+      "release": "configured"
+    },
+    {
+      "campaign": 1,
+      "company": "Suncor Energy",
+      "platform": "workday",
+      "scope": "suncor energy::default",
+      "host": "suncor.wd1.myworkdayjobs.com",
+      "jobs": 21,
+      "requests": 2,
+      "terminal": "authoritative_total",
+      "target_sha256": "b897b819fec6059f553e92387827044c2227f7c43c6129a05bb027aa95058e29",
+      "checkpoint_evidence_sha256": "0660d6542fd903ed7ff5801b74c8394a615a5f83b4a321d35fe52c3acd6fbf82",
+      "inventory_sha256": "c4bc7c194bdfe98f12b29b2d9b1a96f933493f716c1731bdc345f237e392ea7b",
+      "receipts_sha256": "371af005e4d0c73bc91749ea76356cd496a0ffb32748d49b439a5356bf476631",
+      "baseline": "FAILED",
+      "release": "configured"
+    },
+    {
+      "campaign": 1,
+      "company": "Symbotic",
+      "platform": "workday",
+      "scope": "symbotic::default",
+      "host": "symbotic.wd504.myworkdayjobs.com",
+      "jobs": 136,
+      "requests": 7,
+      "terminal": "authoritative_total",
+      "target_sha256": "17c053a95781a235b2f8cabadd1a37850a3082f0c7c2ac6a2f6207a17d3dd18f",
+      "checkpoint_evidence_sha256": "db2ce6318b2e5c3ea80599026622f8e7dd5c314a1116ed158ab9ad261f1f0373",
+      "inventory_sha256": "24f085270d7a4d5f8ecb779eea9ae6f436bad4abf3e968ff2694a219ce0f9a08",
+      "receipts_sha256": "43b256d40ec23a6d9ac5765d097a43f5866d53536c98f8c83106d219e33998ba",
+      "baseline": "FAILED",
+      "release": "configured"
+    },
+    {
+      "campaign": 1,
+      "company": "ServiceNow",
+      "platform": "smartrecruiters",
+      "scope": "servicenow::default",
+      "host": "api.smartrecruiters.com",
+      "jobs": 1005,
+      "requests": 11,
+      "terminal": "authoritative_total",
+      "target_sha256": "bb17f022c12fda2a0d139e061922712e90118a44a6bd0f00c7bbde9fddce0bbc",
+      "checkpoint_evidence_sha256": "25723add70209dbf910970fa581e75e2c7758253d0ef38c27c461139136b76ac",
+      "inventory_sha256": "2fe023a918f17132616bdf19a52f7eefb538acab37bdf6806d4618efef977aab",
+      "receipts_sha256": "41f4fd56cdd98a2ca072d4e6b9aab26507e92fc0a6878c3b0da9b08ef9449b14",
+      "baseline": "INCOMPLETE",
+      "release": "activation"
+    },
+    {
+      "campaign": 1,
+      "company": "Intuitive Surgical",
+      "platform": "smartrecruiters",
+      "scope": "intuitive surgical::default",
+      "host": "api.smartrecruiters.com",
+      "jobs": 858,
+      "requests": 9,
+      "terminal": "authoritative_total",
+      "target_sha256": "c004032d900ed3e5e73a021f9f97a592db9709c950421b910c65e3c4c3c751da",
+      "checkpoint_evidence_sha256": "c6afad184caed93c1513e144d67822d743a6cdcb74b060323df4cfc8dd073b6f",
+      "inventory_sha256": "455b248426b7fbb575833bfd45a1dee2a5fc2baf230eff1584b2cd6bb04b8640",
+      "receipts_sha256": "39122d3904ba80d488fe25e77b80127e319f0d5c682c4ee0c381da2482977451",
+      "baseline": "INCOMPLETE",
+      "release": "activation"
+    },
+    {
+      "campaign": 1,
+      "company": "Kioxia",
+      "platform": "smartrecruiters",
+      "scope": "kioxia::default",
+      "host": "api.smartrecruiters.com",
+      "jobs": 33,
+      "requests": 1,
+      "terminal": "authoritative_total",
+      "target_sha256": "bb73f22069e45b41934686ff405ea110e4579392bead2d0a2b1d292898d70f39",
+      "checkpoint_evidence_sha256": "05c055d33abe18e4360ef50bc234eaae6ee28a1567ce723f91ad3bf959834e36",
+      "inventory_sha256": "34476fa9c1d7045ec6f43e58546466fc27590e00985dd638a9d57f3a5783301c",
+      "receipts_sha256": "94a3e1f9a7790e4a55a43a98b697f42c782c6f53ac6416fcdb17a1bf5c723109",
+      "baseline": "INCOMPLETE",
+      "release": "activation"
+    },
+    {
+      "campaign": 1,
+      "company": "Optiver",
+      "platform": "public_json",
+      "scope": "optiver::default",
+      "host": "www.optiver.com",
+      "jobs": 147,
+      "requests": 11,
+      "terminal": "authoritative_total",
+      "target_sha256": "927892f467e0adfbe4c2ff8a7564e373ec1ebeedcf89af837d55225623ec0b6a",
+      "checkpoint_evidence_sha256": "14f45d11bfdebf57849d318b56ec408ee3821717bf51b53cd01a2eaa3db6219c",
+      "inventory_sha256": "bf24c2488db3ab56678a2ac52831c589d611939410552d6a36cf8a6650720729",
+      "receipts_sha256": "5f6c5cdd596e1b31b9a07c50a54f03d7d1605f2934a8f093c1278636dd440d73",
+      "baseline": "FAILED",
+      "release": "configured"
+    },
+    {
+      "campaign": 2,
+      "company": "Bosch",
+      "platform": "smartrecruiters",
+      "scope": "bosch::default",
+      "host": "api.smartrecruiters.com",
+      "jobs": 5178,
+      "requests": 52,
+      "terminal": "authoritative_total",
+      "target_sha256": "2429db1f9c4bd3792767dbd656aff2952feade2344f7ea451d552bd169603693",
+      "checkpoint_evidence_sha256": "09eec9b83305519721f4c163f224fdb72827e17204ae91eeabe2cd4f74b25a94",
+      "inventory_sha256": "705e36e37d75febde01141b233f332b9f34e9334855548b246ff83e0fb5d3a0b",
+      "receipts_sha256": "023a316a730cc2d80459287ba656ebc2ca8b547ae732004011a728a0dfcdd569",
+      "baseline": "INCOMPLETE",
+      "release": "activation"
+    },
+    {
+      "campaign": 2,
+      "company": "OpenAI",
+      "platform": "ashby",
+      "scope": "openai::default",
+      "host": "api.ashbyhq.com",
+      "jobs": 870,
+      "requests": 1,
+      "terminal": "complete_collection_response",
+      "target_sha256": "17faed149dce6460a2c6d37d6fdafb418c0b8b1af97b9bcf1f83c149c2c8f9aa",
+      "checkpoint_evidence_sha256": "384f32b358a6966615c0aa0e076190bb6afda73cc5268f79f37d627d2baa1107",
+      "inventory_sha256": "139b5944a82dff42793cb1e56fe6962170f0b782eed538476011218c6cc9e783",
+      "receipts_sha256": "a70886d0f68124b7086a63f716f27fd4ffe63af7eccaf0834b37eb41d42e67af",
+      "baseline": "FAILED",
+      "release": "activation"
+    },
+    {
+      "campaign": 2,
+      "company": "AIMCo",
+      "platform": "workday",
+      "scope": "aimco::default",
+      "host": "aimco.wd10.myworkdayjobs.com",
+      "jobs": 7,
+      "requests": 1,
+      "terminal": "authoritative_total",
+      "target_sha256": "b4c14a6e85bf426245910cae5034cc6a216ff8f205b6fd07a47208aa42d93b01",
+      "checkpoint_evidence_sha256": "ea331daad3c8e6e281cfea2ab045d93fa60687f1dfe7b5b404db019d12210548",
+      "inventory_sha256": "0fd7bc6525222211e53c6f158b6ae39a5d8f7813c0eb2fd7e43028b6de0debbc",
+      "receipts_sha256": "1b77a11ba94adf77c2a0614acf899e62cbcfb1f045635c2a2f826584ac2928cf",
+      "baseline": "INCOMPLETE",
+      "release": "activation"
+    },
+    {
+      "campaign": 2,
+      "company": "Cenovus Energy",
+      "platform": "workday",
+      "scope": "cenovus energy::default",
+      "host": "cenovus.wd3.myworkdayjobs.com",
+      "jobs": 23,
+      "requests": 2,
+      "terminal": "authoritative_total",
+      "target_sha256": "4d5877e87f8dd5f83b3b3056f793bf7e8bb00388e64b4fcb19973252af556bfd",
+      "checkpoint_evidence_sha256": "ff2c66993bc6be78ee8c7c78860ef75a70332255c3a19be613d12752f172e02c",
+      "inventory_sha256": "dc564a338a5afeddc7f52e52559a3dd4e26cfbea7f61161783ca824f549260d3",
+      "receipts_sha256": "42b8f3287ecf7a1cc1f3850cafa3073e8f29f92d2d5c3b747f4e36e3e1e35dc4",
+      "baseline": "FAILED",
+      "release": "configured"
+    },
+    {
+      "campaign": 2,
+      "company": "Bruce Power",
+      "platform": "workday",
+      "scope": "bruce power::default",
+      "host": "brucepower.wd3.myworkdayjobs.com",
+      "jobs": 20,
+      "requests": 1,
+      "terminal": "authoritative_total",
+      "target_sha256": "412d2a9c3561cc0533ff497b73f1cf652029e0001497d6df9332f3055c5856ea",
+      "checkpoint_evidence_sha256": "7bf246dfe387c13038a1774d80385e533c0b1712b18dbd9e533b9030647145a9",
+      "inventory_sha256": "2cd3576497ab601aa422cedd4768f0b44d1f536da0ee48f9686b76549a5e9e48",
+      "receipts_sha256": "116972cb1eebe9e7fd2fa9072975dd6930d2a9ed1fcbccde926bb98cbe647c02",
+      "baseline": "FAILED",
+      "release": "configured"
+    },
+    {
+      "campaign": 2,
+      "company": "Enbridge",
+      "platform": "workday",
+      "scope": "enbridge::default",
+      "host": "enbridge.wd3.myworkdayjobs.com",
+      "jobs": 63,
+      "requests": 4,
+      "terminal": "authoritative_total",
+      "target_sha256": "6a4c5d2aa78046c1a8acf037dbf5fc3481d4b025c24b32905bd37cf64d63bc51",
+      "checkpoint_evidence_sha256": "781d5fff234ff555fe46f7bbcddbae6b3e7826ea9ddf385ca1a8873a41f336a4",
+      "inventory_sha256": "6d1a475c3327390b0c5ed21d31a9dc0d8d9155ed5c8145222dbbca6ceff73e4b",
+      "receipts_sha256": "92d9b8814bed9c4e882273c7a74e126df68c062c0e1697a73e078774d621df03",
+      "baseline": "FAILED",
+      "release": "configured"
+    },
+    {
+      "campaign": 2,
+      "company": "ZF Friedrichshafen",
+      "platform": "sap_successfactors",
+      "scope": "zf friedrichshafen::default",
+      "host": "jobs.zf.com",
+      "jobs": 776,
+      "requests": 32,
+      "terminal": "authoritative_total",
+      "target_sha256": "c81f12de702a3c22ebcdd53dabd6513071478a6a6229c3da9cb5b4f522bbdbdb",
+      "checkpoint_evidence_sha256": "a93920aae796cdd4b324d64484f96114eb0642fead5385a68814d0254e5d62a8",
+      "inventory_sha256": "5900a745a81d0c1863eb5121dc03a488e97c9a54742cb08752a2be361dd2bd1b",
+      "receipts_sha256": "b35b738709ee8157be842dd3f7a8c167c4cae15adb5f7c5463b7b3979a725af3",
+      "baseline": "FAILED",
+      "release": "activation"
+    },
+    {
+      "campaign": 2,
+      "company": "Celestica",
+      "platform": "sap_successfactors",
+      "scope": "celestica::default",
+      "host": "careers.celestica.com",
+      "jobs": 1076,
+      "requests": 44,
+      "terminal": "authoritative_total",
+      "target_sha256": "7fc3df25105fccdddb7c673a7b8f78acf062742ec44e8dfaa9881eecfc5c01f2",
+      "checkpoint_evidence_sha256": "201682cb5210b920dfba9656021b8659512250b63344eea3ad9a6f34d5f3a7a2",
+      "inventory_sha256": "d976b24f04abe366d58c0d22d3e491f97a23e03ff4993f878967efc410adf57b",
+      "receipts_sha256": "f969961984a499f4c405594263c1fedeec1e87ad7c0b77df6a41b74b75226ee6",
+      "baseline": "FAILED",
+      "release": "activation"
+    },
+    {
+      "campaign": 3,
+      "company": "ExxonMobil",
+      "platform": "sap_successfactors",
+      "scope": "exxonmobil::default",
+      "host": "jobs.exxonmobil.com",
+      "jobs": 498,
+      "requests": 20,
+      "terminal": "authoritative_total",
+      "target_sha256": "e0853528a381bde3cd61638bf14137fead3316c2a8fcf65a7a673d2d042b1785",
+      "checkpoint_evidence_sha256": "9c73b6e2e438178c7b37d5d01e216674b43216d503cec56e76cf2e43b1b2de8f",
+      "inventory_sha256": "21cd26f71c1d609bd8b08d2ff9fc2b839224fe146ef9db1aa8f856afd61892ac",
+      "receipts_sha256": "7d0a68acdc2bc050b33699f25d129e0fe8c568eb279d7b7b13200b8b0a098dbf",
+      "baseline": "FAILED",
+      "release": "activation",
+      "rows": {
+        "config/target_companies.yaml": {
+          "before": "  - name: ExxonMobil\n    platform: sap_successfactors\n    careers_url: https://corporate.exxonmobil.com/careers\n    source_identity_regex: Careers at ExxonMobil|ExxonMobil\n    allowed_apply_hosts:\n    - jobs.exxonmobil.com\n    original_workbook_rank: null\n    max_pages: 1\n    max_jobs: 20\n    max_response_bytes: 3000000\n    identity_url: https://jobs.exxonmobil.com/search/\n    search_url: https://jobs.exxonmobil.com/search/\n    endpoint_variant: rmk_table",
+          "after": "  - name: ExxonMobil\n    platform: sap_successfactors\n    careers_url: https://corporate.exxonmobil.com/careers\n    source_identity_regex: Careers at ExxonMobil|ExxonMobil\n    allowed_apply_hosts:\n    - jobs.exxonmobil.com\n    original_workbook_rank: null\n    max_pages: 1\n    max_jobs: 20\n    max_response_bytes: 3000000\n    identity_url: https://jobs.exxonmobil.com/search/\n    search_url: https://jobs.exxonmobil.com/search/\n    endpoint_variant: rmk_table\n    identity_regex: <title>\\s*ExxonMobil\\ Jobs\\s*</title>\n    selective_detail_enrichment: true"
+        }
+      }
+    },
+    {
+      "campaign": 3,
+      "company": "FortisBC",
+      "platform": "sap_successfactors",
+      "scope": "fortisbc::default",
+      "host": "careers.fortisbc.com",
+      "jobs": 83,
+      "requests": 4,
+      "terminal": "authoritative_total",
+      "target_sha256": "c07bcc47bbaf1d3460fc1cfb5bd897bcf55203df08271344d62f4b79189f0e2a",
+      "checkpoint_evidence_sha256": "3e385f309d2389fc665ad287c20279863013ca9bf7312b6e79c0d089c962f9fa",
+      "inventory_sha256": "faa17357a5333dd788159686dd26f39a823350ecd08da31c963f0b6495201325",
+      "receipts_sha256": "8db8c4fc4f83e022e8fc8be825d99a679489e442ebae055f0ddd3f8aa2501055",
+      "baseline": "FAILED",
+      "release": "activation",
+      "rows": {
+        "config/target_companies.yaml": {
+          "before": "  - name: FortisBC\n    platform: sap_successfactors\n    careers_url: https://www.fortisbc.com/about-us/careers\n    search_url: https://careers.fortisbc.com/search/\n    endpoint_variant: rmk_table\n    allowed_apply_hosts: [careers.fortisbc.com]\n    max_pages: 1\n    max_jobs: 20",
+          "after": "  - name: FortisBC\n    platform: sap_successfactors\n    careers_url: https://www.fortisbc.com/about-us/careers\n    search_url: https://careers.fortisbc.com/search/\n    endpoint_variant: rmk_table\n    allowed_apply_hosts: [careers.fortisbc.com]\n    max_pages: 1\n    max_jobs: 20\n    identity_regex: <title>\\s*FortisBC\\ Jobs\\s*</title>\n    selective_detail_enrichment: true"
+        }
+      }
+    },
+    {
+      "campaign": 3,
+      "company": "Halliburton",
+      "platform": "sap_successfactors",
+      "scope": "halliburton::default",
+      "host": "jobs.halliburton.com",
+      "jobs": 578,
+      "requests": 24,
+      "terminal": "authoritative_total",
+      "target_sha256": "3d457d8649cb112f5ad37bd9db7bede4e5d8859cd2026d71de4f4e137202c467",
+      "checkpoint_evidence_sha256": "66249e4e5aa82fab5fc285690f67a70fd2342f54d6e76485581dfdbbecf945c3",
+      "inventory_sha256": "ae632d2d9b7bf860bf67151f6b901c57922ed5641e1da389b0af5d0372b8d160",
+      "receipts_sha256": "7b7c827b70ee6266ab2f28aae3a7a1a01caf5ac507afe504938b5952824a163f",
+      "baseline": "FAILED",
+      "release": "activation",
+      "rows": {
+        "config/target_companies.yaml": {
+          "before": "  - name: Halliburton\n    platform: sap_successfactors\n    careers_url: https://jobs.halliburton.com/\n    search_url: https://jobs.halliburton.com/search/\n    endpoint_variant: rmk_table\n    max_pages: 2",
+          "after": "  - name: Halliburton\n    platform: sap_successfactors\n    careers_url: https://jobs.halliburton.com/\n    search_url: https://jobs.halliburton.com/search/\n    endpoint_variant: rmk_table\n    max_pages: 2\n    identity_regex: <title>\\s*Halliburton\\ Jobs\\s*</title>\n    allowed_apply_hosts:\n    - jobs.halliburton.com\n    selective_detail_enrichment: true"
+        }
+      }
+    },
+    {
+      "campaign": 3,
+      "company": "NOVA Chemicals",
+      "platform": "sap_successfactors",
+      "scope": "nova chemicals::default",
+      "host": "jobs.novachem.com",
+      "jobs": 8,
+      "requests": 1,
+      "terminal": "authoritative_total",
+      "target_sha256": "78f9f30420332700c38d45eedf9d592a4e7633d3cd3bfc9345bd0e72b04e665f",
+      "checkpoint_evidence_sha256": "3d4a2e2094e68c15dea12af504993fdc0a484f38bb0972e2f110e2c0da7cf775",
+      "inventory_sha256": "7b6a38e285d10f526001cd216d163bc141a503205859a571f4c59ff81105693a",
+      "receipts_sha256": "d09ab2a42d34a788d5874bcffa246d17e830469d9b113aa00e6f8d0eb4085e74",
+      "baseline": "FAILED",
+      "release": "activation",
+      "rows": {
+        "config/target_companies.yaml": {
+          "before": "  - name: NOVA Chemicals\n    platform: sap_successfactors\n    careers_url: https://jobs.novachem.com\n    source_identity_regex: NOVA Chemicals\n    identity_regex: NOVA Chemicals\n    allowed_apply_hosts:\n    - jobs.novachem.com\n    original_workbook_rank: null\n    max_pages: 1\n    max_jobs: 20\n    max_response_bytes: 3000000\n    identity_url: https://jobs.novachem.com\n    search_url: https://jobs.novachem.com/search/\n    endpoint_variant: rmk_table",
+          "after": "  - name: NOVA Chemicals\n    platform: sap_successfactors\n    careers_url: https://jobs.novachem.com\n    source_identity_regex: NOVA Chemicals\n    identity_regex: <title>\\s*NOVA\\ Chemicals\\ Corporation\\ Jobs\\s*</title>\n    allowed_apply_hosts:\n    - jobs.novachem.com\n    original_workbook_rank: null\n    max_pages: 1\n    max_jobs: 20\n    max_response_bytes: 3000000\n    identity_url: https://jobs.novachem.com\n    search_url: https://jobs.novachem.com/search/\n    endpoint_variant: rmk_table\n    selective_detail_enrichment: true"
+        }
+      }
+    },
+    {
+      "campaign": 3,
+      "company": "PCL Construction",
+      "platform": "sap_successfactors",
+      "scope": "pcl construction::default",
+      "host": "careers.pcl.com",
+      "jobs": 421,
+      "requests": 43,
+      "terminal": "authoritative_total",
+      "target_sha256": "aea34af269746f6aa3d6aba1f6f68e67c988dc29d3f8ff8305772c5a7d0cfa20",
+      "checkpoint_evidence_sha256": "d66ae641ac5fc475e9fde978123d747ba4c7874e46fbb7664e06c13474aff124",
+      "inventory_sha256": "dde4bb44abb6e4841686e044fb892e34b2220d35bf7f93000aea41ed36ee6b0a",
+      "receipts_sha256": "f57a0fbe3e2a8cffc6573f0c4e25acf5e759ed45d39528cf0f94a2d9ba6e5dbe",
+      "baseline": "FAILED",
+      "release": "activation",
+      "rows": {
+        "config/target_companies.yaml": {
+          "before": "  - name: PCL Construction\n    platform: sap_successfactors\n    careers_url: https://www.pcl.com/ca/en/careers\n    search_url: https://careers.pcl.com/search/\n    endpoint_variant: rmk_table\n    allowed_apply_hosts: [careers.pcl.com]\n    max_pages: 1\n    max_jobs: 20",
+          "after": "  - name: PCL Construction\n    platform: sap_successfactors\n    careers_url: https://www.pcl.com/ca/en/careers\n    search_url: https://careers.pcl.com/search/\n    endpoint_variant: rmk_table\n    allowed_apply_hosts: [careers.pcl.com]\n    max_pages: 1\n    max_jobs: 20\n    identity_regex: <title>\\s*PCL\\ Construction\\ Jobs\\s*</title>\n    selective_detail_enrichment: true"
+        }
+      }
+    },
+    {
+      "campaign": 3,
+      "company": "Spartan Controls",
+      "platform": "sap_successfactors",
+      "scope": "spartan controls::default",
+      "host": "careers.spartancontrols.com",
+      "jobs": 22,
+      "requests": 2,
+      "terminal": "authoritative_total",
+      "target_sha256": "d57f70f5e704ff611b848205eae0b025bcbab14ce42bce02d229bbc1bca279f9",
+      "checkpoint_evidence_sha256": "93841d6a7f595f65508db51fde1d95eabf00d471a93bb37f30254f8b6e9f24ec",
+      "inventory_sha256": "7d67adea1525a7b3b1de5697ff1955161c23be4f0b9f1f7d1d676b174c39c87f",
+      "receipts_sha256": "0c7053e2c36a491b5a01fde9809f823fdd1c3dc44e1e4e7c1a6508c4541eff60",
+      "baseline": "FAILED",
+      "release": "activation",
+      "rows": {
+        "config/target_companies.yaml": {
+          "before": "  - name: Spartan Controls\n    platform: sap_successfactors\n    careers_url: https://www.spartancontrols.com/careers/\n    source_identity_regex: Spartan Controls\n    allowed_apply_hosts:\n    - careers.spartancontrols.com\n    original_workbook_rank: null\n    max_pages: 1\n    max_jobs: 20\n    max_response_bytes: 3000000\n    identity_url: https://careers.spartancontrols.com/search/\n    search_url: https://careers.spartancontrols.com/search/\n    endpoint_variant: rmk_table\n    identity_regex: <title>\\s*Spartan\\ Controls\\ Ltd\\.\\ Jobs\\s*</title>",
+          "after": "  - name: Spartan Controls\n    platform: sap_successfactors\n    careers_url: https://www.spartancontrols.com/careers/\n    source_identity_regex: Spartan Controls\n    allowed_apply_hosts:\n    - careers.spartancontrols.com\n    original_workbook_rank: null\n    max_pages: 1\n    max_jobs: 20\n    max_response_bytes: 3000000\n    identity_url: https://careers.spartancontrols.com/search/\n    search_url: https://careers.spartancontrols.com/search/\n    endpoint_variant: rmk_table\n    identity_regex: <title>\\s*Spartan\\ Controls\\ Ltd\\.\\ Jobs\\s*</title>\n    selective_detail_enrichment: true"
+        }
+      }
+    },
+    {
+      "campaign": 3,
+      "company": "Teradyne",
+      "platform": "sap_successfactors",
+      "scope": "teradyne::default",
+      "host": "jobs.teradyne.com",
+      "jobs": 571,
+      "requests": 23,
+      "terminal": "authoritative_total",
+      "target_sha256": "35bddbe33465d2affe0df980f183491d7f9a14ea8a9d90176ea62c97605659de",
+      "checkpoint_evidence_sha256": "4895521a30c0ec8c6876a105f8e8781f592dc1e1e8d50e6d2662a46884f7d88b",
+      "inventory_sha256": "923949a1f39748720be41d12b8eafa7d1ffc6c80e4252cb062e7f970b5db23f4",
+      "receipts_sha256": "82bf2a77ebca6a0cd1cdd8f91cbc922f784bb639234309f3514bb1f1f4d78659",
+      "baseline": "FAILED",
+      "release": "activation",
+      "rows": {
+        "config/target_companies.yaml": {
+          "before": "  - name: Teradyne\n    platform: sap_successfactors\n    careers_url: https://www.teradyne.com/careers/\n    search_url: https://jobs.teradyne.com/search/\n    endpoint_variant: rmk_table\n    allowed_apply_hosts:\n    - jobs.teradyne.com\n    max_pages: 2\n    max_jobs: 20",
+          "after": "  - name: Teradyne\n    platform: sap_successfactors\n    careers_url: https://www.teradyne.com/careers/\n    search_url: https://jobs.teradyne.com/search/\n    endpoint_variant: rmk_table\n    allowed_apply_hosts:\n    - jobs.teradyne.com\n    max_pages: 2\n    max_jobs: 20\n    identity_regex: <title>\\s*Teradyne\\ Jobs\\s*</title>\n    selective_detail_enrichment: true"
+        }
+      }
+    },
+    {
+      "campaign": 3,
+      "company": "Applied Materials",
+      "platform": "static_html",
+      "scope": "applied materials::default",
+      "host": "jobs.appliedmaterials.com",
+      "jobs": 2238,
+      "requests": 151,
+      "terminal": "authoritative_total",
+      "target_sha256": "6fe0790890aa73a749ba6fa960d96c728a206576b22b9191a8cc3ec28ff32b2d",
+      "checkpoint_evidence_sha256": "6264a646761b16b1c85a6ca0f34ef5a103f723dc9fed6749a461234c7efb61d1",
+      "inventory_sha256": "a1ec6fed278c5b705bccdc282f37b76bef65ae3a3ceb9f3a980a873051490484",
+      "receipts_sha256": "e7a19ba3b060f6023c9d961dabe6dc6d24b98cd7aeaf37455ec260bc5007c859",
+      "baseline": "INCOMPLETE",
+      "release": "activation",
+      "rows": {
+        "config/target_companies.yaml": {
+          "before": "  - name: Applied Materials\n    platform: static_html\n    careers_url: https://jobs.appliedmaterials.com/en/search-jobs\n    listing_url: https://jobs.appliedmaterials.com/en/search-jobs\n    endpoint_variant: server_rendered_cards\n    original_workbook_rank: 27\n    allowed_apply_hosts:\n    - jobs.appliedmaterials.com\n    max_pages: 1\n    max_jobs: 20\n    max_scripts: 20\n    max_response_bytes: 4000000\n    max_script_bytes: 1000000\n    evidence_source: config/company_remaining_inventory_v2.csv\n    evidence_confidence: medium\n    evidence_timestamp: '2026-08-05T01:24:24+00:00'\n    listing_selector: li.search-results-list__item\n    job_card_selector: li.search-results-list__item\n    title_selector: h2.search-results-list__job-title a\n    detail_link_selector: h2.search-results-list__job-title a\n    external_id_regex: /(\\d+)(?:[?#].*)?$\n    external_id_attribute: null\n    location_selector: .search-results-list__location\n    department_selector: null\n    pagination_url_template: https://jobs.appliedmaterials.com/en/search-jobs?p={page}\n    next_page_selector: null\n    allow_url_id_fallback: false",
+          "after": "  - name: Applied Materials\n    platform: static_html\n    careers_url: https://jobs.appliedmaterials.com/en/search-jobs\n    listing_url: https://jobs.appliedmaterials.com/en/search-jobs\n    endpoint_variant: server_rendered_cards\n    original_workbook_rank: 27\n    allowed_apply_hosts:\n    - jobs.appliedmaterials.com\n    max_pages: 160\n    max_jobs: 2400\n    max_scripts: 20\n    max_response_bytes: 4000000\n    max_script_bytes: 1000000\n    evidence_source: config/company_remaining_inventory_v2.csv\n    evidence_confidence: medium\n    evidence_timestamp: '2026-08-05T01:24:24+00:00'\n    listing_selector: li.search-results-list__item\n    job_card_selector: li.search-results-list__item\n    title_selector: h2.search-results-list__job-title a\n    detail_link_selector: h2.search-results-list__job-title a\n    external_id_regex: /(\\d+)(?:[?#].*)?$\n    external_id_attribute: null\n    location_selector: .search-results-list__location\n    department_selector: null\n    pagination_url_template: https://jobs.appliedmaterials.com/en/search-jobs?p={page}\n    next_page_selector: null\n    allow_url_id_fallback: false\n    pagination_contract: radancy_counted_pages"
+        },
+        "config/company_careers_reliability_repairs_v1.yaml": {
+          "before": "  - name: Applied Materials\n    platform: static_html\n    careers_url: https://jobs.appliedmaterials.com/en/search-jobs\n    listing_url: https://jobs.appliedmaterials.com/en/search-jobs\n    endpoint_variant: server_rendered_cards\n    original_workbook_rank: 27\n    allowed_apply_hosts:\n      - jobs.appliedmaterials.com\n    max_pages: 1\n    max_jobs: 20\n    max_scripts: 20\n    max_response_bytes: 4000000\n    max_script_bytes: 1000000\n    evidence_source: config/company_remaining_inventory_v2.csv\n    evidence_confidence: medium\n    evidence_timestamp: '2026-08-05T01:24:24+00:00'\n    listing_selector: li.search-results-list__item\n    job_card_selector: li.search-results-list__item\n    title_selector: h2.search-results-list__job-title a\n    detail_link_selector: h2.search-results-list__job-title a\n    external_id_regex: /(\\d+)(?:[?#].*)?$\n    external_id_attribute: null\n    location_selector: .search-results-list__location\n    department_selector: null\n    pagination_url_template: https://jobs.appliedmaterials.com/en/search-jobs?p={page}\n    next_page_selector: null\n    allow_url_id_fallback: false",
+          "after": "  - name: Applied Materials\n    platform: static_html\n    careers_url: https://jobs.appliedmaterials.com/en/search-jobs\n    listing_url: https://jobs.appliedmaterials.com/en/search-jobs\n    endpoint_variant: server_rendered_cards\n    original_workbook_rank: 27\n    allowed_apply_hosts:\n      - jobs.appliedmaterials.com\n    max_pages: 160\n    max_jobs: 2400\n    max_scripts: 20\n    max_response_bytes: 4000000\n    max_script_bytes: 1000000\n    evidence_source: config/company_remaining_inventory_v2.csv\n    evidence_confidence: medium\n    evidence_timestamp: '2026-08-05T01:24:24+00:00'\n    listing_selector: li.search-results-list__item\n    job_card_selector: li.search-results-list__item\n    title_selector: h2.search-results-list__job-title a\n    detail_link_selector: h2.search-results-list__job-title a\n    external_id_regex: /(\\d+)(?:[?#].*)?$\n    external_id_attribute: null\n    location_selector: .search-results-list__location\n    department_selector: null\n    pagination_url_template: https://jobs.appliedmaterials.com/en/search-jobs?p={page}\n    next_page_selector: null\n    allow_url_id_fallback: false\n    pagination_contract: radancy_counted_pages"
+        }
+      }
+    },
+    {
+      "campaign": 3,
+      "company": "BlackRock",
+      "platform": "static_html",
+      "scope": "blackrock::default",
+      "host": "careers.blackrock.com",
+      "jobs": 298,
+      "requests": 31,
+      "terminal": "authoritative_total",
+      "target_sha256": "36eb5942218e0d90ec879a2b9ab4eee8dd5b556c3272cbf56c1e1ce69caf3604",
+      "checkpoint_evidence_sha256": "62c135dbe48e041d0428fa84f3c9a13eef7a51579df270d9456fbbf8c0145e26",
+      "inventory_sha256": "d241348abfc5a2ea9b562b53d9213d286567c03a85e5a59bfcb96a5d148068d5",
+      "receipts_sha256": "cd99360e2781f465dd703da135b0eb5e14c919d9fa8efe871682fb2ababd8f6a",
+      "baseline": "INCOMPLETE",
+      "release": "activation",
+      "rows": {
+        "config/target_companies.yaml": {
+          "before": "  - name: BlackRock\n    platform: static_html\n    careers_url: https://careers.blackrock.com/en/search-jobs\n    original_workbook_rank: 88\n    max_pages: 2\n    max_jobs: 20\n    max_response_bytes: 3000000\n    evidence_source: bounded anonymous recheck\n    evidence_confidence: high\n    evidence_timestamp: '2026-08-05T07:10:00+00:00'\n    listing_url: https://careers.blackrock.com/en/search-jobs\n    endpoint_variant: server_rendered_cards\n    listing_selector: ul.section3__search-results-ul\n    job_card_selector: a.section3__search-results-a\n    title_selector: h2.section3__job-title\n    detail_link_selector: :self\n    external_id_regex: null\n    external_id_attribute: data-job-id\n    location_selector: span.job-location span.section3__job-info\n    department_selector: span.job-category span.section3__job-info\n    pagination_url_template: https://careers.blackrock.com/en/search-jobs?p={page}\n    allow_url_id_fallback: false\n    allowed_apply_hosts:\n    - careers.blackrock.com\n    candidate_family: talentbrew_radancy\n    prior_classification: talentbrew_radancy",
+          "after": "  - name: BlackRock\n    platform: static_html\n    careers_url: https://careers.blackrock.com/en/search-jobs\n    original_workbook_rank: 88\n    max_pages: 50\n    max_jobs: 1000\n    max_response_bytes: 3000000\n    evidence_source: bounded anonymous recheck\n    evidence_confidence: high\n    evidence_timestamp: '2026-08-05T07:10:00+00:00'\n    listing_url: https://careers.blackrock.com/en/search-jobs\n    endpoint_variant: server_rendered_cards\n    listing_selector: ul.section3__search-results-ul\n    job_card_selector: a.section3__search-results-a\n    title_selector: h2.section3__job-title\n    detail_link_selector: :self\n    external_id_regex: null\n    external_id_attribute: data-job-id\n    location_selector: span.job-location span.section3__job-info\n    department_selector: span.job-category span.section3__job-info\n    pagination_url_template: https://careers.blackrock.com/en/search-jobs?p={page}\n    allow_url_id_fallback: false\n    allowed_apply_hosts:\n    - careers.blackrock.com\n    candidate_family: talentbrew_radancy\n    prior_classification: talentbrew_radancy\n    pagination_contract: radancy_counted_pages"
+        }
+      }
+    },
+    {
+      "campaign": 3,
+      "company": "Chevron",
+      "platform": "static_html",
+      "scope": "chevron::default",
+      "host": "careers.chevron.com",
+      "jobs": 147,
+      "requests": 11,
+      "terminal": "authoritative_total",
+      "target_sha256": "4949acf2065e7fd85a015cfbea4cf47acb215a0a3e0d01ae8da9f2b960e9f131",
+      "checkpoint_evidence_sha256": "777fa74d54385ffeba75b05849ee8fe538b7f70d37e18626c87664546f557eeb",
+      "inventory_sha256": "b38233304e18ea9e0019ec852a847530b640f960b517d4f4ed58f6aa11a42487",
+      "receipts_sha256": "6d277843cde05ff8809b95b40e23e989a31db17f64a6efcac784200f8d9b1766",
+      "baseline": "INCOMPLETE",
+      "release": "activation",
+      "rows": {
+        "config/target_companies.yaml": {
+          "before": "  - name: Chevron\n    platform: static_html\n    careers_url: https://careers.chevron.com/\n    listing_url: https://careers.chevron.com/search-jobs\n    endpoint_variant: server_rendered_cards\n    listing_selector: section#search-results\n    job_card_selector: section#search-results-list li\n    title_selector: a[data-job-id] h2\n    location_selector: a[data-job-id] span.job-location\n    detail_link_selector: a[data-job-id]\n    external_id_regex: /([0-9]+)/?$\n    department_selector: null\n    next_page_selector: null\n    pagination_url_template: https://careers.chevron.com/search-jobs?p={page}\n    allowed_apply_hosts:\n    - careers.chevron.com\n    original_workbook_rank: 171\n    max_pages: 2\n    max_jobs: 20\n    max_response_bytes: 3000000",
+          "after": "  - name: Chevron\n    platform: static_html\n    careers_url: https://careers.chevron.com/\n    listing_url: https://careers.chevron.com/search-jobs\n    endpoint_variant: server_rendered_cards\n    listing_selector: section#search-results\n    job_card_selector: section#search-results-list li\n    title_selector: a[data-job-id] h2\n    location_selector: a[data-job-id] span.job-location\n    detail_link_selector: a[data-job-id]\n    external_id_regex: /([0-9]+)/?$\n    department_selector: null\n    next_page_selector: null\n    pagination_url_template: https://careers.chevron.com/search-jobs?p={page}\n    allowed_apply_hosts:\n    - careers.chevron.com\n    original_workbook_rank: 171\n    max_pages: 50\n    max_jobs: 1000\n    max_response_bytes: 3000000\n    pagination_contract: radancy_counted_pages"
+        }
+      }
+    },
+    {
+      "campaign": 3,
+      "company": "Etsy",
+      "platform": "static_html",
+      "scope": "etsy::default",
+      "host": "careers.etsy.com",
+      "jobs": 63,
+      "requests": 4,
+      "terminal": "authoritative_total",
+      "target_sha256": "c4d3dc74e574081c94e798ba987cf9e09eb9f1410ee6dbcbdc23639d1ed91971",
+      "checkpoint_evidence_sha256": "3e4d7c20ff7036bc256f68a0a38d3365998819efc3aaf4d4a5594d752a1cd6d2",
+      "inventory_sha256": "b30e1f916a6f15821573f1d3975f31bbc38b0264d00ffb9fc44c435d6c4d0f92",
+      "receipts_sha256": "578da899f5fb137186004a41556b99b0fcd6dbd79d62336bd0273f1dd8f1c01d",
+      "baseline": "INCOMPLETE",
+      "release": "activation",
+      "rows": {
+        "config/target_companies.yaml": {
+          "before": "  - name: Etsy\n    platform: static_html\n    careers_url: https://careers.etsy.com/jobs/search\n    listing_url: https://careers.etsy.com/jobs/search\n    endpoint_variant: server_rendered_cards\n    original_workbook_rank: 205\n    allowed_apply_hosts:\n    - careers.etsy.com\n    max_pages: 1\n    max_jobs: 20\n    max_scripts: 20\n    max_response_bytes: 3000000\n    max_script_bytes: 1000000\n    evidence_source: config/company_unknown_investigation_v3.csv\n    evidence_confidence: medium\n    evidence_timestamp: '2026-08-05T02:56:49+00:00'\n    listing_selector: article.job-search-results-card-col\n    job_card_selector: article.job-search-results-card-col\n    title_selector: h3.job-search-results-card-title a\n    detail_link_selector: h3.job-search-results-card-title a\n    external_id_regex: /jobs/([^/?#]+)\n    external_id_attribute: null\n    location_selector: .job-search-results-card-location\n    department_selector: null\n    pagination_url_template: https://careers.etsy.com/jobs/search?page={page}\n    next_page_selector: null\n    allow_url_id_fallback: true",
+          "after": "  - name: Etsy\n    platform: static_html\n    careers_url: https://careers.etsy.com/jobs/search\n    listing_url: https://careers.etsy.com/jobs/search\n    endpoint_variant: server_rendered_cards\n    original_workbook_rank: 205\n    allowed_apply_hosts:\n    - careers.etsy.com\n    max_pages: 12\n    max_jobs: 360\n    max_scripts: 20\n    max_response_bytes: 3000000\n    max_script_bytes: 1000000\n    evidence_source: config/company_unknown_investigation_v3.csv\n    evidence_confidence: medium\n    evidence_timestamp: '2026-08-05T02:56:49+00:00'\n    listing_selector: article.job-search-results-card-col\n    job_card_selector: article.job-search-results-card-col\n    title_selector: h3.job-search-results-card-title a\n    detail_link_selector: h3.job-search-results-card-title a\n    external_id_regex: /jobs/([^/?#]+)\n    external_id_attribute: null\n    location_selector: .job-search-results-card-location\n    department_selector: null\n    pagination_url_template: https://careers.etsy.com/jobs/search?page={page}\n    next_page_selector: null\n    allow_url_id_fallback: true"
+        }
+      }
+    }
+  ],
+  "files": {
+    "src/scraper/company_careers/adapters/counted_html_profiles.py": {
+      "current": "7b215b264c1a6048f4c3ea08621f7f65db21df4ca9630e30a28c6caa3b7e0bd9",
+      "previous": null
+    },
+    "src/scraper/company_careers/adapters/etsy.py": {
+      "current": "ec063ac8bea6cc4f079234b1931489bf7df1c1492255cb84ebeabb5ae7af2aad",
+      "previous": null
+    },
+    "src/scraper/company_careers/adapters/counted_radancy.py": {
+      "current": "19d2d2df01567257932ec421fac5e2c710996d47295ab928ad816a3a3ff0ba7a",
+      "previous": null
+    },
+    "src/scraper/company_careers/adapters/static_html.py": {
+      "current": "13825e494e1dbdf44108498fde8a34163c7c8e3b268c941ec3e11059789dc0fd",
+      "previous": "1fecdf1c77737d0e9ad6a7601fe52ca6831c87a0da0d0e4477bfd154b92f7c8f",
+      "reverse_edits": [
+        [
+          15,
+          17,
+          ""
+        ],
+        [
+          92,
+          95,
+          ""
+        ],
+        [
+          621,
+          624,
+          ""
+        ]
+      ]
+    },
+    "src/scraper/company_careers/adapters/successfactors_table_recovery.py": {
+      "current": "5809d065824994a2c2ca110ecad4ac5b3c63be1a32dbdfa5220a978fd28245e2",
+      "previous": "46786e1be6b569fb367cf839e00fdd4ee333b75b079578e3bcae8db7cfbb3ac0",
+      "reverse_edits": [
+        [
+          135,
+          136,
+          "# Exact language-menu labels retained on these two candidate boards.\n"
+        ],
+        [
+          162,
+          170,
+          ""
+        ],
+        [
+          171,
+          172,
+          "    labels = _LANGUAGE_MENUS.get(search_url, {})\n"
+        ]
+      ]
+    },
+    "src/scraper/company_careers/adapters/successfactors_stage2_profiles.json": {
+      "current": "6610420c7c84db9283aeed205071eef1e4b1e52fe46b0213abb3d84fd41e7012",
+      "previous": "20947640ac7a5b8e4648ebda1ce1b1e8cc7915b28bc61af3e5620bb63afdcbe5",
+      "reverse_edits": [
+        [
+          18,
+          96,
+          ""
+        ]
+      ]
+    },
+    "config/target_companies.yaml": {
+      "current": "7c90c9624d8ab2fcde36d2f4197d2ec879c16694d7d0a296d641598f84d2d9e3",
+      "previous": "74d3b960d39141e274c9ce31344f8eef1606c66cc6872ae29dceb3af8f52ca54"
+    },
+    "config/company_careers_reliability_repairs_v1.yaml": {
+      "current": "d8eab5c0e0262ac0a83dc97acaa8f10ad35274c47146a817d4c21f33572679fb",
+      "previous": "e7efe3207275fa6ee0950e7eec9dce5e300dcfa92160e3416e8aefc3baf34983"
+    }
+  },
+  "production_runtime_sha256": {
+    "src/scraper/company_careers/registry.py": "15641abf671d4ec65bf99389887cb0f1e9f264f17970ffbaf59961b64ad06526",
+    "src/scraper/company_careers/scanner.py": "48f0e5374c30a81fa1c5d0c260ae9c55ad221fc9c660e8cca786e0e36dea5e3f",
+    "src/scraper/company_careers/models.py": "df92e45c1f487bee9fd75fb3ae31c8cdd9338b18e7b47757ed8e39f5cb67ade2",
+    "src/scraper/company_careers/student_roles.py": "5b9f85cf78eb0884ae5e32b00afda614376375e869b46a0db44f3b65abb8cea1",
+    "src/scraper/company_careers/source_health.py": "0b3dcdde03fa7d52faf08323b17ea1c832b05fc66c3b905a0c5e074ae827fb6f",
+    "src/scraper/company_careers/listing_completion.py": "d966d7d87aa914e1c874e09f9b125d0b16fb0c5a81262c3a428f6329129df900",
+    "src/scraper/company_careers/adapters/workday.py": "217af105816508f8aac728c53e8038b1a4b9786f102e18f0c7e27b92127347c4",
+    "src/scraper/company_careers/adapters/smartrecruiters.py": "29151c897ead3eb4444ea31ee3026411d18ef418cad7165c873637cb88afb300",
+    "src/scraper/company_careers/adapters/smartrecruiters_profiles.py": "1cf6214c57ee7d019df1a293e4281f04900f66db7ee1589febb55a9188c885df",
+    "src/scraper/company_careers/adapters/public_json.py": "e5344887db847504e36e4daf6611ce9b089b947a1feb53ac3182053b32b68b7a",
+    "src/scraper/company_careers/adapters/ashby.py": "75642cdaecd3afb41a9365fb4eaa80cac6604a572cc12634cec0e423cdd98dd2",
+    "src/scraper/company_careers/adapters/sap_successfactors.py": "de96eb161a8f9037e139fb0159968a48ec4e76e42186610463fddee81acb194d",
+    "src/scraper/company_careers/adapters/talentbrew.py": "039db73df8548daa8470f7f1367c00dca720864256b2974347bf782a9a61ecea"
+  }
+}

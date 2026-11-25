@@ -4,5 +4,95 @@
     "baseline": "23f124a8d2afd516c66e26cc9b026ddc00abcf503bd93a99d25bf6678321be45",
     "baseline_effective": "397c94f2ac343fafb7cc5de1f10165edfc8722d9d3b5b9bd4816218368a62f03",
     "reviewed": "ae58b1d572f8e4afa6dae3219be9d4c9735b8bb86b9c4f7bd60f8119153abba4"
+  },
+  "ZF Friedrichshafen": {
+    "search_url": "https://jobs.zf.com/search/",
+    "baseline": "021fd43b7974cfbb92493d57525580176c8e898e4d0fd192fa50009da34c2a78",
+    "baseline_effective": "76d72b0a9dcea0ac265a8d5809b857730fd1f44853962c396899a4caaf4418ff",
+    "reviewed": "7326b7dcfc172073d83c327db1a29a913113b14fdad9cb1a386689b8f73e721a"
+  },
+  "Celestica": {
+    "search_url": "https://careers.celestica.com/search/",
+    "baseline": "620e778184f40949cb959e1e055c35d6c06768d2c7d779a5379d635734840809",
+    "baseline_effective": "3972318c317b7968551442fb5897b1bc0cd4cd83ccd936e01a022de618907afc",
+    "reviewed": "f4e7b3b69cd39a145915edc0fc544e54ced91d40f69f73d37c45f43e818c1256"
+  },
+  "ExxonMobil": {
+    "search_url": "https://jobs.exxonmobil.com/search/",
+    "baseline": "39cd5d290e7a03aa2ce8570a70a2a12fac479dbea8e254e69833bdb246293819",
+    "baseline_effective": "39cd5d290e7a03aa2ce8570a70a2a12fac479dbea8e254e69833bdb246293819",
+    "reviewed": "263adfca1cd7207cccf62fe36d874bbc48fc20d12aeabdbe792e152bd1b7cf08",
+    "language_menu": {
+      "de-DE": "Deutsch",
+      "en-US": "English",
+      "es-MX": "Español",
+      "fr-FR": "Français",
+      "it-IT": "Italiano",
+      "nl-NL": "Nederlands",
+      "no-NO": "Norsk (Norge)",
+      "pt-BR": "Português",
+      "ru-RU": "Русский язык",
+      "zh-CN": "简体中文"
+    }
+  },
+  "FortisBC": {
+    "search_url": "https://careers.fortisbc.com/search/",
+    "baseline": "ad0500f140a29165857765d813d6e293ad3c70d0b5e4dcff883b8c642d05c5aa",
+    "baseline_effective": "ad0500f140a29165857765d813d6e293ad3c70d0b5e4dcff883b8c642d05c5aa",
+    "reviewed": "d8501693446314ea9b9040afe2641b9b7e0c8c7568ea2f4e44f8fd85917a322d",
+    "language_menu": {
+      "en-US": "English (United States)"
+    }
+  },
+  "Halliburton": {
+    "search_url": "https://jobs.halliburton.com/search/",
+    "baseline": "d83b6832c249d1340983c4a14b35bb512c16ed3e28195867b644dc762a309deb",
+    "baseline_effective": "d83b6832c249d1340983c4a14b35bb512c16ed3e28195867b644dc762a309deb",
+    "reviewed": "6b1a2525c5495ef803197442bd444c476560692e236ce968c732c7217c56df2f",
+    "language_menu": {
+      "en-US": "English (United States)",
+      "es-MX": "Español (México)",
+      "no-NO": "Norsk bokmål ‎(Norwegian Bokmål)",
+      "pt-BR": "Português (Brasil)"
+    }
+  },
+  "NOVA Chemicals": {
+    "search_url": "https://jobs.novachem.com/search/",
+    "baseline": "60d4df066b22d7989ae9087cd56d194dc45e1fb6c7ea7248fb5158b11fd360f6",
+    "baseline_effective": "60d4df066b22d7989ae9087cd56d194dc45e1fb6c7ea7248fb5158b11fd360f6",
+    "reviewed": "44f792c6f61c7934725939a6be971b6d8687702b1304430cdd0cbbf5a0bdf29e",
+    "language_menu": {}
+  },
+  "PCL Construction": {
+    "search_url": "https://careers.pcl.com/search/",
+    "baseline": "1b23391e0629e3fa86db1b6b6368b290496eaba1cc58401367cde2f903816e0d",
+    "baseline_effective": "1b23391e0629e3fa86db1b6b6368b290496eaba1cc58401367cde2f903816e0d",
+    "reviewed": "f462754d2057eeb948f0bd01555b7f71ee1b99a2161fc53fa81b976869565458",
+    "language_menu": {
+      "en-US": "English (United States)",
+      "fr-CA": "Français (Canada)"
+    }
+  },
+  "Spartan Controls": {
+    "search_url": "https://careers.spartancontrols.com/search/",
+    "baseline": "7eae17f0f7c2e33457edaeadf396b6db4a69380be00e0aecdada32443c5412f4",
+    "baseline_effective": "7eae17f0f7c2e33457edaeadf396b6db4a69380be00e0aecdada32443c5412f4",
+    "reviewed": "4d4bc774f5b44dd2e3f974cdfd04db2182196bfad8ddcadd5d25263635e0ef25",
+    "language_menu": {
+      "en-US": "English (United States)"
+    }
+  },
+  "Teradyne": {
+    "search_url": "https://jobs.teradyne.com/search/",
+    "baseline": "f5798464003144657faa32ef5001abe13b9913e35a510f2cf590501570b838ae",
+    "baseline_effective": "f5798464003144657faa32ef5001abe13b9913e35a510f2cf590501570b838ae",
+    "reviewed": "f677f64d2788a084ac425f498049cce20bbf62c1dea8be435514d85249552973",
+    "language_menu": {
+      "en-US": "English (United States)",
+      "ja-JP": "日本語 (日本)",
+      "ko-KR": "한국어 (대한민국)",
+      "zh-CN": "简体中文 (中国大陆)",
+      "zh-TW": "繁體中文(台灣)"
+    }
   }
 }

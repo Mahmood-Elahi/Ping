@@ -301,8 +301,8 @@ def test_phase1_rejections_remain_and_servicenow_records_later_live_activation()
         "identity_regex": "^ServiceNow$",
         "allowed_apply_hosts": ["jobs.smartrecruiters.com"],
         "page_size": 100,
-        "max_pages": 8,
-        "max_jobs": 800,
+        "max_pages": 16,
+        "max_jobs": 1600,
         "max_response_bytes": 3_000_000,
         "selective_detail_enrichment": False,
     }

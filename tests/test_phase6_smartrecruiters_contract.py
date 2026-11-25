@@ -157,8 +157,8 @@ def test_all_production_smartrecruiters_sources_remain_listing_only():
     service_now = next(configured for configured in targets if configured.name == "ServiceNow")
     assert (service_now.page_size, service_now.max_pages, service_now.max_jobs) == (
         100,
-        8,
-        800,
+        16,
+        1600,
     )
 
 

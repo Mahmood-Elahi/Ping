@@ -159,7 +159,8 @@ def validate_package(root=ROOT):
     require(digest(restored) == baseline['registry_structural_sha256'], 'Rollback cannot reconstruct historical registry')
     require(digest([r for r in rows if r['name'] not in names]) == baseline['unrelated_raw_rows_sha256'],
             'Unrelated company configuration changed')
-    overlay = read(root / 'config/company_careers_reliability_repairs_v1.yaml')
+    from scripts.validate_smartrecruiters_recovery import OVERLAY, predecessor_bytes
+    overlay = yaml.safe_load(predecessor_bytes(OVERLAY, (root / OVERLAY).read_bytes()))
     repairs = overlay['company_careers_reliability_repairs']
     require(len(repairs) == 74 and all(r['name'] not in names for r in repairs), 'Candidate overridden by overlay')
     restored_overlay = {r['name']: r for r in repairs}

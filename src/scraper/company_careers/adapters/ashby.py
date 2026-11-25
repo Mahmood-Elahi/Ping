@@ -121,8 +121,11 @@ def _fetch_jobs(
     # responses are HTML and always take the compact-index path below.
     legacy_data = _legacy_payload(document)
     if legacy_data is not None:
-        if target.endpoint_variant == POSTING_API_VARIANT and legacy_data.get("apiVersion") != "1":
-            raise AdapterError("Ashby posting API response has an unsupported apiVersion")
+        if target.endpoint_variant == POSTING_API_VARIANT:
+            if legacy_data.get("apiVersion") != "1":
+                raise AdapterError("Ashby posting API response has an unsupported apiVersion")
+            if set(legacy_data) != {"apiVersion", "jobs"}:
+                raise AdapterError("Ashby full-list response has unreviewed collection metadata")
         jobs = _legacy_jobs(session, target, legacy_data, listing_bytes)
         metadata.update(
             source_identity_status="validated",
@@ -138,6 +141,8 @@ def _fetch_jobs(
             frozenset({"inventory"}),
         )
 
+    if target.endpoint_variant == POSTING_API_VARIANT:
+        raise AdapterError("Ashby posting API response is missing the versioned job collection")
     app_data = _app_data(document, "response")
     _validate_board_identity(app_data, target, "response")
     job_board = app_data.get("jobBoard")
@@ -574,7 +579,10 @@ def _validate_target(target: CompanyTarget) -> None:
         raise AdapterError("Ashby target is missing a valid slug")
     if not 1 <= int(target.max_jobs) <= MAX_RESULTS:
         raise AdapterError(f"Ashby max_jobs cannot exceed {MAX_RESULTS}")
-    if not 1 <= int(target.max_response_bytes) <= MAX_RESPONSE_BYTES:
+    # The expanded posting API includes descriptions for the entire board.
+    # Hosted HTML and per-posting detail retain their original ceilings.
+    byte_ceiling = 16_000_000 if target.endpoint_variant == POSTING_API_VARIANT else MAX_RESPONSE_BYTES
+    if not 1 <= int(target.max_response_bytes) <= byte_ceiling:
         raise AdapterError("Ashby response byte limit exceeds the hard maximum")
     if target.allowed_apply_hosts and {
         str(host).casefold() for host in target.allowed_apply_hosts
@@ -590,7 +598,7 @@ def _validate_target(target: CompanyTarget) -> None:
         if (
             target.endpoint_variant != POSTING_API_VARIANT
             or parsed.scheme != "https"
-            or (parsed.hostname or "").casefold() != "api.ashbyhq.com"
+            or parsed.netloc.casefold() != "api.ashbyhq.com"
             or parsed.path.rstrip("/")
             != f"/posting-api/job-board/{target.slug}"
             or parsed.params
@@ -623,18 +631,11 @@ def _normalize_legacy(item: Any, target: CompanyTarget) -> JobRecord:
     ):
         raise AdapterError("Ashby job has no exact board-owned stable URL")
     if target.endpoint_variant == POSTING_API_VARIANT:
-        parsed_apply = urlparse(apply_url)
-        apply_parts = [part for part in parsed_apply.path.split("/") if part]
+        stable_url = f"https://jobs.ashbyhq.com/{target.slug}/{job_id}"
         if (
             item.get("isListed") is not True
-            or parsed_apply.scheme != "https"
-            or (parsed_apply.hostname or "").casefold() != "jobs.ashbyhq.com"
-            or len(apply_parts) != 3
-            or apply_parts[0].casefold() != str(target.slug).casefold()
-            or apply_parts[1].casefold() != job_id.casefold()
-            or apply_parts[2].casefold() != "application"
-            or parsed_apply.query
-            or parsed_apply.fragment
+            or job_url != stable_url
+            or apply_url != stable_url + "/application"
         ):
             raise AdapterError("Ashby job has no exact board-owned application URL")
     location = str(item.get("location") or "").strip()

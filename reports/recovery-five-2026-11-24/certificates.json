@@ -1,0 +1,166 @@
+{
+  "manifest_sha256": "f46d450a36e27daf1df53969938077307791326ff7db5bdb0fb05b91b7e4978e",
+  "checkpoint_sha256": "006d082359a8ff78b42946ba0a0e619b6f9d0a28a8f3c65c023b4f4558bf94c3",
+  "certificates": [
+    {
+      "company": "Bosch",
+      "jobs": 5178,
+      "campaign": "followup",
+      "requests": 52,
+      "scope": "bosch::default",
+      "terminal": "authoritative_total",
+      "target_sha256": "2429db1f9c4bd3792767dbd656aff2952feade2344f7ea451d552bd169603693",
+      "evidence_sha256": "09eec9b83305519721f4c163f224fdb72827e17204ae91eeabe2cd4f74b25a94",
+      "inventory_sha256": "705e36e37d75febde01141b233f332b9f34e9334855548b246ff83e0fb5d3a0b",
+      "receipts_sha256": "023a316a730cc2d80459287ba656ebc2ca8b547ae732004011a728a0dfcdd569",
+      "release": "five-source activation",
+      "raw_before": "  - name: Bosch\n    platform: smartrecruiters\n    slug: BoschGroup\n    endpoint_variant: companies_postings_v1\n    careers_url: https://jobs.bosch.com/en/\n    endpoint_url: https://api.smartrecruiters.com/v1/companies/BoschGroup/postings\n    identity_regex: ^Bosch Group$\n    allowed_apply_hosts:\n    - jobs.smartrecruiters.com\n    page_size: 100\n    max_pages: 50\n    max_jobs: 5000\n    max_response_bytes: 3000000\n    selective_detail_enrichment: false",
+      "raw_after": "  - name: Bosch\n    platform: smartrecruiters\n    slug: BoschGroup\n    endpoint_variant: companies_postings_v1\n    careers_url: https://jobs.bosch.com/en/\n    endpoint_url: https://api.smartrecruiters.com/v1/companies/BoschGroup/postings\n    identity_regex: ^Bosch Group$\n    allowed_apply_hosts:\n    - jobs.smartrecruiters.com\n    page_size: 100\n    max_pages: 65\n    max_jobs: 6500\n    max_response_bytes: 3000000\n    selective_detail_enrichment: false"
+    },
+    {
+      "company": "OpenAI",
+      "jobs": 870,
+      "campaign": "followup",
+      "requests": 1,
+      "scope": "openai::default",
+      "terminal": "complete_collection_response",
+      "target_sha256": "17faed149dce6460a2c6d37d6fdafb418c0b8b1af97b9bcf1f83c149c2c8f9aa",
+      "evidence_sha256": "384f32b358a6966615c0aa0e076190bb6afda73cc5268f79f37d627d2baa1107",
+      "inventory_sha256": "139b5944a82dff42793cb1e56fe6962170f0b782eed538476011218c6cc9e783",
+      "receipts_sha256": "a70886d0f68124b7086a63f716f27fd4ffe63af7eccaf0834b37eb41d42e67af",
+      "release": "five-source activation",
+      "raw_before": "  - name: OpenAI\n    platform: ashby\n    slug: openai",
+      "raw_after": "  - name: OpenAI\n    platform: ashby\n    slug: openai\n    endpoint_variant: posting_api_v1\n    endpoint_url: https://api.ashbyhq.com/posting-api/job-board/openai\n    allowed_source_hosts:\n    - api.ashbyhq.com\n    allowed_apply_hosts:\n    - jobs.ashbyhq.com\n    max_response_bytes: 16000000"
+    },
+    {
+      "company": "AIMCo",
+      "jobs": 7,
+      "campaign": "followup",
+      "requests": 1,
+      "scope": "aimco::default",
+      "terminal": "authoritative_total",
+      "target_sha256": "b4c14a6e85bf426245910cae5034cc6a216ff8f205b6fd07a47208aa42d93b01",
+      "evidence_sha256": "ea331daad3c8e6e281cfea2ab045d93fa60687f1dfe7b5b404db019d12210548",
+      "inventory_sha256": "0fd7bc6525222211e53c6f158b6ae39a5d8f7813c0eb2fd7e43028b6de0debbc",
+      "receipts_sha256": "1b77a11ba94adf77c2a0614acf899e62cbcfb1f045635c2a2f826584ac2928cf",
+      "release": "five-source activation",
+      "raw_before": "  - name: AIMCo\n    platform: workday\n    careers_url: https://www.aimco.ca/careers\n    tenant: aimco\n    wd_subdomain: wd10\n    site_id: AIMCoCareers\n    allowed_apply_hosts: [aimco.wd10.myworkdayjobs.com]\n    max_pages: 1\n    max_jobs: 20",
+      "raw_after": "  - name: AIMCo\n    platform: workday\n    careers_url: https://www.aimco.ca/careers\n    tenant: aimco\n    wd_subdomain: wd10\n    site_id: AIMCoCareers\n    allowed_apply_hosts: [aimco.wd10.myworkdayjobs.com]\n    max_pages: 1\n    max_jobs: 20\n    workday_identity:\n      evidence_source: official recruiting navigation, recovery-2026-11-22\n      expected_employer_name: AIMCo\n      expected_source_scope: default\n      expected_workday_tenant: aimco\n      expected_workday_site: AIMCoCareers\n      expected_workday_hostname: aimco.wd10.myworkdayjobs.com\n      expected_apply_hostname: aimco.wd10.myworkdayjobs.com\n      official_source_url: https://www.aimco.ca/careers\n      official_binding_target_url: https://aimco.wd10.myworkdayjobs.com/AIMCoCareers\n      official_binding_type: direct_link"
+    },
+    {
+      "company": "ZF Friedrichshafen",
+      "jobs": 776,
+      "campaign": "followup",
+      "requests": 32,
+      "scope": "zf friedrichshafen::default",
+      "terminal": "authoritative_total",
+      "target_sha256": "c81f12de702a3c22ebcdd53dabd6513071478a6a6229c3da9cb5b4f522bbdbdb",
+      "evidence_sha256": "a93920aae796cdd4b324d64484f96114eb0642fead5385a68814d0254e5d62a8",
+      "inventory_sha256": "5900a745a81d0c1863eb5121dc03a488e97c9a54742cb08752a2be361dd2bd1b",
+      "receipts_sha256": "b35b738709ee8157be842dd3f7a8c167c4cae15adb5f7c5463b7b3979a725af3",
+      "release": "five-source activation",
+      "raw_before": "  - name: ZF Friedrichshafen\n    platform: sap_successfactors\n    careers_url: https://www.zf.com/mobile/en/careers/careers.html\n    search_url: https://jobs.zf.com/search/\n    endpoint_variant: rmk_table\n    max_pages: 2",
+      "raw_after": "  - name: ZF Friedrichshafen\n    platform: sap_successfactors\n    careers_url: https://www.zf.com/mobile/en/careers/careers.html\n    search_url: https://jobs.zf.com/search/\n    endpoint_variant: rmk_table\n    max_pages: 2\n    allowed_apply_hosts:\n    - jobs.zf.com\n    identity_regex: <title>\\s*ZF\\ Group\\ Jobs\\s*</title>\n    selective_detail_enrichment: true"
+    },
+    {
+      "company": "Celestica",
+      "jobs": 1076,
+      "campaign": "followup",
+      "requests": 44,
+      "scope": "celestica::default",
+      "terminal": "authoritative_total",
+      "target_sha256": "7fc3df25105fccdddb7c673a7b8f78acf062742ec44e8dfaa9881eecfc5c01f2",
+      "evidence_sha256": "201682cb5210b920dfba9656021b8659512250b63344eea3ad9a6f34d5f3a7a2",
+      "inventory_sha256": "d976b24f04abe366d58c0d22d3e491f97a23e03ff4993f878967efc410adf57b",
+      "receipts_sha256": "f969961984a499f4c405594263c1fedeec1e87ad7c0b77df6a41b74b75226ee6",
+      "release": "five-source activation",
+      "raw_before": "  - name: Celestica\n    platform: sap_successfactors\n    careers_url: https://www.celestica.com/careers/working-at-celestica\n    source_identity_regex: Careers at Celestica|Celestica International\n    allowed_apply_hosts:\n    - careers.celestica.com\n    original_workbook_rank: null\n    max_pages: 1\n    max_jobs: 20\n    max_response_bytes: 3000000\n    identity_url: https://careers.celestica.com/search/\n    search_url: https://careers.celestica.com/search/\n    endpoint_variant: rmk_table",
+      "raw_after": "  - name: Celestica\n    platform: sap_successfactors\n    careers_url: https://www.celestica.com/careers/working-at-celestica\n    source_identity_regex: Careers at Celestica|Celestica International\n    allowed_apply_hosts:\n    - careers.celestica.com\n    original_workbook_rank: null\n    max_pages: 1\n    max_jobs: 20\n    max_response_bytes: 3000000\n    identity_url: https://careers.celestica.com/search/\n    search_url: https://careers.celestica.com/search/\n    endpoint_variant: rmk_table\n    identity_regex: <title>\\s*Celestica\\ International\\ LP\\ Jobs\\s*</title>\n    selective_detail_enrichment: true"
+    }
+  ],
+  "registry_old": "66dbc2d16a79bd48bddfa634c2e087470bb4e7ed47f03755c7a4e87114ac87d0",
+  "registry_new": "74d3b960d39141e274c9ce31344f8eef1606c66cc6872ae29dceb3af8f52ca54",
+  "adapters": {
+    "src/scraper/company_careers/adapters/ashby.py": {
+      "old": "e61100cb78479879349539b40fbe01ae73dd87b79b4317648970c7a3916c10d0",
+      "new": "75642cdaecd3afb41a9365fb4eaa80cac6604a572cc12634cec0e423cdd98dd2",
+      "restore": [
+        [
+          123,
+          128,
+          "        if target.endpoint_variant == POSTING_API_VARIANT and legacy_data.get(\"apiVersion\") != \"1\":\n            raise AdapterError(\"Ashby posting API response has an unsupported apiVersion\")\n"
+        ],
+        [
+          143,
+          145,
+          ""
+        ],
+        [
+          581,
+          585,
+          "    if not 1 <= int(target.max_response_bytes) <= MAX_RESPONSE_BYTES:\n"
+        ],
+        [
+          600,
+          601,
+          "            or (parsed.hostname or \"\").casefold() != \"api.ashbyhq.com\"\n"
+        ],
+        [
+          633,
+          634,
+          "        parsed_apply = urlparse(apply_url)\n        apply_parts = [part for part in parsed_apply.path.split(\"/\") if part]\n"
+        ],
+        [
+          636,
+          638,
+          "            or parsed_apply.scheme != \"https\"\n            or (parsed_apply.hostname or \"\").casefold() != \"jobs.ashbyhq.com\"\n            or len(apply_parts) != 3\n            or apply_parts[0].casefold() != str(target.slug).casefold()\n            or apply_parts[1].casefold() != job_id.casefold()\n            or apply_parts[2].casefold() != \"application\"\n            or parsed_apply.query\n            or parsed_apply.fragment\n"
+        ]
+      ]
+    },
+    "src/scraper/company_careers/adapters/smartrecruiters.py": {
+      "old": "e558bb7f8c6c008c9280208defa4d9ca2f671fb537edb6ab804c6b9e1555d63b",
+      "new": "29151c897ead3eb4444ea31ee3026411d18ef418cad7165c873637cb88afb300",
+      "restore": [
+        [
+          112,
+          113,
+          "    requested_limit = min(MAX_RESULTS, max(1, int(target.max_jobs)))\n"
+        ],
+        [
+          474,
+          477,
+          ""
+        ]
+      ]
+    },
+    "src/scraper/company_careers/adapters/successfactors_stage2_profiles.json": {
+      "old": "352314f0944ffa5dd136efbb0f4b8315bf49f56504c79ad5d974048035b3c3ba",
+      "new": "20947640ac7a5b8e4648ebda1ce1b1e8cc7915b28bc61af3e5620bb63afdcbe5",
+      "restore": [
+        [
+          6,
+          18,
+          ""
+        ]
+      ]
+    },
+    "src/scraper/company_careers/adapters/successfactors_table_recovery.py": {
+      "old": "d79816cc778a879af26d60cf9019eebcff71e1243e18ef8c2259e068fec4226c",
+      "new": "46786e1be6b569fb367cf839e00fdd4ee333b75b079578e3bcae8db7cfbb3ac0",
+      "restore": [
+        [
+          135,
+          178,
+          ""
+        ],
+        [
+          201,
+          203,
+          ""
+        ]
+      ]
+    }
+  },
+  "live_smartrecruiters_sha256": "99c447a76addf27c20693a0d6f71669de115c591988171adff7c1186beabc0a8",
+  "profile_sha256": "1cf6214c57ee7d019df1a293e4281f04900f66db7ee1589febb55a9188c885df"
+}

@@ -160,7 +160,7 @@ def test_servicenow_production_exactly_matches_live_tested_candidate() -> None:
     assert (candidate.page_size, candidate.max_pages, candidate.max_jobs) == (100, 8, 800)
     assert candidate.max_response_bytes == 3_000_000
     assert candidate.selective_detail_enrichment is False
-    assert production == candidate_row
+    assert production == {**candidate_row, "max_pages": 16, "max_jobs": 1600}
 
 
 def test_servicenow_live_697_shape_completes_in_seven_listing_requests(monkeypatch) -> None:

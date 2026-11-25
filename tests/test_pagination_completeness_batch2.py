@@ -187,6 +187,7 @@ def test_intuitive_exact_live_candidate_is_effective_in_both_production_layers()
     base = _rows(REGISTRY, "target_companies")["Intuitive Surgical"]
     overlay = _rows(REPAIRS, "company_careers_reliability_repairs")["Intuitive Surgical"]
     candidate = _rows(CANDIDATES, "target_companies")["Intuitive Surgical"]
+    candidate = {**candidate, "max_pages": 16, "max_jobs": 1600}
     exact_fields = {
         "name",
         "platform",

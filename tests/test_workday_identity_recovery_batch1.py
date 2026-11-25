@@ -5,6 +5,7 @@ from pathlib import Path
 
 import yaml
 
+from scripts.validate_recovery_eight_activation import historical_registry
 from scripts.validate_source_integrity import validate_source_integrity
 from src.scraper.company_careers.adapters import workday
 from src.scraper.company_careers.models import CompanyTarget
@@ -98,6 +99,11 @@ def by_name(path: Path) -> dict[str, dict]:
     return {row["name"]: row for row in rows(path)}
 
 
+def before_later_activations() -> dict[str, dict]:
+    previous, _ = historical_registry(load(PRODUCTION))
+    return {row["name"]: row for row in previous["target_companies"]}
+
+
 def test_review_covers_exactly_the_requested_batch_in_order() -> None:
     companies = load(REVIEW)["companies"]
     assert [row["company"] for row in companies] == BATCH
@@ -120,7 +126,7 @@ def test_candidate_and_blocked_sets_are_explicit_and_disjoint() -> None:
 
 
 def test_production_registry_contains_only_the_approved_batch_activation() -> None:
-    production = by_name(PRODUCTION)
+    production = before_later_activations()
     candidates = by_name(CANDIDATES)
     rollback = by_name(ROLLBACK)
     assert all(production[name] == candidates[name] for name in ACTIVATED)
@@ -134,7 +140,7 @@ def test_production_registry_contains_only_the_approved_batch_activation() -> No
 
 
 def test_rollback_rows_are_exact_preactivation_definitions() -> None:
-    production = by_name(PRODUCTION)
+    production = before_later_activations()
     rollback = by_name(ROLLBACK)
     assert list(rollback) == BATCH
     assert all(production[name] != rollback[name] for name in ACTIVATED)

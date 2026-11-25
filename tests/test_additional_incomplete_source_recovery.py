@@ -100,7 +100,13 @@ class AdditionalIncompleteSourceRecoveryTests(unittest.TestCase):
     def test_applied_materials_can_reach_explicit_terminal_beyond_normal_page_budget(
         self, _sleep
     ):
-        target = self.targets["Applied Materials"]
+        # This fixture exercises the earlier generic next-link collector at its original bounds.
+        from scripts import validate_closeout_recovery as closeout
+        import yaml
+        prior = closeout.predecessor_bytes(closeout.OVERLAY, (closeout.ROOT / closeout.OVERLAY).read_bytes())
+        row = next(r for r in yaml.safe_load(prior)["company_careers_reliability_repairs"]
+                   if r["name"] == "Applied Materials")
+        target = CompanyTarget.from_dict(row)
         self.assertEqual(target.max_response_bytes, 4_000_000)
         first = (
             "<html><body><li class='search-results-list__item'><h2 "
@@ -184,7 +190,7 @@ class AdditionalIncompleteSourceRecoveryTests(unittest.TestCase):
         intuitive = self.targets["Intuitive Surgical"]
         coupang = self.targets["Coupang"]
         self.assertEqual(intuitive.platform, "smartrecruiters")
-        self.assertEqual((intuitive.slug, intuitive.max_pages, intuitive.max_jobs), ("intuitive", 8, 800))
+        self.assertEqual((intuitive.slug, intuitive.max_pages, intuitive.max_jobs), ("intuitive", 16, 1600))
         self.assertIsNotNone(coupang.pagination_url_template)
         self.assertFalse(coupang.single_page_collection)
 

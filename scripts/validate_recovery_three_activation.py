@@ -13,6 +13,8 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from scripts import validate_smartrecruiters_recovery as bounds
+
 PACKAGE = ROOT / 'reports/recovery-three-activation-2026-11-07'
 NAMES = ('Adobe', 'Workday', 'Lam Research')
 BUNDLE_SHA256 = '51cd48e06f22541f94263596b0107e43c773609054b02b8dc0c75342a61e333b'
@@ -47,6 +49,7 @@ def validate(payload=None):
     proof = evidence()
     if payload is None:
         payload = yaml.safe_load((ROOT / 'config/target_companies.yaml').read_text())
+    payload = bounds.registry_before_bounds(payload)
     rows = payload['target_companies']
     names = [r['name'] for r in rows]
     before = yaml.safe_load(proof['predecessor_registry_utf8'])
@@ -56,7 +59,10 @@ def validate(payload=None):
         if row['name'] not in NAMES and row != old:
             raise ValueError('Unrelated source changed: ' + row['name'])
     for path, expected in proof['engine_files'].items():
-        if digest((ROOT / path).read_bytes()) != expected:
+        raw = bounds.followup.prior_adapter_bytes(path, (ROOT / path).read_bytes())
+        if path == bounds.OVERLAY:
+            raw = bounds.predecessor_bytes(path, raw)
+        if digest(raw) != expected:
             raise ValueError('Certified runtime changed: ' + path)
     after_targets, before_targets = _materialize(canonical(payload)), _materialize(canonical(before))
     jobs = requests = 0
@@ -113,6 +119,7 @@ def validate(payload=None):
 
 
 def registry_before_three(payload):
+    payload = bounds.registry_before_bounds(payload)
     before = yaml.safe_load(evidence()['predecessor_registry_utf8'])
     if payload == before:
         return deepcopy(before)
@@ -129,6 +136,9 @@ def registry_before_three(payload):
 def predecessor_runtime(name, raw):
     """Historical locks remain immutable; current exact applicability is checked first."""
     proof = evidence()
+    raw = bounds.followup.prior_adapter_bytes(name, raw)
+    if name == bounds.OVERLAY:
+        raw = bounds.predecessor_bytes(name, raw)
     old = proof['predecessor_runtime_utf8'].get(name)
     if old is None:
         return raw

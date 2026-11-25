@@ -133,8 +133,8 @@ company_careers_reliability_repairs:
     original_workbook_rank: 27
     allowed_apply_hosts:
       - jobs.appliedmaterials.com
-    max_pages: 1
-    max_jobs: 20
+    max_pages: 160
+    max_jobs: 2400
     max_scripts: 20
     max_response_bytes: 4000000
     max_script_bytes: 1000000
@@ -152,6 +152,7 @@ company_careers_reliability_repairs:
     pagination_url_template: https://jobs.appliedmaterials.com/en/search-jobs?p={page}
     next_page_selector: null
     allow_url_id_fallback: false
+    pagination_contract: radancy_counted_pages
   - name: Continental
     platform: javascript_embedded_data
     careers_url: https://jobs.continental.com/en/
@@ -451,8 +452,8 @@ company_careers_reliability_repairs:
     allowed_apply_hosts:
       - jobs.smartrecruiters.com
     page_size: 100
-    max_pages: 8
-    max_jobs: 800
+    max_pages: 16
+    max_jobs: 1600
     max_response_bytes: 3000000
     selective_detail_enrichment: false
   - name: Calfrac Well Services

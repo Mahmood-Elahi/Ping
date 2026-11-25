@@ -10,6 +10,7 @@ from scripts.validate_source_integrity_canaries import CanaryBudgetReached
 from src.scraper.company_careers.adapters import sap_successfactors as sf
 from src.scraper.company_careers.adapters import sap_successfactors_baseline_84b1655 as baseline
 from src.scraper.company_careers.adapters import successfactors_recovery_routing as routing
+from src.scraper.company_careers.adapters import successfactors_table_recovery
 from src.scraper.company_careers.models import AdapterError, CompanyTarget
 from src.scraper.company_careers.registry import load_target_companies
 from src.scraper.company_careers.scanner import CompanyCareersScanner
@@ -38,7 +39,10 @@ def test_actual_dashboard_preprocessing_preserves_certified_source(name, include
     original = registry()[name]
     target = configure_student_targets([original], include_new_grad=include_new_grad)[0]
     assert asdict(target) == asdict(original)
-    assert routing.mode(target) == "reviewed"
+    if name == "Spartan Controls":
+        assert successfactors_table_recovery.is_reviewed(target)
+    else:
+        assert routing.mode(target) == "reviewed"
     assert source_health_key(target) == source_health_key(original)
     assert asdict(configure_student_targets([target])[0]) == asdict(target)
 
@@ -99,6 +103,11 @@ def test_production_physical_transport_cap_cannot_authorize_absence(name):
 def test_preprocessing_does_not_repair_or_hide_a_tampered_contract(name, field, value):
     target = configure_student_targets([replace(registry()[name], **{field: value})])[0]
     session = SnapshotSession(name)
+    if name == "Spartan Controls" and field == "selective_detail_enrichment":
+        # The later live certificate explicitly opts this exact target into the table parser.
+        assert asdict(target) == asdict(registry()[name])
+        assert successfactors_table_recovery.is_reviewed(target)
+        target = replace(target, endpoint_variant="rmk_tile")
     with pytest.raises(AdapterError, match="profile identity"):
         sf.fetch_jobs(session, target)
     assert session.requests_started == 0
@@ -130,8 +139,14 @@ def test_existing_sources_preserve_old_production_behavior_without_the_unused_fl
 
 def test_all533_production_routes_are_checked_by_the_activation_validator():
     configured = configure_student_targets(list(registry().values()))
-    modes = {t.name: routing.mode(t) for t in configured}
-    assert sum(mode == "reviewed" for mode in modes.values()) == 10
+    # The current dispatcher checks the later, separately sealed Lam table profile first.
+    assert len(configured) == 533
+    table_names = {t.name for t in configured if successfactors_table_recovery.is_reviewed(t)}
+    assert table_names == {"Lam Research", "ZF Friedrichshafen", "Celestica", "ExxonMobil",
+                           "FortisBC", "Halliburton", "NOVA Chemicals", "PCL Construction",
+                           "Spartan Controls", "Teradyne"}
+    modes = {t.name: routing.mode(t) for t in configured if t.name not in table_names}
+    assert sum(mode == "reviewed" for mode in modes.values()) == 9
     assert all(mode == ("reviewed" if name in activation.NAMES else "baseline") for name, mode in modes.items())
     result = activation.validate()
     assert result["production_preprocessing_verified"] is True

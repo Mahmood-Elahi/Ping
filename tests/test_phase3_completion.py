@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 from src.scraper.company_careers.registry import load_target_companies
@@ -64,19 +65,10 @@ def test_phase3_canaries_are_explicit_and_both_match_later_live_promoted_rows() 
         "max_response_bytes",
         "selective_detail_enrichment",
     )
-    assert {
-        company: {
-            field: getattr(production[company], field)
-            for field in promoted_fields
-        }
-        for company in ("ServiceNow", "Intuitive Surgical")
-    } == {
-        company: {
-            field: getattr(canaries[company], field)
-            for field in promoted_fields
-        }
-        for company in ("ServiceNow", "Intuitive Surgical")
-    }
+    for company, historical in canaries.items():
+        reviewed = replace(historical, max_pages=16, max_jobs=1600)
+        for field in promoted_fields:
+            assert getattr(production[company], field) == getattr(reviewed, field)
     assert [
         target.source_scope
         for target in load_target_companies()
