@@ -10,6 +10,8 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from scripts import validate_certified_recovery_activation as activation
+
 PACKAGE = ROOT / "reports/recovery-closeout-activation-2026-11-24/certificates.json"
 SEAL = "c00334b890658dceb71e964ad6ee47541089274f6a416366c874223def577842"
 REGISTRY = "config/target_companies.yaml"
@@ -39,6 +41,7 @@ def recovery_revision():
 
 def before_recovery_revision(path, raw):
     """Reconstruct certificate-era bytes from the exact offline recovery patch."""
+    raw = activation.before_activation(path, raw)
     change = recovery_revision().get(path)
     if change is None or digest(raw) != change["patched_sha256"]:
         return raw
@@ -78,6 +81,7 @@ def predecessor_bytes(path, raw):
 
 
 def prior_registry(payload):
+    payload = activation.predecessor_registry(payload)
     rows = {s["company"]: s["rows"][REGISTRY] for s in certificate()["sources"] if "rows" in s}
     current = {r["name"]: r for r in payload["target_companies"] if r["name"] in rows}
     for stage in ("after", "before"):

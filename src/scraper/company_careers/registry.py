@@ -101,7 +101,10 @@ def load_target_companies(
     targets = [
         CompanyTarget.from_dict(
             dict(entry),
-            apply_legacy_safety_defaults=migrate_legacy_safety_defaults,
+            apply_legacy_safety_defaults=(
+                migrate_legacy_safety_defaults
+                and entry.get("preserve_explicit_bounds") is not True
+            ),
         )
         for entry in entries
     ]

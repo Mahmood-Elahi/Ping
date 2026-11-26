@@ -94,6 +94,7 @@ def test_candidate_rejects_changed_contract(name, scenario):
     assert not result.authoritative_for_absence
 
 
-def test_candidate_contracts_are_inactive_in_production():
+def test_certified_contracts_are_active_in_production():
     production = {t.name: t for t in load_target_companies(apply_reliability_repairs=True)}
-    assert all(not reviewed.is_reviewed(production[name]) for name in BOARD)
+    assert all(reviewed.is_reviewed(production[name]) and production[name] == candidate_targets()[name]
+               for name in BOARD)

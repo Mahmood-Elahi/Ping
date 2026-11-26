@@ -210,10 +210,11 @@ def test_request_cost_calculations_are_bounded_and_deterministic(production_targ
 
     workday = by_family["workday"]
     assert workday.source_count == 108
-    assert workday.listing_page_ceiling_total == 2_700
+    # HOOPP preserves its separately certified one-page, 20-job bounds.
+    assert workday.listing_page_ceiling_total == 107 * 25 + 1
     assert workday.listing_page_ceiling_median == 25.0
     assert workday.listing_page_ceiling_max == 25
-    assert workday.job_ceiling_total == 54_000
+    assert workday.job_ceiling_total == 107 * 500 + 20
     assert workday.job_ceiling_max == 500
     assert workday.endpoint_variants == (("<default>", 91), ("wday_cxs_v1", 17))
 
