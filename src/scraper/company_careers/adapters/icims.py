@@ -25,6 +25,7 @@ from src.scraper.company_careers.models import (
 )
 from src.scraper.company_careers.listing_completion import (
     AdaptiveListingCompletion,
+    ListingPageBudget,
     html_page_has_more,
     html_pagination_evidence,
     record_terminal_evidence,
@@ -74,15 +75,23 @@ def fetch_jobs(
     timeout: int = 20,
 ) -> List[JobRecord]:
     """Return one internally consistent traversal, with one mutation restart."""
+    page_budget = ListingPageBudget()
     return fetch_with_mutation_restart(
-        session, lambda: _fetch_jobs_once(session, target, timeout)
+        session,
+        lambda: _fetch_jobs_once(
+            session, target, timeout, page_budget, restart_on_mutation=True
+        ),
+        fetch_replacement=lambda: _fetch_jobs_once(session, target, timeout, page_budget),
     )
 
 
 def _fetch_jobs_once(
     session: requests.Session,
     target: CompanyTarget,
-    timeout: int = 20,
+    timeout: int,
+    page_budget: ListingPageBudget,
+    *,
+    restart_on_mutation: bool = False,
 ) -> List[JobRecord]:
     validate_target(target)
     maximum_pages = max(1, int(target.max_pages))
@@ -141,6 +150,9 @@ def _fetch_jobs_once(
         )
         if len(jobs) >= effective_jobs:
             metadata["stop_reason"] = "maximum_results_reached"
+            break
+        if not page_budget.claim():
+            metadata["stop_reason"] = "maximum_pages_reached"
             break
         params = _page_params(target, page_index)
         metadata["pages_requested"] += 1
@@ -273,6 +285,14 @@ def _fetch_jobs_once(
                 break
             raise AdapterError("iCIMS page contained jobs but none were valid")
 
+        if (
+            restart_on_mutation
+            and target.endpoint_variant == JIBE_API
+            and metadata["collection_changed_during_scan"]
+        ):
+            finish_changed(metadata, terminal_evidence="collection_mutation_detected")
+            break
+
         if (target.endpoint_variant == RADANCY_HTML and total is not None
                 and has_more is False and len(jobs) != total):
             metadata["stop_reason"] = "radancy_total_mismatch"
@@ -293,6 +313,11 @@ def _fetch_jobs_once(
                 finish_changed(metadata, terminal_evidence="empty_terminal_page")
             elif total is not None and len(jobs) == total:
                 finish_terminal(metadata, complete_reason="reported_total_reached")
+            elif target.endpoint_variant == JIBE_API:
+                metadata.update(
+                    stop_reason="jibe_total_mismatch",
+                    scan_completeness_reason="inventory_incomplete",
+                )
             elif has_more is False:
                 metadata["total_available"] = len(jobs)
                 finish_terminal(
@@ -329,11 +354,19 @@ def _fetch_jobs_once(
             finish_terminal(metadata, complete_reason="reported_total_reached")
             break
         if has_more is False:
-            metadata["total_available"] = len(jobs)
-            finish_terminal(
-                metadata,
-                complete_reason="explicit_next_page_exhausted",
-            )
+            if target.endpoint_variant == JIBE_API:
+                # Jibe derives has_more from the requested page number and
+                # the reported total. Only the collected count can reconcile it.
+                metadata.update(
+                    stop_reason="jibe_total_mismatch",
+                    scan_completeness_reason="inventory_incomplete",
+                )
+            else:
+                metadata["total_available"] = len(jobs)
+                finish_terminal(
+                    metadata,
+                    complete_reason="explicit_next_page_exhausted",
+                )
             break
         if len(items) < page_size and has_more is None:
             if metadata["collection_changed_during_scan"]:

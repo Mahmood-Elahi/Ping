@@ -29,6 +29,7 @@ from src.scraper.company_careers.models import (
     adapter_exception_metadata,
     source_scan_metadata,
 )
+from src.scraper.company_careers.mutable_collection import collection_mutation_evidence
 from src.scraper.company_careers.registry import load_target_companies
 from src.scraper.company_careers.scanner import ADAPTERS
 from src.scraper.company_careers.workday_throttle import WorkdayListingSession, WorkdayRedirect, WorkdayThrottle
@@ -130,8 +131,17 @@ def selected_targets(
     return selected
 
 
-def run_canary(target: Any, request_budget: int, *, throttle: WorkdayThrottle | None = None) -> dict[str, Any]:
-    session = BoundedSession(request_budget) if throttle is None else BoundedSession(request_budget, throttle)
+def run_canary(
+    target: Any,
+    request_budget: int,
+    *,
+    throttle: WorkdayThrottle | None = None,
+    session: BoundedSession | None = None,
+) -> dict[str, Any]:
+    if session is None:
+        session = BoundedSession(request_budget, throttle)
+    elif throttle is not None or session.budget != request_budget:
+        raise ValueError("A supplied canary session must use the exact request budget")
     metadata: dict[str, Any]
     status: str
     canary_outcome: str
@@ -246,6 +256,9 @@ def run_canary(target: Any, request_budget: int, *, throttle: WorkdayThrottle | 
         "collection_changed_during_scan": metadata.get(
             "collection_changed_during_scan"
         ),
+        "collection_restart_count": metadata.get("collection_restart_count", 0),
+        "first_traversal_mutation": metadata.get("first_traversal_mutation"),
+        "last_traversal_mutation": collection_mutation_evidence(metadata),
         "inventory_complete": metadata.get("inventory_complete"),
         "central_finalizer_authoritative": authority_fields[
             "authoritative_for_absence"

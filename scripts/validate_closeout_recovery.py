@@ -16,6 +16,8 @@ PACKAGE = ROOT / "reports/recovery-closeout-activation-2026-11-24/certificates.j
 SEAL = "c00334b890658dceb71e964ad6ee47541089274f6a416366c874223def577842"
 REGISTRY = "config/target_companies.yaml"
 OVERLAY = "config/company_careers_reliability_repairs_v1.yaml"
+COLLECTION_REVISION = ROOT / "reports/recovery-2026-11-26/collection-runtime-reversal.json"
+COLLECTION_REVISION_SHA256 = "0f8ccb53065dd713390eb6a7d05bf09af5906fdca60540459f5bc04dfb2c19b4"
 WORKDAY_COOLDOWN_REVISION = ROOT / "reports/recovery-2026-11-26/workday-cooldown-runtime-reversal.json"
 WORKDAY_COOLDOWN_REVISION_SHA256 = "eee44ced54307498019585ac4d8e983934b23aec914899eb8ddcfb3a52e349c4"
 RECOVERY_REVISION = ROOT / "reports/recovery-2026-11-25/historical-reversal.json"
@@ -33,7 +35,7 @@ def certificate():
     return json.loads(raw)
 
 
-@lru_cache(maxsize=2)
+@lru_cache(maxsize=3)
 def recovery_revision(path=RECOVERY_REVISION, expected_sha256=RECOVERY_REVISION_SHA256):
     evidence = path.read_bytes()
     if digest(evidence) != expected_sha256:
@@ -45,6 +47,7 @@ def before_recovery_revision(path, raw):
     """Reconstruct certificate-era bytes from the exact offline recovery patch."""
     raw = activation.before_activation(path, raw)
     revisions = (
+        recovery_revision(COLLECTION_REVISION, COLLECTION_REVISION_SHA256),
         recovery_revision(WORKDAY_COOLDOWN_REVISION, WORKDAY_COOLDOWN_REVISION_SHA256),
         recovery_revision(),
     )

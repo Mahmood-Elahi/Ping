@@ -21,6 +21,19 @@ ABSOLUTE_LISTING_JOB_CEILING = MAX_RAW_JOBS_PER_SOURCE
 LISTING_ONLY_SECOND_STAGE_REQUEST_ALLOWANCE = ABSOLUTE_LISTING_REQUEST_CEILING
 
 
+@dataclass
+class ListingPageBudget:
+    """Share the source's absolute page-request ceiling across traversals."""
+
+    remaining: int = ABSOLUTE_LISTING_REQUEST_CEILING
+
+    def claim(self) -> bool:
+        if self.remaining <= 0:
+            return False
+        self.remaining -= 1
+        return True
+
+
 def record_terminal_evidence(
     metadata: MutableMapping[str, Any],
     evidence_type: str,

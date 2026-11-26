@@ -9,6 +9,7 @@ import requests
 
 from scripts import validate_company_registry as validator
 from src.scraper.company_careers.adapters import eightfold
+from src.scraper.company_careers.listing_completion import ListingPageBudget
 from src.scraper.company_careers.models import AdapterError, CompanyTarget, CoverageStatus
 from src.scraper.company_careers.registry import load_target_companies
 from src.scraper.company_careers.scanner import CompanyCareersScanner
@@ -269,6 +270,25 @@ class EightfoldAdapterTests(unittest.TestCase):
         second_payload["data"].pop("count")
         with self.assertRaisesRegex(AdapterError, "count must be a non-negative integer"):
             self.fetch([FakeResponse(payload(first, count=30)), FakeResponse(second_payload)])
+
+    def test_mutation_restart_respects_source_wide_listing_page_budget(self):
+        first = [position(index) for index in range(1, 11)]
+        second = [position(index) for index in range(11, 21)]
+        with patch.object(eightfold, "ListingPageBudget", lambda: ListingPageBudget(3)):
+            jobs, session = self.fetch([
+                FakeResponse(payload(first, count=30)),
+                FakeResponse(payload(second, count=29)),
+                FakeResponse(payload(second, count=20)),
+            ])
+
+        metadata = session.eightfold_pagination
+        self.assertEqual(len(jobs), 10)
+        self.assertFalse(metadata["scan_complete"])
+        self.assertTrue(metadata["safety_limit_reached"])
+        self.assertEqual(metadata["total_pages_requested_across_traversals"], 3)
+        self.assertEqual(metadata["first_traversal_mutation"]["initial_total"], 30)
+        self.assertEqual(metadata["first_traversal_mutation"]["last_total"], 29)
+        self.assertEqual(metadata["first_traversal_mutation"]["first_changed_offset"], 10)
 
     def test_malformed_later_count_remains_fatal(self):
         first = [position(index) for index in range(1, 11)]
