@@ -445,7 +445,12 @@ target_companies:
     careers_url: https://www.volvocars.com/intl/careers/
     search_url: https://jobs.volvocars.com/search/
     endpoint_variant: rmk_table
-    max_pages: 2
+    max_pages: 20
+    identity_regex: <title>\s*Volvo\ Car\ Corporation\ Jobs\s*</title>
+    allowed_apply_hosts:
+    - jobs.volvocars.com
+    selective_detail_enrichment: true
+    max_jobs: 500
   - name: Ferrari
     platform: sap_successfactors
     careers_url: https://www.ferrari.com/en-EN/corporate/career
@@ -477,7 +482,12 @@ target_companies:
     careers_url: https://www.deere.com/en/our-company/john-deere-careers/
     search_url: https://jobs.deere.com/search/
     endpoint_variant: rmk_table
-    max_pages: 2
+    max_pages: 20
+    identity_regex: <title>\s*John\ Deere\ Jobs\s*</title>
+    allowed_apply_hosts:
+    - jobs.deere.com
+    selective_detail_enrichment: true
+    max_jobs: 500
   - name: Pembina Pipeline
     platform: sap_successfactors
     careers_url: https://www.pembina.com/careers/
@@ -7252,9 +7262,22 @@ target_companies:
     tenant: hoopp
     wd_subdomain: wd10
     site_id: HOOPPStudent
-    allowed_apply_hosts: [hoopp.wd10.myworkdayjobs.com]
+    allowed_apply_hosts:
+    - hoopp.wd10.myworkdayjobs.com
     max_pages: 1
     max_jobs: 20
+    workday_identity:
+      evidence_source: 'Nov 24 closeout first-party student navigation: Explore opportunities'
+      expected_employer_name: HOOPP
+      expected_source_scope: default
+      expected_workday_tenant: hoopp
+      expected_workday_site: HOOPPStudent
+      expected_workday_hostname: hoopp.wd10.myworkdayjobs.com
+      expected_apply_hostname: hoopp.wd10.myworkdayjobs.com
+      official_source_url: https://hoopp.com/en/about-hoopp/hoopp-careers/students-and-new-graduates
+      official_binding_target_url: https://hoopp.wd10.myworkdayjobs.com/HOOPPStudent
+      official_binding_type: direct_link
+    preserve_explicit_bounds: true
   - name: SOTI
     platform: workday
     careers_url: https://www.soti.net/about/careers/
@@ -7451,9 +7474,12 @@ target_companies:
     careers_url: https://www.aecon.com/careers
     search_url: https://jobs.aecon.com/search/
     endpoint_variant: rmk_table
-    allowed_apply_hosts: [jobs.aecon.com]
-    max_pages: 1
-    max_jobs: 20
+    allowed_apply_hosts:
+    - jobs.aecon.com
+    max_pages: 20
+    max_jobs: 500
+    identity_regex: <title>\s*Aecon\ Jobs\s*</title>
+    selective_detail_enrichment: true
   - name: EPCOR
     platform: jobvite
     slug: epcor
