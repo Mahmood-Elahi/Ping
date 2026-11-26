@@ -144,7 +144,7 @@ def test_all533_production_routes_are_checked_by_the_activation_validator():
     table_names = {t.name for t in configured if successfactors_table_recovery.is_reviewed(t)}
     assert table_names == {"Lam Research", "ZF Friedrichshafen", "Celestica", "ExxonMobil",
                            "FortisBC", "Halliburton", "NOVA Chemicals", "PCL Construction",
-                           "Spartan Controls", "Teradyne"}
+                           "Spartan Controls", "Teradyne", "Aecon", "John Deere", "Volvo Cars"}
     modes = {t.name: routing.mode(t) for t in configured if t.name not in table_names}
     assert sum(mode == "reviewed" for mode in modes.values()) == 9
     assert all(mode == ("reviewed" if name in activation.NAMES else "baseline") for name, mode in modes.items())
