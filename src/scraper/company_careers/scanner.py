@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime, timezone
+from functools import partial
 from pathlib import Path
 import re
 from typing import Any, Callable, Iterable, List, Mapping, Optional, Sequence
@@ -86,6 +87,7 @@ from src.scraper.company_careers.workday_throttle import WorkdayRateLimit, Workd
 from src.scraper.company_careers.source_health import finalize_source_scan
 from src.scraper.company_careers.source_cooldown import (
     cooldown_active,
+    expired_workday_cooldown_priority,
     source_health_key,
 )
 
@@ -96,6 +98,7 @@ LocationFilterFn = Callable[[JobRecord], Optional[str]]
 SessionFactory = Callable[[], requests.Session]
 ResultObserver = Callable[[CompanyScanResult], None]
 DEFAULT_SCAN_WORKERS = 6
+WORKDAY_RECOVERY_SOURCES_PER_SCAN = 16
 
 
 def _completion_result_fields(metadata: SourceScanMetadata) -> dict[str, Any]:
@@ -319,20 +322,34 @@ class CompanyCareersScanner:
         browser_batch_error: Optional[Exception] = None,
     ) -> CompanyCareersReport:
         results: list[Optional[CompanyScanResult]] = [None] * len(self.targets)
-        indexed_targets = list(enumerate(self.targets))
+        indexed_targets = []
+        workday_recovery = []
+        for index, target in enumerate(self.targets):
+            recovery_priority = None
+            if target.platform == "workday":
+                recovery_priority = expired_workday_cooldown_priority(
+                    self.cooldown_states.get(source_health_key(target)), as_of=self.as_of,
+                )
+            if recovery_priority is None:
+                indexed_targets.append((index, target))
+            else:
+                workday_recovery.append((recovery_priority, index, target))
 
+        scan_target = partial(
+            self._scan_target_and_observe,
+            keywords=keywords,
+            locations=locations,
+            max_jobs_per_company=max_jobs_per_company,
+            job_filter=job_filter,
+            location_filter=location_filter,
+        )
+        scan_http_target = partial(scan_target, browser_batch=None, browser_batch_error=None)
+        scan_local_target = partial(
+            scan_target, browser_batch=browser_batch, browser_batch_error=browser_batch_error,
+        )
         if self.max_workers == 1:
             for index, target in indexed_targets:
-                results[index] = self._scan_target_and_observe(
-                    target,
-                    keywords=keywords,
-                    locations=locations,
-                    max_jobs_per_company=max_jobs_per_company,
-                    job_filter=job_filter,
-                    location_filter=location_filter,
-                    browser_batch=browser_batch,
-                    browser_batch_error=browser_batch_error,
-                )
+                results[index] = scan_local_target(target)
         else:
             browser_targets = [
                 pair for pair in indexed_targets
@@ -348,34 +365,30 @@ class CompanyCareersScanner:
                 thread_name_prefix="job-radar-source",
             ) as executor:
                 futures: dict[Future[CompanyScanResult], int] = {
-                    executor.submit(
-                        self._scan_target_and_observe,
-                        target,
-                        keywords=keywords,
-                        locations=locations,
-                        max_jobs_per_company=max_jobs_per_company,
-                        job_filter=job_filter,
-                        location_filter=location_filter,
-                        browser_batch=None,
-                        browser_batch_error=None,
-                    ): index
+                    executor.submit(scan_http_target, target): index
                     for index, target in worker_targets
                 }
                 # Playwright's sync API stays on the owning thread and reuses a
                 # single Chromium process, while ordinary HTTP sources progress.
                 for index, target in browser_targets:
-                    results[index] = self._scan_target_and_observe(
-                        target,
-                        keywords=keywords,
-                        locations=locations,
-                        max_jobs_per_company=max_jobs_per_company,
-                        job_filter=job_filter,
-                        location_filter=location_filter,
-                        browser_batch=browser_batch,
-                        browser_batch_error=browser_batch_error,
-                    )
+                    results[index] = scan_local_target(target)
                 for future, index in futures.items():
                     results[index] = future.result()
+
+        # A synchronized expiry should not put a full retry cohort back into
+        # the shared Workday request queue. Give ordinary scans first access,
+        # then let the oldest eligible sources attempt recovery serially.
+        workday_recovery.sort(key=lambda entry: (entry[0], entry[1]))
+        for _, index, target in workday_recovery[:WORKDAY_RECOVERY_SOURCES_PER_SCAN]:
+            results[index] = scan_http_target(target)
+        for _, index, target in workday_recovery[WORKDAY_RECOVERY_SOURCES_PER_SCAN:]:
+            results[index] = self._observe_result(CompanyScanResult(
+                target=target,
+                status=CoverageStatus.COOLDOWN_SKIPPED,
+                scan_completeness_reason="workday_recovery_deferred",
+                stop_reason="workday_recovery_deferred",
+                remediation="Wait for admission in a later Workday recovery batch.",
+            ))
 
         ordered_results = [result for result in results if result is not None]
         if len(ordered_results) != len(self.targets):
@@ -393,7 +406,9 @@ class CompanyCareersScanner:
     def _scan_target_and_observe(self, target: CompanyTarget, **options: Any) -> CompanyScanResult:
         """Report a contained result without making reporting scan-critical."""
 
-        result = self._scan_target(target, **options)
+        return self._observe_result(self._scan_target(target, **options))
+
+    def _observe_result(self, result: CompanyScanResult) -> CompanyScanResult:
         if self.result_observer is not None:
             try:
                 self.result_observer(result)
@@ -719,10 +734,13 @@ class CompanyCareersScanner:
             clear_source_scan_metadata(adapter_session)
             scan_metadata["original_configured_url"] = _configured_source_url(target)
             error_type = "request_error"
+            status = CoverageStatus.FAILED_TECHNICAL
             remediation = "Verify network access and upstream availability."
             if isinstance(exc, WorkdayRateLimit):
-                error_type = "rate_limited" if exc.physical else "rate_limit_wait"
-                remediation = "Wait for the provider deadline and normal source cooldown."
+                error_type = exc.reason
+                if not exc.physical:
+                    status = CoverageStatus.COOLDOWN_SKIPPED
+                remediation = "Wait for Workday request admission and any source cooldown."
                 scan_metadata["provider_retry_at"] = exc.retry_at
             elif isinstance(exc, WorkdayRedirect):
                 error_type = "validation_identity_mismatch"
@@ -752,7 +770,7 @@ class CompanyCareersScanner:
             )
             return CompanyScanResult(
                 target=target,
-                status=CoverageStatus.FAILED_TECHNICAL,
+                status=status,
                 error=str(exc),
                 error_type=error_type,
                 remediation=remediation,

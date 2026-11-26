@@ -91,12 +91,15 @@ SCAN_REASONS = frozenset(
         "network_failure",
         "pagination_safety_limit",
         "rate_limited",
+        "rate_limit_backpressure",
+        "rate_limit_wait",
         "scan_failure_other",
         "source_identity_failure",
         "source_unreachable",
         "timeout",
         "transient_http_failure",
         "unsupported_source",
+        "workday_recovery_deferred",
     }
 )
 SCAN_REASON_LABELS = {
@@ -116,12 +119,15 @@ SCAN_REASON_LABELS = {
     "network_failure": "network failure",
     "pagination_safety_limit": "pagination safety limit reached",
     "rate_limited": "rate limited",
+    "rate_limit_backpressure": "Workday request deferred after cross-host throttling",
+    "rate_limit_wait": "Workday host cooldown active",
     "scan_failure_other": "unclassified scan failure",
     "source_identity_failure": "source identity validation failed",
     "source_unreachable": "source unreachable",
     "timeout": "timeout",
     "transient_http_failure": "transient HTTP failure",
     "unsupported_source": "unsupported source",
+    "workday_recovery_deferred": "Workday cooldown recovery deferred",
 }
 
 _EVENT_FIELDS = {
@@ -312,6 +318,9 @@ def classify_scan_reason(result: Any) -> str:
             "error_type",
         )
     )
+    for deferred in ("workday_recovery_deferred", "rate_limit_backpressure", "rate_limit_wait"):
+        if deferred in tokens.split():
+            return deferred
     if "cooldown" in tokens:
         return "cooldown_skipped"
     if "discovery_only" in tokens or "healthy_discovery_only" in tokens:

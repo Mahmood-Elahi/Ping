@@ -16,6 +16,8 @@ PACKAGE = ROOT / "reports/recovery-closeout-activation-2026-11-24/certificates.j
 SEAL = "c00334b890658dceb71e964ad6ee47541089274f6a416366c874223def577842"
 REGISTRY = "config/target_companies.yaml"
 OVERLAY = "config/company_careers_reliability_repairs_v1.yaml"
+WORKDAY_COOLDOWN_REVISION = ROOT / "reports/recovery-2026-11-26/workday-cooldown-runtime-reversal.json"
+WORKDAY_COOLDOWN_REVISION_SHA256 = "eee44ced54307498019585ac4d8e983934b23aec914899eb8ddcfb3a52e349c4"
 RECOVERY_REVISION = ROOT / "reports/recovery-2026-11-25/historical-reversal.json"
 RECOVERY_REVISION_SHA256 = "8e5954951b8dd0100e3fb170f0c094798aa095faf479465ef71c1c02728b96bc"
 
@@ -31,10 +33,10 @@ def certificate():
     return json.loads(raw)
 
 
-@lru_cache(maxsize=1)
-def recovery_revision():
-    evidence = RECOVERY_REVISION.read_bytes()
-    if digest(evidence) != RECOVERY_REVISION_SHA256:
+@lru_cache(maxsize=2)
+def recovery_revision(path=RECOVERY_REVISION, expected_sha256=RECOVERY_REVISION_SHA256):
+    evidence = path.read_bytes()
+    if digest(evidence) != expected_sha256:
         raise ValueError("Offline recovery reversal record changed")
     return json.loads(evidence)["files"]
 
@@ -42,16 +44,21 @@ def recovery_revision():
 def before_recovery_revision(path, raw):
     """Reconstruct certificate-era bytes from the exact offline recovery patch."""
     raw = activation.before_activation(path, raw)
-    change = recovery_revision().get(path)
-    if change is None or digest(raw) != change["patched_sha256"]:
-        return raw
-    lines = raw.decode().splitlines(keepends=True)
-    for start, end, previous in reversed(change["reverse_edits"]):
-        lines[start:end] = previous.splitlines(keepends=True)
-    restored = "".join(lines).encode()
-    if digest(restored) != change["original_sha256"]:
-        raise ValueError("Offline recovery reversal failed: " + path)
-    return restored
+    revisions = (
+        recovery_revision(WORKDAY_COOLDOWN_REVISION, WORKDAY_COOLDOWN_REVISION_SHA256),
+        recovery_revision(),
+    )
+    for revision in revisions:
+        change = revision.get(path)
+        if change is None or digest(raw) != change["patched_sha256"]:
+            continue
+        lines = raw.decode().splitlines(keepends=True)
+        for start, end, previous in reversed(change["reverse_edits"]):
+            lines[start:end] = previous.splitlines(keepends=True)
+        raw = "".join(lines).encode()
+        if digest(raw) != change["original_sha256"]:
+            raise ValueError("Offline recovery reversal failed: " + path)
+    return raw
 
 
 def predecessor_bytes(path, raw):

@@ -585,7 +585,7 @@ def print_summary(
     print(f"  Supabase updates: {sync_result.updated}")
     print(f"  Supabase unchanged: {sync_result.unchanged}")
     print(f"  Missing counts advanced: {sync_result.missing_incremented}")
-    print(f"  Jobs newly closed: {sync_result.closed}")
+    print(f"  Closed jobs counted across synced scopes: {sync_result.closed}")
     print(f"  Coverage report path: {summary['coverage_report_path']}")
     print(f"  Ranked-results path: {summary['ranked_results_path']}")
     freshness = summary.get("freshness")

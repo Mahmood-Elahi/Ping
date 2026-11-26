@@ -605,7 +605,7 @@ def _failure_health_code(value: str) -> SourceHealthCode:
         for token in ("safety limit", "response size", "byte limit", "too large")
     ):
         return SourceHealthCode.SAFETY_LIMIT_REACHED
-    if lowered in {"rate_limited", "rate_limit_wait"}:
+    if lowered in {"rate_limited", "rate_limit_wait", "rate_limit_backpressure"}:
         return SourceHealthCode.TEMPORARY_UNEXPECTED_RESPONSE
     if "unexpected_upstream_http" in lowered or re.search(r"\bhttp 202\b", lowered):
         return SourceHealthCode.TEMPORARY_UNEXPECTED_RESPONSE
