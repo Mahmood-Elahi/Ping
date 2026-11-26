@@ -89,7 +89,7 @@ def fetch_jobs(
     seen_urls: set[str] = set()
     seen_fingerprints: dict[str, tuple[Any, ...]] = {}
     duplicate_representations = 0
-    for item in payload:
+    for row_number, item in enumerate(payload, start=1):
         if not isinstance(item, dict):
             raise AdapterError("Atlassian Careers collection contained a malformed row")
         job_id = str(item.get("id") or "").strip()
@@ -98,9 +98,24 @@ def fetch_jobs(
             raise AdapterError("Atlassian Careers job was missing a stable ID or title")
         locations = _clean_strings(item.get("locations"))
         portal_post = item.get("portalJobPost") if isinstance(item.get("portalJobPost"), dict) else {}
-        url = _validated_job_url(
-            job_id, item.get("applyUrl") or portal_post.get("portalUrl")
-        )
+        apply_url = item.get("applyUrl")
+        portal_url = portal_post.get("portalUrl")
+        try:
+            url = _validated_job_url(job_id, apply_url or portal_url)
+        except (AdapterError, ValueError) as exc:
+            metadata.update(
+                source_identity_status="failed",
+                stop_reason="identity_failure",
+                scan_completeness_reason="identity_failure",
+                diagnostics=[{
+                    "row_number": row_number,
+                    "posting_id": job_id if job_id.isascii() and job_id.isdecimal() else None,
+                    "selected_field": "applyUrl" if apply_url else "portalJobPost.portalUrl",
+                    "apply_url": _posting_url_shape(apply_url, job_id),
+                    "portal_url": _posting_url_shape(portal_url, job_id),
+                }],
+            )
+            raise AdapterError("Atlassian Careers job URL did not match the observed iCIMS host and stable-ID path contract") from exc
         job = JobRecord(
             job_id=job_id,
             title=title,
@@ -187,6 +202,26 @@ def _validated_job_url(job_id: str, value: Any) -> str:
             "Atlassian Careers job URL did not match the observed iCIMS host and stable-ID path contract"
         )
     return url
+
+
+def _posting_url_shape(value: Any, job_id: str) -> dict[str, Any]:
+    """Describe a rejected field without storing its URL or parameters."""
+    if not value:
+        return {"present": False}
+    try:
+        parsed = urlparse(str(value))
+        parts = [part for part in parsed.path.split("/") if part]
+        return {
+            "present": True,
+            "https": parsed.scheme == "https",
+            "host": parsed.hostname,
+            "path_segments": len(parts),
+            "posting_id_matches": len(parts) > 1 and parts[0].casefold() == "jobs" and parts[1] == job_id,
+            "query_present": bool(parsed.query),
+            "fragment_present": bool(parsed.fragment),
+        }
+    except ValueError:
+        return {"present": True, "malformed": True}
 
 
 def _description(item: dict) -> str:

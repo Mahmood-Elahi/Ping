@@ -1,0 +1,45 @@
+{
+  "src/scraper/company_careers/adapters/atlassian.py": {
+    "after_sha256": "9a05c4ff3c973e67df82208973b887225f1fe03d800a2426946cc0199b4d6260",
+    "before_sha256": "9a64cc539fa7ebe923c94cc10339f87773674a0a0e1818eb9b9089520b478fea",
+    "edits": [
+      [
+        91,
+        92,
+        "    for item in payload:\n"
+      ],
+      [
+        100,
+        118,
+        "        url = _validated_job_url(\n            job_id, item.get(\"applyUrl\") or portal_post.get(\"portalUrl\")\n        )\n"
+      ],
+      [
+        206,
+        226,
+        ""
+      ]
+    ]
+  },
+  "src/scraper/company_careers/adapters/icims.py": {
+    "after_sha256": "b533f5c759240f73a2f1e1391b5f76506d0bcbb0abe9e536ab42f3071c5d5c51",
+    "before_sha256": "6fcb3f02f8b342eea7261ff1b7e6de45745a2c9cc3d38bbfb395c7ade05ad657",
+    "edits": [
+      [
+        152,
+        164,
+        ""
+      ]
+    ]
+  },
+  "src/scraper/company_careers/adapters/public_json.py": {
+    "after_sha256": "4b9f2e8915d4ba542708c2acab7b1208beb17e6a976ce5657494d7e3e04237dd",
+    "before_sha256": "b9be686b2bf797a3a92098e93af3fe55694a5c8ef5e79afde7fca144f1592cd9",
+    "edits": [
+      [
+        1541,
+        1543,
+        ""
+      ]
+    ]
+  }
+}

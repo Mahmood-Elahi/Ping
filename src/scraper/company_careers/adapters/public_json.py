@@ -1539,6 +1539,8 @@ def _fetch_wordpress_once(
                 metadata["stop_reason"] = "terminal_page_count_mismatch"
                 metadata["scan_completeness_reason"] = "pagination_failure"
                 return jobs
+            if deliveroo:
+                _record_collection_integrity(metadata, jobs)
             metadata.update(
                 total_available=total,
                 scan_complete=not metadata["collection_changed_during_scan"],
