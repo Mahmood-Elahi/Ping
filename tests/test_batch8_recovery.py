@@ -217,7 +217,7 @@ def _zalando_page(job_id: int, *, disabled_next: bool) -> str:
     )
 
 
-def test_zalando_unproven_identity_cannot_finalize_healthy_from_effective_config(
+def test_zalando_effective_discovery_authority_requires_positive_identity(
     monkeypatch,
 ):
     monkeypatch.setattr(static_html.time, "sleep", lambda _seconds: None)
@@ -245,11 +245,12 @@ def test_zalando_unproven_identity_cannot_finalize_healthy_from_effective_config
     activated_result = CompanyCareersScanner(
         targets=[activated], session=activated_session
     ).scan().results[0]
-    assert activated_result.scan_complete
-    assert activated_result.scan_state == "complete"
-    assert activated_result.source_health_code == "healthy"
+    assert zalando.inventory_authority.value == "discovery_only"
+    assert not activated_result.scan_complete
+    assert activated_result.scan_state == "failed"
+    assert activated_result.source_health_code == "identity_failure"
     assert activated_result.source_identity_status == "unproven"
-    assert activated_result.authoritative_for_absence
+    assert not activated_result.authoritative_for_absence
 
     effective_result = CompanyCareersScanner(
         targets=[zalando],
@@ -261,7 +262,7 @@ def test_zalando_unproven_identity_cannot_finalize_healthy_from_effective_config
         ),
     ).scan().results[0]
     assert not effective_result.scan_complete
-    assert effective_result.scan_state == "incomplete"
-    assert effective_result.source_health_code == "terminal_contradiction"
+    assert effective_result.scan_state == "failed"
+    assert effective_result.source_health_code == "identity_failure"
     assert effective_result.source_identity_status == "unproven"
     assert not effective_result.authoritative_for_absence

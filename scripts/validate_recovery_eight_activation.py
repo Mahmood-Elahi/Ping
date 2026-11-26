@@ -39,6 +39,7 @@ def validate(payload=None):
     proof=evidence()
     if payload is None:payload=yaml.safe_load((ROOT/'config/target_companies.yaml').read_text())
     from scripts.validate_recovery_three_activation import registry_before_three
+    from scripts.validate_closeout_recovery import before_recovery_revision
     payload=registry_before_three(payload)
     rows=payload['target_companies'];by_name={r['name']:r for r in rows}
     if len(rows)!=533 or len(by_name)!=533 or not set(NAMES).issubset(by_name):raise ValueError('Registry membership changed')
@@ -46,9 +47,10 @@ def validate(payload=None):
     repairs=yaml.safe_load((ROOT/registry.DEFAULT_RELIABILITY_REPAIRS_PATH).read_text())['company_careers_reliability_repairs']
     if any(r['name'] in NAMES for r in repairs):raise ValueError('Unreviewed activation overlay')
     for path,expected in proof['engine_files'].items():
-        if digest((ROOT/path).read_bytes())!=expected:raise ValueError('Collection engine changed: '+path)
+        if digest(before_recovery_revision(path, (ROOT/path).read_bytes()))!=expected:raise ValueError('Collection engine changed: '+path)
     for path,expected in proof['engine_nodes'].items():
-        nodes={n.name:ast.dump(n,include_attributes=False) for n in ast.parse((ROOT/path).read_text()).body if isinstance(n,(ast.FunctionDef,ast.ClassDef))}
+        raw = before_recovery_revision(path, (ROOT/path).read_bytes())
+        nodes={n.name:ast.dump(n,include_attributes=False) for n in ast.parse(raw).body if isinstance(n,(ast.FunctionDef,ast.ClassDef))}
         if any(digest(nodes.get(name,'').encode())!=value for name,value in expected.items()):raise ValueError('Model/finalizer changed: '+path)
     targets=materialize(payload);jobs=requests=0
     if tuple(c['source']['company'] for c in proof['certificates'])!=NAMES:raise ValueError('Certificate roster changed')

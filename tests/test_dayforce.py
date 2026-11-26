@@ -290,6 +290,13 @@ class DayforceTests(unittest.TestCase):
             session.dayforce_pagination["duplicate_requisition_ids"], [501]
         )
 
+    def test_duplicate_requisition_must_remain_on_the_reviewed_board(self):
+        for invalid_scope in ({"jobBoardId": 2}, {"clientNamespace": "other"}):
+            with self.subTest(invalid_scope=invalid_scope):
+                session = Session([page([posting(), posting(102, 501, **invalid_scope)])])
+                with self.assertRaisesRegex(AdapterError, "boundaries"):
+                    dayforce.fetch_jobs(session, target())
+
     def test_localized_postings_share_stable_source_and_requisition_identity(self):
         english_config = dayforce.validate_target(target())
         french_target = target(
@@ -939,6 +946,30 @@ class DayforceTests(unittest.TestCase):
         self.assertEqual(result.scan["requests_used"], 2)
         self.assertTrue(result.scan["safety_limit_reached"])
         self.assertEqual(result.scan["stop_reason"], "dayforce_request_budget_exhausted")
+
+    def test_reached_raw_total_with_rejected_requisition_has_no_absence_authority(self):
+        # Chemelex reported 73 postings, two repeated requisitions, and
+        # one listed requisition with no structured location on its detail page.
+        rows = [posting(index, 1000 + index) for index in range(1, 74)]
+        rows[70]["jobReqId"] = rows[0]["jobReqId"]
+        rows[71]["jobReqId"] = rows[1]["jobReqId"]
+        rows[72].update(jobPostingId=2398, jobReqId=547, postingLocations=None)
+        session = Session(
+            [page(rows[offset:offset + 25], total=73, offset=offset) for offset in (0, 25, 50)],
+            details=[detail_html(rows[72])],
+        )
+        report = scanner.CompanyCareersScanner(
+            targets=[target(max_pages=3, max_jobs=75)], session=session, parent_source_mappings=[]
+        ).scan()
+        result, = report.results
+        self.assertEqual(result.source_identity_status, "validated")
+        self.assertEqual(result.jobs_collected, 70)
+        self.assertEqual(result.inventory_items_collected, 71)
+        self.assertEqual(result.rejected_items, 1)
+        self.assertEqual(result.source_health_code, "malformed_records")
+        self.assertFalse(result.inventory_complete)
+        self.assertFalse(result.authoritative_for_absence)
+        self.assertFalse(report.authoritative_source_scopes())
 
     def test_known_68_posting_accounting_is_explicit(self):
         rows = [posting(index, 1000 + index) for index in range(1, 69)]

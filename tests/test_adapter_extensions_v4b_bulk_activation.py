@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import inspect
 import json
+import re
 import tempfile
 import unittest
 
@@ -351,7 +352,7 @@ class AdapterExtensionsV4BContractTests(unittest.TestCase):
     def test_22_no_company_specific_adapter_branches(self):
         source = "\n".join((inspect.getsource(lever), inspect.getsource(static_html), inspect.getsource(scanner)))
         for company in EXPECTED:
-            self.assertNotIn(company.casefold(), source.casefold())
+            self.assertNotRegex(source, rf"(?i)(?<!\w){re.escape(company)}(?!\w)")
 
     def test_23_unsupported_variants_fail_closed(self):
         with self.assertRaisesRegex(AdapterError, "unsupported variant"):

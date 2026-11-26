@@ -413,3 +413,32 @@ class ICIMSAdapterTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_arm_counted_collection_controls_every_inventoried_posting(monkeypatch):
+    from src.scraper.company_careers.registry import load_target_companies
+    from src.scraper.company_careers.scanner import CompanyCareersScanner
+
+    arm = next(t for t in load_target_companies(apply_reliability_repairs=True) if t.name == "ARM")
+    monkeypatch.setattr(icims.time, "sleep", lambda _: None)
+
+    def card(id_, board="33099", posted_id=None):
+        return (f'<li class="job-card"><a data-job-id="{id_}" '
+                f'href="/en/job/toronto/engineer/{board}/{posted_id or id_}">Engineer</a></li>')
+
+    for last, complete in [(card(116), True), ("", False), (card(116, "99999"), False),
+                           (card(116, posted_id=999), False), (card(115), False)]:
+        # The repeated featured card is outside the section supplying the total.
+        responses = []
+        for jobs in ["".join(card(i) for i in range(101, 116)), last]:
+            body = (f'<html><ul id="search-results-jobs" data-results-count="16">{jobs}</ul>'
+                    f'<ul class="featured-jobs">{card(999)}</ul></html>')
+            response = Response(text=body, content_type="text/html")
+            response.url = f"{arm.search_url}?p={len(responses)+1}"
+            responses.append(response)
+        session = Session(responses + responses)
+        result = CompanyCareersScanner(targets=[arm], session=session, parent_source_mappings=[]).scan().results[0]
+        assert result.authoritative_for_absence is complete
+        if complete:
+            assert result.fetched_count == 16
+            assert len(session.calls) == 2

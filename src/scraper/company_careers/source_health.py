@@ -269,7 +269,7 @@ def finalize_source_scan(
         metadata["scan_state"] = SourceScanState.COMPLETE.value
         metadata["source_health_code"] = (
             SourceHealthCode.HYDRATION_DEGRADED.value
-            if unreadable_items or rejected_items
+            if unreadable_items
             else SourceHealthCode.HEALTHY.value
         )
         metadata["inventory_complete"] = True
@@ -431,11 +431,14 @@ def _completion_contradiction(
     if reason in _LOOP_REASONS:
         return SourceHealthCode.PAGINATION_LOOP
     if (
-        not metadata.get("rejected_records_accounted")
-        and (
-            int(metadata.get("rejected_record_count") or 0) > 0
-            or int(metadata.get("malformed_records") or 0) > 0
-        )
+        metadata["rejected_items"]
+        or int(metadata.get("rejected_record_count") or 0) > 0
+        or int(metadata.get("malformed_records") or 0) > 0
+    ):
+        return SourceHealthCode.MALFORMED_RECORDS
+    if metadata.get("scan_complete") and (
+        metadata["jobs_collected"] + metadata["unreadable_items"]
+        != metadata["inventory_items_collected"]
     ):
         return SourceHealthCode.MALFORMED_RECORDS
     # A validation harness stopping before the next request is not evidence
@@ -545,7 +548,8 @@ def _incomplete_health_code(
         return SourceHealthCode.AUTHENTICATION_OR_BLOCK
     if "identity" in reason:
         return SourceHealthCode.IDENTITY_FAILURE
-    if "partition_transport_failure" in reason or "partition_transient_http" in reason:
+    if ("partition_transport_failure" in reason or "partition_transient_http" in reason
+            or reason.startswith("rate_limit")):
         return SourceHealthCode.TEMPORARY_UNEXPECTED_RESPONSE
     if "unsplittable_partition" in reason:
         return SourceHealthCode.UNSPLITTABLE_PARTITION
@@ -601,6 +605,8 @@ def _failure_health_code(value: str) -> SourceHealthCode:
         for token in ("safety limit", "response size", "byte limit", "too large")
     ):
         return SourceHealthCode.SAFETY_LIMIT_REACHED
+    if lowered in {"rate_limited", "rate_limit_wait"}:
+        return SourceHealthCode.TEMPORARY_UNEXPECTED_RESPONSE
     if "unexpected_upstream_http" in lowered or re.search(r"\bhttp 202\b", lowered):
         return SourceHealthCode.TEMPORARY_UNEXPECTED_RESPONSE
     return SourceHealthCode.SOURCE_UNREACHABLE

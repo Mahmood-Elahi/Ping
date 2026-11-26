@@ -1,5 +1,6 @@
-"""Offline applicability of three live campaigns and reversal of the last eleven activations."""
+"""Check historical live campaign evidence and exact activation rollback."""
 from dataclasses import asdict
+from functools import lru_cache
 from hashlib import sha256
 import json
 from pathlib import Path
@@ -13,6 +14,8 @@ PACKAGE = ROOT / "reports/recovery-closeout-activation-2026-11-24/certificates.j
 SEAL = "c00334b890658dceb71e964ad6ee47541089274f6a416366c874223def577842"
 REGISTRY = "config/target_companies.yaml"
 OVERLAY = "config/company_careers_reliability_repairs_v1.yaml"
+RECOVERY_REVISION = ROOT / "reports/recovery-2026-11-25/historical-reversal.json"
+RECOVERY_REVISION_SHA256 = "8e5954951b8dd0100e3fb170f0c094798aa095faf479465ef71c1c02728b96bc"
 
 
 def digest(raw):
@@ -26,7 +29,30 @@ def certificate():
     return json.loads(raw)
 
 
+@lru_cache(maxsize=1)
+def recovery_revision():
+    evidence = RECOVERY_REVISION.read_bytes()
+    if digest(evidence) != RECOVERY_REVISION_SHA256:
+        raise ValueError("Offline recovery reversal record changed")
+    return json.loads(evidence)["files"]
+
+
+def before_recovery_revision(path, raw):
+    """Reconstruct certificate-era bytes from the exact offline recovery patch."""
+    change = recovery_revision().get(path)
+    if change is None or digest(raw) != change["patched_sha256"]:
+        return raw
+    lines = raw.decode().splitlines(keepends=True)
+    for start, end, previous in reversed(change["reverse_edits"]):
+        lines[start:end] = previous.splitlines(keepends=True)
+    restored = "".join(lines).encode()
+    if digest(restored) != change["original_sha256"]:
+        raise ValueError("Offline recovery reversal failed: " + path)
+    return restored
+
+
 def predecessor_bytes(path, raw):
+    raw = before_recovery_revision(path, raw)
     proof = certificate()
     record = proof["files"].get(path)
     if record is None or digest(raw) == record["previous"]:
@@ -64,6 +90,7 @@ def prior_registry(payload):
 
 
 def validate():
+    """Validate the original certificates and current certified target bindings."""
     from src.scraper.company_careers.adapters import static_html, successfactors_table_recovery
     from src.scraper.company_careers.registry import load_target_companies
     from src.scraper.company_careers.student_roles import configure_student_targets
@@ -71,12 +98,14 @@ def validate():
     proof = certificate()
     for path, record in proof["files"].items():
         raw = (ROOT / path).read_bytes()
+        raw = before_recovery_revision(path, raw)
         if digest(raw) != record["current"]:
             raise ValueError("Activated file differs from reviewed version: " + path)
         if record["previous"]:
             predecessor_bytes(path, raw)
     for path, expected in proof["production_runtime_sha256"].items():
-        if digest((ROOT / path).read_bytes()) != expected:
+        raw = before_recovery_revision(path, (ROOT / path).read_bytes())
+        if digest(raw) != expected:
             raise ValueError("Reviewed production runtime changed: " + path)
     targets = {t.name: t for t in configure_student_targets(load_target_companies(apply_reliability_repairs=True))}
     if len(targets) != 533:

@@ -19,13 +19,21 @@ import requests
 
 from src.scraper.company_careers.models import (
     AdapterError,
+    AdapterResult,
     CompanyTarget,
     JobRecord,
     SourceScanMetadata,
     explicit_adapter_result,
     publish_source_scan_metadata,
 )
-from src.scraper.company_careers.listing_completion import AdaptiveListingCompletion
+from src.scraper.company_careers.listing_completion import (
+    AdaptiveListingCompletion,
+    finish_authoritative_total,
+)
+from src.scraper.company_careers.mutable_collection import (
+    fetch_with_mutation_restart,
+    finish_changed,
+)
 
 
 EMBEDDED_REFINE_SEARCH_VARIANT = "embedded_refine_search"
@@ -63,8 +71,14 @@ def fetch_jobs(
     session: requests.Session,
     target: CompanyTarget,
     timeout: int = 20,
-) -> List[JobRecord]:
+) -> AdapterResult:
     validate_target(target)
+    return fetch_with_mutation_restart(session, lambda: _fetch_jobs_once(session, target, timeout))
+
+
+def _fetch_jobs_once(
+    session: requests.Session, target: CompanyTarget, timeout: int
+) -> List[JobRecord]:
     max_pages = max(1, int(target.max_pages))
     if max_pages > MAX_PAGES:
         raise AdapterError(f"Phenom max_pages cannot exceed {MAX_PAGES}")
@@ -133,9 +147,10 @@ def fetch_jobs(
         if metadata["total_available"] is None:
             metadata["total_available"] = total
         elif total != metadata["total_available"]:
-            metadata["stop_reason"] = "inconsistent_total"
-            metadata["scan_completeness_reason"] = "inconsistent_total"
-            raise AdapterError("Phenom total job count changed during pagination")
+            metadata["total_count_changed"] = True
+            metadata["final_total_observed"] = total
+            finish_changed(metadata, terminal_evidence="inconsistent_total")
+            break
         listing_budget.record_decision(
             metadata,
             total,
@@ -154,18 +169,25 @@ def fetch_jobs(
             break
         seen_page_ids.add(page_ids)
 
+        prior_page_ids = seen_job_ids.copy()
+        page_overlap = False
         normalized_count = 0
         new_id_count = 0
         for item in items:
             try:
                 job = _normalize_item(item, target)
             except AdapterError as exc:
+                metadata["rejected_record_count"] = metadata.get("rejected_record_count", 0) + 1
                 metadata["diagnostics"].append(
                     {"offset": offset, "error": str(exc), "item": dict(item)}
                 )
                 continue
             normalized_count += 1
             if job.job_id in seen_job_ids:
+                if job.job_id in prior_page_ids:
+                    page_overlap = True
+                else:
+                    metadata["rejected_record_count"] = metadata.get("rejected_record_count", 0) + 1
                 metadata["diagnostics"].append(
                     {"offset": offset, "error": f"Duplicate stable job ID: {job.job_id}"}
                 )
@@ -194,10 +216,16 @@ def fetch_jobs(
             metadata["stop_reason"] = "no_new_stable_ids"
             metadata["scan_completeness_reason"] = "pagination_failure"
             break
+        if page_overlap:
+            finish_changed(metadata, terminal_evidence="overlapping_listing_ids")
+            break
         if offset + len(items) >= total:
-            metadata["stop_reason"] = "total_jobs_reached"
-            metadata["scan_complete"] = True
-            metadata["scan_completeness_reason"] = "reported_total_reached"
+            metadata["authoritative_total_present"] = True
+            if finish_authoritative_total(metadata, total, len(jobs)):
+                metadata["stop_reason"] = "total_jobs_reached"
+            else:
+                metadata["stop_reason"] = "inventory_total_mismatch"
+                metadata["scan_completeness_reason"] = "inventory_total_mismatch"
             break
         if len(items) < PAGE_SIZE:
             metadata["stop_reason"] = "malformed_total"

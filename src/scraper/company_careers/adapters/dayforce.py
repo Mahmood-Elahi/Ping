@@ -142,7 +142,6 @@ def _fetch_jobs_once(
         rejected_posting_ids=[],
         rejected_requisition_ids=[],
         rejected_record_reason=None,
-        rejected_records_accounted=True,
         malformed_records=0,
         total_available=None,
         authoritative_total_present=True,
@@ -270,6 +269,10 @@ def _fetch_jobs_once(
                 raise AdapterError(f"Dayforce repeated stable posting ID: {posting_id}")
             seen_posting_ids.add(posting_id)
             requisition_id = _positive_int(row, "jobReqId", "requisition")
+            if str(row.get("clientNamespace") or "").casefold() != config["tenant"].casefold():
+                raise AdapterError("Dayforce posting crossed tenant boundaries")
+            if row.get("jobBoardId") != site_info["jobBoardId"]:
+                raise AdapterError("Dayforce posting crossed job-board boundaries")
             if requisition_id in seen_requisition_ids:
                 metadata["duplicate_requisitions_skipped"] += 1
                 if len(metadata["duplicate_requisition_ids"]) < MAX_REJECTED_RECORD_IDS:
@@ -700,10 +703,6 @@ def _normalize(
         raise AdapterError("Dayforce posting must be a JSON object")
     posting_id = _positive_int(row, "jobPostingId", "posting")
     requisition_id = _positive_int(row, "jobReqId", "requisition")
-    if str(row.get("clientNamespace") or "").casefold() != config["tenant"].casefold():
-        raise AdapterError("Dayforce posting crossed tenant boundaries")
-    if row.get("jobBoardId") != site_info["jobBoardId"]:
-        raise AdapterError("Dayforce posting crossed job-board boundaries")
     title = _clean_text(row.get("jobTitle"))
     if not title:
         raise AdapterError("Dayforce posting has no title")

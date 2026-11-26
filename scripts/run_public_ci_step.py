@@ -209,6 +209,13 @@ class _PublicReportRenderer:
                 f"jobs_retained={event['jobs_retained']}, reason={reason}.",
                 flush=True,
             )
+        elif event_type == "source_cooldown":
+            print(
+                f"Ping report: Source cooldown for {event['name']}: "
+                f"until={event['cooldown_until']}, "
+                f"transient_streak={event['consecutive_transient_failures']}.",
+                flush=True,
+            )
         elif event_type == "scan_summary":
             print(
                 "Ping report: Scan summary: "

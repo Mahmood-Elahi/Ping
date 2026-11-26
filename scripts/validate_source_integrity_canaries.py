@@ -31,6 +31,7 @@ from src.scraper.company_careers.models import (
 )
 from src.scraper.company_careers.registry import load_target_companies
 from src.scraper.company_careers.scanner import ADAPTERS
+from src.scraper.company_careers.workday_throttle import WorkdayListingSession, WorkdayRedirect, WorkdayThrottle
 from src.scraper.company_careers.incremental import ResultAuthority
 from src.scraper.company_careers.source_health import (
     can_reconcile_absence,
@@ -71,21 +72,22 @@ class CanaryBudgetReached(RuntimeError):
     pass
 
 
-class BoundedSession(requests.Session):
-    def __init__(self, budget: int) -> None:
-        super().__init__()
+class BoundedSession(WorkdayListingSession):
+    def __init__(self, budget: int, throttle: WorkdayThrottle | None = None) -> None:
+        super().__init__(throttle or WorkdayThrottle())
         self.budget = budget
         self.requests_started = 0
         self.last_final_url: str | None = None
         self.last_redirect_count = 0
 
-    def request(self, method: str, url: str, *args: Any, **kwargs: Any) -> requests.Response:
+    def send_admitted(self, request: requests.PreparedRequest, **kwargs: Any) -> requests.Response:
+        # Count each admitted redirect hop and exclude local rate-limit holds.
         if self.requests_started >= self.budget:
             raise CanaryBudgetReached(
                 f"live canary reached its independent request budget ({self.budget})"
             )
         self.requests_started += 1
-        response = super().request(method, url, *args, **kwargs)
+        response = super().send_admitted(request, **kwargs)
         self.last_final_url = str(getattr(response, "url", "") or "") or None
         self.last_redirect_count = len(getattr(response, "history", ()) or ())
         return response
@@ -128,8 +130,8 @@ def selected_targets(
     return selected
 
 
-def run_canary(target: Any, request_budget: int) -> dict[str, Any]:
-    session = BoundedSession(request_budget)
+def run_canary(target: Any, request_budget: int, *, throttle: WorkdayThrottle | None = None) -> dict[str, Any]:
+    session = BoundedSession(request_budget) if throttle is None else BoundedSession(request_budget, throttle)
     metadata: dict[str, Any]
     status: str
     canary_outcome: str
@@ -141,7 +143,7 @@ def run_canary(target: Any, request_budget: int) -> dict[str, Any]:
         if isinstance(output, AdapterResult):
             jobs = output.jobs
             metadata = SourceScanMetadata.from_value(output.scan)
-            inventory_items_collected = len(output.inventory_items)
+            inventory_items_collected = len(output.inventory_items) if output.inventory_items else len(jobs)
             unreadable_items = sum(
                 failure.outcome == "unreadable" for failure in output.item_failures
             )
@@ -211,7 +213,7 @@ def run_canary(target: Any, request_budget: int) -> dict[str, Any]:
         metadata = adapter_exception_metadata(exc) or source_scan_metadata(session)
         _record_session_diagnostics(metadata, session, target)
         failure_code = f"{type(exc).__name__}: {exc}"
-        if metadata.get("source_identity_status") == "failed":
+        if isinstance(exc, WorkdayRedirect) or metadata.get("source_identity_status") == "failed":
             failure_code = f"identity failure: {failure_code}"
         finalize_source_scan(
             metadata,
@@ -524,6 +526,8 @@ def _failure_outcome(metadata: dict[str, Any], exc: BaseException) -> str:
     if code == "source_migration_suspected":
         return "MIGRATION_SUSPECTED"
     message = f"{type(exc).__name__}: {exc}".casefold()
+    if isinstance(exc, WorkdayRedirect):
+        return "FAIL_IDENTITY"
     if (
         isinstance(exc, requests.RequestException)
         or code
@@ -670,6 +674,8 @@ def _hidden_continuation_absent(metadata: dict[str, Any]) -> bool:
 
 
 def _incomplete_outcome(metadata: dict[str, Any]) -> str:
+    if metadata.get("stop_reason") in {"rate_limited", "rate_limit_wait"}:
+        return "FAIL_TRANSIENT"
     code = str(metadata.get("source_health_code") or "")
     if code == "source_migration_suspected":
         return "MIGRATION_SUSPECTED"
@@ -748,7 +754,8 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         return 0
-    rows = [run_canary(target, args.request_budget) for target in targets]
+    throttle = WorkdayThrottle()
+    rows = [run_canary(target, args.request_budget, throttle=throttle) for target in targets]
     print(json.dumps(rows, indent=2, sort_keys=True))
     return 0 if all(
         row["canary_outcome"] == "PASS_COMPLETE" for row in rows

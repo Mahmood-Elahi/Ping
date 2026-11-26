@@ -295,3 +295,20 @@ raise SystemExit(9)
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_persisted_cooldown_public_event_has_a_typed_utc_deadline(tmp_path, capsys):
+    from scripts.run_public_ci_step import _PublicReportRenderer
+
+    path = tmp_path / "report.jsonl"
+    path.touch()
+    reporter = PublicCIReporter(path)
+    fields = dict(name="Example", cooldown_until="2026-11-25T10:15:01.123456-06:00",
+                  consecutive_transient_failures=4)
+    assert reporter.emit("source_cooldown", **fields)
+    assert not reporter.emit("source_cooldown", **{**fields, "cooldown_until": "sensitive text"})
+    event = read_public_event_line(path.read_bytes())
+    _PublicReportRenderer([event], 0, wrapper_runtime_seconds=0).print_log()
+    output = capsys.readouterr().out
+    assert "until=2026-11-25T16:15:01.123456+00:00, transient_streak=4" in output
+    assert "sensitive text" not in output

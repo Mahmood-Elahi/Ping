@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from html import unescape
 from typing import Any, List
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 import requests
 
@@ -30,6 +30,13 @@ APPLY_HOSTS = {
 }
 
 
+REGIONAL_APPLY_HOSTS = {
+    "careers-australia-atlassian.icims.com",
+    "campus-globalcareers-atlassian.icims.com",
+    "campus-americas.icims.com",
+}
+
+
 @explicit_adapter_result
 def fetch_jobs(
     session: requests.Session, target: CompanyTarget, timeout: int = 20
@@ -40,10 +47,13 @@ def fetch_jobs(
         LISTINGS_URL,
         headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
         timeout=timeout,
+        allow_redirects=False,
     )
     if response.status_code != 200:
         raise AdapterError(f"Atlassian Careers HTTP {response.status_code}")
 
+    if (getattr(response, "url", None) or LISTINGS_URL) != LISTINGS_URL:
+        raise AdapterError("Atlassian listings response left the official endpoint")
     payload = response.json()
     if not isinstance(payload, list):
         raise AdapterError("Atlassian Careers response was not a list")
@@ -150,6 +160,19 @@ def _validated_job_url(job_id: str, value: Any) -> str:
     parsed = urlparse(url)
     host = (parsed.hostname or "").casefold().rstrip(".")
     path_parts = [part for part in parsed.path.split("/") if part]
+    if host in REGIONAL_APPLY_HOSTS:
+        # Regional portal links are published by the first-party atomic feed.
+        # Bind the exact posting and slug before accepting the regional host.
+        slug = unquote(path_parts[2]) if len(path_parts) == 4 else ""
+        if (
+            parsed.scheme == "https" and parsed.netloc == host
+            and job_id.isascii() and job_id.isdecimal()
+            and re.fullmatch(r"/jobs/" + re.escape(job_id) + r"/[^/]+/job/?", parsed.path)
+            and slug not in {"", ".", ".."} and "/" not in slug and "\\" not in slug
+            and parsed.query in {"", "mode=apply", "mode=job"}
+            and not parsed.params and not parsed.fragment
+        ):
+            return url
     if (
         parsed.scheme != "https"
         or parsed.username

@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import json
 import unittest
+from unittest.mock import patch
+
+import requests
 
 from src.integrations.supabase_job_store import generate_source_key
 from src.scraper.company_careers.adapters import apple
+from src.scraper.company_careers.scanner import CompanyCareersScanner
 from src.scraper.company_careers.models import AdapterError, CompanyTarget, JobRecord
 
 
@@ -224,6 +228,32 @@ class AppleAdapterTests(unittest.TestCase):
         self.assertEqual([call[1]["json"]["page"] for call in session.post_calls], [1, 2])
         self.assertEqual(session.apple_pagination["pages_fetched"], 2)
         self.assertEqual(session.apple_pagination["stop_reason"], "total_records_reached")
+
+    def test_one_midstream_retry_replays_the_exact_page_through_scanner(self):
+        class InterruptedResponse(Response):
+            def iter_content(self, chunk_size):
+                yield b'{"partial":'
+                raise requests.exceptions.ChunkedEncodingError()
+
+        interrupted = InterruptedResponse()
+        first = Response(page([job()], total=2))
+        second = Response(page([job("200700002-0157")], total=2))
+        session = Session([first, interrupted, second])
+        with patch.object(apple.time, "sleep", return_value=None):
+            report = CompanyCareersScanner(
+                targets=[target(max_jobs=3)], session=session, parent_source_mappings=[]
+            ).scan()
+        result, = report.results
+        self.assertTrue(result.authoritative_for_absence)
+        self.assertEqual([request["json"]["page"] for _, request in session.post_calls], [1, 2, 2])
+        self.assertEqual(result.jobs_collected, 2)
+        self.assertTrue(interrupted.closed)
+
+    def test_http_restriction_is_never_retried(self):
+        session = Session([Response(status=429)])
+        with self.assertRaisesRegex(AdapterError, "HTTP 429"):
+            apple.fetch_jobs(session, target())
+        self.assertEqual(len(session.post_calls), 1)
 
     def test_pagination_loop_is_rejected(self):
         repeated = page([job()], total=3)

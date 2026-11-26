@@ -94,5 +94,52 @@
       "zh-CN": "简体中文 (中国大陆)",
       "zh-TW": "繁體中文(台灣)"
     }
+  },
+  "Aecon": {
+    "search_url": "https://jobs.aecon.com/search/",
+    "baseline": "60bcfe4da456166306ddab9339d3a94540ce9b0a2ba69a25e8b4ff01adc7fdff",
+    "baseline_effective": "60bcfe4da456166306ddab9339d3a94540ce9b0a2ba69a25e8b4ff01adc7fdff",
+    "reviewed": "d71d0eca1fc884c992e22691ea9bba978e0b8711e748d6cee8d4ddac59d26783",
+    "language_menu": {
+      "en-US": "English (Canada)",
+      "fr-CA": "Français (Canada)"
+    }
+  },
+  "John Deere": {
+    "search_url": "https://jobs.deere.com/search/",
+    "baseline": "8580f6405d6bf3ae40fab5be671c8f591b05c13d6d30d70ec6d34284017c3308",
+    "baseline_effective": "8580f6405d6bf3ae40fab5be671c8f591b05c13d6d30d70ec6d34284017c3308",
+    "reviewed": "2b562ef46e2b57436921b50a420ae3f4b6ca3b96304b69877112bf70403ebea9",
+    "language_menu": {
+      "de-DE": "Deutsch (Deutschland)",
+      "en-US": "English (United States)",
+      "es-ES": "Español (España)",
+      "fi-FI": "Suomi (Suomen tasavalta)",
+      "fr-FR": "Français (France)",
+      "it-IT": "Italiano (Italia)",
+      "nl-NL": "Nederlands (Nederland)",
+      "pl-PL": "Polski",
+      "pt-BR": "Português (Brasil)",
+      "ru-RU": "Русский язык (Россия)",
+      "sv-SE": "Svenska (Konungariket Sverige)",
+      "th-TH": "ภาษาไทย (ประเทศไทย)",
+      "tr-TR": "Türkçe (Türkiye)",
+      "zh-CN": "简体中文 (中国大陆)"
+    }
+  },
+  "Volvo Cars": {
+    "search_url": "https://jobs.volvocars.com/search/",
+    "baseline": "1d5752668c46d65f5bd1a998e629ad9fbbf01cb3a6bb028f733de08293cb7d69",
+    "baseline_effective": "1d5752668c46d65f5bd1a998e629ad9fbbf01cb3a6bb028f733de08293cb7d69",
+    "reviewed": "e7780a23b65abc8a6dd46ce3d581f42538735fb301fdbc4d769107caa9053215",
+    "language_menu": {
+      "de-DE": "Deutsch",
+      "en-US": "English",
+      "es-ES": "Español",
+      "fr-FR": "Français",
+      "nl-BE": "Nederlands",
+      "sv-SE": "Svenska",
+      "zh-CN": "简体中文"
+    }
   }
 }

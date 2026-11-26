@@ -28,6 +28,7 @@ def certificate():
 
 
 def prior_adapter_bytes(name, raw):
+    raw = closeout.before_recovery_revision(name, raw)
     if name.startswith("src/scraper/company_careers/adapters/"):
         raw = closeout.predecessor_bytes(name, raw)
     record = certificate()["adapters"].get(name)

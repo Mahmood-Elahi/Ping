@@ -8,8 +8,7 @@ import json
 from math import ceil
 import re
 from typing import Any, Mapping
-from urllib.parse import urlparse
-from urllib.parse import urljoin
+from urllib.parse import parse_qs, urljoin, urlparse
 
 import requests
 from lxml import html
@@ -1437,29 +1436,42 @@ def _fetch_wordpress_once(
     )
     jobs: list[JobRecord] = []
     seen_ids: set[str] = set()
+    deliveroo = (
+        target.name == "Deliveroo" and target.source_scope == "default"
+        and target.careers_url == "https://careers.deliveroo.co.uk/"
+        and target.endpoint_url == "https://careers.deliveroo.co.uk/wp-json/wp/v2/roles"
+        and target.allowed_apply_hosts == ["careers.deliveroo.co.uk"]
+    )
     expected_pages: int | None = None
     for page in range(1, maximum_pages + 1):
         metadata["pages_requested"] += 1
+        params = {
+            "_adjust_ids": "true",
+            "locations_slug": "",
+            "teams_slug": "",
+            "order": "asc",
+            "orderby": "title",
+            "per_page": str(page_size),
+            "page": str(page),
+        }
         response = _get(
-            session,
-            str(target.endpoint_url),
-            timeout,
-            params={
-                "_adjust_ids": "true",
-                "locations_slug": "",
-                "teams_slug": "",
-                "order": "asc",
-                "orderby": "title",
-                "per_page": str(page_size),
-                "page": str(page),
-            },
+            session, str(target.endpoint_url), timeout, params=params, allow_redirects=not deliveroo
         )
+        if deliveroo:
+            final = urlparse(response.url)
+            if (
+                final._replace(query="").geturl() != target.endpoint_url
+                or parse_qs(final.query, keep_blank_values=True) != {k: [v] for k, v in params.items()}
+            ):
+                raise AdapterError("Deliveroo listing destination changed")
         rows = _json(response, target)
         metadata["pages_completed"] += 1
         if not isinstance(rows, list):
             raise AdapterError("WordPress roles response must be a JSON list")
         total = _header_int(response, "x-wp-total")
         total_pages = _header_int(response, "x-wp-totalpages")
+        if deliveroo and total == 0:
+            raise AdapterError("Empty Deliveroo collection lacks published role identity evidence")
         record_total_observation(
             metadata,
             total,
@@ -1490,6 +1502,21 @@ def _fetch_wordpress_once(
                 if len(metadata["diagnostics"]) < 10:
                     metadata["diagnostics"].append({"page": page, "error": str(exc)})
                 continue
+            if deliveroo:
+                self_links = row.get("_links")
+                references = self_links.get("self") if isinstance(self_links, Mapping) else None
+                role_url = urlparse(job.url)
+                if not (
+                    row["id"] > 0 and row.get("type") == "role" and row.get("status") == "publish"
+                    and isinstance(references, list) and len(references) == 1
+                    and isinstance(references[0], Mapping)
+                    and references[0].get("href") == f"{target.endpoint_url}/{row['id']}"
+                    and role_url.netloc == "careers.deliveroo.co.uk"
+                    and re.fullmatch(r"/role/[a-zA-Z0-9%-]+/", role_url.path)
+                    and not (role_url.query or role_url.params or role_url.fragment)
+                ):
+                    metadata.update(source_identity_status="failed", stop_reason="identity_failure")
+                    raise AdapterError("Deliveroo role did not match its published WordPress identity")
             if job.job_id in page_ids or job.job_id in seen_ids:
                 metadata["repeated_stable_ids"] = True
                 metadata["stop_reason"] = "repeated_stable_ids"
@@ -1529,6 +1556,11 @@ def _fetch_wordpress_once(
                     metadata["rejected_record_count"] == 0
                 ),
             )
+            if deliveroo and jobs and not metadata["rejected_record_count"]:
+                metadata.update(
+                    source_identity_status="validated",
+                    source_identity_diagnostic="Published roles linked to their exact IDs on the Deliveroo careers API.",
+                )
             record_terminal_evidence(
                 metadata,
                 "wordpress_total_pages",

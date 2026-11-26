@@ -324,7 +324,6 @@ class EightfoldAdapterTests(unittest.TestCase):
         pages = [
             FakeResponse(payload([position(index) for index in range(1, 11)], count=30)),
             FakeResponse(payload([position(index) for index in range(11, 21)], count=31)),
-            FakeResponse(payload([position(index) for index in range(21, 30)], count=29)),
             FakeResponse(payload([position(index) for index in range(1, 11)], count=30)),
             FakeResponse(payload([position(index) for index in range(11, 21)], count=31)),
             FakeResponse(payload([position(index) for index in range(21, 30)], count=29)),
@@ -668,3 +667,35 @@ class EightfoldValidationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_infineon_restarts_at_first_proven_drift_without_mixing_inventory(monkeypatch):
+    from src.scraper.company_careers.registry import load_target_companies
+
+    infineon = next(t for t in load_target_companies(apply_reliability_repairs=True) if t.name == "Infineon Technologies")
+    monkeypatch.setattr(eightfold.time, "sleep", lambda _: None)
+    pages = [
+        (range(100, 110), 45), (range(110, 120), 44),
+        (range(1, 11), 21), (range(11, 21), 21), ([21], 21),
+    ]
+    responses = []
+    for ids, total in pages:
+        response = FakeResponse(payload([position(i) for i in ids], count=total))
+        response.url = infineon.endpoint_url
+        responses.append(response)
+    session = FakeSession(responses)
+    result = CompanyCareersScanner(targets=[infineon], session=session, parent_source_mappings=[]).scan().results[0]
+    assert result.authoritative_for_absence
+    assert result.fetched_count == 21
+    assert session.eightfold_pagination["first_traversal_jobs"] == 20
+    assert session.eightfold_pagination["stable_ids_removed_after_restart"] == 20
+    assert [kwargs["params"]["start"] for _, kwargs in session.calls] == ["0", "10", "0", "10", "20"]
+
+
+def test_within_page_duplicate_is_not_a_restartable_snapshot_change(monkeypatch):
+    monkeypatch.setattr(eightfold.time, "sleep", lambda _: None)
+    session = FakeSession([FakeResponse(payload([position(1), position(1)], count=2))])
+    with unittest.TestCase().assertRaisesRegex(AdapterError, "duplicate stable position IDs"):
+        eightfold.fetch_jobs(session, target())
+    assert len(session.calls) == 1
+    assert not session.eightfold_pagination["scan_complete"]
