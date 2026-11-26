@@ -1,0 +1,22 @@
+target_companies:
+- name: Aecon
+  platform: sap_successfactors
+  careers_url: https://www.aecon.com/careers
+  search_url: https://jobs.aecon.com/search/
+  endpoint_variant: rmk_table
+  allowed_apply_hosts:
+  - jobs.aecon.com
+  max_pages: 1
+  max_jobs: 20
+- name: John Deere
+  platform: sap_successfactors
+  careers_url: https://www.deere.com/en/our-company/john-deere-careers/
+  search_url: https://jobs.deere.com/search/
+  endpoint_variant: rmk_table
+  max_pages: 2
+- name: Volvo Cars
+  platform: sap_successfactors
+  careers_url: https://www.volvocars.com/intl/careers/
+  search_url: https://jobs.volvocars.com/search/
+  endpoint_variant: rmk_table
+  max_pages: 2

@@ -23,6 +23,8 @@ MAX_COLLECTION_RESTARTS = 1
 def fetch_with_mutation_restart(
     session: Any,
     fetch_once: Callable[[], AdapterOutput],
+    *,
+    fetch_replacement: Optional[Callable[[], AdapterOutput]] = None,
 ) -> AdapterResult:
     """Return one internally consistent traversal after at most one restart.
 
@@ -46,7 +48,7 @@ def fetch_with_mutation_restart(
     )
     first_requests = int(first_metadata.get("pages_requested") or 0)
     first_pages = int(first_metadata.get("pages_completed") or 0)
-    second_output = fetch_once()
+    second_output = (fetch_replacement or fetch_once)()
     second_result = _as_result(second_output, session)
     second_jobs = second_result.jobs
     metadata = source_scan_metadata(session)

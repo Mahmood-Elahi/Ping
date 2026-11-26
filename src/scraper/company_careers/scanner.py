@@ -82,6 +82,7 @@ from src.scraper.company_careers.parent_sources import (
     load_parent_source_mappings,
     original_company_coverage,
 )
+from src.scraper.company_careers.workday_throttle import WorkdayRateLimit, WorkdayRedirect
 from src.scraper.company_careers.source_health import finalize_source_scan
 from src.scraper.company_careers.source_cooldown import (
     cooldown_active,
@@ -107,6 +108,8 @@ def _completion_result_fields(metadata: SourceScanMetadata) -> dict[str, Any]:
             metadata.get("authoritative_total_present")
         ),
         "pages_requested": int(metadata["pages_requested"]),
+        "provider_retry_at": metadata.get("provider_retry_at"),
+        "transport_failure": metadata.get("transport_failure"),
         "pages_completed": int(metadata["pages_completed"]),
         "stop_reason": str(metadata["stop_reason"]),
         "safety_limit_reached": bool(metadata["safety_limit_reached"]),
@@ -570,6 +573,22 @@ class CompanyCareersScanner:
                     stop_reason="item_failure_outside_inventory",
                     pagination_evidence_malformed=True,
                 )
+            elif explicit_inventory:
+                hydrated_keys = {(job.source.casefold(), job.job_id) for job in fetched_jobs}
+                missing_keys = set(inventory_keys) - hydrated_keys
+                if (
+                    not hydrated_keys.issubset(inventory_keys)
+                    or sorted(item_id for _, item_id in missing_keys)
+                    != sorted(failure.item_id for failure in item_failures)
+                ):
+                    if scan_metadata.get("scan_complete") or scan_metadata.get(
+                        "scan_completeness_reason"
+                    ) in {None, "", "adapter_completeness_not_proven", "not_established"}:
+                        scan_metadata.update(
+                            scan_completeness_reason="inventory_accounting_mismatch",
+                            stop_reason="inventory_accounting_mismatch",
+                        )
+                    scan_metadata.update(scan_complete=False, pagination_evidence_malformed=True)
             scan_metadata["original_configured_url"] = _configured_source_url(target)
             fetched_jobs = [
                 annotate_child_brand_metadata(job, self.parent_source_mappings)
@@ -699,11 +718,35 @@ class CompanyCareersScanner:
             )
             clear_source_scan_metadata(adapter_session)
             scan_metadata["original_configured_url"] = _configured_source_url(target)
+            error_type = "request_error"
+            remediation = "Verify network access and upstream availability."
+            if isinstance(exc, WorkdayRateLimit):
+                error_type = "rate_limited" if exc.physical else "rate_limit_wait"
+                remediation = "Wait for the provider deadline and normal source cooldown."
+                scan_metadata["provider_retry_at"] = exc.retry_at
+            elif isinstance(exc, WorkdayRedirect):
+                error_type = "validation_identity_mismatch"
+                remediation = "Verify the official CXS route and binding before following any redirect."
+            elif isinstance(exc, requests.HTTPError) and exc.response is not None:
+                status_code = exc.response.status_code
+                if status_code == 429:
+                    error_type, remediation = "rate_limited", "Wait for upstream rate-limit recovery."
+                elif status_code in {401, 403, 407}:
+                    error_type, remediation = "access_blocked", "Verify authorized source access."
+                elif status_code in {408, 425, 500, 502, 503, 504}:
+                    error_type, remediation = "transient_upstream_http", "Check upstream availability before retrying."
+                elif status_code in {404, 410}:
+                    error_type, remediation = "stale_board_identifier", "Verify the current official listing endpoint."
+                elif 400 <= status_code < 500:
+                    error_type, remediation = "adapter_protocol_failure", "Check the rejected request against the source contract."
+            elif isinstance(exc, requests.Timeout):
+                error_type = "request_timeout"
+                remediation = "Check the timed-out source request before retrying."
             finalize_source_scan(
                 scan_metadata,
                 jobs_collected=int(scan_metadata.get("jobs_normalized") or 0),
                 failed=True,
-                failure_code="request_error",
+                failure_code=error_type,
                 activation_state=target.source_activation,
                 inventory_authority=target.inventory_authority,
             )
@@ -711,11 +754,8 @@ class CompanyCareersScanner:
                 target=target,
                 status=CoverageStatus.FAILED_TECHNICAL,
                 error=str(exc),
-                error_type="request_error",
-                remediation=(
-                    "Retry the scan and verify network access or upstream "
-                    "availability."
-                ),
+                error_type=error_type,
+                remediation=remediation,
                 **_completion_result_fields(scan_metadata),
             )
         except Exception as exc:
@@ -811,6 +851,11 @@ class CompanyCareersScanner:
                 "stale_board_identifier",
                 "Verify the current official career board or ATS and migrate the registry only with strong identity evidence.",
             )
+        if target is not None and target.platform == "workday":
+            if re.search(r"\bhttp (401|403|407)\b", lowered):
+                return "access_blocked", "The Workday listing denied the request. Verify authorized access."
+            if re.search(r"\bhttp 429\b", lowered):
+                return "rate_limited", "Wait for normal rate-limit recovery."
         if (
             re.search(r"\bhttp (408|425|429|500|502|503|504)\b", lowered)
             or "transient upstream maintenance redirect" in lowered

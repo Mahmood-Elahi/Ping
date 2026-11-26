@@ -9,6 +9,8 @@ from urllib.parse import urlparse
 
 import requests
 
+from src.scraper.company_careers.workday_throttle import WorkdayRateLimit, WorkdayRedirect
+
 from src.scraper.company_careers.models import (
     AdapterError,
     AdapterResult,
@@ -340,6 +342,10 @@ def _try_site(
             # Body variants and alternate site IDs are first-page
             # compatibility fallbacks. Never restart an enumeration after
             # a later page has already been accepted.
+            if isinstance(exc, _FirstPageHttpError) and (
+                exc.status_code in {401, 403, 407, 408, 425, 429} or exc.status_code >= 500
+            ):
+                raise
             if source_scan_metadata(session)["pages_completed"]:
                 raise
             if not isinstance(exc, _FirstPageHttpError) or exc.status_code not in {404, 422}:
@@ -1289,7 +1295,7 @@ def _fetch_partitioned_inventory(
     elif not options:
         _fail_partition(context, "workday_unsplittable_partition")
     else:
-        facet, values = options[0]
+        facet, values = _fitting_dimension(options, context)
         _traverse_partition_children(
             session,
             context,
@@ -1415,7 +1421,7 @@ def _traverse_partition_children(
             if not options:
                 _fail_partition(context, "workday_unsplittable_partition")
                 return
-            next_facet, next_values = options[0]
+            next_facet, next_values = _fitting_dimension(options, context)
             _traverse_partition_children(
                 session,
                 context,
@@ -1522,6 +1528,17 @@ def _partition_payload(
         context.metadata["safety_limit_reached"] = True
         _fail_partition(context, "workday_request_budget_exhausted")
         return None
+    except WorkdayRateLimit as exc:
+        context.metadata["provider_retry_at"] = exc.retry_at
+        _fail_partition(context, "rate_limited" if exc.physical else "rate_limit_wait")
+        return None
+    except WorkdayRedirect:
+        # The redirect was denied before dispatch. Fail the whole identity-bound scan.
+        raise
+    except requests.Timeout:
+        context.metadata["transport_failure"] = "request_timeout"
+        _fail_partition(context, "workday_partition_transport_failure")
+        return None
     except requests.RequestException:
         _fail_partition(context, "workday_partition_transport_failure")
         return None
@@ -1566,6 +1583,12 @@ def _safe_partition_total(
     if allow_zero_sentinel and total == 0:
         return None
     return total
+
+
+def _fitting_dimension(options, context):
+    """Prefer a provider-advertised split that fits the remaining state budget."""
+    remaining = int(context.target.workday_max_partitions) - context.partition_count
+    return next((option for option in options if len(option[1]) <= remaining), options[0])
 
 
 def _partition_dimensions(

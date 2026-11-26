@@ -131,6 +131,8 @@ def _fetch_jobs_once(
     seen_fingerprints: dict[str, tuple[Any, ...]] = {}
     seen_pages: set[tuple[str, ...]] = set()
     contiguous_nonempty_pages: list[int] = []
+    probe_after_short_page = False
+    indexed_legacy_traversal = target.endpoint_variant == LEGACY_HTML
     for page_index in range(listing_budget.hard_request_ceiling):
         effective_jobs = int(
             metadata.get(
@@ -146,6 +148,15 @@ def _fetch_jobs_once(
         items, total, zero_contract, has_more, listing_contract = _parse_page(
             response, target, page_index
         )
+        metadata["pages_completed"] += 1
+        indexed_legacy_traversal = indexed_legacy_traversal and _legacy_page_matches_request(response, target, page_index)
+        if probe_after_short_page and (
+            items or not zero_contract or not listing_contract
+            or has_more is True or not indexed_legacy_traversal
+        ):
+            metadata["stop_reason"] = "unconfirmed_short_page_probe"
+            metadata["scan_completeness_reason"] = "adapter_completeness_not_proven"
+            break
         if target.endpoint_variant == JIBE_API and any(
             not isinstance(item.get("data"), Mapping)
             or _clean(item["data"].get("client_code")).casefold()
@@ -153,7 +164,6 @@ def _fetch_jobs_once(
             for item in items
         ):
             metadata["jibe_identity_rows_validated"] = False
-        metadata["pages_completed"] += 1
         record_total_observation(
             metadata,
             total,
@@ -187,11 +197,11 @@ def _fetch_jobs_once(
             and total is None
             and has_more is None
             and listing_contract
-            and len(items) >= page_size
+            and items
+            and (len(items) >= page_size or indexed_legacy_traversal)
         ):
-            # Some legacy portals render a full first page without pagination
-            # controls.  The reviewed fallback is one exactly-bound ``pr=N``
-            # probe; only a contiguous empty iCIMS result page can prove EOF.
+            # Legacy portals can omit pagination controls. Probe the next
+            # numbered page within the existing listing budget.
             listing_budget.record_terminal_probe_decision(
                 metadata,
                 max(1, len(items)),
@@ -263,6 +273,11 @@ def _fetch_jobs_once(
                 break
             raise AdapterError("iCIMS page contained jobs but none were valid")
 
+        if (target.endpoint_variant == RADANCY_HTML and total is not None
+                and has_more is False and len(jobs) != total):
+            metadata["stop_reason"] = "radancy_total_mismatch"
+            metadata["scan_completeness_reason"] = "inventory_incomplete"
+            break
         if page_index == 0 and not items:
             if not zero_contract:
                 raise AdapterError("iCIMS HTTP 200 response did not prove an empty jobs collection")
@@ -323,10 +338,17 @@ def _fetch_jobs_once(
         if len(items) < page_size and has_more is None:
             if metadata["collection_changed_during_scan"]:
                 finish_changed(metadata, terminal_evidence="short_terminal_page")
+                break
+            if (
+                target.endpoint_variant == LEGACY_HTML and listing_contract
+                and not metadata["rejected_record_count"]
+                and indexed_legacy_traversal
+            ):
+                probe_after_short_page = True
             else:
                 metadata["stop_reason"] = "short_page_without_terminal_contract"
                 metadata["scan_completeness_reason"] = "adapter_completeness_not_proven"
-            break
+                break
         if len(jobs) >= effective_jobs:
             metadata["stop_reason"] = "maximum_results_reached"
             break
@@ -549,17 +571,20 @@ def _parse_page(
     except (ValueError, TypeError) as exc:
         raise AdapterError(f"iCIMS returned malformed HTML: {exc}") from exc
     if target.endpoint_variant == RADANCY_HTML:
-        items = root.xpath(
-            "//li[contains(@class, 'search-results-list__list-item') "
+        jobs_root, total = _radancy_jobs_collection(root)
+        items = jobs_root.xpath(
+            ".//li[contains(@class, 'search-results-list__list-item') "
             "or contains(concat(' ', normalize-space(@class), ' '), ' job-card ') "
             "or @data-intuit-jobid]"
         )
-        items = _dedupe_items(
-            [item for item in items if item.xpath(".//a[@data-job-id and contains(@href, '/job/')]")],
-            target.endpoint_variant,
-        )
-        total = _radancy_jobs_total(root)
-        zero = total == 0 or _zero_text(root)
+        if jobs_root is root:
+            items = _dedupe_items(
+                [item for item in items if item.xpath(".//a[@data-job-id and contains(@href, '/job/')]")],
+                target.endpoint_variant,
+            )
+        elif total == 0 and items:
+            raise AdapterError("iCIMS Radancy zero total contradicted result cards")
+        zero = total == 0 if total is not None else _zero_text(jobs_root)
         has_more = (
             (page_index + 1) * int(target.page_size) < total
             if total is not None
@@ -594,7 +619,7 @@ def _parse_page(
     return items, total, zero, has_more, listing_contract
 
 
-def _radancy_jobs_total(root: Any) -> Optional[int]:
+def _radancy_jobs_collection(root: Any) -> tuple[Any, Optional[int]]:
     """Read the count from the exact jobs collection, not sibling content."""
     job_collections = root.xpath("//*[@id='search-results-jobs']")
     if len(job_collections) > 1:
@@ -606,8 +631,23 @@ def _radancy_jobs_total(root: Any) -> Optional[int]:
         cleaned = str(value).strip().replace(",", "")
         if not cleaned.isdigit():
             raise AdapterError("iCIMS jobs data-results-count was malformed")
-        return int(cleaned)
-    return _integer_attr(root, "data-results-count")
+        return job_collections[0], int(cleaned)
+    return root, _integer_attr(root, "data-results-count")
+
+
+def _legacy_page_matches_request(response: Any, target: CompanyTarget, page_index: int) -> bool:
+    configured = urlparse(str(target.search_url))
+    final = urlparse(str(getattr(response, "url", "") or ""))
+    if final._replace(query="") != configured._replace(query="") or getattr(response, "history", []):
+        return False
+    scope = parse_qs(configured.query, keep_blank_values=True)
+    query = parse_qs(final.query, keep_blank_values=True)
+    requested = {key: [value] for key, value in _page_params(target, page_index).items()}
+    return (
+        query.get("pr") == [str(page_index)]
+        and all(query.get(key) == values for key, values in scope.items())
+        and all(values == (scope | requested).get(key) for key, values in query.items())
+    )
 
 
 def _legacy_terminal_empty_page(
@@ -630,9 +670,7 @@ def _legacy_terminal_empty_page(
         or contiguous_nonempty_pages != list(range(page_index))
     ):
         return False
-    query = parse_qs(urlparse(str(getattr(response, "url", "") or "")).query)
-    requested_pages = query.get("pr")
-    return requested_pages == [str(page_index)]
+    return _legacy_page_matches_request(response, target, page_index)
 
 
 def _legacy_has_more(root: Any, page_index: int) -> Optional[bool]:
@@ -753,7 +791,9 @@ def _normalize_radancy(item: Any, target: CompanyTarget) -> JobRecord:
         raise AdapterError("iCIMS Radancy job is missing its detail link")
     link = links[0]
     url, url_id = _official_url(link.get("href"), target)
-    external_id = _clean(link.get("data-job-id")) or url_id
+    external_id = _clean(link.get("data-job-id"))
+    if (external_id != url_id or not urlparse(url).path.rstrip("/").endswith(f"/{target.board_id}/{url_id}")):
+        raise AdapterError("iCIMS Radancy job link disagrees with its board or posting ID")
     title_nodes = link.xpath(".//h2")
     title = _text(title_nodes[0]) if title_nodes else _text(link).split(" Save job")[0]
     locations = _texts_by_class(link, ("job-location", "location"))

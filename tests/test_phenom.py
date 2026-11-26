@@ -10,6 +10,7 @@ import requests
 
 from scripts import validate_company_registry as validator
 from src.scraper.company_careers import scanner
+from src.scraper.company_careers.scanner import CompanyCareersScanner
 from src.scraper.company_careers.adapters import phenom
 from src.scraper.company_careers.models import AdapterError, CompanyTarget
 from src.scraper.company_careers.registry import load_target_companies
@@ -405,17 +406,13 @@ class PhenomAdapterTests(unittest.TestCase):
             [
                 html_response(page(first, total=20)),
                 html_response(page(second, total=21)),
+                html_response(page(first, total=20)),
+                html_response(page(second, total=21)),
             ]
         )
         with patch.object(phenom.time, "sleep", return_value=None):
-            with self.assertRaisesRegex(AdapterError, "total job count changed"):
-                phenom.fetch_jobs(
-                    inconsistent_session, target(max_pages=2, max_jobs=100)
-                )
-        self.assertEqual(
-            inconsistent_session.phenom_pagination["stop_reason"],
-            "inconsistent_total",
-        )
+            phenom.fetch_jobs(inconsistent_session, target(max_pages=2, max_jobs=100))
+        self.assertTrue(inconsistent_session.phenom_pagination["collection_retry_exhausted"])
         self.assertFalse(inconsistent_session.phenom_pagination["scan_complete"])
 
         malformed_session = FakeSession([html_response(page([], total=-1))])
@@ -439,14 +436,27 @@ class PhenomAdapterTests(unittest.TestCase):
                 self.assertEqual(len(jobs), 10)
                 self.assertEqual(session.phenom_pagination["stop_reason"], expected)
 
-    def test_repeated_stable_ids_are_diagnosed_but_new_jobs_continue(self):
+    def test_overlap_restarts_and_uses_only_the_clean_traversal(self):
         first = [job(index) for index in range(1, 11)]
-        second = [job(10)] + [job(index) for index in range(11, 20)]
-        jobs, session = self.fetch(
-            [html_response(page(first, total=20)), html_response(page(second, total=20))]
-        )
-        self.assertEqual(len(jobs), 19)
-        self.assertTrue(session.phenom_pagination["diagnostics"])
+        overlapping = [job(index) for index in range(10, 20)]
+        clean_first = [job(index) for index in range(21, 31)]
+        clean_last = [job(index) for index in range(31, 41)]
+        session = FakeSession([
+            html_response(page(rows, total=20))
+            for rows in (first, overlapping, clean_first, clean_last)
+        ])
+        with patch.object(phenom.time, "sleep", return_value=None):
+            report = CompanyCareersScanner(
+                targets=[target(max_pages=2, max_jobs=20)],
+                session=session,
+                parent_source_mappings=[],
+            ).scan()
+        result, = report.results
+        self.assertTrue(result.authoritative_for_absence)
+        self.assertEqual(result.jobs_collected, 20)
+        self.assertEqual(result.terminal_evidence_type, "authoritative_total")
+        self.assertEqual(result.normalized_jobs[0].title, clean_first[0]["title"])
+        self.assertEqual(len(session.calls), 4)
 
     def test_maximum_pages_results_and_configuration_are_enforced(self):
         responses = [

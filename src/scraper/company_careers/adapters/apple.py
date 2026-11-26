@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from typing import Any, Mapping
 from urllib.parse import urlencode, urlparse
 
 import requests
+from urllib3.exceptions import ReadTimeoutError
 
 from src.scraper.company_careers.models import (
     AdapterError,
@@ -32,6 +34,7 @@ MAX_PAGES = 3
 MAX_RESULTS = 20
 MAX_RESPONSE_BYTES = 3_000_000
 READ_CHUNK_BYTES = 64 * 1024
+TRANSPORT_RETRY_DELAY_SECONDS = 0.5
 HEADERS = {
     "Accept": "application/json",
     "Content-Type": "application/json",
@@ -83,6 +86,7 @@ def fetch_jobs(
         "endpoint_variant": ENDPOINT_VARIANT,
         "pages": [],
         "pages_fetched": 0,
+        "transport_retries": 0,
         "bytes_inspected": 0,
         "maximum_pages": maximum_pages,
         "maximum_results": maximum_jobs,
@@ -130,15 +134,29 @@ def fetch_jobs(
             },
         }
         metadata["pages_requested"] += 1
-        payload, response_bytes = _post_json(
-            session,
-            str(target.endpoint_url),
-            body,
-            timeout,
-            int(target.max_response_bytes),
-        )
+        request_args = (session, str(target.endpoint_url), body, timeout, int(target.max_response_bytes))
+        try:
+            payload, response_bytes = _post_json(*request_args)
+        except (
+            requests.Timeout,
+            requests.exceptions.ChunkedEncodingError,
+            requests.ConnectionError,
+        ) as exc:
+            # Requests wraps urllib3 read timeouts during iter_content.
+            read_interrupted = (
+                isinstance(exc, (requests.Timeout, requests.exceptions.ChunkedEncodingError))
+                or (exc.args and isinstance(exc.args[0], ReadTimeoutError))
+            )
+            if not read_interrupted or metadata["transport_retries"]:
+                raise
+            # Search is read-only. Retry this exact page once per traversal,
+            # before updating any pagination or inventory accounting.
+            metadata["transport_retries"] += 1
+            time.sleep(TRANSPORT_RETRY_DELAY_SECONDS)
+            payload, response_bytes = _post_json(*request_args)
         metadata["bytes_inspected"] += response_bytes
         items, total = _search_page(payload)
+        metadata["source_identity_status"] = "validated"
         metadata["pages_completed"] += 1
         metadata["total_available"] = total
         metadata["authoritative_total_present"] = True
@@ -235,6 +253,7 @@ def _post_json(
         headers=HEADERS,
         timeout=timeout,
         stream=True,
+        allow_redirects=False,
     )
     if response.status_code != 200:
         _close(response)

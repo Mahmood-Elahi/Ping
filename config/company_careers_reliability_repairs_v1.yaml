@@ -236,6 +236,7 @@ company_careers_reliability_repairs:
     evidence_confidence: high
     evidence_timestamp: '2026-08-28T00:00:00+00:00'
   - name: Seagate
+    inventory_authority: discovery_only
     platform: sap_successfactors
     careers_url: https://www.seagate.com/ca/en/jobs/
     identity_url: https://seagatecareers.com/AllJobs
@@ -304,6 +305,7 @@ company_careers_reliability_repairs:
     evidence_confidence: high
     evidence_timestamp: '2026-08-28T00:00:00+00:00'
   - name: Kinross Gold
+    inventory_authority: discovery_only
     platform: sap_successfactors
     careers_url: https://www.kinross.com/careers/
     search_url: https://jobs.kinross.com/search/
@@ -660,6 +662,7 @@ company_careers_reliability_repairs:
     evidence_confidence: high
     evidence_timestamp: '2026-09-29T00:00:00+00:00'
   - name: CN Rail
+    inventory_authority: discovery_only
     platform: sap_successfactors
     careers_url: https://www.cn.ca/en/careers
     search_url: https://careers.cn.ca/search/
@@ -697,6 +700,7 @@ company_careers_reliability_repairs:
     evidence_confidence: high
     evidence_timestamp: '2026-09-29T00:00:00+00:00'
   - name: Goldman Sachs
+    inventory_authority: discovery_only
     platform: browser_rendered_html
     careers_url: https://www.goldmansachs.com/careers
     listing_url: https://higher.gs.com/results
@@ -769,6 +773,7 @@ company_careers_reliability_repairs:
     evidence_confidence: high
     evidence_timestamp: '2026-09-29T00:00:00+00:00'
   - name: Stantec
+    inventory_authority: discovery_only
     platform: browser_rendered_html
     careers_url: https://www.stantec.com/en/careers
     listing_url: https://stantec.jobs/jobs/?q=Calgary
@@ -1337,6 +1342,7 @@ company_careers_reliability_repairs:
     max_pages: 1
     max_jobs: 20
   - name: Zalando
+    inventory_authority: discovery_only
     platform: static_html
     careers_url: https://jobs.zalando.com/en/jobs
     listing_url: https://jobs.zalando.com/en/jobs

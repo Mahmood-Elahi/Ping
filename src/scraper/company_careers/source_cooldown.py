@@ -37,6 +37,8 @@ NON_TRANSIENT_HEALTH_CODES = {
 }
 TRANSIENT_ERROR_TYPES = {
     "request_error",
+    "request_timeout",
+    "rate_limited",
     "transient_upstream_http",
     "unexpected_upstream_http",
 }
@@ -155,7 +157,7 @@ def classify_failure(result: CompanyScanResult) -> str | None:
         "item_failure_outside_inventory",
     }:
         return "non_transient"
-    if reason == "request_failure" or error_type in TRANSIENT_ERROR_TYPES:
+    if reason in {"rate_limited", "request_failure"} or error_type in TRANSIENT_ERROR_TYPES:
         return "transient_transport"
     if reason in {
         "workday_partition_transport_failure",
@@ -227,19 +229,31 @@ def reconcile_source_health(
                 }
             )
             continue
+        provider_until = _parse_timestamp(result.provider_retry_at)
+        if provider_until and "rate_limit_wait" in (result.stop_reason, result.error_type):
+            # This source made no new failed request. Honor the observed host
+            # deadline without incrementing its source-local failure streak.
+            prior_until = _parse_timestamp(prior.get("cooldown_until"))
+            deadline = max(provider_until, prior_until) if prior_until else provider_until
+            rows.append({
+                **base,
+                "consecutive_transient_failures": int(prior.get("consecutive_transient_failures") or 0),
+                "cooldown_until": deadline.isoformat(),
+                "last_failure_classification": prior.get("last_failure_classification"),
+            })
+            continue
         classification = classify_failure(result)
         if classification and classification.startswith("transient_"):
             count = int(prior.get("consecutive_transient_failures") or 0) + 1
             hours = cooldown_hours(count)
+            deadline = observed_at + timedelta(hours=hours) if hours else None
+            if provider_until and (deadline is None or provider_until > deadline):
+                deadline = provider_until
             rows.append(
                 {
                     **base,
                     "consecutive_transient_failures": count,
-                    "cooldown_until": (
-                        (observed_at + timedelta(hours=hours)).isoformat()
-                        if hours
-                        else None
-                    ),
+                    "cooldown_until": deadline.isoformat() if deadline else None,
                     "last_failure_classification": classification,
                 }
             )

@@ -60,7 +60,9 @@ def fetch_jobs(
     timeout: int = 20,
 ) -> List[JobRecord]:
     return fetch_with_mutation_restart(
-        session, lambda: _fetch_jobs_once(session, target, timeout)
+        session,
+        lambda: _fetch_jobs_once(session, target, timeout, restart_on_mutation=True),
+        fetch_replacement=lambda: _fetch_jobs_once(session, target, timeout),
     )
 
 
@@ -68,6 +70,8 @@ def _fetch_jobs_once(
     session: requests.Session,
     target: CompanyTarget,
     timeout: int = 20,
+    *,
+    restart_on_mutation: bool = False,
 ) -> List[JobRecord]:
     validate_target(target)
     max_pages = max(1, target.max_pages)
@@ -139,6 +143,10 @@ def _fetch_jobs_once(
         effective_results = int(metadata["effective_listing_job_ceiling"])
 
         page_ids = tuple(sorted(_position_identity(item) for item in positions))
+        if len(set(page_ids)) != len(page_ids):
+            metadata["stop_reason"] = "duplicate_stable_ids"
+            metadata["scan_completeness_reason"] = "pagination_failure"
+            raise AdapterError("Eightfold page contained duplicate stable position IDs")
         if positions and page_ids in seen_page_ids:
             metadata["pages"].append(
                 {
@@ -207,6 +215,11 @@ def _fetch_jobs_once(
         metadata["pages_fetched"] = len(metadata["pages"])
         metadata["jobs_normalized"] = len(jobs)
 
+        # The first traversal will be discarded. Preserve the remaining budget
+        # for its one replacement. Only that traversal can return final jobs.
+        if restart_on_mutation and metadata["collection_changed_during_scan"]:
+            finish_changed(metadata, terminal_evidence="collection_mutation_detected")
+            break
         if total == 0 and offset == 0 and not jobs:
             finish_terminal(
                 metadata,
@@ -224,6 +237,9 @@ def _fetch_jobs_once(
                 metadata["scan_completeness_reason"] = "pagination_failure"
             break
         if positions and new_id_count == 0:
+            if normalized_count == len(positions) and metadata["collection_changed_during_scan"]:
+                finish_changed(metadata, terminal_evidence="no_new_stable_ids")
+                break
             metadata["stop_reason"] = "no_new_stable_ids"
             metadata["scan_completeness_reason"] = "pagination_failure"
             raise AdapterError("Eightfold pagination returned no new stable job IDs")

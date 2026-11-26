@@ -2,7 +2,7 @@
 
 Unreviewed sources retain the existing parser. Profiles bind the complete
 production-preprocessed target except operational limits; limits never prove
-completion. No new locale/navigation exception is granted here.
+completion. Language selectors and page destinations are bound to reviewed employer contracts.
 """
 from __future__ import annotations
 from dataclasses import asdict
@@ -61,6 +61,36 @@ def contract_error(message, **_diagnostic):
     return AdapterError(message)
 
 
+_VOLVO_SEARCH = "https://jobs.volvocars.com/search/"
+_AECON_SEARCH = "https://jobs.aecon.com/search/"
+
+
+def _volvo_filter_headers(table: _Node, data_rows: list[_Node]) -> tuple[dict[str, str], bool]:
+    labels = {"title": "Title", "location": "Location", "referencedate": "Date", "department": "Department"}
+    filters = [
+        [node.attrs["data-column"] for node in _walk(row) if node.tag == "input" and "data-column" in node.attrs]
+        for row in _walk(table) if row.tag == "tr"
+    ]
+    controls = [keys for keys in filters if keys]
+    if len(controls) != 1 or len(controls[0]) != len(labels) or set(controls[0]) != set(labels):
+        raise AdapterError("Volvo Cars filter columns changed")
+    headers = {"hdr" + label.casefold(): label for label in labels.values()}
+    has_layout = bool(data_rows and data_rows[0].children and _empty_table_layout_cell(data_rows[0].children[-1]))
+    for row in data_rows:
+        cells = [cell for cell in row.children if cell.tag == "td"]
+        if has_layout:
+            if not cells or not _empty_table_layout_cell(cells[-1]):
+                raise AdapterError("Volvo Cars layout cell changed")
+            cells = cells[:-1]
+        if len(cells) != len(headers):
+            raise AdapterError("Volvo Cars result column count changed")
+        for cell in cells:
+            header = cell.attrs.get("headers", "").casefold()
+            if header not in headers or "col" + headers[header].casefold() not in cell.classes:
+                raise AdapterError("Volvo Cars result cell disagrees with its declared column")
+    return headers, has_layout
+
+
 def _parse_table_page(
     root: _Node,
     search_url: str,
@@ -81,28 +111,31 @@ def _parse_table_page(
     if len(tables) != 1:
         raise AdapterError("SAP SuccessFactors table response has duplicate searchresults")
     table = tables[0]
-    header_rows = [n for n in _walk(table) if n.tag == "tr" and any(c.tag == "th" for c in n.children)]
-    if len(header_rows) != 1:
-        raise AdapterError("SAP SuccessFactors table response has malformed header rows")
-    header_cells = [c for c in header_rows[0].children if c.tag in {"td", "th"}]
-    has_layout = bool(header_cells and _empty_table_layout_cell(header_cells[-1]))
-    if any(c.tag != "th" for c in (header_cells[:-1] if has_layout else header_cells)):
-        raise AdapterError("SAP SuccessFactors table response has malformed layout header")
-    header_nodes = [node for node in _walk(table) if node.tag == "th"]
-    header_ids = [node.attrs.get("id", "").casefold() for node in header_nodes]
-    header_labels = [_clean_text(_node_text(node)) for node in header_nodes]
-    if (
-        not header_nodes
-        or any(not value for value in header_ids)
-        or len(header_ids) != len(set(header_ids))
-        or any(not value for value in header_labels)
-        or len({value.casefold() for value in header_labels}) != len(header_labels)
-    ):
-        raise AdapterError(
-            "SAP SuccessFactors table response has malformed or duplicate column headers"
-        )
-    headers = dict(zip(header_ids, header_labels))
     row_nodes = [node for node in _walk(table) if "data-row" in node.classes]
+    if search_url == _VOLVO_SEARCH and not any(n.tag == "th" for n in _walk(table)):
+        headers, has_layout = _volvo_filter_headers(table, row_nodes)
+    else:
+        header_rows = [n for n in _walk(table) if n.tag == "tr" and any(c.tag == "th" for c in n.children)]
+        if len(header_rows) != 1:
+            raise AdapterError("SAP SuccessFactors table response has malformed header rows")
+        header_cells = [c for c in header_rows[0].children if c.tag in {"td", "th"}]
+        has_layout = bool(header_cells and _empty_table_layout_cell(header_cells[-1]))
+        if any(c.tag != "th" for c in (header_cells[:-1] if has_layout else header_cells)):
+            raise AdapterError("SAP SuccessFactors table response has malformed layout header")
+        header_nodes = [node for node in _walk(table) if node.tag == "th"]
+        header_ids = [node.attrs.get("id", "").casefold() for node in header_nodes]
+        header_labels = [_clean_text(_node_text(node)) for node in header_nodes]
+        if (
+            not header_nodes
+            or any(not value for value in header_ids)
+            or len(header_ids) != len(set(header_ids))
+            or any(not value for value in header_labels)
+            or len({value.casefold() for value in header_labels}) != len(header_labels)
+        ):
+            raise AdapterError(
+                "SAP SuccessFactors table response has malformed or duplicate column headers"
+            )
+        headers = dict(zip(header_ids, header_labels))
     items = [_table_item(row, headers, has_layout=has_layout) for row in row_nodes]
     items = [item for item in items if item]
     result_range = _table_result_range(root)
@@ -181,6 +214,8 @@ def _language_menu(node, url, search_url, offset):
     values = parse_qsl(parts.query, keep_blank_values=True)
     expected = {"q": "", "sortColumn": "referencedate", "sortDirection": "desc",
                 "startrow": str(offset), "locale": lang.replace("-", "_")}
+    if search_url == _AECON_SEARCH:
+        expected.update(searchby="location", d="10")
     return len(values) == len(expected) and dict(values) == expected
 
 
@@ -233,11 +268,19 @@ def _validate_table_destination(url: str, search_url: str, offset: int, *, diagn
     search, destination = urlparse(search_url), urlparse(url)
     pairs = parse_qsl(destination.query, keep_blank_values=True)
     values = dict(pairs)
+    allowed = {"startrow", "q", "locationsearch", "sortColumn", "sortDirection"}
+    if search_url == _AECON_SEARCH and (offset or "searchby" in values or "d" in values):
+        # The employer's unfiltered search emits these defaults on each numbered link.
+        if (values.get("searchby") != "location" or values.get("d") != "10"
+                or values.get("q") != "" or values.get("sortColumn") != "referencedate"
+                or values.get("sortDirection") != "desc"):
+            raise AdapterError("Aecon continuation changed recruiting scope")
+        allowed.update({"searchby", "d"})
     if (destination.scheme != "https" or destination.hostname != search.hostname
             or destination.netloc != search.netloc or destination.path != search.path
             or destination.fragment or destination.username or destination.password
             or len(pairs) != len(values)
-            or set(values) - {"startrow", "q", "locationsearch", "sortColumn", "sortDirection"}
+            or set(values) - allowed
             or values.get("q", "") or values.get("locationsearch", "")
             or values.get("startrow", str(offset)) != str(offset)
             or (offset and "startrow" not in values)):

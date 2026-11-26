@@ -1,0 +1,775 @@
+{
+  "revision": "487f0bcd76031f1a3deb71b3cccde3b021168926",
+  "purpose": "Historical verification only",
+  "files": {
+    "config/company_careers_reliability_repairs_v1.yaml": {
+      "original_sha256": "d8eab5c0e0262ac0a83dc97acaa8f10ad35274c47146a817d4c21f33572679fb",
+      "patched_sha256": "8c6428a10a1f266d9bdf524360bf7e2f89a99f34c93710d2fb5ae0c2cdbbf8db",
+      "reverse_edits": [
+        [
+          238,
+          239,
+          ""
+        ],
+        [
+          307,
+          308,
+          ""
+        ],
+        [
+          664,
+          665,
+          ""
+        ],
+        [
+          702,
+          703,
+          ""
+        ],
+        [
+          775,
+          776,
+          ""
+        ],
+        [
+          1344,
+          1345,
+          ""
+        ]
+      ]
+    },
+    "scripts/public_ci_report.py": {
+      "original_sha256": "4e2bb1af3e513f8bcb5ad1ba9b72c81d813523bb296d4aff683a8a3fb5dc48cc",
+      "patched_sha256": "39ad7f17a31798e6f31db484ca12c5396e79f4c4e68ee632cab24c7139794bd3",
+      "reverse_edits": [
+        [
+          11,
+          12,
+          ""
+        ],
+        [
+          134,
+          135,
+          ""
+        ],
+        [
+          219,
+          220,
+          ""
+        ],
+        [
+          258,
+          273,
+          ""
+        ],
+        [
+          308,
+          309,
+          ""
+        ]
+      ]
+    },
+    "scripts/run_public_ci_step.py": {
+      "original_sha256": "9b9a4f440b2db0e0c0b889f8bd184164488ca934783a3bd3520ef596785a65ba",
+      "patched_sha256": "3d93b37e07906a6011a03419d452833112eeb640b8a83fca9aef67b1998ae76a",
+      "reverse_edits": [
+        [
+          209,
+          216,
+          ""
+        ]
+      ]
+    },
+    "scripts/update_student_dashboard.py": {
+      "original_sha256": "f8f465132342fb1ff458c6f57d6917b0e792e5f7da0dfb154b25f4992833d828",
+      "patched_sha256": "407ea13a2e021d36b68c0f7916cc5d99b5c3157120320c6c4d89f947ff1b3552",
+      "reverse_edits": [
+        [
+          36,
+          37,
+          "from src.scraper.company_careers.source_cooldown import reconcile_source_health\n"
+        ],
+        [
+          404,
+          416,
+          "            job_store.persist_source_health(\n                reconcile_source_health(\n                    report.results,\n                    source_health,\n                    as_of=as_of,\n                )\n            )\n"
+        ]
+      ]
+    },
+    "scripts/validate_followup_recovery.py": {
+      "original_sha256": "8728518a12ca29fde937cbe4a376da440ea120f5124a5888263d8efbf0177ce6",
+      "patched_sha256": "2c52995b5e1458a11d64839f163f99180fae204012b6f12004cd6fa44924a10d",
+      "reverse_edits": [
+        [
+          30,
+          31,
+          ""
+        ]
+      ]
+    },
+    "scripts/validate_recovery_eight_activation.py": {
+      "original_sha256": "aed0cfe6971850dcb5a864c09d4905e4c855f161c34210665a1a830c3e478971",
+      "patched_sha256": "bfe1b3e2cc1adc0f8b8ee8cef6e31ae3e341d5b41a007f2f7b0100e7cc824d1c",
+      "reverse_edits": [
+        [
+          41,
+          42,
+          ""
+        ],
+        [
+          49,
+          50,
+          "        if digest((ROOT/path).read_bytes())!=expected:raise ValueError('Collection engine changed: '+path)\n"
+        ],
+        [
+          51,
+          53,
+          "        nodes={n.name:ast.dump(n,include_attributes=False) for n in ast.parse((ROOT/path).read_text()).body if isinstance(n,(ast.FunctionDef,ast.ClassDef))}\n"
+        ]
+      ]
+    },
+    "scripts/validate_source_integrity_canaries.py": {
+      "original_sha256": "0de577ca12389f81be2acf30ef8c639fe56330bee097913c12f746a61b046b94",
+      "patched_sha256": "f17adcb1226fd7ade05dc65d8b87b7d3b34f83630d191c2dd6e575b2bce06c3e",
+      "reverse_edits": [
+        [
+          33,
+          34,
+          ""
+        ],
+        [
+          74,
+          77,
+          "class BoundedSession(requests.Session):\n    def __init__(self, budget: int) -> None:\n        super().__init__()\n"
+        ],
+        [
+          82,
+          84,
+          "    def request(self, method: str, url: str, *args: Any, **kwargs: Any) -> requests.Response:\n"
+        ],
+        [
+          89,
+          90,
+          "        response = super().request(method, url, *args, **kwargs)\n"
+        ],
+        [
+          132,
+          134,
+          "def run_canary(target: Any, request_budget: int) -> dict[str, Any]:\n    session = BoundedSession(request_budget)\n"
+        ],
+        [
+          145,
+          146,
+          "            inventory_items_collected = len(output.inventory_items)\n"
+        ],
+        [
+          215,
+          216,
+          "        if metadata.get(\"source_identity_status\") == \"failed\":\n"
+        ],
+        [
+          528,
+          530,
+          ""
+        ],
+        [
+          676,
+          678,
+          ""
+        ],
+        [
+          756,
+          758,
+          "    rows = [run_canary(target, args.request_budget) for target in targets]\n"
+        ]
+      ]
+    },
+    "scripts/validate_workday_recovery_activation.py": {
+      "original_sha256": "9b9338ba9ebfc4227707f07ede507594c6050c48dbabf3d3b884abd964d1216e",
+      "patched_sha256": "df692fba9813326e2a66f2f0fd00d4cb89212a7cf3fd62f25b1b7525f43820d6",
+      "reverse_edits": [
+        [
+          213,
+          219,
+          "    require(hashlib.sha256((root/'src/scraper/company_careers/adapters/workday.py').read_bytes()).hexdigest()\n            == manifest['protected_artifacts']['src/scraper/company_careers/adapters/workday.py'], 'Tested Workday runtime changed')\n"
+        ]
+      ]
+    },
+    "src/scraper/company_careers/adapters/apple.py": {
+      "original_sha256": "4768d350f8e98286b745a060f093c22023d79aff9253a26698e199684fd9499d",
+      "patched_sha256": "133e0c69fcb213347fd28d69bf0b032a221eaf1e03767ced5e99545205a05809",
+      "reverse_edits": [
+        [
+          6,
+          7,
+          ""
+        ],
+        [
+          11,
+          12,
+          ""
+        ],
+        [
+          36,
+          37,
+          ""
+        ],
+        [
+          88,
+          89,
+          ""
+        ],
+        [
+          136,
+          156,
+          "        payload, response_bytes = _post_json(\n            session,\n            str(target.endpoint_url),\n            body,\n            timeout,\n            int(target.max_response_bytes),\n        )\n"
+        ],
+        [
+          158,
+          159,
+          ""
+        ],
+        [
+          255,
+          256,
+          ""
+        ]
+      ]
+    },
+    "src/scraper/company_careers/adapters/atlassian.py": {
+      "original_sha256": "a7964ce8003b99648075f1c1ca2005d2f03151d941c1632de76c906ade939352",
+      "patched_sha256": "9a64cc539fa7ebe923c94cc10339f87773674a0a0e1818eb9b9089520b478fea",
+      "reverse_edits": [
+        [
+          7,
+          8,
+          "from urllib.parse import urlparse\n"
+        ],
+        [
+          32,
+          39,
+          ""
+        ],
+        [
+          49,
+          50,
+          ""
+        ],
+        [
+          54,
+          56,
+          ""
+        ],
+        [
+          162,
+          175,
+          ""
+        ]
+      ]
+    },
+    "src/scraper/company_careers/adapters/dayforce.py": {
+      "original_sha256": "d765490a3944fc246cc548b059713c011a3bf5bea4276bc018327ed528ded672",
+      "patched_sha256": "091e010a08fed153aefa680c2a2fa7d312bf24c49b2541e35d58cd276e206c2b",
+      "reverse_edits": [
+        [
+          144,
+          144,
+          "        rejected_records_accounted=True,\n"
+        ],
+        [
+          271,
+          275,
+          ""
+        ],
+        [
+          705,
+          705,
+          "    if str(row.get(\"clientNamespace\") or \"\").casefold() != config[\"tenant\"].casefold():\n        raise AdapterError(\"Dayforce posting crossed tenant boundaries\")\n    if row.get(\"jobBoardId\") != site_info[\"jobBoardId\"]:\n        raise AdapterError(\"Dayforce posting crossed job-board boundaries\")\n"
+        ]
+      ]
+    },
+    "src/scraper/company_careers/adapters/eightfold.py": {
+      "original_sha256": "12b3420d08d0c3356956bbcafd8994d445f877f94e49aba0a96ca68fd7b2c939",
+      "patched_sha256": "05773daef84be164bf1001c206066c3d036e8e5f36ce0a42be7fecf76336f336",
+      "reverse_edits": [
+        [
+          62,
+          65,
+          "        session, lambda: _fetch_jobs_once(session, target, timeout)\n"
+        ],
+        [
+          72,
+          74,
+          ""
+        ],
+        [
+          145,
+          149,
+          ""
+        ],
+        [
+          217,
+          222,
+          ""
+        ],
+        [
+          239,
+          242,
+          ""
+        ]
+      ]
+    },
+    "src/scraper/company_careers/adapters/icims.py": {
+      "original_sha256": "53d92744254dc4c3431a07c3c6b3ad8a2c8107d54ac82f2dfb8c98aaf0f674cc",
+      "patched_sha256": "6fcb3f02f8b342eea7261ff1b7e6de45745a2c9cc3d38bbfb395c7ade05ad657",
+      "reverse_edits": [
+        [
+          133,
+          135,
+          ""
+        ],
+        [
+          150,
+          159,
+          ""
+        ],
+        [
+          166,
+          166,
+          "        metadata[\"pages_completed\"] += 1\n"
+        ],
+        [
+          199,
+          201,
+          "            and len(items) >= page_size\n"
+        ],
+        [
+          202,
+          204,
+          "            # Some legacy portals render a full first page without pagination\n            # controls.  The reviewed fallback is one exactly-bound ``pr=N``\n            # probe; only a contiguous empty iCIMS result page can prove EOF.\n"
+        ],
+        [
+          275,
+          280,
+          ""
+        ],
+        [
+          340,
+          347,
+          ""
+        ],
+        [
+          350,
+          351,
+          "            break\n"
+        ],
+        [
+          573,
+          576,
+          "        items = root.xpath(\n            \"//li[contains(@class, 'search-results-list__list-item') \"\n"
+        ],
+        [
+          579,
+          587,
+          "        items = _dedupe_items(\n            [item for item in items if item.xpath(\".//a[@data-job-id and contains(@href, '/job/')]\")],\n            target.endpoint_variant,\n        )\n        total = _radancy_jobs_total(root)\n        zero = total == 0 or _zero_text(root)\n"
+        ],
+        [
+          621,
+          622,
+          "def _radancy_jobs_total(root: Any) -> Optional[int]:\n"
+        ],
+        [
+          633,
+          650,
+          "        return int(cleaned)\n    return _integer_attr(root, \"data-results-count\")\n"
+        ],
+        [
+          672,
+          673,
+          "    query = parse_qs(urlparse(str(getattr(response, \"url\", \"\") or \"\")).query)\n    requested_pages = query.get(\"pr\")\n    return requested_pages == [str(page_index)]\n"
+        ],
+        [
+          793,
+          796,
+          "    external_id = _clean(link.get(\"data-job-id\")) or url_id\n"
+        ]
+      ]
+    },
+    "src/scraper/company_careers/adapters/phenom.py": {
+      "original_sha256": "227e97c6df1815416647ca6fb452572b527f0672cf29a99b70f053f1c63f2da8",
+      "patched_sha256": "048d07e254940cacc2564bb158e936160246ff4c8dbb4879eef456e386bdbfe1",
+      "reverse_edits": [
+        [
+          21,
+          22,
+          ""
+        ],
+        [
+          28,
+          36,
+          "from src.scraper.company_careers.listing_completion import AdaptiveListingCompletion\n"
+        ],
+        [
+          73,
+          80,
+          ""
+        ],
+        [
+          81,
+          81,
+          "    validate_target(target)\n"
+        ],
+        [
+          149,
+          153,
+          "            metadata[\"stop_reason\"] = \"inconsistent_total\"\n            metadata[\"scan_completeness_reason\"] = \"inconsistent_total\"\n            raise AdapterError(\"Phenom total job count changed during pagination\")\n"
+        ],
+        [
+          171,
+          173,
+          ""
+        ],
+        [
+          179,
+          180,
+          ""
+        ],
+        [
+          186,
+          190,
+          ""
+        ],
+        [
+          218,
+          221,
+          ""
+        ],
+        [
+          222,
+          228,
+          "            metadata[\"stop_reason\"] = \"total_jobs_reached\"\n            metadata[\"scan_complete\"] = True\n            metadata[\"scan_completeness_reason\"] = \"reported_total_reached\"\n"
+        ]
+      ]
+    },
+    "src/scraper/company_careers/adapters/public_json.py": {
+      "original_sha256": "e5344887db847504e36e4daf6611ce9b089b947a1feb53ac3182053b32b68b7a",
+      "patched_sha256": "b9be686b2bf797a3a92098e93af3fe55694a5c8ef5e79afde7fca144f1592cd9",
+      "reverse_edits": [
+        [
+          10,
+          11,
+          "from urllib.parse import urlparse\nfrom urllib.parse import urljoin\n"
+        ],
+        [
+          1438,
+          1444,
+          ""
+        ],
+        [
+          1447,
+          1456,
+          ""
+        ],
+        [
+          1457,
+          1458,
+          "            session,\n            str(target.endpoint_url),\n            timeout,\n            params={\n                \"_adjust_ids\": \"true\",\n                \"locations_slug\": \"\",\n                \"teams_slug\": \"\",\n                \"order\": \"asc\",\n                \"orderby\": \"title\",\n                \"per_page\": str(page_size),\n                \"page\": str(page),\n            },\n"
+        ],
+        [
+          1459,
+          1466,
+          ""
+        ],
+        [
+          1472,
+          1474,
+          ""
+        ],
+        [
+          1504,
+          1519,
+          ""
+        ],
+        [
+          1558,
+          1563,
+          ""
+        ]
+      ]
+    },
+    "src/scraper/company_careers/adapters/successfactors_stage2_profiles.json": {
+      "original_sha256": "6610420c7c84db9283aeed205071eef1e4b1e52fe46b0213abb3d84fd41e7012",
+      "patched_sha256": "5d733da5b6529e505e9eebb197186e7535d795639711e9625740591bd1895eb4",
+      "reverse_edits": [
+        [
+          96,
+          143,
+          ""
+        ]
+      ]
+    },
+    "src/scraper/company_careers/adapters/successfactors_table_recovery.py": {
+      "original_sha256": "5809d065824994a2c2ca110ecad4ac5b3c63be1a32dbdfa5220a978fd28245e2",
+      "patched_sha256": "fa5b4b5aeaed246845436698a1a72565b292845f91f44423174ade54c23782d1",
+      "reverse_edits": [
+        [
+          4,
+          5,
+          "completion. No new locale/navigation exception is granted here.\n"
+        ],
+        [
+          63,
+          93,
+          ""
+        ],
+        [
+          113,
+          113,
+          "    header_rows = [n for n in _walk(table) if n.tag == \"tr\" and any(c.tag == \"th\" for c in n.children)]\n    if len(header_rows) != 1:\n        raise AdapterError(\"SAP SuccessFactors table response has malformed header rows\")\n    header_cells = [c for c in header_rows[0].children if c.tag in {\"td\", \"th\"}]\n    has_layout = bool(header_cells and _empty_table_layout_cell(header_cells[-1]))\n    if any(c.tag != \"th\" for c in (header_cells[:-1] if has_layout else header_cells)):\n        raise AdapterError(\"SAP SuccessFactors table response has malformed layout header\")\n    header_nodes = [node for node in _walk(table) if node.tag == \"th\"]\n    header_ids = [node.attrs.get(\"id\", \"\").casefold() for node in header_nodes]\n    header_labels = [_clean_text(_node_text(node)) for node in header_nodes]\n    if (\n        not header_nodes\n        or any(not value for value in header_ids)\n        or len(header_ids) != len(set(header_ids))\n        or any(not value for value in header_labels)\n        or len({value.casefold() for value in header_labels}) != len(header_labels)\n    ):\n        raise AdapterError(\n            \"SAP SuccessFactors table response has malformed or duplicate column headers\"\n        )\n    headers = dict(zip(header_ids, header_labels))\n"
+        ],
+        [
+          114,
+          138,
+          ""
+        ],
+        [
+          216,
+          218,
+          ""
+        ],
+        [
+          270,
+          278,
+          ""
+        ],
+        [
+          282,
+          283,
+          "            or set(values) - {\"startrow\", \"q\", \"locationsearch\", \"sortColumn\", \"sortDirection\"}\n"
+        ]
+      ]
+    },
+    "src/scraper/company_careers/adapters/workday.py": {
+      "original_sha256": "217af105816508f8aac728c53e8038b1a4b9786f102e18f0c7e27b92127347c4",
+      "patched_sha256": "bdae57964955e84813c94c747816b8e5d7820e1c274426b989d390f6055d8400",
+      "reverse_edits": [
+        [
+          10,
+          12,
+          ""
+        ],
+        [
+          344,
+          348,
+          ""
+        ],
+        [
+          1297,
+          1298,
+          "        facet, values = options[0]\n"
+        ],
+        [
+          1423,
+          1424,
+          "            next_facet, next_values = options[0]\n"
+        ],
+        [
+          1530,
+          1541,
+          ""
+        ],
+        [
+          1585,
+          1591,
+          ""
+        ]
+      ]
+    },
+    "src/scraper/company_careers/models.py": {
+      "original_sha256": "df92e45c1f487bee9fd75fb3ae31c8cdd9338b18e7b47757ed8e39f5cb67ade2",
+      "patched_sha256": "8c5704085c47d195e2a6ee84e75868b08ae5073ade5d1318b6c691fe1137296d",
+      "reverse_edits": [
+        [
+          734,
+          736,
+          ""
+        ]
+      ]
+    },
+    "src/scraper/company_careers/mutable_collection.py": {
+      "original_sha256": "8f02fcfca8674a8d212f0d82d46bf6be214ab32704d4a7209ed7902998cc34d1",
+      "patched_sha256": "e9812c23c28bafc16466e5205a8e10d38d314ca4d738180ccb02fde61fd03568",
+      "reverse_edits": [
+        [
+          25,
+          27,
+          ""
+        ],
+        [
+          50,
+          51,
+          "    second_output = fetch_once()\n"
+        ]
+      ]
+    },
+    "src/scraper/company_careers/scanner.py": {
+      "original_sha256": "48f0e5374c30a81fa1c5d0c260ae9c55ad221fc9c660e8cca786e0e36dea5e3f",
+      "patched_sha256": "cbabd9cac68c0eed44389ab0e43102aef2c1a9be889e4e167e920399cc39bb9a",
+      "reverse_edits": [
+        [
+          84,
+          85,
+          ""
+        ],
+        [
+          110,
+          112,
+          ""
+        ],
+        [
+          575,
+          591,
+          ""
+        ],
+        [
+          720,
+          744,
+          ""
+        ],
+        [
+          748,
+          749,
+          "                failure_code=\"request_error\",\n"
+        ],
+        [
+          756,
+          758,
+          "                error_type=\"request_error\",\n                remediation=(\n                    \"Retry the scan and verify network access or upstream \"\n                    \"availability.\"\n                ),\n"
+        ],
+        [
+          853,
+          858,
+          ""
+        ]
+      ]
+    },
+    "src/scraper/company_careers/source_cooldown.py": {
+      "original_sha256": "a0ff9961e42e7a3068dbdd39bfdf0ef05feabc8e37998052bb64a2979a7cb50e",
+      "patched_sha256": "22c00846f24570b9d3da548cdcd76c44ad24c9da28b8324abd398e6de35d6a61",
+      "reverse_edits": [
+        [
+          39,
+          41,
+          ""
+        ],
+        [
+          159,
+          160,
+          "    if reason == \"request_failure\" or error_type in TRANSIENT_ERROR_TYPES:\n"
+        ],
+        [
+          231,
+          244,
+          ""
+        ],
+        [
+          248,
+          251,
+          ""
+        ],
+        [
+          255,
+          256,
+          "                    \"cooldown_until\": (\n                        (observed_at + timedelta(hours=hours)).isoformat()\n                        if hours\n                        else None\n                    ),\n"
+        ]
+      ]
+    },
+    "src/scraper/company_careers/source_health.py": {
+      "original_sha256": "0b3dcdde03fa7d52faf08323b17ea1c832b05fc66c3b905a0c5e074ae827fb6f",
+      "patched_sha256": "7ae2b100ae2fafdcecc32b8708daaf4d38925c30287a55cc9bdae62576a9f618",
+      "reverse_edits": [
+        [
+          271,
+          272,
+          "            if unreadable_items or rejected_items\n"
+        ],
+        [
+          433,
+          441,
+          "        not metadata.get(\"rejected_records_accounted\")\n        and (\n            int(metadata.get(\"rejected_record_count\") or 0) > 0\n            or int(metadata.get(\"malformed_records\") or 0) > 0\n        )\n"
+        ],
+        [
+          550,
+          552,
+          "    if \"partition_transport_failure\" in reason or \"partition_transient_http\" in reason:\n"
+        ],
+        [
+          607,
+          609,
+          ""
+        ]
+      ]
+    },
+    "src/scraper/company_careers/workday_throttle.py": {
+      "original_sha256": "899b952f1d1707d3d174a99e30cf9c558c62fd45904826fd9702202e998085fe",
+      "patched_sha256": "92688f835279768b437e249ccaf47947a5f638d9be8e7153b8986198e9c92c8d",
+      "reverse_edits": [
+        [
+          1,
+          2,
+          "from datetime import timezone\n"
+        ],
+        [
+          32,
+          50,
+          ""
+        ],
+        [
+          60,
+          61,
+          "        return _ListingSession(self)\n"
+        ],
+        [
+          79,
+          83,
+          "                    raise requests.HTTPError(\"Workday HTTP 429 cooldown for \" + host)\n"
+        ],
+        [
+          91,
+          92,
+          "class _ListingSession(requests.Session):\n"
+        ],
+        [
+          95,
+          100,
+          "        self.rejected = False\n"
+        ],
+        [
+          106,
+          109,
+          "            return super().send(request, **kwargs)\n        if self.rejected:\n            raise requests.HTTPError(\"Workday HTTP 429 on this source\")\n"
+        ],
+        [
+          111,
+          112,
+          "        response = super().send(request, **kwargs)\n"
+        ],
+        [
+          114,
+          115,
+          "            raise requests.HTTPError(\"Unreviewed Workday CXS redirect for \" + host, response=response, request=request)\n"
+        ],
+        [
+          116,
+          116,
+          "            self.rejected = True\n"
+        ],
+        [
+          119,
+          122,
+          "            raise requests.HTTPError(\"Workday HTTP 429 for \" + host + hint, response=response, request=request)\n"
+        ]
+      ]
+    }
+  }
+}

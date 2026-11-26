@@ -34,7 +34,7 @@ from src.scraper.company_careers.candidate_profile import (
 )
 from src.scraper.company_careers.scanner import CompanyCareersScanner
 from src.scraper.company_careers.workday_throttle import WorkdayThrottle
-from src.scraper.company_careers.source_cooldown import reconcile_source_health
+from src.scraper.company_careers.source_cooldown import cooldown_active, reconcile_source_health, source_health_key
 from src.scraper.company_careers.student_roles import (
     build_student_job_filter,
     build_student_search_diagnostics,
@@ -402,13 +402,18 @@ def run_update(args: argparse.Namespace) -> int:
             closed=int(sync_result.closed),
         )
         with reporter.stage("source_health_persistence"):
-            job_store.persist_source_health(
-                reconcile_source_health(
-                    report.results,
-                    source_health,
-                    as_of=as_of,
-                )
-            )
+            updated_health = reconcile_source_health(report.results, source_health, as_of=as_of)
+            job_store.persist_source_health(updated_health)
+        if reporter.enabled:
+            effective_health = {**source_health, **{row["source_key"]: row for row in updated_health}}
+            for result in report.results:
+                state = effective_health.get(source_health_key(result.target))
+                if cooldown_active(state, as_of=as_of):
+                    reporter.emit(
+                        "source_cooldown", name=result.target.name,
+                        cooldown_until=state["cooldown_until"],
+                        consecutive_transient_failures=state["consecutive_transient_failures"],
+                    )
     except Exception as exc:
         _record_failed_scan(job_store, pipeline, started_at, exc)
         raise

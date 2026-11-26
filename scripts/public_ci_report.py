@@ -9,6 +9,7 @@ before displaying anything.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
 import math
 import os
@@ -131,6 +132,7 @@ _EVENT_FIELDS = {
     "company": frozenset(
         {"v", "type", "name", "status", "jobs_fetched", "jobs_retained", "reason"}
     ),
+    "source_cooldown": frozenset({"v", "type", "name", "cooldown_until", "consecutive_transient_failures"}),
     "scan_summary": frozenset(
         {
             "v",
@@ -215,6 +217,7 @@ def validate_public_event(value: Any) -> dict[str, Any] | None:
         "name",
         "reason",
         "coverage_health",
+        "cooldown_until",
         "scan_runtime_seconds",
         "runtime_seconds",
     }
@@ -253,6 +256,21 @@ def validate_public_event(value: Any) -> dict[str, Any] | None:
         if event["status"] != "complete" and event["reason"] == "complete":
             return None
         event["name"] = name
+    elif event_type == "source_cooldown":
+        name = _safe_company_name(event["name"])
+        timestamp = event["cooldown_until"]
+        if name is None or not isinstance(timestamp, str) or len(timestamp) > 35:
+            return None
+        try:
+            deadline = datetime.fromisoformat(timestamp)
+            if deadline.tzinfo is None:
+                return None
+            canonical = deadline.astimezone(timezone.utc).isoformat()
+        except (OverflowError, ValueError):
+            return None
+        # The public renderer emits only a regenerated UTC timestamp.
+        event["cooldown_until"] = canonical
+        event["name"] = name
     elif event_type == "scan_summary":
         if event["coverage_health"] not in COVERAGE_HEALTH:
             return None
@@ -288,6 +306,7 @@ def classify_scan_reason(result: Any) -> str:
         str(getattr(result, field, "") or "").casefold()
         for field in (
             "source_health_code",
+            "transport_failure",
             "scan_completeness_reason",
             "stop_reason",
             "error_type",

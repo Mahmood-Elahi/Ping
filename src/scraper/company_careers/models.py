@@ -732,6 +732,8 @@ class CompanyScanResult:
     exclusion_counts: Dict[str, int] = field(default_factory=dict)
     mapped_child_brand_counts: Dict[str, int] = field(default_factory=dict)
     positive_inventory_usable: bool = False
+    provider_retry_at: Optional[str] = None
+    transport_failure: Optional[str] = None
 
     def __post_init__(self) -> None:
         self.crawl_mode = CrawlMode(self.crawl_mode)

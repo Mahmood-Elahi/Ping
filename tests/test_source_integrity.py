@@ -775,3 +775,13 @@ class RegistryIntegrityGateTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+def test_production_reliability_overlay_preserves_reviewed_discovery_only_sources():
+    from src.scraper.company_careers.registry import load_target_companies
+
+    targets = {target.name: target for target in load_target_companies(apply_reliability_repairs=True)}
+    assert len(targets) == 533
+    for name in ("CN Rail", "Goldman Sachs", "Kinross Gold", "Seagate", "Stantec", "Zalando"):
+        assert targets[name].inventory_authority.value == "discovery_only"

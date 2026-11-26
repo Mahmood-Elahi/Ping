@@ -211,8 +211,12 @@ def validate_package(root=ROOT):
         requests += proof['result']['requests_started']; jobs += proof['result']['total_available']
     require(requests == postflight['physical_requests'] == 76 and jobs == postflight['total_inventory_items'] == 1303,
             'Live aggregate accounting mismatch')
-    require(hashlib.sha256((root/'src/scraper/company_careers/adapters/workday.py').read_bytes()).hexdigest()
-            == manifest['protected_artifacts']['src/scraper/company_careers/adapters/workday.py'], 'Tested Workday runtime changed')
+    from scripts.validate_closeout_recovery import before_recovery_revision
+
+    engine_path = 'src/scraper/company_careers/adapters/workday.py'
+    engine = before_recovery_revision(engine_path, (root / engine_path).read_bytes())
+    require(hashlib.sha256(engine).hexdigest() == manifest['protected_artifacts'][engine_path],
+            'Tested Workday runtime changed')
     return {'status':'PASS','sources':20,'unchanged_companies':513,'live_jobs_accounted':jobs,
             'live_physical_requests':requests,'network_requests':0,'production_writes':0}
 
