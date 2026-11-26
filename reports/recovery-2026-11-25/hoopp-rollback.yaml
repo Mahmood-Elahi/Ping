@@ -1,0 +1,11 @@
+target_companies:
+- name: HOOPP
+  platform: workday
+  careers_url: https://hoopp.com/careers/student-opportunities
+  tenant: hoopp
+  wd_subdomain: wd10
+  site_id: HOOPPStudent
+  allowed_apply_hosts:
+  - hoopp.wd10.myworkdayjobs.com
+  max_pages: 1
+  max_jobs: 20

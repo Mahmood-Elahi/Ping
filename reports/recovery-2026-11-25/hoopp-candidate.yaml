@@ -1,0 +1,22 @@
+target_companies:
+- name: HOOPP
+  platform: workday
+  careers_url: https://hoopp.com/careers/student-opportunities
+  tenant: hoopp
+  wd_subdomain: wd10
+  site_id: HOOPPStudent
+  allowed_apply_hosts:
+  - hoopp.wd10.myworkdayjobs.com
+  max_pages: 1
+  max_jobs: 20
+  workday_identity:
+    evidence_source: 'Nov 24 closeout first-party student navigation: Explore opportunities'
+    expected_employer_name: HOOPP
+    expected_source_scope: default
+    expected_workday_tenant: hoopp
+    expected_workday_site: HOOPPStudent
+    expected_workday_hostname: hoopp.wd10.myworkdayjobs.com
+    expected_apply_hostname: hoopp.wd10.myworkdayjobs.com
+    official_source_url: https://hoopp.com/en/about-hoopp/hoopp-careers/students-and-new-graduates
+    official_binding_target_url: https://hoopp.wd10.myworkdayjobs.com/HOOPPStudent
+    official_binding_type: direct_link

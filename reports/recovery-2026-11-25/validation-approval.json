@@ -1,0 +1,672 @@
+{
+  "production": {
+    "run_id": 45707674434,
+    "revision": "487f0bcd76031f1a3deb71b3cccde3b021168926",
+    "finished_at_utc": "2026-11-25T22:16:25Z",
+    "complete": 372,
+    "incomplete": 122,
+    "failed": 39
+  },
+  "runtime_commit": "5f9486d",
+  "runtime_sha256": "132452ce5c55ad10435b530f2915da78a62d36e06424fb6c6ca5b3ac66743408",
+  "source_policy": "one independently bounded attempt per eligible source",
+  "resume_policy": "deferred and never-attempted sources only, with refreshed read-only evidence",
+  "cooldown_snapshot_max_age_seconds": 3600,
+  "production_writes": 0,
+  "total_request_cap": 592,
+  "total_worker_timeout_seconds": 13624,
+  "sources": [
+    {
+      "company": "Deliveroo",
+      "scope": "default",
+      "platform": "public_json",
+      "latest_status": "incomplete",
+      "latest_reason": "completion not established",
+      "previously_certified_and_regressed_in_run_420": false,
+      "disposition": "validate",
+      "request_cap": 32,
+      "timeout_seconds": 734,
+      "adapter_response_byte_bound": 3000000,
+      "candidate": "reports/recovery-2026-11-25/deliveroo-candidate.yaml",
+      "target_sha256": "80811a901cf6fca6de9c08fdb24fa470cf606e0fdcb9f28cd9f9339f9de84db5",
+      "health_keys": [
+        "public_json:deliveroo:aec2ec1e22a01112"
+      ],
+      "request_hosts": [
+        "careers.deliveroo.co.uk"
+      ],
+      "methods": [
+        "GET"
+      ],
+      "cxs_host": null,
+      "cxs_paths": []
+    },
+    {
+      "company": "Atlassian",
+      "scope": "default",
+      "platform": "atlassian",
+      "latest_status": "failed",
+      "latest_reason": "source identity validation failed",
+      "previously_certified_and_regressed_in_run_420": false,
+      "disposition": "validate",
+      "request_cap": 1,
+      "timeout_seconds": 52,
+      "adapter_response_byte_bound": 3000000,
+      "candidate": null,
+      "target_sha256": "1708ce92ed25ebceb3e34a022f2ac388a5f27c3e79004fd5e0680f248b3109ac",
+      "health_keys": [
+        "atlassian:atlassian:101e1159aee81550"
+      ],
+      "request_hosts": [
+        "www.atlassian.com"
+      ],
+      "methods": [
+        "GET"
+      ],
+      "cxs_host": null,
+      "cxs_paths": []
+    },
+    {
+      "company": "Hexagon Autonomy & Positioning / NovAtel",
+      "scope": "default",
+      "platform": "icims",
+      "latest_status": "incomplete",
+      "latest_reason": "missing terminal evidence",
+      "previously_certified_and_regressed_in_run_420": false,
+      "disposition": "validate",
+      "request_cap": 3,
+      "timeout_seconds": 96,
+      "adapter_response_byte_bound": 3000000,
+      "candidate": null,
+      "target_sha256": "2b4821b8bd2f2f56753c048832ceb077e4ecc51b61dd43fa8065077c730e0199",
+      "health_keys": [
+        "icims:hexagon autonomy & positioning / novatel:d9c4d79bbb1cfce8"
+      ],
+      "request_hosts": [
+        "careers-hexagonpositioning.icims.com",
+        "www2.novatel.com"
+      ],
+      "methods": [
+        "GET"
+      ],
+      "cxs_host": null,
+      "cxs_paths": []
+    },
+    {
+      "company": "SECURE Energy Services",
+      "scope": "default",
+      "platform": "icims",
+      "latest_status": "incomplete",
+      "latest_reason": "missing terminal evidence",
+      "previously_certified_and_regressed_in_run_420": false,
+      "disposition": "validate",
+      "request_cap": 6,
+      "timeout_seconds": 162,
+      "adapter_response_byte_bound": 3000000,
+      "candidate": null,
+      "target_sha256": "42153df68099a4f947d00fe967e50b63054b15110aba976469582c54a5b800f2",
+      "health_keys": [
+        "icims:secure energy services:2847781a0acb7178"
+      ],
+      "request_hosts": [
+        "careers-canada-secure.icims.com",
+        "secure.ca"
+      ],
+      "methods": [
+        "GET"
+      ],
+      "cxs_host": null,
+      "cxs_paths": []
+    },
+    {
+      "company": "ATCO",
+      "scope": "default",
+      "platform": "phenom",
+      "latest_status": "incomplete",
+      "latest_reason": "missing terminal evidence",
+      "previously_certified_and_regressed_in_run_420": false,
+      "disposition": "validate",
+      "request_cap": 44,
+      "timeout_seconds": 998,
+      "adapter_response_byte_bound": 3000000,
+      "candidate": null,
+      "target_sha256": "6ba80f5bec0c2b73e053e3bdd7d1ffacef3191d37a20c805e715b3fe3a296c22",
+      "health_keys": [
+        "phenom:atco:55c27a82ec94ef90"
+      ],
+      "request_hosts": [
+        "careers.atco.com"
+      ],
+      "methods": [
+        "GET"
+      ],
+      "cxs_host": null,
+      "cxs_paths": []
+    },
+    {
+      "company": "Infineon Technologies",
+      "scope": "default",
+      "platform": "eightfold",
+      "latest_status": "complete",
+      "latest_reason": "authoritative completion established",
+      "previously_certified_and_regressed_in_run_420": false,
+      "disposition": "production_complete",
+      "request_cap": 270,
+      "timeout_seconds": 5970,
+      "adapter_response_byte_bound": 3000000,
+      "candidate": null,
+      "target_sha256": "2fadec99f1405837907be6434052afdd04da867b8a0a808d5797bb605eabf06c",
+      "health_keys": [
+        "eightfold:infineon technologies:4925e519b5197357"
+      ],
+      "request_hosts": [
+        "jobs.infineon.com"
+      ],
+      "methods": [
+        "GET"
+      ],
+      "cxs_host": null,
+      "cxs_paths": []
+    },
+    {
+      "company": "Apple",
+      "scope": "default",
+      "platform": "apple",
+      "latest_status": "complete",
+      "latest_reason": "authoritative completion established",
+      "previously_certified_and_regressed_in_run_420": false,
+      "disposition": "production_complete",
+      "request_cap": 240,
+      "timeout_seconds": 5310,
+      "adapter_response_byte_bound": 3000000,
+      "candidate": null,
+      "target_sha256": "17c0b3841f7f02fccc2085cf4c7e1b57724be93003ab1159d834a14f1579ec36",
+      "health_keys": [
+        "apple:apple:731610cd645fdc69"
+      ],
+      "request_hosts": [
+        "jobs.apple.com",
+        "www.apple.com"
+      ],
+      "methods": [
+        "POST"
+      ],
+      "cxs_host": null,
+      "cxs_paths": []
+    },
+    {
+      "company": "ARM",
+      "scope": "default",
+      "platform": "icims",
+      "latest_status": "incomplete",
+      "latest_reason": "collection changed during scan",
+      "previously_certified_and_regressed_in_run_420": false,
+      "disposition": "validate",
+      "request_cap": 52,
+      "timeout_seconds": 1174,
+      "adapter_response_byte_bound": 3000000,
+      "candidate": null,
+      "target_sha256": "75a4d918289babf77f4093d24bd183c3aaac14dc12da063b94d6c6dd43c50bd6",
+      "health_keys": [
+        "icims:arm:5cf6d62b241fbb62"
+      ],
+      "request_hosts": [
+        "careers.arm.com"
+      ],
+      "methods": [
+        "GET"
+      ],
+      "cxs_host": null,
+      "cxs_paths": []
+    },
+    {
+      "company": "Halliburton",
+      "scope": "default",
+      "platform": "sap_successfactors",
+      "latest_status": "complete",
+      "latest_reason": "authoritative completion established",
+      "previously_certified_and_regressed_in_run_420": true,
+      "disposition": "production_complete",
+      "request_cap": 52,
+      "timeout_seconds": 1174,
+      "adapter_response_byte_bound": 3000000,
+      "candidate": null,
+      "target_sha256": "3d457d8649cb112f5ad37bd9db7bede4e5d8859cd2026d71de4f4e137202c467",
+      "health_keys": [
+        "sap_successfactors:halliburton:7d989328164c4998"
+      ],
+      "request_hosts": [
+        "jobs.halliburton.com"
+      ],
+      "methods": [
+        "GET"
+      ],
+      "cxs_host": null,
+      "cxs_paths": []
+    },
+    {
+      "company": "PCL Construction",
+      "scope": "default",
+      "platform": "sap_successfactors",
+      "latest_status": "complete",
+      "latest_reason": "authoritative completion established",
+      "previously_certified_and_regressed_in_run_420": true,
+      "disposition": "production_complete",
+      "request_cap": 96,
+      "timeout_seconds": 2142,
+      "adapter_response_byte_bound": 3000000,
+      "candidate": null,
+      "target_sha256": "aea34af269746f6aa3d6aba1f6f68e67c988dc29d3f8ff8305772c5a7d0cfa20",
+      "health_keys": [
+        "sap_successfactors:pcl construction:c0db96fc69a697a6"
+      ],
+      "request_hosts": [
+        "careers.pcl.com",
+        "www.pcl.com"
+      ],
+      "methods": [
+        "GET"
+      ],
+      "cxs_host": null,
+      "cxs_paths": []
+    },
+    {
+      "company": "Aecon",
+      "scope": "default",
+      "platform": "sap_successfactors",
+      "latest_status": "failed",
+      "latest_reason": "source unreachable",
+      "previously_certified_and_regressed_in_run_420": false,
+      "disposition": "validate",
+      "request_cap": 44,
+      "timeout_seconds": 998,
+      "adapter_response_byte_bound": 3000000,
+      "candidate": "reports/recovery-2026-11-25/sap-candidates.yaml",
+      "target_sha256": "7cfe6c791b2d8645a5289aaf4559e84ca596a0da88c37d276c589abda5a720bd",
+      "health_keys": [
+        "sap_successfactors:aecon:b1f3a9883d229eb2",
+        "sap_successfactors:aecon:cbf4430f7a05cc5f"
+      ],
+      "request_hosts": [
+        "jobs.aecon.com",
+        "www.aecon.com"
+      ],
+      "methods": [
+        "GET"
+      ],
+      "cxs_host": null,
+      "cxs_paths": []
+    },
+    {
+      "company": "John Deere",
+      "scope": "default",
+      "platform": "sap_successfactors",
+      "latest_status": "failed",
+      "latest_reason": "source unreachable",
+      "previously_certified_and_regressed_in_run_420": false,
+      "disposition": "validate",
+      "request_cap": 44,
+      "timeout_seconds": 998,
+      "adapter_response_byte_bound": 3000000,
+      "candidate": "reports/recovery-2026-11-25/sap-candidates.yaml",
+      "target_sha256": "5113c4c5ebd7bd9160ab77862db9c6831256c626acb4833a6d4222c797fbe844",
+      "health_keys": [
+        "sap_successfactors:john deere:7c873c2afdcb268d",
+        "sap_successfactors:john deere:a33e392c6f8bedb5"
+      ],
+      "request_hosts": [
+        "jobs.deere.com",
+        "www.deere.com"
+      ],
+      "methods": [
+        "GET"
+      ],
+      "cxs_host": null,
+      "cxs_paths": []
+    },
+    {
+      "company": "Volvo Cars",
+      "scope": "default",
+      "platform": "sap_successfactors",
+      "latest_status": "failed",
+      "latest_reason": "source identity validation failed",
+      "previously_certified_and_regressed_in_run_420": false,
+      "disposition": "validate",
+      "request_cap": 44,
+      "timeout_seconds": 998,
+      "adapter_response_byte_bound": 3000000,
+      "candidate": "reports/recovery-2026-11-25/sap-candidates.yaml",
+      "target_sha256": "8f8c546ffb90f5f546102b8f9864f0dfeeb8df0dac26209d04dd807095eb88ca",
+      "health_keys": [
+        "sap_successfactors:volvo cars:34c3c0c0a0747310",
+        "sap_successfactors:volvo cars:e72da6d212bbfc35"
+      ],
+      "request_hosts": [
+        "jobs.volvocars.com",
+        "www.volvocars.com"
+      ],
+      "methods": [
+        "GET"
+      ],
+      "cxs_host": null,
+      "cxs_paths": []
+    },
+    {
+      "company": "ENMAX",
+      "scope": "default",
+      "platform": "workday",
+      "latest_status": "failed",
+      "latest_reason": "network failure",
+      "previously_certified_and_regressed_in_run_420": true,
+      "disposition": "validate",
+      "request_cap": 4,
+      "timeout_seconds": 118,
+      "adapter_response_byte_bound": 3000000,
+      "candidate": null,
+      "target_sha256": "77e7e43254dd50333217c526ed22bc9e73135be5612b28fa402ae9f43264511c",
+      "health_keys": [
+        "workday:enmax:9d4b72b163f4c099"
+      ],
+      "request_hosts": [
+        "enmax.wd3.myworkdayjobs.com",
+        "www.enmax.com"
+      ],
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "cxs_host": "enmax.wd3.myworkdayjobs.com",
+      "cxs_paths": [
+        "/wday/cxs/enmax/ENMAXCareers/jobs"
+      ]
+    },
+    {
+      "company": "Ovintiv",
+      "scope": "default",
+      "platform": "workday",
+      "latest_status": "failed",
+      "latest_reason": "network failure",
+      "previously_certified_and_regressed_in_run_420": true,
+      "disposition": "validate",
+      "request_cap": 12,
+      "timeout_seconds": 294,
+      "adapter_response_byte_bound": 3000000,
+      "candidate": null,
+      "target_sha256": "17ef91ee6c5e32dc08f9d0c70cbf220804b366d61bc1ca36314cdd68d676785e",
+      "health_keys": [
+        "workday:ovintiv:840295ffcc973c93"
+      ],
+      "request_hosts": [
+        "ovintiv.wd3.myworkdayjobs.com",
+        "www.ovintiv.com"
+      ],
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "cxs_host": "ovintiv.wd3.myworkdayjobs.com",
+      "cxs_paths": [
+        "/wday/cxs/ovintiv/ovintivcareers/jobs"
+      ]
+    },
+    {
+      "company": "Enbridge",
+      "scope": "default",
+      "platform": "workday",
+      "latest_status": "failed",
+      "latest_reason": "network failure",
+      "previously_certified_and_regressed_in_run_420": true,
+      "disposition": "validate",
+      "request_cap": 30,
+      "timeout_seconds": 690,
+      "adapter_response_byte_bound": 3000000,
+      "candidate": null,
+      "target_sha256": "6a4c5d2aa78046c1a8acf037dbf5fc3481d4b025c24b32905bd37cf64d63bc51",
+      "health_keys": [
+        "workday:enbridge:840350fb666c1cf1"
+      ],
+      "request_hosts": [
+        "enbridge.wd3.myworkdayjobs.com",
+        "www.enbridge.com"
+      ],
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "cxs_host": "enbridge.wd3.myworkdayjobs.com",
+      "cxs_paths": [
+        "/wday/cxs/enbridge/enbridge_careers/jobs"
+      ]
+    },
+    {
+      "company": "Capital One",
+      "scope": "default",
+      "platform": "workday",
+      "latest_status": "incomplete",
+      "latest_reason": "source cooldown active",
+      "previously_certified_and_regressed_in_run_420": false,
+      "disposition": "validate",
+      "request_cap": 52,
+      "timeout_seconds": 1174,
+      "adapter_response_byte_bound": 3000000,
+      "candidate": null,
+      "target_sha256": "7e43fa9eca90995ebebeec6aa8e87dfaaa633aab69ed2f132bd401e062ccf0b7",
+      "health_keys": [
+        "workday:capital one:fa0a526782ae5c37"
+      ],
+      "request_hosts": [
+        "capitalone.wd12.myworkdayjobs.com",
+        "www.capitalonecareers.com"
+      ],
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "cxs_host": "capitalone.wd12.myworkdayjobs.com",
+      "cxs_paths": [
+        "/wday/cxs/capitalone/Capital_One/jobs"
+      ]
+    },
+    {
+      "company": "HOOPP",
+      "scope": "default",
+      "platform": "workday",
+      "latest_status": "incomplete",
+      "latest_reason": "source identity validation failed",
+      "previously_certified_and_regressed_in_run_420": false,
+      "disposition": "validate",
+      "request_cap": 12,
+      "timeout_seconds": 294,
+      "adapter_response_byte_bound": 3000000,
+      "candidate": "reports/recovery-2026-11-25/hoopp-candidate.yaml",
+      "target_sha256": "8fcd470430e3786057456cc8d0e51e9afb3690d80e0ef5ef47691f4f99e78a51",
+      "health_keys": [
+        "workday:hoopp:073ba8c4bd1d0b69",
+        "workday:hoopp:b8a749c3d5dcd66d"
+      ],
+      "request_hosts": [
+        "hoopp.com",
+        "hoopp.wd10.myworkdayjobs.com"
+      ],
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "cxs_host": "hoopp.wd10.myworkdayjobs.com",
+      "cxs_paths": [
+        "/wday/cxs/hoopp/HOOPPStudent/jobs"
+      ]
+    },
+    {
+      "company": "Solera Holdings",
+      "scope": "default",
+      "platform": "workday",
+      "latest_status": "incomplete",
+      "latest_reason": "source cooldown active",
+      "previously_certified_and_regressed_in_run_420": true,
+      "disposition": "validate",
+      "request_cap": 12,
+      "timeout_seconds": 294,
+      "adapter_response_byte_bound": 3000000,
+      "candidate": null,
+      "target_sha256": "ccdbdcb2ab0e8793f1115226cea9b0c3cc0be016c9e68d8cd8fb7bf7bd43f0e5",
+      "health_keys": [
+        "workday:solera holdings:64a2b06e078e1c1b"
+      ],
+      "request_hosts": [
+        "solera.wd5.myworkdayjobs.com",
+        "www.solera.com"
+      ],
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "cxs_host": "solera.wd5.myworkdayjobs.com",
+      "cxs_paths": [
+        "/wday/cxs/solera/Global_Career_Site/jobs"
+      ]
+    },
+    {
+      "company": "Suncor Energy",
+      "scope": "default",
+      "platform": "workday",
+      "latest_status": "incomplete",
+      "latest_reason": "source cooldown active",
+      "previously_certified_and_regressed_in_run_420": true,
+      "disposition": "validate",
+      "request_cap": 12,
+      "timeout_seconds": 294,
+      "adapter_response_byte_bound": 3000000,
+      "candidate": null,
+      "target_sha256": "b897b819fec6059f553e92387827044c2227f7c43c6129a05bb027aa95058e29",
+      "health_keys": [
+        "workday:suncor energy:e3b9322b1fbf8b11"
+      ],
+      "request_hosts": [
+        "suncor.wd1.myworkdayjobs.com",
+        "www.suncor.com"
+      ],
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "cxs_host": "suncor.wd1.myworkdayjobs.com",
+      "cxs_paths": [
+        "/wday/cxs/suncor/Suncor_External/jobs"
+      ]
+    },
+    {
+      "company": "Bruce Power",
+      "scope": "default",
+      "platform": "workday",
+      "latest_status": "incomplete",
+      "latest_reason": "source cooldown active",
+      "previously_certified_and_regressed_in_run_420": true,
+      "disposition": "validate",
+      "request_cap": 12,
+      "timeout_seconds": 294,
+      "adapter_response_byte_bound": 3000000,
+      "candidate": null,
+      "target_sha256": "412d2a9c3561cc0533ff497b73f1cf652029e0001497d6df9332f3055c5856ea",
+      "health_keys": [
+        "workday:bruce power:fddc265217783c43"
+      ],
+      "request_hosts": [
+        "brucepower.wd3.myworkdayjobs.com",
+        "www.brucepower.com"
+      ],
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "cxs_host": "brucepower.wd3.myworkdayjobs.com",
+      "cxs_paths": [
+        "/wday/cxs/brucepower/BrucePower/jobs"
+      ]
+    },
+    {
+      "company": "Cenovus Energy",
+      "scope": "default",
+      "platform": "workday",
+      "latest_status": "failed",
+      "latest_reason": "network failure",
+      "previously_certified_and_regressed_in_run_420": false,
+      "disposition": "validate",
+      "request_cap": 8,
+      "timeout_seconds": 206,
+      "adapter_response_byte_bound": 3000000,
+      "candidate": null,
+      "target_sha256": "4d5877e87f8dd5f83b3b3056f793bf7e8bb00388e64b4fcb19973252af556bfd",
+      "health_keys": [
+        "workday:cenovus energy:421ce72ad7e70faa"
+      ],
+      "request_hosts": [
+        "cenovus.wd3.myworkdayjobs.com",
+        "www.cenovus.com"
+      ],
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "cxs_host": "cenovus.wd3.myworkdayjobs.com",
+      "cxs_paths": [
+        "/wday/cxs/cenovus/careers/jobs"
+      ]
+    },
+    {
+      "company": "Hydro Ottawa",
+      "scope": "default",
+      "platform": "workday",
+      "latest_status": "failed",
+      "latest_reason": "network failure",
+      "previously_certified_and_regressed_in_run_420": false,
+      "disposition": "validate",
+      "request_cap": 12,
+      "timeout_seconds": 294,
+      "adapter_response_byte_bound": 3000000,
+      "candidate": null,
+      "target_sha256": "6d93febc48d6c251f10f2cfbf2d8792b6c5056110c425a08ffd44ecefce116a2",
+      "health_keys": [
+        "workday:hydro ottawa:48b00a1027fe5536"
+      ],
+      "request_hosts": [
+        "hydroottawa.com",
+        "hydroottawa.wd3.myworkdayjobs.com"
+      ],
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "cxs_host": "hydroottawa.wd3.myworkdayjobs.com",
+      "cxs_paths": [
+        "/wday/cxs/hydroottawa/hydro_ottawa_careersite/jobs"
+      ]
+    },
+    {
+      "company": "Mercado Libre",
+      "scope": "default",
+      "platform": "eightfold",
+      "latest_status": "incomplete",
+      "latest_reason": "collection changed during scan",
+      "previously_certified_and_regressed_in_run_420": false,
+      "disposition": "validate",
+      "request_cap": 156,
+      "timeout_seconds": 3462,
+      "adapter_response_byte_bound": 3000000,
+      "candidate": null,
+      "target_sha256": "0e2bc30a4a8ac2588d2f880f973e34495ec7d687cba38403a2c26f8318f5cf9b",
+      "health_keys": [
+        "eightfold:mercado libre:3d84a8433be33f18"
+      ],
+      "request_hosts": [
+        "careers-meli.mercadolibre.com",
+        "mercadolibre.eightfold.ai"
+      ],
+      "methods": [
+        "GET"
+      ],
+      "cxs_host": null,
+      "cxs_paths": []
+    }
+  ]
+}

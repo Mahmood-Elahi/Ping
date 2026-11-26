@@ -130,8 +130,12 @@ def selected_targets(
     return selected
 
 
-def run_canary(target: Any, request_budget: int, *, throttle: WorkdayThrottle | None = None) -> dict[str, Any]:
-    session = BoundedSession(request_budget) if throttle is None else BoundedSession(request_budget, throttle)
+def run_canary(
+    target: Any, request_budget: int, *, throttle: WorkdayThrottle | None = None,
+    session: BoundedSession | None = None, capture_inventory: list | None = None,
+) -> dict[str, Any]:
+    if session is None:
+        session = BoundedSession(request_budget) if throttle is None else BoundedSession(request_budget, throttle)
     metadata: dict[str, Any]
     status: str
     canary_outcome: str
@@ -169,6 +173,18 @@ def run_canary(target: Any, request_budget: int, *, throttle: WorkdayThrottle | 
         for job in jobs:
             if hasattr(job, "source_scope"):
                 job.source_scope = target.source_scope
+        if capture_inventory is not None:
+            pairs = sorted((job.job_id, job.url) for job in jobs)
+            if isinstance(output, AdapterResult) and output.inventory_items:
+                observed = sorted((item.source.casefold(), item.item_id) for item in output.inventory_items)
+                normalized = sorted((job.source.casefold(), job.job_id) for job in jobs)
+                if observed != normalized:
+                    metadata.update(
+                        scan_complete=False, pagination_evidence_malformed=True,
+                        stop_reason="inventory_accounting_mismatch",
+                        scan_completeness_reason="inventory_accounting_mismatch",
+                    )
+            capture_inventory.extend(pairs)
         _record_job_integrity(metadata, jobs)
         _record_target_contract(metadata, jobs, target, request_budget, session)
         _record_session_diagnostics(metadata, session, target)
