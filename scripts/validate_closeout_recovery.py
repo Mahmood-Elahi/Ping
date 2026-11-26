@@ -19,6 +19,9 @@ OVERLAY = "config/company_careers_reliability_repairs_v1.yaml"
 RECOVERY_REVISION = ROOT / "reports/recovery-2026-11-25/historical-reversal.json"
 RECOVERY_REVISION_SHA256 = "8e5954951b8dd0100e3fb170f0c094798aa095faf479465ef71c1c02728b96bc"
 
+CONTRACT_REVISION = ROOT / "reports/recovery-2026-11-26/contract-reversal.json"
+CONTRACT_REVISION_SHA256 = "90821c5da3ce5da493d1fdb394bd2b5b002d021ee60e72b0810e49a690465bcf"
+
 
 def digest(raw):
     return sha256(raw).hexdigest()
@@ -39,9 +42,30 @@ def recovery_revision():
     return json.loads(evidence)["files"]
 
 
+@lru_cache(maxsize=1)
+def contract_revision():
+    raw = CONTRACT_REVISION.read_bytes()
+    if digest(raw) != CONTRACT_REVISION_SHA256:
+        raise ValueError("Contract follow-up reversal record changed")
+    return json.loads(raw)
+
+
+def before_contract_revision(path, raw):
+    record = contract_revision().get(path)
+    if record is None or digest(raw) != record["after_sha256"]:
+        return raw
+    lines = raw.decode().splitlines(keepends=True)
+    for start, end, original in reversed(record["edits"]):
+        lines[start:end] = original.splitlines(keepends=True)
+    restored = "".join(lines).encode()
+    if digest(restored) != record["before_sha256"]:
+        raise ValueError("Contract follow-up reversal failed: " + path)
+    return restored
+
+
 def before_recovery_revision(path, raw):
     """Reconstruct certificate-era bytes from the exact offline recovery patch."""
-    raw = activation.before_activation(path, raw)
+    raw = activation.before_activation(path, before_contract_revision(path, raw))
     change = recovery_revision().get(path)
     if change is None or digest(raw) != change["patched_sha256"]:
         return raw
