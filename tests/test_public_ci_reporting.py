@@ -214,6 +214,7 @@ r.emit("run_summary", runtime_seconds=10.5)
         self.assertIn("configured=3, attempted=3, complete=1, incomplete=1, failed=1", public_log)
         self.assertIn("fetched=13, normalized=10, retained=5", public_log)
         self.assertIn("inserted=1, updated=2, unchanged=1", public_log)
+        self.assertIn("closed_in_synced_scopes=0", public_log)
         self.assertIn("Final ranked jobs: 4", public_log)
         self.assertIn("Company scan results", summary)
 

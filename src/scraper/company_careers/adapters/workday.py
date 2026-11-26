@@ -1530,7 +1530,7 @@ def _partition_payload(
         return None
     except WorkdayRateLimit as exc:
         context.metadata["provider_retry_at"] = exc.retry_at
-        _fail_partition(context, "rate_limited" if exc.physical else "rate_limit_wait")
+        _fail_partition(context, exc.reason)
         return None
     except WorkdayRedirect:
         # The redirect was denied before dispatch. Fail the whole identity-bound scan.

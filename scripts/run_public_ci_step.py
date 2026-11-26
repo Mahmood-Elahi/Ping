@@ -244,7 +244,7 @@ class _PublicReportRenderer:
                 "Ping report: Supabase synchronization: "
                 f"inserted={event['inserted']}, updated={event['updated']}, "
                 f"unchanged={event['unchanged']}, "
-                f"missing_advanced={event['missing_incremented']}, closed={event['closed']}.",
+                f"missing_advanced={event['missing_incremented']}, closed_in_synced_scopes={event['closed']}.",
                 flush=True,
             )
         elif event_type == "sheets_summary":

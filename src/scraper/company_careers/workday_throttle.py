@@ -33,15 +33,19 @@ def retry_seconds(value, now):
 class WorkdayRateLimit(requests.HTTPError):
     """A physical 429 or a scan-local admission held by an earlier 429."""
 
-    def __init__(self, message, *, retry_at, physical_response=None, request=None):
+    def __init__(self, message, *, retry_at=None, physical_response=None, request=None):
         super().__init__(message, response=physical_response, request=request)
-        try:
-            deadline = datetime.fromtimestamp(retry_at, timezone.utc)
-        except (OverflowError, OSError, ValueError):
-            # An out-of-range provider delay requires operator review.
-            deadline = datetime.max.replace(tzinfo=timezone.utc)
-        self.retry_at = deadline.isoformat()
         self.physical = physical_response is not None
+        self.reason = "rate_limit_backpressure"
+        self.retry_at = None
+        if retry_at is not None:
+            self.reason = "rate_limited" if self.physical else "rate_limit_wait"
+            try:
+                deadline = datetime.fromtimestamp(retry_at, timezone.utc)
+            except (OverflowError, OSError, ValueError):
+                # An out-of-range provider delay requires operator review.
+                deadline = datetime.max.replace(tzinfo=timezone.utc)
+            self.retry_at = deadline.isoformat()
 
 
 class WorkdayRedirect(requests.HTTPError):
@@ -55,32 +59,38 @@ class WorkdayThrottle:
         self._lock = threading.Lock()
         self._retry_at = {}
         self._signals = {}
-        self._paced_until = self._next_start = 0.0
+        self._paused_until = self._paced_until = self._next_start = 0.0
 
     def session(self):
         return WorkdayListingSession(self)
 
     def throttled(self, host, retry_after):
-        delay = retry_seconds(retry_after, self.wall_clock())
         with self._lock:
-            now = self.clock()
-            self._retry_at[host] = max(self._retry_at.get(host, 0), now + (WINDOW if delay is None else delay))
+            now, wall_now = self.clock(), self.wall_clock()
+            delay = retry_seconds(retry_after, wall_now)
+            wait = WINDOW if delay is None else delay
+            deadline, retry_at = self._retry_at.get(host, (float("-inf"), 0))
+            if now + wait > deadline:
+                retry_at = wall_now + wait
+                self._retry_at[host] = now + wait, retry_at
             self._signals = {h: t for h, t in self._signals.items() if t > now - WINDOW}
             self._signals[host] = now
             if len(self._signals) >= 2:
-                self._paced_until = now + WINDOW
-                self._next_start = max(self._next_start, now + CORRELATED_SPACING)
-        return delay
+                self._paused_until = now + WINDOW
+                self._paced_until = self._paused_until + WINDOW
+        return delay, retry_at
 
     def admit(self, host):
         while True:
             with self._lock:
                 now = self.clock()
-                if now < self._retry_at.get(host, 0):
+                deadline, retry_at = self._retry_at.get(host, (0, 0))
+                if now < deadline:
                     raise WorkdayRateLimit(
-                        "Workday HTTP 429 cooldown for " + host,
-                        retry_at=self.wall_clock() + (self._retry_at[host] - now),
+                        "Workday HTTP 429 cooldown for " + host, retry_at=retry_at,
                     )
+                if now < self._paused_until:
+                    raise WorkdayRateLimit("Workday listing request deferred after 429s across hosts")
                 wait = self._next_start - now
                 if wait <= 0:
                     spacing = CORRELATED_SPACING if now < self._paced_until else SPACING
@@ -114,10 +124,11 @@ class WorkdayListingSession(requests.Session):
             response.close()
             raise WorkdayRedirect("Unreviewed Workday CXS redirect for " + host, response=response, request=request)
         if response.status_code == 429:
-            delay = self.throttle.throttled(host, response.headers.get("Retry-After"))
+            delay, self.rejection_deadline = self.throttle.throttled(
+                host, response.headers.get("Retry-After")
+            )
             response.close()
             hint = "" if delay is None else f" (Retry-After {delay:.0f}s)"
-            self.rejection_deadline = self.throttle.wall_clock() + (WINDOW if delay is None else delay)
             raise WorkdayRateLimit("Workday HTTP 429 for " + host + hint,
                                    retry_at=self.rejection_deadline, physical_response=response, request=request)
         return response

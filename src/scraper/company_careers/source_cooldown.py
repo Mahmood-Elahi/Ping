@@ -136,6 +136,17 @@ def cooldown_active(state: Mapping[str, Any] | None, *, as_of: datetime) -> bool
     return bool(until and _as_utc(as_of) < until)
 
 
+def expired_workday_cooldown_priority(
+    state: Mapping[str, Any] | None, *, as_of: datetime,
+) -> datetime | None:
+    """Order eligible Workday recovery by least recently observed source."""
+    if state:
+        deadline = _parse_timestamp(state.get("cooldown_until"))
+        if deadline is not None and deadline <= _as_utc(as_of):
+            return _parse_timestamp(state.get("updated_at")) or deadline
+    return None
+
+
 def classify_failure(result: CompanyScanResult) -> str | None:
     """Classify only failures suitable for waiting and later normal probing."""
     if result.authoritative_for_absence:
@@ -157,6 +168,8 @@ def classify_failure(result: CompanyScanResult) -> str | None:
         "item_failure_outside_inventory",
     }:
         return "non_transient"
+    if {reason, error_type} & {"rate_limit_wait", "rate_limit_backpressure"}:
+        return None
     if reason in {"rate_limited", "request_failure"} or error_type in TRANSIENT_ERROR_TYPES:
         return "transient_transport"
     if reason in {
@@ -196,7 +209,10 @@ def reconcile_source_health(
     for result in results:
         key = source_health_key(result.target)
         prior = dict(previous.get(key) or {})
-        if result.source_health_code == "cooldown_skipped":
+        if (
+            result.source_health_code == "cooldown_skipped"
+            or "rate_limit_backpressure" in (result.stop_reason, result.error_type)
+        ):
             continue
         base = {
             "source_key": key,
@@ -247,8 +263,13 @@ def reconcile_source_health(
             count = int(prior.get("consecutive_transient_failures") or 0) + 1
             hours = cooldown_hours(count)
             deadline = observed_at + timedelta(hours=hours) if hours else None
-            if provider_until and (deadline is None or provider_until > deadline):
-                deadline = provider_until
+            prior_until = _parse_timestamp(prior.get("cooldown_until"))
+            active_deadlines = [
+                value for value in (deadline, provider_until, prior_until)
+                if value is not None and value > observed_at
+            ]
+            # Preserve the absolute provider deadline even if it expired mid-scan.
+            deadline = max(active_deadlines, default=provider_until)
             rows.append(
                 {
                     **base,

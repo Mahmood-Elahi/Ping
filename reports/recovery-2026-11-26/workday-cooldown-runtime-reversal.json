@@ -1,0 +1,254 @@
+{
+  "base_commit": "55ab68d36220214353fe267f60dd0841a2bef82e",
+  "files": {
+    "scripts/public_ci_report.py": {
+      "original_sha256": "39ad7f17a31798e6f31db484ca12c5396e79f4c4e68ee632cab24c7139794bd3",
+      "patched_sha256": "143dfce1f5cae17c81ec8259651ac06c9c232dde4e69183d6ccb5d3e8f50d538",
+      "reverse_edits": [
+        [
+          93,
+          95,
+          ""
+        ],
+        [
+          101,
+          102,
+          ""
+        ],
+        [
+          121,
+          123,
+          ""
+        ],
+        [
+          129,
+          130,
+          ""
+        ],
+        [
+          320,
+          323,
+          ""
+        ]
+      ]
+    },
+    "scripts/run_public_ci_step.py": {
+      "original_sha256": "3d93b37e07906a6011a03419d452833112eeb640b8a83fca9aef67b1998ae76a",
+      "patched_sha256": "3e40917ca7362deb7f4360a07542576d3ea3a74da1ece169cf275453d925776b",
+      "reverse_edits": [
+        [
+          246,
+          247,
+          "                f\"missing_advanced={event['missing_incremented']}, closed={event['closed']}.\",\n"
+        ]
+      ]
+    },
+    "scripts/update_student_dashboard.py": {
+      "original_sha256": "407ea13a2e021d36b68c0f7916cc5d99b5c3157120320c6c4d89f947ff1b3552",
+      "patched_sha256": "5cf1200fb84b788e7d91c01829e8a2d9f31aa005097da45db749102abef4cc7a",
+      "reverse_edits": [
+        [
+          587,
+          588,
+          "    print(f\"  Jobs newly closed: {sync_result.closed}\")\n"
+        ]
+      ]
+    },
+    "scripts/validate_source_integrity_canaries.py": {
+      "original_sha256": "f17adcb1226fd7ade05dc65d8b87b7d3b34f83630d191c2dd6e575b2bce06c3e",
+      "patched_sha256": "9e4be15678480b8fcb2ca6ff5c8772c62b3d39ce104baa8acd462dc7ce7f0945",
+      "reverse_edits": [
+        [
+          676,
+          677,
+          "    if metadata.get(\"stop_reason\") in {\"rate_limited\", \"rate_limit_wait\"}:\n"
+        ]
+      ]
+    },
+    "src/scraper/company_careers/adapters/workday.py": {
+      "original_sha256": "bdae57964955e84813c94c747816b8e5d7820e1c274426b989d390f6055d8400",
+      "patched_sha256": "c694ffc6e9488fa2b477085725fe15fb47c94dc131d692d1b5024fc7655107cd",
+      "reverse_edits": [
+        [
+          1532,
+          1533,
+          "        _fail_partition(context, \"rate_limited\" if exc.physical else \"rate_limit_wait\")\n"
+        ]
+      ]
+    },
+    "src/scraper/company_careers/scanner.py": {
+      "original_sha256": "cbabd9cac68c0eed44389ab0e43102aef2c1a9be889e4e167e920399cc39bb9a",
+      "patched_sha256": "dc5ed525030ab28de040292dccc6c76aea39df4f4ca063379b46f37d500171b3",
+      "reverse_edits": [
+        [
+          6,
+          7,
+          ""
+        ],
+        [
+          89,
+          90,
+          ""
+        ],
+        [
+          100,
+          101,
+          ""
+        ],
+        [
+          324,
+          336,
+          "        indexed_targets = list(enumerate(self.targets))\n"
+        ],
+        [
+          337,
+          349,
+          ""
+        ],
+        [
+          351,
+          352,
+          "                results[index] = self._scan_target_and_observe(\n                    target,\n                    keywords=keywords,\n                    locations=locations,\n                    max_jobs_per_company=max_jobs_per_company,\n                    job_filter=job_filter,\n                    location_filter=location_filter,\n                    browser_batch=browser_batch,\n                    browser_batch_error=browser_batch_error,\n                )\n"
+        ],
+        [
+          367,
+          368,
+          "                    executor.submit(\n                        self._scan_target_and_observe,\n                        target,\n                        keywords=keywords,\n                        locations=locations,\n                        max_jobs_per_company=max_jobs_per_company,\n                        job_filter=job_filter,\n                        location_filter=location_filter,\n                        browser_batch=None,\n                        browser_batch_error=None,\n                    ): index\n"
+        ],
+        [
+          373,
+          374,
+          "                    results[index] = self._scan_target_and_observe(\n                        target,\n                        keywords=keywords,\n                        locations=locations,\n                        max_jobs_per_company=max_jobs_per_company,\n                        job_filter=job_filter,\n                        location_filter=location_filter,\n                        browser_batch=browser_batch,\n                        browser_batch_error=browser_batch_error,\n                    )\n"
+        ],
+        [
+          376,
+          391,
+          ""
+        ],
+        [
+          408,
+          411,
+          "        result = self._scan_target(target, **options)\n"
+        ],
+        [
+          736,
+          737,
+          ""
+        ],
+        [
+          739,
+          743,
+          "                error_type = \"rate_limited\" if exc.physical else \"rate_limit_wait\"\n                remediation = \"Wait for the provider deadline and normal source cooldown.\"\n"
+        ],
+        [
+          772,
+          773,
+          "                status=CoverageStatus.FAILED_TECHNICAL,\n"
+        ]
+      ]
+    },
+    "src/scraper/company_careers/source_cooldown.py": {
+      "original_sha256": "22c00846f24570b9d3da548cdcd76c44ad24c9da28b8324abd398e6de35d6a61",
+      "patched_sha256": "150033631bd05dce4a342207d892346a01b0c8386bd9b64da6a5c63381480eb5",
+      "reverse_edits": [
+        [
+          138,
+          149,
+          ""
+        ],
+        [
+          170,
+          172,
+          ""
+        ],
+        [
+          211,
+          215,
+          "        if result.source_health_code == \"cooldown_skipped\":\n"
+        ],
+        [
+          265,
+          272,
+          "            if provider_until and (deadline is None or provider_until > deadline):\n                deadline = provider_until\n"
+        ]
+      ]
+    },
+    "src/scraper/company_careers/source_health.py": {
+      "original_sha256": "7ae2b100ae2fafdcecc32b8708daaf4d38925c30287a55cc9bdae62576a9f618",
+      "patched_sha256": "813aeffd49ae3ad2ae139f3ba4fce5e6336514a6bb44555ec47755877ddd15f2",
+      "reverse_edits": [
+        [
+          607,
+          608,
+          "    if lowered in {\"rate_limited\", \"rate_limit_wait\"}:\n"
+        ]
+      ]
+    },
+    "src/scraper/company_careers/workday_throttle.py": {
+      "original_sha256": "92688f835279768b437e249ccaf47947a5f638d9be8e7153b8986198e9c92c8d",
+      "patched_sha256": "6a016f02ff10847fd13cbc7de53452928c92289b4ab1e98f52611a69fba7bb04",
+      "reverse_edits": [
+        [
+          35,
+          36,
+          "    def __init__(self, message, *, retry_at, physical_response=None, request=None):\n"
+        ],
+        [
+          37,
+          37,
+          "        try:\n            deadline = datetime.fromtimestamp(retry_at, timezone.utc)\n        except (OverflowError, OSError, ValueError):\n            # An out-of-range provider delay requires operator review.\n            deadline = datetime.max.replace(tzinfo=timezone.utc)\n        self.retry_at = deadline.isoformat()\n"
+        ],
+        [
+          38,
+          48,
+          ""
+        ],
+        [
+          61,
+          62,
+          "        self._paced_until = self._next_start = 0.0\n"
+        ],
+        [
+          67,
+          67,
+          "        delay = retry_seconds(retry_after, self.wall_clock())\n"
+        ],
+        [
+          68,
+          75,
+          "            now = self.clock()\n            self._retry_at[host] = max(self._retry_at.get(host, 0), now + (WINDOW if delay is None else delay))\n"
+        ],
+        [
+          78,
+          81,
+          "                self._paced_until = now + WINDOW\n                self._next_start = max(self._next_start, now + CORRELATED_SPACING)\n        return delay\n"
+        ],
+        [
+          86,
+          88,
+          "                if now < self._retry_at.get(host, 0):\n"
+        ],
+        [
+          89,
+          90,
+          "                        \"Workday HTTP 429 cooldown for \" + host,\n                        retry_at=self.wall_clock() + (self._retry_at[host] - now),\n"
+        ],
+        [
+          91,
+          93,
+          ""
+        ],
+        [
+          126,
+          129,
+          "            delay = self.throttle.throttled(host, response.headers.get(\"Retry-After\"))\n"
+        ],
+        [
+          131,
+          131,
+          "            self.rejection_deadline = self.throttle.wall_clock() + (WINDOW if delay is None else delay)\n"
+        ]
+      ]
+    }
+  }
+}

@@ -231,11 +231,18 @@ source/config fingerprint. Comparable timeout, connection, HTTP 429, and
 selected 5xx failures participate. Identity, schema, pagination, mutation,
 configuration, and safety-limit failures do not.
 
-Failures 1–2 do not pause a source; failure 3 pauses for 6 hours, failure 4 for
-12 hours, and failure 5 or later for 24 hours. After expiry, the normal
-scheduled scan is the recovery probe. Only a successful authoritative inventory
-clears the streak. There is no background probe scheduler or provider-wide
-circuit breaker.
+Source cooldown begins at the third comparable failure. The third failure waits
+6 hours, the fourth waits 12 hours, and later failures wait 24 hours. Workday
+listing HTTP 429 responses can set a deadline from the first failure. A longer
+provider deadline takes precedence. The same host is held until its deadline.
+
+Each scan processes ordinary sources first, then admits at most 16 Workday
+sources with expired cooldowns, one at a time and oldest observation first.
+Two physical Workday listing 429s on distinct hosts within 60 seconds pause
+new Workday listing sends for 60 seconds, followed by a minute at three seconds
+between sends. Deferred sources have no absence authority. Cross-host deferrals
+leave source health untouched. A same-host deferral can carry the host deadline
+forward without adding a failure to the source streak.
 
 ## Incremental architecture
 

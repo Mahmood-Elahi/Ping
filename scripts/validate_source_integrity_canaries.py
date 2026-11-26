@@ -674,7 +674,7 @@ def _hidden_continuation_absent(metadata: dict[str, Any]) -> bool:
 
 
 def _incomplete_outcome(metadata: dict[str, Any]) -> str:
-    if metadata.get("stop_reason") in {"rate_limited", "rate_limit_wait"}:
+    if metadata.get("stop_reason") in {"rate_limited", "rate_limit_wait", "rate_limit_backpressure"}:
         return "FAIL_TRANSIENT"
     code = str(metadata.get("source_health_code") or "")
     if code == "source_migration_suspected":
