@@ -25,6 +25,7 @@ EXPECTED_PLATFORMS = {
     "oracle_recruiting": 1,
 }
 RECOVERED_SOURCE_BOUNDS = {
+    "sap_successfactors": {"Aecon": (20, 500)},
     "smartrecruiters": {
         "Assent": (1, 30),
         "Arista Networks": (3, 300),

@@ -373,14 +373,11 @@ class CompanyCareersReliabilityRepairV1Tests(unittest.TestCase):
         for platform, expected in ADAPTER_SAFETY_BUDGET_DEFAULTS.items():
             self.assertTrue(by_platform[platform], platform)
             for target in by_platform[platform]:
-                if target.name == "ATCO":
-                    self.assertEqual((target.max_pages, target.max_jobs), (10, 100))
-                else:
-                    self.assertEqual(
-                        (target.max_pages, target.max_jobs),
-                        (expected["max_pages"], expected["max_jobs"]),
-                        target.name,
-                    )
+                expected_bounds = {
+                    "ATCO": (10, 100),
+                    "HOOPP": (1, 20),
+                }.get(target.name, (expected["max_pages"], expected["max_jobs"]))
+                self.assertEqual((target.max_pages, target.max_jobs), expected_bounds, target.name)
 
     def test_production_reliability_overlay_uses_current_source_contracts(self):
         by_name = {
