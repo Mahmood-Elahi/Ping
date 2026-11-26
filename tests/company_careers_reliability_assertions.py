@@ -281,6 +281,14 @@ for _cert in closeout_recovery.certificate()["sources"]:
         )[0]
 
 
+from scripts import validate_certified_recovery_activation as certified_activation
+
+certified_activation.validate()
+for _name, _case in certified_activation.proof()["sources"].items():
+    if _case["registry_edit"]:
+        APPROVED_SOURCE_MIGRATIONS[_name.casefold()] = yaml.safe_load(_case["after"])[0]
+
+
 APPROVED_DISCOVERY_ONLY_PROMOTIONS = {
     "athabasca oil",
     "bombardier",
@@ -361,7 +369,7 @@ def assert_historical_target_prefix(
     )
     for item in repaired_items:
         defaults = ADAPTER_SAFETY_BUDGET_DEFAULTS.get(str(item.get("platform")))
-        if defaults and item.get("name") != "ATCO":
+        if defaults and item.get("name") != "ATCO" and not item.get("preserve_explicit_bounds"):
             item.update(defaults)
     repaired = [CompanyTarget.from_dict(item) for item in repaired_items]
     testcase.assertGreaterEqual(len(production), len(historical))
