@@ -106,3 +106,71 @@ def test_legacy_unadvertised_short_page_requires_explicit_indexed_empty(company,
     )
     result = scan(company, Session(first, second))
     assert result.authoritative_for_absence == (terminal == "exact")
+
+
+def strict_board_canary(monkeypatch, target, responses):
+    from scripts import validate_source_integrity_canaries as canary
+
+    class FixtureSession(FakeSession):
+        requests_started = 0
+        last_final_url = None
+        last_redirect_count = 0
+
+        def get(self, url, **kwargs):
+            self.requests_started += 1
+            response = super().get(url, **kwargs)
+            self.last_final_url = getattr(response, "url", None) or url
+            return response
+
+        def close(self):
+            pass
+
+    session = FixtureSession(get_responses=responses)
+    session.budget = 32
+    return canary.run_canary(target, session.budget, session=session)
+
+
+def test_deliveroo_strict_canary_requires_adapter_collection_evidence(monkeypatch):
+    candidate, = load_target_companies("reports/recovery-2026-11-25/deliveroo-candidate.yaml")
+    pages = [deliveroo_page(20, i * 20, 198, 10) for i in range(9)]
+    pages.append(deliveroo_page(18, 180, 198, 10))
+    result = strict_board_canary(monkeypatch, candidate, pages)
+    assert result["canary_outcome"] == "PASS_COMPLETE"
+    assert result["unique_stable_ids"] == result["unique_canonical_urls"] == 198
+
+
+def test_deliveroo_distinct_roles_cannot_share_canonical_url(monkeypatch):
+    candidate, = load_target_companies("reports/recovery-2026-11-25/deliveroo-candidate.yaml")
+    page = deliveroo_page(2, 0, 2, 1, row_change={
+        "link": "https://careers.deliveroo.co.uk/role/engineer-1/",
+    })
+    result = strict_board_canary(monkeypatch, candidate, [page])
+    assert result["canary_outcome"] != "PASS_COMPLETE"
+    assert not result["can_reconcile_absence"]
+
+
+def test_atlassian_http_success_with_wrong_posting_id_is_deterministic(monkeypatch):
+    response = FakeResponse([{
+        "id": 25481, "title": "Engineer",
+        "applyUrl": "https://campus-americas.icims.com/jobs/9999/engineer/job?ticket=redact",
+    }])
+    result = strict_board_canary(monkeypatch, targets()["Atlassian"], [response])
+    assert result["canary_outcome"] == "FAIL_IDENTITY"
+    assert not result["can_reconcile_absence"]
+    evidence, = result["diagnostics"]
+    assert evidence["posting_id"] == "25481"
+    assert evidence["apply_url"]["host"] == "campus-americas.icims.com"
+    assert evidence["apply_url"]["posting_id_matches"] is False
+    assert "ticket" not in str(evidence)
+
+
+def test_icims_unmarked_probe_records_missing_terminal_evidence(monkeypatch):
+    target = targets()["Hexagon Autonomy & Positioning / NovAtel"]
+    url = target.search_url
+    first = Response(legacy_page("12345"), url=url + "?pr=0")
+    second = Response(legacy_page(), url=url + "?pr=1")
+    evidence = strict_board_canary(monkeypatch, target, [first, second])
+    probe, = evidence["diagnostics"]
+    assert probe["stage"] == "legacy_terminal_probe"
+    assert probe["response_index_matches"] and not probe["explicit_zero"]
+    assert not evidence["can_reconcile_absence"]

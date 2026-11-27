@@ -236,8 +236,11 @@ Source cooldown begins at the third comparable failure. The third failure waits
 listing HTTP 429 responses can set a deadline from the first failure. A longer
 provider deadline takes precedence. The same host is held until its deadline.
 
-Each scan processes ordinary sources first, then admits at most 16 Workday
-sources with expired cooldowns, one at a time and oldest observation first.
+When any Workday cooldown has expired, a single worker scans Workday while
+other workers process independent sources. It gives previously authoritative
+boards outside the recovery queue first access, then admits at most 16 expired
+cooldowns, then processes the other Workday boards. The recovery order is
+oldest observation first, with prior authoritative inventory breaking ties.
 Two physical Workday listing 429s on distinct hosts within 60 seconds pause
 new Workday listing sends for 60 seconds, followed by a minute at three seconds
 between sends. Deferred sources have no absence authority. Cross-host deferrals

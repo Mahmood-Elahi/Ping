@@ -1,0 +1,95 @@
+{
+  "revision": "e5d3244402dc24b854350e6c7af1695f1c2fe6cc",
+  "purpose": "Exact reconstruction of the previous runtime for historical verification",
+  "files": {
+    "src/scraper/company_careers/adapters/atlassian.py": {
+      "original_sha256": "9a64cc539fa7ebe923c94cc10339f87773674a0a0e1818eb9b9089520b478fea",
+      "patched_sha256": "9a05c4ff3c973e67df82208973b887225f1fe03d800a2426946cc0199b4d6260",
+      "reverse_edits": [
+        [
+          91,
+          92,
+          "    for item in payload:\n"
+        ],
+        [
+          100,
+          118,
+          "        url = _validated_job_url(\n            job_id, item.get(\"applyUrl\") or portal_post.get(\"portalUrl\")\n        )\n"
+        ],
+        [
+          206,
+          226,
+          ""
+        ]
+      ]
+    },
+    "src/scraper/company_careers/adapters/icims.py": {
+      "original_sha256": "8910f7a0a2110de5bc1aceb334c823121badcfa2f3f18087dc6c5c64d973e8a5",
+      "patched_sha256": "917886c9b0895affe77c8ed6be844e9b7114174a6a713d12ba070eee7d40c99b",
+      "reverse_edits": [
+        [
+          164,
+          176,
+          ""
+        ]
+      ]
+    },
+    "src/scraper/company_careers/adapters/public_json.py": {
+      "original_sha256": "b9be686b2bf797a3a92098e93af3fe55694a5c8ef5e79afde7fca144f1592cd9",
+      "patched_sha256": "4b9f2e8915d4ba542708c2acab7b1208beb17e6a976ce5657494d7e3e04237dd",
+      "reverse_edits": [
+        [
+          1541,
+          1543,
+          ""
+        ]
+      ]
+    },
+    "src/scraper/company_careers/scanner.py": {
+      "original_sha256": "dc5ed525030ab28de040292dccc6c76aea39df4f4ca063379b46f37d500171b3",
+      "patched_sha256": "b1dd6c8b1b977127d7e45c722c82929d6b48ff0b5f61c276c6c32621437451e8",
+      "reverse_edits": [
+        [
+          324,
+          325,
+          "        indexed_targets = []\n        workday_recovery = []\n        for index, target in enumerate(self.targets):\n            recovery_priority = None\n            if target.platform == \"workday\":\n                recovery_priority = expired_workday_cooldown_priority(\n                    self.cooldown_states.get(source_health_key(target)), as_of=self.as_of,\n                )\n            if recovery_priority is None:\n                indexed_targets.append((index, target))\n            else:\n                workday_recovery.append((recovery_priority, index, target))\n"
+        ],
+        [
+          338,
+          349,
+          ""
+        ],
+        [
+          350,
+          351,
+          ""
+        ],
+        [
+          362,
+          363,
+          "            worker_count = min(self.max_workers, max(1, len(worker_targets)))\n"
+        ],
+        [
+          367,
+          368,
+          ""
+        ],
+        [
+          378,
+          380,
+          ""
+        ],
+        [
+          381,
+          382,
+          "        # A synchronized expiry should not put a full retry cohort back into\n        # the shared Workday request queue. Give ordinary scans first access,\n        # then let the oldest eligible sources attempt recovery serially.\n        workday_recovery.sort(key=lambda entry: (entry[0], entry[1]))\n        for _, index, target in workday_recovery[:WORKDAY_RECOVERY_SOURCES_PER_SCAN]:\n            results[index] = scan_http_target(target)\n        for _, index, target in workday_recovery[WORKDAY_RECOVERY_SOURCES_PER_SCAN:]:\n"
+        ],
+        [
+          401,
+          432,
+          ""
+        ]
+      ]
+    }
+  }
+}

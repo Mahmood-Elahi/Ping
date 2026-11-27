@@ -322,18 +322,7 @@ class CompanyCareersScanner:
         browser_batch_error: Optional[Exception] = None,
     ) -> CompanyCareersReport:
         results: list[Optional[CompanyScanResult]] = [None] * len(self.targets)
-        indexed_targets = []
-        workday_recovery = []
-        for index, target in enumerate(self.targets):
-            recovery_priority = None
-            if target.platform == "workday":
-                recovery_priority = expired_workday_cooldown_priority(
-                    self.cooldown_states.get(source_health_key(target)), as_of=self.as_of,
-                )
-            if recovery_priority is None:
-                indexed_targets.append((index, target))
-            else:
-                workday_recovery.append((recovery_priority, index, target))
+        indexed_targets = list(enumerate(self.targets))
 
         scan_target = partial(
             self._scan_target_and_observe,
@@ -347,7 +336,19 @@ class CompanyCareersScanner:
         scan_local_target = partial(
             scan_target, browser_batch=browser_batch, browser_batch_error=browser_batch_error,
         )
+        workday_targets, deferred = self._stage_workday_recovery()
+        if workday_targets:
+            staged = {index for index, _ in (*workday_targets, *deferred)}
+            indexed_targets = [pair for pair in indexed_targets if pair[0] not in staged]
+
+        def scan_workday() -> None:
+            # Keep this order at the physical provider boundary. Independent
+            # adapters can still progress in the other workers.
+            for index, target in workday_targets:
+                results[index] = scan_http_target(target)
+
         if self.max_workers == 1:
+            scan_workday()
             for index, target in indexed_targets:
                 results[index] = scan_local_target(target)
         else:
@@ -359,11 +360,12 @@ class CompanyCareersScanner:
                 pair for pair in indexed_targets
                 if pair[1].platform != "browser_rendered_html"
             ]
-            worker_count = min(self.max_workers, max(1, len(worker_targets)))
+            worker_count = min(self.max_workers, max(1, len(worker_targets) + bool(workday_targets)))
             with ThreadPoolExecutor(
                 max_workers=worker_count,
                 thread_name_prefix="job-radar-source",
             ) as executor:
+                workday_future = executor.submit(scan_workday) if workday_targets else None
                 futures: dict[Future[CompanyScanResult], int] = {
                     executor.submit(scan_http_target, target): index
                     for index, target in worker_targets
@@ -374,14 +376,10 @@ class CompanyCareersScanner:
                     results[index] = scan_local_target(target)
                 for future, index in futures.items():
                     results[index] = future.result()
+                if workday_future is not None:
+                    workday_future.result()
 
-        # A synchronized expiry should not put a full retry cohort back into
-        # the shared Workday request queue. Give ordinary scans first access,
-        # then let the oldest eligible sources attempt recovery serially.
-        workday_recovery.sort(key=lambda entry: (entry[0], entry[1]))
-        for _, index, target in workday_recovery[:WORKDAY_RECOVERY_SOURCES_PER_SCAN]:
-            results[index] = scan_http_target(target)
-        for _, index, target in workday_recovery[WORKDAY_RECOVERY_SOURCES_PER_SCAN:]:
+        for index, target in deferred:
             results[index] = self._observe_result(CompanyScanResult(
                 target=target,
                 status=CoverageStatus.COOLDOWN_SKIPPED,
@@ -401,6 +399,37 @@ class CompanyCareersScanner:
                 self.parent_source_mappings,
                 inventory_path=self.original_company_inventory_path,
             ),
+        )
+
+    def _stage_workday_recovery(
+        self,
+    ) -> tuple[list[tuple[int, CompanyTarget]], list[tuple[int, CompanyTarget]]]:
+        healthy = []
+        ordinary = []
+        recovery = []
+        for index, target in enumerate(self.targets):
+            if target.platform != "workday":
+                continue
+            state = self.cooldown_states.get(source_health_key(target), {})
+            last_success = state.get("last_successful_authoritative_inventory")
+            priority = expired_workday_cooldown_priority(state, as_of=self.as_of)
+            if priority is not None:
+                recovery.append((priority, not last_success, index, target))
+            elif last_success:
+                healthy.append((index, target))
+            else:
+                ordinary.append((index, target))
+        if not recovery:
+            return [], []
+
+        # Protect current coverage, then admit eligible recovery before cold
+        # boards can use the shared rate-limit window. Oldest observations lead
+        # to keep the queue moving. Historical success breaks synchronized ties.
+        recovery.sort(key=lambda entry: entry[:3])
+        staged = [(index, target) for _, _, index, target in recovery]
+        return (
+            healthy + staged[:WORKDAY_RECOVERY_SOURCES_PER_SCAN] + ordinary,
+            staged[WORKDAY_RECOVERY_SOURCES_PER_SCAN:],
         )
 
     def _scan_target_and_observe(self, target: CompanyTarget, **options: Any) -> CompanyScanResult:

@@ -162,6 +162,18 @@ def _fetch_jobs_once(
         )
         metadata["pages_completed"] += 1
         indexed_legacy_traversal = indexed_legacy_traversal and _legacy_page_matches_request(response, target, page_index)
+        if target.endpoint_variant == LEGACY_HTML and (probe_after_short_page or not items):
+            final = urlparse(str(getattr(response, "url", "") or ""))
+            metadata["diagnostics"].append({
+                "stage": "legacy_terminal_probe",
+                "requested_index": page_index,
+                "response_index_matches": parse_qs(final.query).get("pr") == [str(page_index)],
+                "exact_indexed_route": indexed_legacy_traversal,
+                "returned_items": len(items),
+                "explicit_zero": zero_contract,
+                "listing_container": listing_contract,
+                "has_more": has_more,
+            })
         if probe_after_short_page and (
             items or not zero_contract or not listing_contract
             or has_more is True or not indexed_legacy_traversal
