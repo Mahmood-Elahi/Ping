@@ -304,6 +304,9 @@ def test_expired_workday_cooldowns_reenter_in_bounded_oldest_first_batches(monke
         }
         for current, delay, age in ((waiting, 0, 1), (later, -1, 2), (older, -1, 3), (active, 1, 4))
     }
+    prior[source_health_key(ordinary)] = {
+        "last_successful_authoritative_inventory": (observed - timedelta(hours=6)).isoformat(),
+    }
     calls = []
     seen = []
 
@@ -335,3 +338,75 @@ def test_expired_workday_cooldowns_reenter_in_bounded_oldest_first_batches(monke
         cooldown_states=states, as_of=observed + timedelta(minutes=1),
     ).scan()
     assert calls == ["ordinary", "waiting", "later"]
+
+
+def test_expired_workday_batch_precedes_cold_hosts_without_weakening_backpressure(monkeypatch):
+    from urllib.parse import urlsplit
+
+    from scripts.public_ci_report import classify_scan_reason
+    from src.scraper.company_careers.scanner import CompanyCareersScanner
+    from src.scraper.company_careers.source_cooldown import reconcile_source_health, source_health_key
+    from tests.test_phase4_workday_protocol import identity
+
+    now = [100.0]
+    observed = datetime(2026, 11, 28, tzinfo=timezone.utc)
+    policy = WorkdayThrottle(
+        clock=lambda: now[0], sleep=lambda delay: now.__setitem__(0, now[0] + delay),
+        wall_clock=lambda: observed.timestamp() + now[0],
+    )
+    names = ("cold-one", "cold-two", "uncertified", "recovered", "healthy", "later", "active")
+    targets = {}
+    for name in names:
+        host = f"{name}.wd1.myworkdayjobs.com"
+        contract = dict(
+            identity(), expected_employer_name=name, expected_workday_tenant=name,
+            expected_workday_hostname=host, expected_apply_hostname=host,
+            official_binding_target_url=f"https://{host}/External",
+        )
+        targets[name] = target(
+            name=name, tenant=name, workday_identity=contract, allowed_apply_hosts=[host],
+        )
+    prior = {}
+    for name in ("uncertified", "recovered", "later", "active"):
+        deadline = observed + timedelta(hours=1 if name == "active" else -1)
+        prior[source_health_key(targets[name])] = {
+            "cooldown_until": deadline.isoformat(),
+            "updated_at": (observed - timedelta(days=1)).isoformat(),
+            "consecutive_transient_failures": 9,
+            "last_failure_classification": "transient_transport",
+        }
+    for name in ("recovered", "healthy"):
+        prior.setdefault(source_health_key(targets[name]), {})[
+            "last_successful_authoritative_inventory"
+        ] = (observed - timedelta(days=2)).isoformat()
+
+    calls = []
+
+    def send(adapter, request, **kwargs):
+        name = urlsplit(request.url).hostname.split(".")[0]
+        assert not calls or now[0] - calls[-1][1] >= 1
+        calls.append((name, now[0]))
+        response = requests.Response()
+        response.url = request.url
+        response.status_code = 429 if name in {"uncertified", "cold-one"} else 200
+        response._content = b'{"total":0,"jobPostings":[],"facets":[]}'
+        response._content_consumed = True
+        return response
+
+    monkeypatch.setattr(requests.adapters.HTTPAdapter, "send", send)
+    report = CompanyCareersScanner(
+        targets=list(targets.values()), max_workers=4, session_factory=policy.session,
+        cooldown_states=prior, as_of=observed,
+    ).scan()
+    assert [name for name, _ in calls] == [
+        "healthy", "recovered", "uncertified", "later", "cold-one",
+    ]
+    results = {result.target.name: result for result in report.results}
+    for name in ("healthy", "recovered", "later"):
+        assert results[name].authoritative_for_absence
+    assert classify_scan_reason(results["cold-two"]) == "rate_limit_backpressure"
+    assert classify_scan_reason(results["active"]) == "cooldown_skipped"
+    assert not results["cold-two"].authoritative_for_absence
+    assert not results["active"].authoritative_for_absence
+    rows = reconcile_source_health(report.results, prior, as_of=observed)
+    assert {row["company"] for row in rows} == {name for name, _ in calls}
