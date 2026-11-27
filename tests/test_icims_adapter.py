@@ -160,6 +160,35 @@ class ICIMSAdapterTests(unittest.TestCase):
         self.assertTrue(metadata["collection_retry_exhausted"])
         self.assertEqual(metadata["scan_completeness_reason"], "collection_changed_during_scan")
 
+    @patch.object(icims.time, "sleep", return_value=None)
+    def test_jibe_restarts_at_first_overlap_and_discards_the_first_traversal(self, _sleep):
+        session = Session([
+            page(item("1"), item("2"), total=6),
+            page(item("2"), item("3"), total=6),
+            page(item("4"), item("5"), total=3),
+            page(item("6"), total=3),
+        ])
+
+        result = icims.fetch_jobs(session, target())
+
+        self.assertEqual([job.raw_metadata["external_job_id"] for job in result], ["4", "5", "6"])
+        self.assertEqual([call[1]["params"]["page"] for call in session.calls], ["1", "2", "1", "2"])
+        self.assertTrue(result.scan["scan_complete"])
+        self.assertEqual(result.scan["first_traversal_mutation"]["first_changed_offset"], 2)
+        self.assertEqual(result.scan["first_traversal_mutation"]["overlapping_ids"], 1)
+
+    @patch.object(icims.time, "sleep", return_value=None)
+    def test_jibe_nominal_last_page_cannot_override_reported_total(self, _sleep):
+        for last_page in (page(total=4), page(item("3"), total=4)):
+            with self.subTest(last_page=last_page.payload):
+                session = Session([page(item("1"), item("2"), total=4), last_page])
+
+                result = icims.fetch_jobs(session, target())
+
+                self.assertFalse(result.scan["scan_complete"])
+                self.assertEqual(result.scan["total_available"], 4)
+                self.assertEqual(result.scan["stop_reason"], "jibe_total_mismatch")
+
     def test_25_valid_zero_job_response(self):
         session = Session([Response({"jobs": [], "totalCount": 0, "count": 0})])
         self.assertEqual(icims.fetch_jobs(session, target()), [])

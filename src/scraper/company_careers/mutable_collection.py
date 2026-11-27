@@ -48,16 +48,23 @@ def fetch_with_mutation_restart(
     )
     first_requests = int(first_metadata.get("pages_requested") or 0)
     first_pages = int(first_metadata.get("pages_completed") or 0)
-    second_output = (fetch_replacement or fetch_once)()
+    first_mutation = collection_mutation_evidence(first_metadata)
+    try:
+        second_output = (fetch_replacement or fetch_once)()
+    finally:
+        # Preserve the reason for restarting even if the replacement raises.
+        metadata = source_scan_metadata(session)
+        metadata.update(
+            collection_restart_count=MAX_COLLECTION_RESTARTS,
+            first_traversal_mutation=first_mutation,
+        )
     second_result = _as_result(second_output, session)
     second_jobs = second_result.jobs
-    metadata = source_scan_metadata(session)
     second_ids = (
         {item.item_id for item in second_result.inventory_items}
         or {job.job_id for job in second_jobs}
     )
     metadata.update(
-        collection_restart_count=MAX_COLLECTION_RESTARTS,
         first_traversal_jobs=len(first_jobs),
         first_traversal_pages=first_pages,
         stable_id_set_match_across_restart=first_ids == second_ids,
@@ -147,7 +154,7 @@ def record_total_observation(
                 "total_available": total,
             }
         )
-        mark_collection_changed(metadata)
+        mark_collection_changed(metadata, offset=offset)
     metadata["final_total_observed"] = total
     metadata["final_total_available"] = total
     # Compatibility alias: this is the latest valid hint, not a snapshot promise.
@@ -166,6 +173,8 @@ def mark_collection_changed(
     metadata["collection_changed_during_scan"] = True
     metadata["scan_complete"] = False
     metadata["scan_completeness_reason"] = COLLECTION_CHANGED_REASON
+    if offset is not None:
+        metadata.setdefault("first_collection_mutation_offset", offset)
     if overlap_count:
         metadata["overlapping_jobs_skipped"] += overlap_count
         metadata["diagnostics"].append(
@@ -174,6 +183,22 @@ def mark_collection_changed(
                 "overlapping_jobs_skipped": overlap_count,
             }
         )
+
+
+def collection_mutation_evidence(metadata: SourceScanMetadata) -> dict[str, Any] | None:
+    """Summarize a changed traversal without retaining IDs or response bodies."""
+    if not metadata.get("collection_changed_during_scan"):
+        return None
+    return {
+        "first_changed_offset": metadata.get("first_collection_mutation_offset"),
+        "pages_completed": metadata.get("pages_completed"),
+        "initial_total": metadata.get("initial_total_available"),
+        "minimum_total": metadata.get("minimum_total_observed"),
+        "maximum_total": metadata.get("maximum_total_observed"),
+        "last_total": metadata.get("final_total_observed"),
+        "total_changed": metadata.get("total_count_changed", False),
+        "overlapping_ids": metadata.get("overlapping_jobs_skipped", 0),
+    }
 
 
 def finish_terminal(

@@ -9,12 +9,14 @@ import requests
 
 from scripts import validate_company_registry as validator
 from src.scraper.company_careers.adapters import sap_successfactors as sf
+from src.scraper.company_careers.adapters.successfactors_table_recovery import is_reviewed
 from src.scraper.company_careers.models import (
     AdapterError,
     CompanyTarget,
     source_scan_metadata,
 )
 from src.scraper.company_careers.registry import load_target_companies
+from src.scraper.company_careers.student_roles import configure_student_targets
 
 
 class FakeResponse:
@@ -1343,6 +1345,33 @@ class SapSuccessFactorsTests(unittest.TestCase):
         self.assertTrue(metadata["stabilized_after_collection_retry"])
         self.assertEqual(metadata["collection_restart_count"], 1)
         self.assertEqual(metadata["total_pages_requested_across_traversals"], 4)
+
+    @patch.object(sf.time, "sleep", return_value=None)
+    def test_production_pcl_profile_restarts_at_first_overlap(self, _sleep):
+        targets = configure_student_targets(load_target_companies(apply_reliability_repairs=True))
+        pcl = next(target for target in targets if target.name == "PCL Construction")
+        self.assertTrue(is_reviewed(pcl))
+
+        def pcl_page(indices, **pagination):
+            html = table_html([table_job(index) for index in indices], **pagination)
+            return FakeResponse(html.replace("Example Jobs", "PCL Construction Jobs"))
+
+        session = FakeSession([
+            pcl_page(range(1, 11), total=40, next_offset=10),
+            pcl_page(range(10, 20), total=40, offset=10, next_offset=20),
+            pcl_page(range(101, 111), total=11, next_offset=10),
+            pcl_page([111], total=11, offset=10),
+        ])
+
+        result = sf.fetch_jobs(session, pcl)
+
+        self.assertTrue(result.scan["scan_complete"])
+        self.assertEqual(len(result.inventory_items), 11)
+        self.assertTrue(result.jobs[0].url.endswith("/1101/"))
+        self.assertEqual(session.calls[2][0], pcl.search_url)
+        self.assertEqual(result.scan["first_traversal_mutation"]["first_changed_offset"], 10)
+        self.assertEqual(result.scan["first_traversal_mutation"]["overlapping_ids"], 1)
+        self.assertEqual(result.scan["requests_used"], 4)
 
     @patch.object(sf.time, "sleep", return_value=None)
     def test_changing_positive_total_is_usable_incomplete(self, _sleep):

@@ -19,7 +19,10 @@ from src.scraper.company_careers.models import (
     explicit_adapter_result,
     publish_source_scan_metadata,
 )
-from src.scraper.company_careers.listing_completion import AdaptiveListingCompletion
+from src.scraper.company_careers.listing_completion import (
+    AdaptiveListingCompletion,
+    ListingPageBudget,
+)
 from src.scraper.company_careers.mutable_collection import (
     fetch_with_mutation_restart,
     finish_changed,
@@ -59,17 +62,21 @@ def fetch_jobs(
     target: CompanyTarget,
     timeout: int = 20,
 ) -> List[JobRecord]:
+    page_budget = ListingPageBudget()
     return fetch_with_mutation_restart(
         session,
-        lambda: _fetch_jobs_once(session, target, timeout, restart_on_mutation=True),
-        fetch_replacement=lambda: _fetch_jobs_once(session, target, timeout),
+        lambda: _fetch_jobs_once(
+            session, target, timeout, page_budget, restart_on_mutation=True
+        ),
+        fetch_replacement=lambda: _fetch_jobs_once(session, target, timeout, page_budget),
     )
 
 
 def _fetch_jobs_once(
     session: requests.Session,
     target: CompanyTarget,
-    timeout: int = 20,
+    timeout: int,
+    page_budget: ListingPageBudget,
     *,
     restart_on_mutation: bool = False,
 ) -> List[JobRecord]:
@@ -120,6 +127,9 @@ def _fetch_jobs_once(
         )
         if len(jobs) >= effective_results:
             metadata["stop_reason"] = "maximum_results_reached"
+            break
+        if not page_budget.claim():
+            metadata["stop_reason"] = "maximum_pages_reached"
             break
         offset = page_index * PAGE_SIZE
         params = {

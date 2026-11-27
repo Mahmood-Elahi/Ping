@@ -20,6 +20,10 @@ from src.scraper.company_careers.models import (
     SourceScanMetadata,
     publish_source_scan_metadata,
 )
+from src.scraper.company_careers.mutable_collection import (
+    fetch_with_mutation_restart,
+    record_total_observation,
+)
 from src.scraper.company_careers.source_health import (
     SourceHealthCode,
     SourceScanState,
@@ -474,6 +478,33 @@ class RegistryIntegrityGateTests(unittest.TestCase):
         self.assertEqual(row["result_authority"], "incomplete")
         self.assertFalse(row["authoritative_for_absence"])
         self.assertFalse(row["can_reconcile_absence"])
+
+    def test_canary_keeps_first_mutation_evidence_if_replacement_hits_request_cap(self):
+        target = CompanyTarget(name="Diagnostic", platform="fixture")
+
+        def adapter(session, _target, _timeout):
+            def changed():
+                metadata = SourceScanMetadata(pages_completed=2)
+                record_total_observation(metadata, 40, offset=0, source_label="Fixture")
+                record_total_observation(metadata, 41, offset=10, source_label="Fixture")
+                publish_source_scan_metadata(session, metadata)
+                return []
+
+            def interrupted():
+                publish_source_scan_metadata(session, SourceScanMetadata())
+                raise CanaryBudgetReached("fixture budget")
+
+            return fetch_with_mutation_restart(session, changed, fetch_replacement=interrupted)
+
+        with patch.dict("scripts.validate_source_integrity_canaries.ADAPTERS", {"fixture": adapter}):
+            row = run_canary(target, 2)
+
+        self.assertFalse(row["authoritative_for_absence"])
+        self.assertEqual(row["collection_restart_count"], 1)
+        self.assertEqual(row["first_traversal_mutation"]["first_changed_offset"], 10)
+        self.assertEqual(row["first_traversal_mutation"]["initial_total"], 40)
+        self.assertEqual(row["first_traversal_mutation"]["last_total"], 41)
+        self.assertIsNone(row["last_traversal_mutation"])
 
     def test_bounded_canary_surfaces_record_rejection_and_dedup_diagnostics(self):
         target = CompanyTarget(name="Diagnostic", platform="fixture")

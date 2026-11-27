@@ -1,0 +1,150 @@
+{
+  "base_commit": "3287befaa59f18611828dcd919f8ef49af3a752c",
+  "files": {
+    "scripts/validate_source_integrity_canaries.py": {
+      "original_sha256": "9e4be15678480b8fcb2ca6ff5c8772c62b3d39ce104baa8acd462dc7ce7f0945",
+      "patched_sha256": "d4935fdb40b571c890d1cfda3a3a1992a7a12fcfee89b866cde8cb3a79f04262",
+      "reverse_edits": [
+        [
+          31,
+          32,
+          ""
+        ],
+        [
+          133,
+          144,
+          "def run_canary(target: Any, request_budget: int, *, throttle: WorkdayThrottle | None = None) -> dict[str, Any]:\n    session = BoundedSession(request_budget) if throttle is None else BoundedSession(request_budget, throttle)\n"
+        ],
+        [
+          258,
+          261,
+          ""
+        ]
+      ]
+    },
+    "src/scraper/company_careers/adapters/eightfold.py": {
+      "original_sha256": "05773daef84be164bf1001c206066c3d036e8e5f36ce0a42be7fecf76336f336",
+      "patched_sha256": "4f7f0927d859dabb6436d13a85592981213f541ac8a4b32c75459b721a1bbe1e",
+      "reverse_edits": [
+        [
+          21,
+          25,
+          "from src.scraper.company_careers.listing_completion import AdaptiveListingCompletion\n"
+        ],
+        [
+          64,
+          65,
+          ""
+        ],
+        [
+          67,
+          71,
+          "        lambda: _fetch_jobs_once(session, target, timeout, restart_on_mutation=True),\n        fetch_replacement=lambda: _fetch_jobs_once(session, target, timeout),\n"
+        ],
+        [
+          77,
+          79,
+          "    timeout: int = 20,\n"
+        ],
+        [
+          129,
+          132,
+          ""
+        ]
+      ]
+    },
+    "src/scraper/company_careers/adapters/icims.py": {
+      "original_sha256": "6fcb3f02f8b342eea7261ff1b7e6de45745a2c9cc3d38bbfb395c7ade05ad657",
+      "patched_sha256": "8910f7a0a2110de5bc1aceb334c823121badcfa2f3f18087dc6c5c64d973e8a5",
+      "reverse_edits": [
+        [
+          27,
+          28,
+          ""
+        ],
+        [
+          77,
+          78,
+          ""
+        ],
+        [
+          79,
+          84,
+          "        session, lambda: _fetch_jobs_once(session, target, timeout)\n"
+        ],
+        [
+          90,
+          94,
+          "    timeout: int = 20,\n"
+        ],
+        [
+          152,
+          155,
+          ""
+        ],
+        [
+          287,
+          295,
+          ""
+        ],
+        [
+          315,
+          320,
+          ""
+        ],
+        [
+          356,
+          369,
+          "            metadata[\"total_available\"] = len(jobs)\n            finish_terminal(\n                metadata,\n                complete_reason=\"explicit_next_page_exhausted\",\n            )\n"
+        ]
+      ]
+    },
+    "src/scraper/company_careers/listing_completion.py": {
+      "original_sha256": "d966d7d87aa914e1c874e09f9b125d0b16fb0c5a81262c3a428f6329129df900",
+      "patched_sha256": "94817251b02567358638acae197902fe8137bef5dba5a3cc425f88d031474293",
+      "reverse_edits": [
+        [
+          21,
+          34,
+          ""
+        ]
+      ]
+    },
+    "src/scraper/company_careers/mutable_collection.py": {
+      "original_sha256": "e9812c23c28bafc16466e5205a8e10d38d314ca4d738180ccb02fde61fd03568",
+      "patched_sha256": "2c08460f5ff235b67b01bf949321afa74717eb3b2b3238785ac1ded6ebf382b1",
+      "reverse_edits": [
+        [
+          50,
+          60,
+          "    second_output = (fetch_replacement or fetch_once)()\n"
+        ],
+        [
+          62,
+          62,
+          "    metadata = source_scan_metadata(session)\n"
+        ],
+        [
+          67,
+          67,
+          "        collection_restart_count=MAX_COLLECTION_RESTARTS,\n"
+        ],
+        [
+          156,
+          157,
+          "        mark_collection_changed(metadata)\n"
+        ],
+        [
+          175,
+          177,
+          ""
+        ],
+        [
+          185,
+          201,
+          ""
+        ]
+      ]
+    }
+  }
+}
